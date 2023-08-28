@@ -25,7 +25,7 @@ impl Into<Direct2D::Common::D2D_RECT_F> for Rectangle {
     }
 }
 
-pub struct Renderer {
+pub struct Renderer<'_> {
     render_target: Direct2D::ID2D1HwndRenderTarget,
     brush: Direct2D::ID2D1SolidColorBrush,
 }

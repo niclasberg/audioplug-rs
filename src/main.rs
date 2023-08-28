@@ -7,6 +7,9 @@ use widget::Widget;
 #[cfg(target_os = "windows")]
 mod win;
 
+#[cfg(target_os = "macos")]
+mod mac;
+
 mod core;
 mod widget;
 mod window;
@@ -21,7 +24,7 @@ struct MyWidget {
 impl Widget for MyWidget {
     fn render(&self, ctx: &mut Renderer) {
         let color = if self.active { Color::RED } else { Color::WHITE };
-        ctx.fill_rounded_rectangle(Rectangle::from_xywh(45.0, 45.0, 100.0, 100.0), 5.0, 5.0, color);
+        ctx.fill_rectangle(Rectangle::from_xywh(45.0, 45.0, 100.0, 100.0), color);
     }
 
     fn event(&mut self, event: Event) {

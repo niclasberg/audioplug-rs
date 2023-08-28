@@ -1,8 +1,11 @@
 use crate::{core::{Rectangle, Color}, widget::Widget};
 #[cfg(target_os = "windows")]
 use crate::win as platform;
+#[cfg(target_os = "macos")]
+use crate::mac as platform;
 
-pub struct Renderer<'a>(pub(crate) &'a mut platform::Renderer);
+
+pub struct Renderer<'a>(pub(crate) &'a mut platform::Renderer<'a>);
 
 impl<'a> Renderer<'a> {
     pub fn draw_rectangle(&mut self, rect: Rectangle, color: Color, line_width: f32) {
