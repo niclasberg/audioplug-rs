@@ -1,47 +1,54 @@
+use std::ops::Add;
+
+use super::Vector;
+
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct Point {
-    pub x: f64,
-    pub y: f64
+pub struct Point<T = f64> {
+    pub x: T,
+    pub y: T
 }
 
-impl Point {
-    pub fn new(x: f64, y: f64) -> Self {
+impl<T> Point<T> {
+    pub fn new(x: T, y: T) -> Self {
         Self { x, y }
     }
+}
+
+impl Point<f64> {
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0
+    };
 
     pub fn zero() -> Self {
         Self { x: 0f64, y: 0f64 }
     }
 }
 
-impl From<[f64; 2]> for Point {
-    fn from([x, y]: [f64; 2]) -> Self {
-        Self { x, y }
+impl From<Point<i32>> for Point<f64> {
+    fn from(value: Point<i32>) -> Self {
+        Self { x: value.x as f64, y: value.y as f64 }
     }
 }
 
-impl From<[f32; 2]> for Point {
-    fn from([x, y]: [f32; 2]) -> Self {
+impl<T, U: Into<T>> From<[U; 2]> for Point<T> {
+    fn from([x, y]: [U; 2]) -> Self {
         Self { x: x.into(), y: y.into() }
     }
 }
 
-impl From<[i32; 2]> for Point {
-    fn from([x, y]: [i32; 2]) -> Self {
-        Self { x: x.into(), y: y.into() }
-    }
-}
-
-impl From<[i16; 2]> for Point {
-    fn from([x, y]: [i16; 2]) -> Self {
-        Self { x: x.into(), y: y.into() }
-    }
-}
-
-impl std::ops::Add for Point {
+impl<T: Add<Output = T>> Add for Point<T> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
+        Self { x: self.x + rhs.x, y: self.y + rhs.y }
+    }
+}
+
+impl std::ops::Add<Vector> for Point {
+    type Output = Self;
+
+    fn add(self, rhs: Vector) -> Self::Output {
         Self { x: self.x + rhs.x, y: self.y + rhs.y }
     }
 }

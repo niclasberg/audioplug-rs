@@ -10,6 +10,8 @@ dependencies = [
  "icrate",
  "num",
  "objc2",
+ "raw-window-handle",
+ "vst3-sys",
  "windows",
 ]
 
@@ -151,6 +153,84 @@ name = "objc2-encode"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d079845b37af429bfe5dfa76e6d087d788031045b25cfc6fd898486fd9847666"
+
+[[package]]
+name = "proc-macro2"
+version = "1.0.66"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18fb31db3f9bddb2ea821cde30a9f70117e3f119938b5ee630b7403aa6e2ead9"
+dependencies = [
+ "unicode-ident",
+]
+
+[[package]]
+name = "quote"
+version = "1.0.33"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5267fca4496028628a95160fc423a33e8b2e6af8a5302579e322e4b520293cae"
+dependencies = [
+ "proc-macro2",
+]
+
+[[package]]
+name = "raw-window-handle"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2ff9a1f06a88b01621b7ae906ef0211290d1c8a168a15542486a8f61c0833b9"
+
+[[package]]
+name = "syn"
+version = "1.0.109"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
+name = "unicode-ident"
+version = "1.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "301abaae475aa91687eb82514b328ab47a211a533026cb25fc3e519b86adfc3c"
+
+[[package]]
+name = "vst3-com"
+version = "0.1.0"
+source = "git+https://github.com/RustAudio/vst3-sys.git#f3e8f01c3de6d5df2f503c920c9f2bf8166a771b"
+dependencies = [
+ "vst3-com-macros",
+]
+
+[[package]]
+name = "vst3-com-macros"
+version = "0.2.0"
+source = "git+https://github.com/RustAudio/vst3-sys.git#f3e8f01c3de6d5df2f503c920c9f2bf8166a771b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+ "vst3-com-macros-support",
+]
+
+[[package]]
+name = "vst3-com-macros-support"
+version = "0.2.0"
+source = "git+https://github.com/RustAudio/vst3-sys.git#f3e8f01c3de6d5df2f503c920c9f2bf8166a771b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "vst3-sys"
+version = "0.1.0"
+source = "git+https://github.com/RustAudio/vst3-sys.git#f3e8f01c3de6d5df2f503c920c9f2bf8166a771b"
+dependencies = [
+ "vst3-com",
+]
 
 [[package]]
 name = "windows"

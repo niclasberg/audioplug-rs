@@ -5,12 +5,10 @@ use windows::{core::{PCWSTR, w, Result, Error},
         Foundation::*, 
         System::LibraryLoader::GetModuleHandleW, 
         UI::WindowsAndMessaging::*, 
-        Graphics::Direct2D,
-        Graphics::DirectWrite,
         Graphics::Gdi}};
 
 use super::{com, Renderer};
-use crate::{core::{Color, Point}, Event, widget::Widget, event::{MouseEvent, WindowEvent}};
+use crate::{core::{Color, Point, Rectangle}, Event, event::{MouseEvent, WindowEvent}, window::WindowHandler};
 use crate::event::MouseButton;
 
 const WINDOW_CLASS: PCWSTR = w!("my_window");
@@ -43,18 +41,6 @@ impl CheckOk for BOOL {
     }
 }
 
-#[derive(Debug, PartialEq, Copy, Clone)]
-struct PhysPoint {
-    x: i32,
-    y: i32
-}
-
-impl PhysPoint {
-    pub fn from_lparam(lparam: LPARAM) -> Self {
-        Self { x: loword(lparam) as i32, y: hiword(lparam) as i32 }    
-    }
-}
-
 pub struct Window {
     handle: HWND,
     // Ensure handle is !Send
@@ -62,31 +48,39 @@ pub struct Window {
 }
 
 struct WindowState {
-    d2d_factory: Direct2D::ID2D1Factory,
-    dw_factory: DirectWrite::IDWriteFactory,
     renderer: RefCell<Option<Renderer>>,
-    widget: RefCell<Box<dyn Widget>>,
-    last_mouse_pos: RefCell<Option<PhysPoint>>
+    handler: RefCell<Box<dyn WindowHandler>>,
+    last_mouse_pos: RefCell<Option<Point<i32>>>
 }
 
 impl WindowState {
+    fn publish_event(&self, event: Event) {
+        self.handler.borrow_mut().event(event);
+    }
+
     fn handle_message(&self, hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         match message {
             WM_PAINT => {   
                 let mut renderer_ref = self.renderer.borrow_mut();
                 let renderer = renderer_ref.get_or_insert_with(|| {
-                    Renderer::new(hwnd, &self.d2d_factory).unwrap()
+                    Renderer::new(hwnd).unwrap()
                 });
     
+                let mut ps = Gdi::PAINTSTRUCT::default();
                 unsafe { 
-                    let mut ps = Gdi::PAINTSTRUCT::default();
                     Gdi::BeginPaint(hwnd, &mut ps);
     
                     renderer.begin_draw();
                     renderer.clear(Color::BLUE);
+                }
     
-                    self.widget.borrow().render(&mut crate::window::Renderer(renderer));
+                {
+                    let rect: Rectangle = get_client_rect(hwnd).into();
+                    self.handler.borrow_mut()
+                        .render(Rectangle::new(Point::ZERO, rect.size()), renderer);
+                }
     
+                unsafe {
                     // TODO: Handle error here
                     renderer.end_draw().unwrap();
     
@@ -105,17 +99,17 @@ impl WindowState {
                 }
 
                 let window_event = WindowEvent::Resize { new_size: [width, height].into() };
-                self.widget.borrow_mut().event(Event::Window(window_event));
+                self.publish_event(Event::Window(window_event));
                 Some(LRESULT(0))
             },
 
             WM_SETFOCUS => {
-                self.widget.borrow_mut().event(Event::Window(WindowEvent::Focused));
+                self.publish_event(Event::Window(WindowEvent::Focused));
                 Some(LRESULT(0))
             },
 
             WM_KILLFOCUS => {
-                self.widget.borrow_mut().event(Event::Window(WindowEvent::Unfocused));
+                self.publish_event(Event::Window(WindowEvent::Unfocused));
                 Some(LRESULT(0))
             },
             
@@ -124,23 +118,23 @@ impl WindowState {
             WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK => {
                 let mouse_event = self.get_mouse_event(message, wparam, lparam);
 
-                self.widget.borrow_mut().event(Event::Mouse(mouse_event));
+                self.publish_event(Event::Mouse(mouse_event));
                 Some(LRESULT(0))
             },
 
             WM_MOUSEMOVE => {
-                let phys_pos = PhysPoint::from_lparam(lparam);
-                let position: Point = [phys_pos.x, phys_pos.y].into();
+                let phys_pos = point_from_lparam(lparam);
+                let position: Point = phys_pos.into();
                 let last_mouse_pos = self.last_mouse_pos.replace(Some(phys_pos));
 
                 if let Some(last_mouse_pos) = last_mouse_pos {
                     // Filter out spurious mouse move events
                     if phys_pos != last_mouse_pos {
-                        self.widget.borrow_mut().event(Event::Mouse(MouseEvent::Moved { position }));
+                        self.publish_event(Event::Mouse(MouseEvent::Moved { position }));
                     }
                 } else {
-                    self.widget.borrow_mut().event(Event::Mouse(MouseEvent::Enter));
-                    self.widget.borrow_mut().event(Event::Mouse(MouseEvent::Moved { position }));
+                    self.publish_event(Event::Mouse(MouseEvent::Enter));
+                    self.publish_event(Event::Mouse(MouseEvent::Moved { position }));
                 }
                 
                 Some(LRESULT(0))
@@ -148,13 +142,13 @@ impl WindowState {
 
             0x02A3 /* WM_MOUSELEAVE */ => {
                 self.last_mouse_pos.replace(None);
-                self.widget.borrow_mut().event(Event::Mouse(MouseEvent::Exit));
+                self.publish_event(Event::Mouse(MouseEvent::Exit));
                 Some(LRESULT(0))
             },
 
             WM_DESTROY => {
-                unsafe { PostQuitMessage(0) };
-                Some(LRESULT(0))
+                //unsafe { PostQuitMessage(0) };
+                None//Some(LRESULT(0))
             },
             _ => None
         }
@@ -183,7 +177,27 @@ impl WindowState {
 }
 
 impl Window {
-    pub fn new(widget: impl Widget + 'static) -> Result<Self> {
+    pub fn open(handler: impl WindowHandler + 'static) -> Result<Self> {
+        Self::create(None, WS_OVERLAPPEDWINDOW, handler)
+    }
+
+    pub fn attach(parent: HWND, handler: impl WindowHandler + 'static) -> Result<Self> {
+        Self::create(Some(parent), WS_CHILD, handler)
+    }
+
+    pub fn set_size(&self, size: Rectangle<i32>) -> Result<()> {
+        unsafe { SetWindowPos(
+            self.handle, 
+            None, 
+            size.left(), 
+            size.top(), 
+            size.width(), 
+            size.height(), 
+            SET_WINDOW_POS_FLAGS::default()).ok()
+        }
+    }
+
+    fn create(parent: Option<HWND>, style: WINDOW_STYLE, handler: impl WindowHandler + 'static) -> Result<Self> {
         let instance = unsafe { GetModuleHandleW(None)? };
         REGISTER_WINDOW_CLASS.call_once(|| {
             let class = WNDCLASSW {
@@ -200,10 +214,8 @@ impl Window {
         com::com_initialized();
 
         let window_state = Rc::new(WindowState {
-            d2d_factory: unsafe { Direct2D::D2D1CreateFactory::<Direct2D::ID2D1Factory>(Direct2D::D2D1_FACTORY_TYPE_SINGLE_THREADED, None)? },
-            dw_factory: unsafe { DirectWrite::DWriteCreateFactory(DirectWrite::DWRITE_FACTORY_TYPE_SHARED)? },
             renderer: RefCell::new(None),
-            widget: RefCell::new(Box::new(widget)),
+            handler: RefCell::new(Box::new(handler)),
             last_mouse_pos: RefCell::new(None),
         });
 
@@ -212,12 +224,12 @@ impl Window {
                 WINDOW_EX_STYLE::default(), 
                 WINDOW_CLASS, 
                 w!("My window"), 
-                WS_OVERLAPPEDWINDOW, 
+                style, 
                 CW_USEDEFAULT, 
                 CW_USEDEFAULT, 
                 CW_USEDEFAULT, 
                 CW_USEDEFAULT, 
-                None, 
+                parent.unwrap_or(HWND(0)), 
                 None, 
                 instance, 
                 Some(Rc::into_raw(window_state) as _)).ok()?
@@ -242,21 +254,36 @@ fn hiword(lparam: LPARAM) -> u16 {
     ((lparam.0 >> 16) & 0xFFFF) as u16
 }
 
+fn get_client_rect(hwnd: HWND) -> Rectangle<i32> {
+    let mut rect: RECT = RECT::default();
+    unsafe { GetClientRect(hwnd, &mut rect) };
+    Rectangle::from_ltrb(rect.left, rect.top, rect.right, rect.bottom)
+}
+
+fn point_from_lparam(lparam: LPARAM) -> Point<i32> {
+    Point::new(loword(lparam) as i32, hiword(lparam) as i32)
+}
+
 unsafe extern "system" fn wndproc(hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     if message == WM_NCCREATE {
         let create_struct = &*(lparam.0 as *const CREATESTRUCTW);
         let window_state_ptr = create_struct.lpCreateParams;
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, window_state_ptr as _);
     }
+
     let window_state_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const WindowState;
-
-    let result = if !window_state_ptr.is_null() {
-        (&*window_state_ptr).handle_message(hwnd, message, wparam, lparam)
+    if !window_state_ptr.is_null() {
+        if message == WM_NCDESTROY {
+            SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+            drop(Rc::from_raw(window_state_ptr));
+            DefWindowProcW(hwnd, message, wparam, lparam)
+        } else {
+            let result = (&*window_state_ptr).handle_message(hwnd, message, wparam, lparam);
+            result.unwrap_or_else(|| {
+                DefWindowProcW(hwnd, message, wparam, lparam)
+            })
+        }
     } else {
-        None
-    };
-
-    result.unwrap_or_else(|| {
         DefWindowProcW(hwnd, message, wparam, lparam)
-    })
+    }
 }

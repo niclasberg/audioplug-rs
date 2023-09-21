@@ -35,8 +35,7 @@ impl<T:CGReffable> Deref for CGRef<T> {
 #[repr(C)]
 pub struct CGColor {
 	_data: [u8; 0],
-    _marker:
-        core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
 unsafe impl Encode for CGColor {

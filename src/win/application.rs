@@ -1,7 +1,4 @@
-use windows::{
-    core::*,
-    Win32::UI::WindowsAndMessaging::*
-};
+use windows::Win32::UI::WindowsAndMessaging::*;
 
 pub struct Application {
 
