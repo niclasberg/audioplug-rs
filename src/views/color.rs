@@ -1,13 +1,13 @@
-use crate::{core::{Color, Constraint, Size, Rectangle}, View, Event, EventContext, window::Renderer};
+use crate::{core::{Color, Constraint, Size, Rectangle}, View, window::Renderer, LayoutContext};
 
-impl View<()> for Color {
+impl View for Color {
+	type Message = ();
     type State = ();
     
-    fn build(&self, view_id: &crate::IdPath) -> Self::State { () }
-    fn rebuild(&self, view_id: &crate::IdPath, prev: &Self, state: &mut Self::State) { }
-    fn event(&mut self, _state: &mut Self::State, _event: Event, _ctx: &mut EventContext<()>) {}
+    fn build(&mut self, view_id: &crate::IdPath) -> Self::State { () }
+    fn rebuild(&mut self, view_id: &crate::IdPath, prev: &Self, state: &mut Self::State) { }
 
-    fn layout(&mut self, _state: &Self::State, constraint: Constraint) -> Size {
+    fn layout(&self, _state: &Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Size {
         constraint.max()
     }
 

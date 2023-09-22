@@ -2,8 +2,10 @@ use icrate::Foundation::{NSPoint, NSRect, NSSize};
 use icrate::AppKit::{NSWindow, NSBackingStoreBuffered, NSWindowStyleMaskClosable, NSWindowStyleMaskResizable, NSWindowStyleMaskTitled};
 use objc2::rc::Id;
 use objc2::ClassType;
+use crate::core::Rectangle;
+use crate::window::WindowHandler;
 
-use crate::widget::Widget;
+use super::Error;
 use super::view::View;
 
 pub struct Window {
@@ -12,7 +14,7 @@ pub struct Window {
 }
 
 impl Window {
-	pub(crate) fn new(widget: impl Widget + 'static) -> Result<Self, ()> {
+	pub(crate) fn open(widget: impl WindowHandler + 'static) -> Result<Self, Error> {
 		let window = {
 			let this = NSWindow::alloc();
 			let backing_store_type = NSBackingStoreBuffered;
@@ -38,5 +40,9 @@ impl Window {
 		}
 
 		Ok(Self { window, view })
+	}
+
+	pub fn set_size(&self, size: Rectangle<i32>) -> Result<(), Error> {
+		todo!()
 	}
 }

@@ -4,7 +4,7 @@ use raw_window_handle::RawWindowHandle;
 
 use crate::core::{Rectangle, Color, Size, Transform, Constraint};
 use crate::view::{View, ViewNode, EventContext};
-use crate::{Event, Message, ViewMessage, Id, IdPath};
+use crate::{Event, Message, ViewMessage, Id, IdPath, LayoutContext};
 
 #[cfg(target_os = "windows")]
 use crate::win as platform;
@@ -16,9 +16,9 @@ pub trait WindowHandler {
     fn render(&mut self, bounds: Rectangle, renderer: &mut platform::Renderer);
 }
 
-pub struct Renderer<'a>(pub(crate) &'a mut platform::Renderer);
+pub struct Renderer<'a, 'b>(pub(crate) &'a mut platform::Renderer<'b>);
 
-impl<'a> Renderer<'a> {
+impl<'a, 'b> Renderer<'a, 'b> {
     pub fn draw_rectangle(&mut self, rect: Rectangle, color: Color, line_width: f32) {
         self.0.draw_rectangle(rect, color, line_width)
     }
@@ -43,14 +43,14 @@ impl<'a> Renderer<'a> {
 
 pub struct Window(platform::Window);
 
-struct MyHandler<V: View<()>> {
+struct MyHandler<V: View> {
     view: V,
     view_state: V::State,
     view_meta: ViewNode,
     messages: Vec<ViewMessage<Box<dyn Any>>>,
 }
 
-impl<V: View<()>> MyHandler<V> {
+impl<V: View> MyHandler<V> {
     pub fn new(view: V) -> Self {
         let view_meta = ViewNode::new();
         let view_state = view.build(&IdPath::root());
@@ -66,16 +66,17 @@ impl<V: View<()>> MyHandler<V> {
     }
 }
 
-impl<V: View<()> + 'static> WindowHandler for MyHandler<V> {
+impl<V: View + 'static> WindowHandler for MyHandler<V> {
     fn event(&mut self, event: Event) {
-        let mut ctx = EventContext::<()>::new(&mut self.view_meta, &mut self.messages);
-        self.view.event(event, &mut self.view_state, &mut ctx);
+        let mut ctx = EventContext::<V::Message>::new(&mut self.view_meta, &mut self.messages);
+        self.view.event(&mut self.view_state, event, &mut ctx);
         self.dispatch_messages_to_views();
     }
 
     fn render(&mut self, bounds: Rectangle, renderer: &mut platform::Renderer) {
         let constraint = Constraint::exact(bounds.size());
-        let layout = self.view.layout(&self.view_state, constraint);
+		let mut ctx = LayoutContext::new(&mut self.view_meta);
+        let layout = self.view.layout(&self.view_state, constraint, &mut ctx);
 
         let mut ctx = Renderer(renderer);
         self.view.render(&self.view_state, bounds, &mut ctx);
@@ -83,18 +84,22 @@ impl<V: View<()> + 'static> WindowHandler for MyHandler<V> {
 }
 
 impl Window {
-    pub fn open(view: impl View<()> + 'static) -> Self {
+    pub fn open(view: impl View + 'static) -> Self {
         let handler = MyHandler::new(view);
         Self(platform::Window::open(handler).unwrap())
     }
 
-    pub fn attach(handle: RawWindowHandle, view: impl View<()> + 'static) -> Self {
+    pub fn attach(handle: RawWindowHandle, view: impl View + 'static) -> Self {
         let handler = MyHandler::new(view);
-        let window = match handle {
+        let window: Result<platform::Window, platform::Error> = match handle {
             #[cfg(target_os = "windows")]
             RawWindowHandle::Win32(handle) => {
                 platform::Window::attach(windows::Win32::Foundation::HWND(handle.hwnd as isize), handler)
             },
+			#[cfg(target_os = "macos")]
+			RawWindowHandle::AppKit(handle) => {
+				todo!()
+			}
             _ => panic!("Unsupported window type"),
         };
 

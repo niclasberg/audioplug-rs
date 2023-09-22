@@ -29,14 +29,15 @@ impl<Msg, VS: ViewSequence<Msg>> StackWidget<Msg, VS> {
     }
 }
 
-impl<Msg, VS: ViewSequence<Msg>> View<Msg> for StackWidget<Msg, VS> {
-    type State = VS::State;
+impl<Msg, VS: ViewSequence<Msg>> View for StackWidget<Msg, VS> {
+    type Message = Msg;
+	type State = VS::State;
 
-    fn build(&self, id_path: &IdPath) -> Self::State {
+    fn build(&mut self, id_path: &IdPath) -> Self::State {
         self.view_seq.build(id_path)
     }
 
-    fn rebuild(&self, id_path: &IdPath, prev: &Self, state: &mut Self::State) {
+    fn rebuild(&mut self, id_path: &IdPath, prev: &Self, state: &mut Self::State) {
         todo!()
     }
 
@@ -47,15 +48,15 @@ impl<Msg, VS: ViewSequence<Msg>> View<Msg> for StackWidget<Msg, VS> {
         }
 
         impl<'a, 'b, Msg> ViewVisitor<Msg, EventContext<'a, 'b, Msg>> for Visitor<'a, 'b, Msg> {
-            fn visit<V: View<Msg>>(&mut self, context: &mut EventContext<'a, 'b, Msg>, view: &mut V, state: &mut V::State) {
+            fn visit<V: View<Message = Msg>>(&mut self, context: &mut EventContext<'a, 'b, Msg>, view: &mut V, state: &mut V::State) {
                 view.event(state, self.event, context);
             }
         }
 
-        self.view_seq.for_each(ctx, state, &Visitor::<'a, 'b, Msg> { event, _phantom: PhantomData });
+        self.view_seq.for_each(ctx, state, &mut Visitor { event, _phantom: PhantomData });
     }
 
-    fn layout(&mut self, state: &Self::State, constraint: Constraint) -> Size {
+    fn layout(&self, state: &Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Size {
         /*struct Visitor<'a> {
             constraint: Constraint
         }
@@ -83,11 +84,11 @@ impl<Msg, VS: ViewSequence<Msg>> View<Msg> for StackWidget<Msg, VS> {
         todo!()
     }
 
-    fn render(&self, bounds: Rectangle, ctx: &mut crate::window::Renderer) {
-        println!("Stack render");
+    fn render(&self, state: &Self::State, bounds: Rectangle, ctx: &mut crate::window::Renderer) {
+        /*println!("Stack render");
         for child in self.children.iter() {
             child.render(bounds, ctx);
-        }
+        }*/
     }
 }
 

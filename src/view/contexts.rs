@@ -2,9 +2,9 @@ use std::{marker::PhantomData, any::Any, iter::repeat};
 use crate::{ViewMessage, Message, Id, ViewFlags};
 use super::{IdPath, ViewNode};
 
-pub trait Context {
+pub trait Context<'a> {
     fn id_path(&self) -> &IdPath;
-    fn with_child<T>(&mut self, child_id: Id, f: impl FnOnce(&mut Self) -> T) -> T;
+	fn child_mut(&mut self, id: Id) -> &'a mut Self;
 }
 
 pub struct LayoutContext<'a> {
@@ -12,34 +12,44 @@ pub struct LayoutContext<'a> {
     node: &'a mut ViewNode
 }
 
-impl<'a> Context for LayoutContext<'a> {
+impl<'a> Context<'a> for LayoutContext<'a> {
     fn id_path(&self) -> &IdPath {
         &self.id_path
     }
 
-    fn with_child<T>(&mut self, child_id: Id, f: impl FnOnce(&mut Self) -> T) -> T {
+	
+
+    /*fn with_child<T>(&mut self, child_id: Id, f: impl FnOnce(&mut Self) -> T) -> T {
         // When we do layout straight after building, the child nodes
         // will not have yet been created
-        if self.node.children.len() <= child_id.0 {
-            let items_to_create = child_id.0 - self.node.children.len() + 1;
-            self.node.children.extend(repeat(ViewNode::new()).take(items_to_create))
+        i
+
+		let id_path = self.id_path.child_id(child_id);
+
+		let result = {
+			let mut children = std::mem::take(&mut self.node.children);
+			f(&mut LayoutContext { node: &mut children[child_id.0], id_path: id_path })
+		};
+		self.node.combine_child_flags(child_id.0);
+		result
+    }*/
+
+    fn child_mut(&mut self, id: Id) -> &'a mut Self {
+        if self.node.children.len() <= id.0 {
+            let items_to_create = id.0 - self.node.children.len() + 1;
+            self.node.children.extend(repeat(ViewNode::new()).take(items_to_create));
         }
 
-        let child = &mut self.node.children[child_id.0];
-        self.id_path.with_child_id(child_id, |id_path| {
-            let result = f(&mut LayoutContext { node: child, id_path: id_path.clone() });
-            self.node.combine_flags(child);
-            result
-        })
+
     }
 }
 
 impl<'a> LayoutContext<'a> {
-    fn new(node: &'a mut ViewNode) -> Self {
+    pub fn new(node: &'a mut ViewNode) -> Self {
         Self { node, id_path: IdPath::root() }
     }
 
-    fn request_render(&mut self) {
+    pub fn request_render(&mut self) {
         self.node.set_flag(ViewFlags::NEEDS_RENDER);
     }
 }

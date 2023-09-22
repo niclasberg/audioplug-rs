@@ -41,8 +41,8 @@ impl ViewNode {
         self.flags.contains(flag)
     }
 
-    pub fn combine_flags(&mut self, other: &Self) {
-        self.flags |= other.flags;
+    pub fn combine_child_flags(&mut self, index: usize) {
+        self.flags |= self.children[index].flags;
     }
 
     pub fn set_size(&mut self, new_size: Size) {

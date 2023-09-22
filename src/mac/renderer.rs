@@ -39,9 +39,13 @@ impl<'a> Renderer<'a> {
 		self.context.fill_rect(rect.into());
     }
 
-    pub fn fill_rounded_rectangle(&mut self, rect: Rectangle, radius_x: f32, radius_y: f32, color: Color) {
+    pub fn fill_rounded_rectangle(&mut self, rect: Rectangle, radius: Size, color: Color) {
         todo!()
     }
+
+	pub fn draw_text(&mut self, text: &str, bounds: Rectangle) {
+		todo!()
+	}
 }
 
 fn to_cgcolor(color: Color) -> CGRef<CGColor> {

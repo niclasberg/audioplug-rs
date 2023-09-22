@@ -1,4 +1,4 @@
-use crate::{View, Event, MouseEvent, event::MouseButton};
+use crate::{View, Event, MouseEvent, event::MouseButton, LayoutContext};
 
 enum ButtonMessage {
     Clicked
@@ -14,14 +14,15 @@ impl ButtonWidget {
     }
 }
 
-impl View<ButtonMessage> for ButtonWidget {
+impl View for ButtonWidget {
+	type Message = ButtonMessage;
     type State = ();
 
-    fn build(&self, view_id: &crate::IdPath) -> Self::State {
+    fn build(&mut self, view_id: &crate::IdPath) -> Self::State {
         todo!()
     }
 
-    fn rebuild(&self, view_id: &crate::IdPath, prev: &Self, state: &mut Self::State) {
+    fn rebuild(&mut self, view_id: &crate::IdPath, prev: &Self, state: &mut Self::State) {
         todo!()
     }
 
@@ -37,7 +38,7 @@ impl View<ButtonMessage> for ButtonWidget {
         }
     }
 
-    fn layout(&mut self, state: &Self::State, constraint: crate::core::Constraint) -> crate::core::Size {
+    fn layout(&self, state: &Self::State, constraint: crate::core::Constraint, ctx: &mut LayoutContext) -> crate::core::Size {
         todo!()
     }
 
