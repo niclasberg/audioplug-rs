@@ -4,7 +4,7 @@ use super::{IdPath, ViewNode};
 
 pub trait Context {
     fn id_path(&self) -> &IdPath;
-    fn with_child<T>(&mut self, child_id: Id, f: impl FnOnce(&mut Self) -> T) -> T;
+    //fn with_child<'s, 'r, T>(&'s mut self, child_id: Id, f: impl FnOnce(&'r mut Self) -> T) -> T where 's: 'r;
 }
 
 pub struct LayoutContext<'a> {
@@ -16,8 +16,24 @@ impl<'a> Context for LayoutContext<'a> {
     fn id_path(&self) -> &IdPath {
         &self.id_path
     }
+}
 
-    fn with_child<T>(&mut self, id: Id, f: impl FnOnce(&mut Self) -> T) -> T {
+impl<'a> LayoutContext<'a> {
+    pub fn new(node: &'a mut ViewNode) -> Self {
+        Self { node, id_path: IdPath::root() }
+    }
+
+    pub fn request_render(&mut self) {
+        self.node.set_flag(ViewFlags::NEEDS_RENDER);
+    }
+
+	pub fn get_child<'s>(&'s mut self, id: Id) -> Option<LayoutContext<'s>> {
+		self.node.children.get_mut(id.0).map(|child| {
+			LayoutContext { id_path: self.id_path.child_id(id), node: child }
+		})
+	}
+
+	/*fn with_child<'s, T>(&'s mut self, id: Id, f: impl FnOnce(&mut Self) -> T) -> T where 'a: 's {
         if self.node.children.len() <= id.0 {
             let items_to_create = id.0 - self.node.children.len() + 1;
             self.node.children.extend(repeat(ViewNode::new()).take(items_to_create));
@@ -31,17 +47,7 @@ impl<'a> Context for LayoutContext<'a> {
 
 		self.node.combine_child_flags(id.0);
 		result
-    }
-}
-
-impl<'a> LayoutContext<'a> {
-    pub fn new(node: &'a mut ViewNode) -> Self {
-        Self { node, id_path: IdPath::root() }
-    }
-
-    pub fn request_render(&mut self) {
-        self.node.set_flag(ViewFlags::NEEDS_RENDER);
-    }
+    }*/
 }
 
 pub struct RenderContext {
@@ -60,7 +66,7 @@ impl<'a, 'b, Message: 'static> Context for EventContext<'a, 'b, Message> {
         &self.id_path
     }
 
-    fn with_child<T>(&mut self, id: Id, f: impl FnOnce(&mut Self) -> T) -> T {
+    /*fn with_child<'s, 'r, T>(&'s mut self, id: Id, f: impl FnOnce(&'r mut Self) -> T) -> T where 's: 'r {
         let id_path = self.id_path.child_id(id);
         let mut children = std::mem::take(&mut self.node.children);
 
@@ -75,10 +81,10 @@ impl<'a, 'b, Message: 'static> Context for EventContext<'a, 'b, Message> {
         };
         std::mem::swap(&mut self.node.children, &mut children);
         result
-    }
+    }*/
 }
 
-impl<'a, 'b, T> EventContext<'a, 'b, T> {
+impl<'a, 'b, T> EventContext<'a, 'b, T> where 'a: 'b {
     pub fn new(node: &'a mut ViewNode, messages: &'b mut Vec<ViewMessage<Box<dyn Any>>>) -> Self{
         Self { id_path: IdPath::root(), node, messages, _phantom: PhantomData }
     }
@@ -88,6 +94,12 @@ impl<'a, 'b, T> EventContext<'a, 'b, T> {
             (self as *mut EventContext<'a, 'b, T> as *mut EventContext<'a, 'b, U>).as_mut()
         }.unwrap()
     }
+
+	pub fn get_child<'s>(&'s mut self, id: Id) -> Option<EventContext<'s, 'b, T>> {
+		self.node.children.get_mut(id.0).map(|child| {
+			Self { id_path: self.id_path.child_id(id), node: child, messages: &mut self.messages, _phantom: PhantomData }
+		})
+	}
 
     pub fn request_layout(&mut self) {
         todo!()

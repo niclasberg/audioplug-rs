@@ -43,8 +43,8 @@ impl<Msg, V1: View<Message = Msg>, V2: View<Message = Msg>> ViewSequence<Msg> fo
     }
 
     fn for_each<C: Context>(&mut self, context: &mut C, state: &mut Self::State, f: &mut impl ViewVisitor<Msg, C>) {
-        context.with_child(Id(0), |c| f.visit(c, &mut self.0, &mut state.0));
-        context.with_child(Id(1), |c| self.1.for_each(c, &mut state.1, f));
+        //context.with_child(Id(0), |c| f.visit(c, &mut self.0, &mut state.0));
+        //context.with_child(Id(1), |c| self.1.for_each(c, &mut state.1, f));
     }
 
     fn len(&self) -> usize {
@@ -87,7 +87,7 @@ impl<Msg, V: View<Message = Msg>> ViewSequence<Msg> for Vec<V> {
 
     fn for_each<C: Context>(&mut self, context: &mut C, state: &mut Self::State, f: &mut impl ViewVisitor<Msg, C>) {
         for (i, (v, state)) in self.iter_mut().zip(state.iter_mut()).enumerate() {
-            context.with_child(Id(i), |c| f.visit(c, v, state));
+            //context.with_child(Id(i), |c| f.visit(c, v, state));
         }
     }
 
