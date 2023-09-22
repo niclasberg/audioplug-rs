@@ -2,7 +2,7 @@ use std::any::Any;
 
 use bitflags::bitflags;
 
-use crate::{widget::{Widget, AnyWidget}, Message, Id, IdPath};
+use crate::{view::{Widget, AnyWidget}, Message, Id, IdPath};
 
 pub struct BuildContext {
     id_path: Vec<Id>

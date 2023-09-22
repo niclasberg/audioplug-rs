@@ -2,9 +2,9 @@ use std::{marker::PhantomData, any::Any, iter::repeat};
 use crate::{ViewMessage, Message, Id, ViewFlags};
 use super::{IdPath, ViewNode};
 
-pub trait Context<'a> {
+pub trait Context {
     fn id_path(&self) -> &IdPath;
-	fn child_mut(&mut self, id: Id) -> &'a mut Self;
+    fn with_child<T>(&mut self, child_id: Id, f: impl FnOnce(&mut Self) -> T) -> T;
 }
 
 pub struct LayoutContext<'a> {
@@ -12,35 +12,25 @@ pub struct LayoutContext<'a> {
     node: &'a mut ViewNode
 }
 
-impl<'a> Context<'a> for LayoutContext<'a> {
+impl<'a> Context for LayoutContext<'a> {
     fn id_path(&self) -> &IdPath {
         &self.id_path
     }
 
-	
-
-    /*fn with_child<T>(&mut self, child_id: Id, f: impl FnOnce(&mut Self) -> T) -> T {
-        // When we do layout straight after building, the child nodes
-        // will not have yet been created
-        i
-
-		let id_path = self.id_path.child_id(child_id);
-
-		let result = {
-			let mut children = std::mem::take(&mut self.node.children);
-			f(&mut LayoutContext { node: &mut children[child_id.0], id_path: id_path })
-		};
-		self.node.combine_child_flags(child_id.0);
-		result
-    }*/
-
-    fn child_mut(&mut self, id: Id) -> &'a mut Self {
+    fn with_child<T>(&mut self, id: Id, f: impl FnOnce(&mut Self) -> T) -> T {
         if self.node.children.len() <= id.0 {
             let items_to_create = id.0 - self.node.children.len() + 1;
             self.node.children.extend(repeat(ViewNode::new()).take(items_to_create));
         }
 
+        let result = {
+            let id_path = self.id_path.child_id(id);
+            let mut child = Self { id_path, node: &mut self.node.children[id.0] };
+            f(&mut child)
+        };
 
+		self.node.combine_child_flags(id.0);
+		result
     }
 }
 
@@ -70,8 +60,21 @@ impl<'a, 'b, Message: 'static> Context for EventContext<'a, 'b, Message> {
         &self.id_path
     }
 
-    fn with_child<T>(&mut self, child_id: Id, f: impl FnOnce(&mut Self) -> T) -> T {
-        todo!()
+    fn with_child<T>(&mut self, id: Id, f: impl FnOnce(&mut Self) -> T) -> T {
+        let id_path = self.id_path.child_id(id);
+        let mut children = std::mem::take(&mut self.node.children);
+
+        let result = {
+            let mut child = Self { 
+                id_path, 
+                node: &mut children[id.0], 
+                messages: &mut self.messages, 
+                _phantom: PhantomData  
+            };
+            f(&mut child)
+        };
+        std::mem::swap(&mut self.node.children, &mut children);
+        result
     }
 }
 

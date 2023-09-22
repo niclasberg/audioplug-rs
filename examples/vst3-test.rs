@@ -16,8 +16,8 @@ struct OscillatorParams {
 }
 
 struct MyPluginParams {
-    oscillator_params: [OscillatorParams; 4],
-
+    oscillators: [OscillatorParams; 4],
+    
 }
 
 impl Plugin for MyPlugin {

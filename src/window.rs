@@ -16,9 +16,9 @@ pub trait WindowHandler {
     fn render(&mut self, bounds: Rectangle, renderer: &mut platform::Renderer);
 }
 
-pub struct Renderer<'a, 'b>(pub(crate) &'a mut platform::Renderer<'b>);
+pub struct Renderer<'a>(pub(crate) &'a mut platform::Renderer);
 
-impl<'a, 'b> Renderer<'a, 'b> {
+impl<'a> Renderer<'a> {
     pub fn draw_rectangle(&mut self, rect: Rectangle, color: Color, line_width: f32) {
         self.0.draw_rectangle(rect, color, line_width)
     }
@@ -51,7 +51,7 @@ struct MyHandler<V: View> {
 }
 
 impl<V: View> MyHandler<V> {
-    pub fn new(view: V) -> Self {
+    pub fn new(mut view: V) -> Self {
         let view_meta = ViewNode::new();
         let view_state = view.build(&IdPath::root());
         
