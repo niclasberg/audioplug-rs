@@ -16,6 +16,8 @@ mod application;
 mod audiolayout;
 pub mod param;
 mod editor;
+mod text;
+mod platform;
 
 pub use plugin::*;
 pub use editor::*;

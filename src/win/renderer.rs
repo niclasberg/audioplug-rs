@@ -1,9 +1,9 @@
-use windows::{core::{w, Result}, 
-    Win32::{Graphics::{Direct2D, DirectWrite}, Foundation::{HWND, RECT}, UI::WindowsAndMessaging::GetClientRect}, Foundation::Numerics::Matrix3x2};
+use windows::{core::Result, 
+    Win32::{Graphics::Direct2D, Foundation::{HWND, RECT}, UI::WindowsAndMessaging::GetClientRect}, Foundation::Numerics::Matrix3x2};
 
-use crate::core::{Rectangle, Color, Size, Transform};
+use crate::core::{Rectangle, Color, Size, Vector, Point};
 
-use super::com::{direct_write_factory, direct2d_factory};
+use super::{com::direct2d_factory, TextLayout};
 
 impl Into<Direct2D::Common::D2D1_COLOR_F> for Color {
     fn into(self) -> Direct2D::Common::D2D1_COLOR_F {
@@ -23,6 +23,15 @@ impl Into<Direct2D::Common::D2D_RECT_F> for Rectangle {
             top: self.top() as f32,
             right: self.right() as f32,
             bottom: self.bottom() as f32
+        }
+    }
+}
+
+impl Into<Direct2D::Common::D2D_POINT_2F> for Point {
+    fn into(self) -> Direct2D::Common::D2D_POINT_2F {
+        Direct2D::Common::D2D_POINT_2F {
+            x: self.x as f32,
+            y: self.y as f32
         }
     }
 }
@@ -81,16 +90,11 @@ impl Renderer {
         unsafe { self.render_target.Clear(Some(&color.into())) };
     }
 
-    pub fn use_transform(&mut self, _transform: Transform, f: impl FnOnce(&mut Renderer) -> ()) {
-        let mut old_transform = Matrix3x2::default();
-        unsafe { 
-            self.render_target.GetTransform(&mut old_transform);
-            self.render_target.SetTransform(&old_transform);
-        };
-        
-        f(self);
-
-        unsafe { self.render_target.SetTransform(&old_transform) };
+    pub fn set_offset(&mut self, delta: Vector) {
+        let mat = Matrix3x2::translation(delta.x as f32, delta.y as f32);
+        unsafe {
+            self.render_target.SetTransform(&mat);
+        }
     }
 
     pub fn draw_rectangle(&mut self, rect: Rectangle, color: Color, line_width: f32) {
@@ -125,25 +129,26 @@ impl Renderer {
         }
     }
 
-    pub fn draw_text(&mut self, text: &str, bounds: Rectangle) {
-        let string: Vec<u16> = text.encode_utf16().collect();
+    pub fn fill_ellipse(&mut self, origin: Point, radii: Size, color: Color) {
         unsafe {
-            let text_format = direct_write_factory().CreateTextFormat(
-                w!("verdana"), 
-                None, 
-                DirectWrite::DWRITE_FONT_WEIGHT_BOLD, 
-                DirectWrite::DWRITE_FONT_STYLE_NORMAL, 
-                DirectWrite::DWRITE_FONT_STRETCH_NORMAL, 
-                18.0, 
-                w!("")).unwrap();
-            
-            self.render_target.DrawText(
-                string.as_slice(), 
-                &text_format, 
-                &bounds.into(), 
+            self.brush.SetColor(&color.into());
+            let ellipse = Direct2D::D2D1_ELLIPSE {
+                point: origin.into(),
+                radiusX: radii.width as f32,
+                radiusY: radii.height as f32,
+            };
+            self.render_target.FillEllipse(&ellipse, &self.brush)
+        }
+    }
+
+    pub fn draw_text(&mut self, text_layout: &TextLayout, position: Point, color: Color) {
+        unsafe {
+            self.brush.SetColor(&color.into());
+            self.render_target.DrawTextLayout(
+                position.into(), 
+                &text_layout.0, 
                 &self.brush, 
-                Direct2D::D2D1_DRAW_TEXT_OPTIONS_NONE, 
-                DirectWrite::DWRITE_MEASURING_MODE_NATURAL);
+                Direct2D::D2D1_DRAW_TEXT_OPTIONS_NONE)
         }
     }
 }

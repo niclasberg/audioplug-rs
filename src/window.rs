@@ -1,44 +1,18 @@
-use std::any::Any;
-
 use raw_window_handle::RawWindowHandle;
 
-use crate::core::{Rectangle, Color, Size, Transform, Constraint};
+use crate::core::{Rectangle, Constraint, Point};
 use crate::view::{View, ViewNode, EventContext};
-use crate::{Event, Message, ViewMessage, Id, IdPath, LayoutContext};
-
-#[cfg(target_os = "windows")]
-use crate::win as platform;
-#[cfg(target_os = "macos")]
-use crate::mac as platform;
+use crate::{Event, ViewMessage, LayoutContext, BuildContext, RenderContext, ViewFlags, platform};
 
 pub trait WindowHandler {
     fn event(&mut self, event: Event);
     fn render(&mut self, bounds: Rectangle, renderer: &mut platform::Renderer);
 }
 
-pub struct Renderer<'a, 'b>(pub(crate) &'a mut platform::Renderer<'b>);
+pub struct Renderer<'a>(pub(crate) &'a mut platform::Renderer);
 
-impl<'a, 'b> Renderer<'a, 'b> {
-    pub fn draw_rectangle(&mut self, rect: Rectangle, color: Color, line_width: f32) {
-        self.0.draw_rectangle(rect, color, line_width)
-    }
-
-    pub fn fill_rectangle(&mut self, rect: Rectangle, color: Color) {
-        self.0.fill_rectangle(rect, color);
-    }
-
-    pub fn fill_rounded_rectangle(&mut self, rect: Rectangle, radius: Size, color: Color) {
-        self.0.fill_rounded_rectangle(rect, radius, color);
-    }
-
-    pub fn draw_text(&mut self, text: &str, bounds: Rectangle) {
-        self.0.draw_text(text, bounds)
-    }
-
-    pub fn use_transform(&mut self, transform: Transform, f: impl FnOnce(&mut Renderer) -> ()) {
-        //self.0.use_transform(transform, |);
-        f(self)
-    }
+impl<'a> Renderer<'a> {
+    
 }
 
 pub struct Window(platform::Window);
@@ -46,16 +20,17 @@ pub struct Window(platform::Window);
 struct MyHandler<V: View> {
     view: V,
     view_state: V::State,
-    view_meta: ViewNode,
-    messages: Vec<ViewMessage<Box<dyn Any>>>,
+    view_node: ViewNode,
+    messages: Vec<ViewMessage<V::Message>>,
 }
 
 impl<V: View> MyHandler<V> {
     pub fn new(mut view: V) -> Self {
-        let view_meta = ViewNode::new();
-        let view_state = view.build(&IdPath::root());
+        let mut view_meta = ViewNode::new();
+        let mut build_context = BuildContext::root(&mut view_meta);
+        let view_state = view.build(&mut build_context);
         
-        Self { view, view_state, view_meta, messages: Vec::new() }
+        Self { view, view_state, view_node: view_meta, messages: Vec::new() }
     }
 
     fn dispatch_messages_to_views(&mut self) {
@@ -64,22 +39,44 @@ impl<V: View> MyHandler<V> {
         }
         self.messages.clear();
     }
+
+    fn do_layout(&mut self, bounds: Rectangle) {
+        let constraint = Constraint::exact(bounds.size());
+        let size = {
+            let mut ctx = LayoutContext::new(&mut self.view_node);
+            let size = self.view.layout(&mut self.view_state, constraint, &mut ctx);
+            constraint.clamp(size)
+        };
+        self.view_node.set_size(size);
+        self.view_node.set_origin(Point::ZERO);
+        self.view_node.clear_flag_recursive(ViewFlags::NEEDS_LAYOUT);
+    }
 }
 
 impl<V: View + 'static> WindowHandler for MyHandler<V> {
     fn event(&mut self, event: Event) {
-        let mut ctx = EventContext::<V::Message>::new(&mut self.view_meta, &mut self.messages);
-        self.view.event(&mut self.view_state, event, &mut ctx);
+        {
+            let mut ctx = EventContext::new(&mut self.view_node, &mut self.messages);
+            self.view.event(&mut self.view_state, event, &mut ctx);
+        }
+        {
+            let mut ctx = BuildContext::root(&mut self.view_node);
+            self.view.rebuild(&mut self.view_state, &mut ctx)
+        }
+        // 1. Dispatch messages, may update the state
+        // 2. Rebuild if was requested, or the state was updated, rebuild
+        // 3. Perform layout, if requested
+        // 4. Render
         self.dispatch_messages_to_views();
     }
 
     fn render(&mut self, bounds: Rectangle, renderer: &mut platform::Renderer) {
-        let constraint = Constraint::exact(bounds.size());
-		let mut ctx = LayoutContext::new(&mut self.view_meta);
-        let layout = self.view.layout(&self.view_state, constraint, &mut ctx);
-
-        let mut ctx = Renderer(renderer);
-        self.view.render(&self.view_state, bounds, &mut ctx);
+        self.do_layout(bounds);
+        {
+            let mut ctx = RenderContext::new(&mut self.view_node, renderer);
+            self.view.render(&self.view_state, &mut ctx);
+        }
+        self.view_node.clear_flag_recursive(ViewFlags::NEEDS_RENDER);
     }
 }
 

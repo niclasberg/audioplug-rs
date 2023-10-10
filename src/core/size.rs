@@ -10,6 +10,16 @@ impl<T> Size<T> {
     pub fn new(width: T, height: T) -> Self {
         Self { width, height }
     }
+
+    pub fn with_width(mut self, width: T) -> Self {
+        self.width = width;
+        self
+    }
+
+    pub fn with_height(mut self, height: T) -> Self {
+        self.height = height;
+        self
+    }
 }
 
 impl Size<f64> {
@@ -37,7 +47,17 @@ impl Size<f64> {
         self
     }
 
-    pub fn clamp(&self, min: &Self, max: &Self) -> Self {
+    pub fn scale_x(mut self, factor: f64) -> Self {
+        self.width *= factor;
+        self
+    }
+
+    pub fn scale_y(mut self, factor: f64) -> Self {
+        self.height *= factor;
+        self
+    }
+
+    pub fn clamp(&self, min: Self, max: Self) -> Self {
         let height = self.height.clamp(min.height, max.height);
         let width = self.width.clamp(min.width, max.width);
         Self { width, height }

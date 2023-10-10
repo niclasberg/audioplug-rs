@@ -1,97 +1,103 @@
-use crate::{View, IdPath, Id, view::AnyView};
+use crate::core::{Constraint, Size};
+use crate::{View, Id, BuildContext, Event, EventContext, LayoutContext, RenderContext};
 
-use super::contexts::Context;
-
-pub trait ViewVisitor<Msg, C: Context> {
-    fn visit<V: View<Message = Msg>>(&mut self, context: &mut C, view: &mut V, state: &mut V::State);
+pub struct LayoutProxy<Msg, VS: ViewSequence<Msg>> {
+    pub layout: fn(&VS, &VS::State, Constraint, &mut LayoutContext) -> Size
 }
 
-pub trait ViewSequence<Msg> {
+pub trait ViewSequence<Msg>: Sized {
     type State;
 
-    fn for_each<C: Context>(&mut self, context: &mut C, state: &mut Self::State, f: &mut impl ViewVisitor<Msg, C>);
     fn len(&self) -> usize;
-
-    fn build(&mut self, id_path: &IdPath) -> Self::State;
+    fn layout_proxies(&self) -> Vec<LayoutProxy<Msg, Self>>;
+    fn build(&mut self, ctx: &mut BuildContext) -> Self::State;
+    fn rebuild(&mut self, state: &mut Self::State, ctx: &mut BuildContext);
+    fn event(&mut self, state: &mut Self::State, event: Event, ctx: &mut EventContext<Msg>);
+    fn layout(&self, state: &mut Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Vec<Size>;
+    fn render(&self, state: &Self::State, ctx: &mut RenderContext);
 }
 
-impl<Msg, V: View<Message = Msg>> ViewSequence<Msg> for V {
-    type State = V::State;
+macro_rules! impl_view_seq_tuple {
+    ( $n: tt; $( $t: ident),* ; $( $s: tt),* ; $( $s_rev: tt),*) => {
+        impl<Msg, $( $t: View<Message = Msg>, )* > ViewSequence<Msg> for ($( $t, )*) {
+            type State = ($($t::State,)*);
 
-    fn build(&mut self, id_path: &IdPath) -> Self::State {
-        <Self>::build(self, id_path)
-    }
+            fn layout_proxies(&self) -> Vec<LayoutProxy<Msg, Self>> {
+                todo!()
+            }
 
-    fn for_each<C: Context>(&mut self, context: &mut C, state: &mut Self::State, f: &mut impl ViewVisitor<Msg, C>) {
-        f.visit(context, self, state)
-    }
-
-    fn len(&self) -> usize {
-        1
-    }
-}
-
-impl<Msg, V1: View<Message = Msg>, V2: View<Message = Msg>> ViewSequence<Msg> for (V1, V2) {
-    type State = (V1::State, V2::State);
-
-    fn build(&mut self, id_path: &IdPath) -> Self::State {
-        let mut id_path = id_path.clone();
-        (
-            id_path.with_child_id(Id(0), |id_path| self.0.build(&id_path)),
-            id_path.with_child_id(Id(1), |id_path| self.1.build(&id_path))
-        )
-    }
-
-    fn for_each<C: Context>(&mut self, context: &mut C, state: &mut Self::State, f: &mut impl ViewVisitor<Msg, C>) {
-        //context.with_child(Id(0), |c| f.visit(c, &mut self.0, &mut state.0));
-        //context.with_child(Id(1), |c| self.1.for_each(c, &mut state.1, f));
-    }
-
-    fn len(&self) -> usize {
-        self.0.len() + self.1.len()
-    }
-}
-
-/*impl<Msg, V: ViewSequence<Msg>> ViewSequence<Msg> for Option<VS> {
-    type State = Option<VS::State>;
-
-    fn fold<T>(&self, id_path: &IdPath, init: T, f: &impl FnMut(T, &IdPath, &dyn AnyView<Msg>) -> T) -> T {
-        match self {
-            Some(vs) => vs.fold(id_path, init, f),
-            None => init
+            fn build(&mut self, ctx: &mut BuildContext) -> Self::State {
+                ctx.set_number_of_children($n);
+                (
+                    $( ctx.with_child(Id($s), |c| self.$s.build(c)), )*
+                )
+            }
+        
+            fn rebuild(&mut self, state: &mut Self::State, ctx: &mut BuildContext) {
+                $( ctx.with_child(Id($s), |c| self.$s.rebuild(&mut state.$s, c)); )*
+            }
+        
+            fn event(&mut self, state: &mut Self::State, event: Event, ctx: &mut EventContext<Msg>) {
+                $( ctx.forward_to_child(Id($s_rev), event, |c, event| self.$s_rev.event(&mut state.$s_rev, event, c)); )*
+            }
+        
+            fn layout(&self, state: &mut Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Vec<Size> {
+                vec![
+                    $( ctx.with_child(Id($s), |c| self.$s.layout(&mut state.$s, constraint, c)), )*
+                ]
+            }
+        
+            fn render(&self, state: &Self::State, ctx: &mut RenderContext) {
+                $( ctx.with_child(Id($s), |c| self.$s.render(&state.$s, c)); )*
+            }
+        
+            fn len(&self) -> usize {
+                $n
+            }
         }
     }
+}
 
-    fn build(&self, id_path: &IdPath) -> Self::State {
-        self.as_ref().map(|vs| vs.build(id_path))
-    }
-
-    fn for_each<C: Context>(&mut self, context: &mut C, state: &mut Self::State, f: &impl ViewVisitor<Msg, C>) {
-        
-    }
-
-    fn len(&self) -> usize {
-        if self.is_some() { 1 } else { 0 }
-    }
-}*/
+impl_view_seq_tuple!(1; V; 0; 0);
+impl_view_seq_tuple!(2; V1, V2; 0, 1; 1, 0);
+impl_view_seq_tuple!(3; V1, V2, V3; 0, 1, 2; 2, 1, 0);
+impl_view_seq_tuple!(4; V1, V2, V3, V4; 0, 1, 2, 3; 3, 2, 1, 0);
 
 impl<Msg, V: View<Message = Msg>> ViewSequence<Msg> for Vec<V> {
     type State = Vec<V::State>;
 
-    fn build(&mut self, id_path: &IdPath) -> Self::State {
-        let mut id_path = id_path.clone();
-        self.iter_mut().enumerate().map(|(i, vs)| {
-            id_path.with_child_id(Id(i), |id_path| vs.build(id_path))
+    fn build(&mut self, ctx: &mut BuildContext) -> Self::State {
+        ctx.set_number_of_children(self.len());
+        self.iter_mut().zip(ctx.child_iter()).map(|(view, mut ctx)| {
+            view.build(&mut ctx)
         }).collect()
     }
 
-    fn for_each<C: Context>(&mut self, context: &mut C, state: &mut Self::State, f: &mut impl ViewVisitor<Msg, C>) {
-        for (i, (v, state)) in self.iter_mut().zip(state.iter_mut()).enumerate() {
-            //context.with_child(Id(i), |c| f.visit(c, v, state));
+    fn layout_proxies(&self) -> Vec<LayoutProxy<Msg, Self>> {
+        todo!()
+    }
+
+    fn rebuild(&mut self, state: &mut Self::State, ctx: &mut BuildContext) {
+        let mut child_ctx_iter = ctx.child_iter();
+        todo!()
+    }
+
+    fn event(&mut self, state: &mut Self::State, event: Event, ctx: &mut EventContext<Msg>) {
+        for ((view, state), mut ctx) in self.iter_mut().rev().zip(state.iter_mut().rev()).zip(ctx.child_iter().rev()) {
+            view.event(state, event, &mut ctx);
         }
     }
 
+    fn layout(&self, state: &mut Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Vec<Size> {
+        let mut child_ctx_iter = ctx.child_iter();
+        todo!()
+    }
+
+    fn render(&self, state: &Self::State, ctx: &mut RenderContext) {
+        todo!()
+    }
+
     fn len(&self) -> usize {
-        self.iter().fold(0, |len, view| { len + view.len() })
+        self.len()
     }
 }

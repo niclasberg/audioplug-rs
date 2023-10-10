@@ -6,7 +6,8 @@ use vst3_sys::gui::{IPlugView, ViewRect};
 use std::cell::RefCell;
 use std::ffi::{CStr, c_void};
 
-use crate::core::{Color, Rectangle};
+use crate::Shape;
+use crate::core::{Color, Rectangle, Point, Size};
 use crate::window::Window;
 
 const VST3_PLATFORM_HWND: &str = "HWND";
@@ -58,7 +59,7 @@ impl IPlugView for PlugView {
                 }
             };
 
-            *window = Some(Window::attach(handle, Color::BLACK));
+            *window = Some(Window::attach(handle, Shape::rect(Size::new(20.0, 20.0)).fill(Color::BLACK)));
 
             kResultOk
         } else {

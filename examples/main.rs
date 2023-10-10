@@ -1,6 +1,6 @@
-use audioplug::core::{Rectangle, Color, Constraint, Size, Vector};
-use audioplug::views::zstack;
-use audioplug::{window::*, View, Event, EventContext, MouseEvent, View, BuildContext, Id, ChangeFlags, Application, Message, IdPath};
+use audioplug::core::{Color, Constraint, Size, Vector};
+use audioplug::views::{use_state, Row, Label, Button};
+use audioplug::{window::*, View, Event, EventContext, MouseEvent, Application, LayoutContext, BuildContext, RenderContext, Shape};
 
 struct MyWidget {
     active: bool
@@ -12,17 +12,20 @@ enum MyMessage {
 }
 
 impl View for MyWidget {
+    type State = ();
     type Message = MyMessage;
 
-    fn render(&self, bounds: Rectangle, ctx: &mut Renderer) {
-        let color = if self.active { Color::RED } else { Color::WHITE };
-        let r = Rectangle::new(bounds.position() + Vector::new(40.0, 40.0), bounds.size().scale(0.5));
-        ctx.fill_rectangle(r, color);
-        ctx.draw_text("hello howudoin?", bounds);
+    fn build(&mut self, _ctx: &mut BuildContext) -> Self::State { }
+    fn rebuild(&mut self, _state: &mut Self::State, _ctx: &mut BuildContext) {}
+
+    fn render(&self, _state: &Self::State, ctx: &mut RenderContext) {
+        let color = if self.active { Color::BLACK } else { Color::WHITE };
+        let bounds = ctx.local_bounds();
+        ctx.fill(&Shape::rect(bounds.size().scale(0.5)), bounds.position() + Vector::new(40.0, 40.0), color);
     }
 
-    fn event(&mut self, event: Event, ctx: &mut EventContext<Self::Message>) {
-        //println!("{:?}", event);
+    fn event(&mut self, _state: &mut Self::State, event: Event, ctx: &mut EventContext<Self::Message>) {
+        println!("{:?}", event);
         match event {
             Event::Mouse(mouse_event) => match mouse_event { 
                 MouseEvent::Down { .. } => { ctx.publish_message(MyMessage::Clicked) },
@@ -33,33 +36,8 @@ impl View for MyWidget {
         }
     }
 
-    fn layout(&mut self, constraint: Constraint) -> Size {
-        Size::new(100.0, 100.0)
-    }
-}
-
-struct MyView {
-    
-}
-
-impl View for MyView {
-    type Element = MyWidget;
-    type State = ();
-
-    fn build(&self, id_path: &IdPath) -> (Self::State, Self::Element) {
-        ((), MyWidget { active: false })
-    }
-
-    fn rebuild(&self, id_path: &IdPath, prev: &Self, state: &mut Self::State, widget: &mut Self::Element) -> ChangeFlags {
-        ChangeFlags::empty()
-    }
-
-    fn message(&mut self, msg: &Message<MyMessage>) {
-        match msg {
-            Message::Widget(msg) => {
-                println!("{:?}", msg);
-            }
-        }        
+    fn layout(&self, _state: &mut Self::State, constraint: Constraint, _ctx: &mut LayoutContext) -> Size {
+        constraint.clamp(Size::new(300.0, 100.0))
     }
 }
 
@@ -68,10 +46,20 @@ fn main() {
     //println!("name: {}, id: {}", device.name()?, device.id()?);
 
     let mut app = Application::new();
-    let _ = Window::open(zstack((
-        Color::RED,
-        MyView{}
-    )));
+    let _ = Window::open(
+        Row::new((
+            Shape::rounded_rect(Size::new(40.0, 40.0), Size::new(5.0, 5.0)).fill(Color::RED),
+            use_state(
+                || true, 
+                |state| { MyWidget { active: *state } }, 
+                |_msg, state| { *state = !*state; }),
+            Row::new((
+                Button::new(Label::new("Babushka!")).map(|_| ()),
+                Shape::rect(Size::new(40.0, 40.0)).fill(Color::GREEN)
+            )).with_alignment(audioplug::core::Alignment::Center)
+            .with_spacing(5.0)
+        )).with_alignment(audioplug::core::Alignment::TopLeading)
+        .with_spacing(5.0));
 
     app.run();
 }

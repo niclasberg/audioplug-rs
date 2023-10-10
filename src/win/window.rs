@@ -5,7 +5,7 @@ use windows::{core::{PCWSTR, w, Result, Error},
         Foundation::*, 
         System::LibraryLoader::GetModuleHandleW, 
         UI::WindowsAndMessaging::*, 
-        Graphics::Gdi}};
+        Graphics::Gdi::{self, InvalidateRect}}};
 
 use super::{com, Renderer};
 use crate::{core::{Color, Point, Rectangle}, Event, event::{MouseEvent, WindowEvent}, window::WindowHandler};
@@ -81,8 +81,11 @@ impl WindowState {
                 }
     
                 unsafe {
-                    // TODO: Handle error here
-                    renderer.end_draw().unwrap();
+                    if let Err(error) = renderer.end_draw() {
+                        if error.code() == D2DERR_RECREATE_TARGET {
+                            // Set renderer to None to force rebuild
+                        }
+                    }
     
                     Gdi::EndPaint(hwnd, &mut ps).ok().unwrap();
                 }
@@ -119,6 +122,7 @@ impl WindowState {
                 let mouse_event = self.get_mouse_event(message, wparam, lparam);
 
                 self.publish_event(Event::Mouse(mouse_event));
+                unsafe { InvalidateRect(hwnd, None, false) };
                 Some(LRESULT(0))
             },
 
@@ -147,8 +151,8 @@ impl WindowState {
             },
 
             WM_DESTROY => {
-                //unsafe { PostQuitMessage(0) };
-                None//Some(LRESULT(0))
+                unsafe { PostQuitMessage(0) };
+                Some(LRESULT(0))
             },
             _ => None
         }

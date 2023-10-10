@@ -1,20 +1,13 @@
 use std::marker::PhantomData;
+use crate::{view::{View, EventContext}, core::{Size, Rectangle, Constraint, Alignment}, ViewSequence, Event, LayoutContext, BuildContext, RenderContext};
 
-use crate::{view::{View, EventContext}, core::{Size, Rectangle, Constraint, Alignment}, ViewSequence, IdPath, ViewVisitor, Event, LayoutContext};
-
-pub enum StackType {
-    Vertical,
-    Horizontal,
-    Depth
-}
-
-pub struct StackWidget<Msg, VS: ViewSequence<Msg>> {
+pub struct Stack<Msg: 'static, VS: ViewSequence<Msg>> {
     view_seq: VS,
     alignment: Alignment,
     _phantom: PhantomData<Msg>
 }
 
-impl<Msg, VS: ViewSequence<Msg>> StackWidget<Msg, VS> {
+impl<Msg: 'static, VS: ViewSequence<Msg>> Stack<Msg, VS> {
     pub fn new(views: VS) -> Self {
         Self {
             view_seq: views,
@@ -29,70 +22,36 @@ impl<Msg, VS: ViewSequence<Msg>> StackWidget<Msg, VS> {
     }
 }
 
-impl<Msg, VS: ViewSequence<Msg>> View for StackWidget<Msg, VS> {
+impl<Msg: 'static, VS: ViewSequence<Msg>> View for Stack<Msg, VS> {
     type Message = Msg;
 	type State = VS::State;
 
-    fn build(&mut self, id_path: &IdPath) -> Self::State {
-        self.view_seq.build(id_path)
+    fn build(&mut self, ctx: &mut BuildContext) -> Self::State {
+        self.view_seq.build(ctx)
     }
 
-    fn rebuild(&mut self, id_path: &IdPath, prev: &Self, state: &mut Self::State) {
-        todo!()
+    fn rebuild(&mut self, state: &mut Self::State, ctx: &mut BuildContext) {
+        self.view_seq.rebuild(state, ctx);
     }
 
-    fn event<'a, 'b>(&mut self, state: &mut Self::State, event: Event, ctx: &mut EventContext<'a, 'b, Msg>) {
-        struct Visitor<'a, 'b, Msg> {
-            event: Event,
-            _phantom: PhantomData<fn(&'a Msg) -> &'b ()>
-        }
-
-        impl<'a, 'b, Msg> ViewVisitor<Msg, EventContext<'a, 'b, Msg>> for Visitor<'a, 'b, Msg> {
-            fn visit<V: View<Message = Msg>>(&mut self, context: &mut EventContext<'a, 'b, Msg>, view: &mut V, state: &mut V::State) {
-                view.event(state, self.event, context);
-            }
-        }
-
-        self.view_seq.for_each(ctx, state, &mut Visitor { event, _phantom: PhantomData });
+    fn event(&mut self, state: &mut Self::State, event: Event, ctx: &mut EventContext<Msg>) {
+        self.view_seq.event(state, event, ctx);
     }
 
-    fn layout(&self, state: &Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Size {
-        /*struct Visitor<'a> {
-            constraint: Constraint
+    fn layout(&self, state: &mut Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Size {
+        let sizes = self.view_seq.layout(state, constraint.with_min(Size::ZERO), ctx);
+        let max_size = sizes.iter().fold(Size::ZERO, |acc, x| acc.max(x));
+        let max_size = constraint.clamp(max_size);
+
+        for (node, size) in ctx.node.children.iter_mut().zip(sizes) {
+            node.set_size(size);
+            node.set_offset(self.alignment.compute_offset(size, max_size));
         }
 
-        impl ViewVisitor<LayoutContext> for Visitor {
-            fn visit<V: View>(&mut self, context: &mut LayoutContext, view: &mut V, state: &mut V::State) {
-                todo!()
-            }
-        }
-
-
-
-        let mut max_size = Size::ZERO;
-        for child in self.children.iter_mut() {
-            let size = child.layout(constraint);
-            child.state.set_size(max_size);
-            max_size = max_size.max(&size);
-        }
-
-        for child in self.children.iter_mut() {
-            child.state.set_origin(self.alignment.compute_offset(child.state.size, max_size));
-        }
-
-        max_size*/
-        todo!()
+        max_size
     }
 
-    fn render(&self, state: &Self::State, bounds: Rectangle, ctx: &mut crate::window::Renderer) {
-        /*println!("Stack render");
-        for child in self.children.iter() {
-            child.render(bounds, ctx);
-        }*/
+    fn render(&self, state: &Self::State, ctx: &mut RenderContext) {
+        self.view_seq.render(state, ctx)
     }
-}
-
-
-pub fn zstack<Message, Vs: ViewSequence<Message>>(view_seq: Vs) -> StackWidget<Message, Vs> {
-    StackWidget::new(view_seq)
 }

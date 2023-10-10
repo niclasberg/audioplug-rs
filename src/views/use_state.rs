@@ -1,10 +1,11 @@
 use std::marker::PhantomData;
 
-use crate::{view::View, IdPath};
+use crate::{view::View, IdPath, BuildContext, EventContext, LayoutContext, ViewMessage, RenderContext};
 
-pub struct UseState<V: View, State, FInit, F> {
+pub struct UseState<V: View, State, FInit, FView, FUpdate> {
     f_init: FInit,
-    f: F,
+    f_view: FView,
+    f_update: FUpdate,
     _phantom: PhantomData<fn(State) -> V>,
 }   
 
@@ -14,19 +15,19 @@ pub struct UseStateState<T, V: View> {
     view_state: V::State,
 }
 
-impl<V: View, State, FInit, F> View for UseState<V, State, FInit, F> 
+impl<V: View, State, FInit, FView, FUpdate> View for UseState<V, State, FInit, FView, FUpdate> 
 where
-    State: PartialEq,
     FInit: Fn() -> State,
-    F: Fn(&mut State) -> V
+    FView: Fn(&State) -> V,
+    FUpdate: Fn(V::Message, &mut State),
 {
-    type Message = V::Message;
+    type Message = ();
     type State = UseStateState<State, V>;
 
-    fn build(&self, id_path: &IdPath) -> Self::State {
+    fn build(&mut self, ctx: &mut BuildContext) -> Self::State {
         let mut state = (self.f_init)();
-        let view = (self.f)(&mut state);
-        let view_state = view.build(id_path);
+        let mut view = (self.f_view)(&mut state);
+        let view_state = view.build(ctx);
         UseStateState {
             state,
             view,
@@ -34,20 +35,48 @@ where
         }
     }
 
-    fn rebuild(&self, id_path: &IdPath, prev: &Self, state: &mut Self::State) {
-        let view = (self.f)(&mut state.state);
-        view.rebuild(id_path, &state.view, &mut state.view_state);
+    fn rebuild(&mut self, state: &mut Self::State, ctx: &mut BuildContext) {
+        let mut view = (self.f_view)(&mut state.state);
+        view.rebuild(&mut state.view_state, ctx);
+        state.view = view;
     }
 
-    fn event(&mut self, event: crate::Event, ctx: &mut crate::EventContext<Self::Message>) {
+    fn event(&mut self, state: &mut Self::State, event: crate::Event, ctx: &mut crate::EventContext<Self::Message>) {
+        let mut messages = Vec::<ViewMessage<V::Message>>::new();
+        ctx.with_message_container(&mut messages, |ctx| {
+            state.view.event(&mut state.view_state, event, ctx);
+        });
 
+        let mut updated = false;
+        for message in messages {
+            (self.f_update)(message.message, &mut state.state);
+            updated = true;
+        }
+
+        if updated {
+            ctx.request_rebuild();
+        }
     }
 
-    fn layout(&mut self, constraint: crate::core::Constraint) -> crate::core::Size {
-        todo!()
+    fn layout(&self, state: &mut Self::State, constraint: crate::core::Constraint, ctx: &mut LayoutContext) -> crate::core::Size {
+        state.view.layout(&mut state.view_state, constraint, ctx)
     }
 
-    fn render(&self, bounds: crate::core::Rectangle, ctx: &mut crate::window::Renderer) {
-        todo!()
+    fn render(&self, state: &Self::State, ctx: &mut RenderContext) {
+        state.view.render(&state.view_state, ctx)
+    }
+}
+
+pub fn use_state<V: View, State, FInit, FView, FUpdate>(init_state: FInit, view: FView, update: FUpdate) -> UseState<V, State, FInit, FView, FUpdate> 
+where
+    FInit: Fn() -> State,
+    FView: Fn(&State) -> V,
+    FUpdate: Fn(V::Message, &mut State)
+{
+    UseState {
+        f_init: init_state,
+        f_view: view,
+        f_update: update,
+        _phantom: PhantomData,
     }
 }

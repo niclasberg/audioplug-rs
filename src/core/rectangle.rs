@@ -48,7 +48,7 @@ where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + PartialOrd
     }
 
     pub fn bottom(&self) -> T {
-        self.y - self.height
+        self.y + self.height
     }
 
     pub fn position(&self) -> Point<T> {
@@ -83,12 +83,19 @@ impl Rectangle<f64> {
         )
     }
 
-    pub fn offset(&mut self, delta: Vector) {
-        self.x += delta.x;
-        self.y += delta.y;
+    pub fn scale(&self, scale: f64) -> Self{
+        Self::new(self.position(), self.size().scale(scale))
     }
 
-    pub fn with_offset(&self, delta: Vector) -> Self {
+    pub fn scale_x(&self, scale: f64) -> Self{
+        Self::new(self.position(), self.size().scale_x(scale))
+    }
+
+    pub fn scale_y(&self, scale: f64) -> Self{
+        Self::new(self.position(), self.size().scale_y(scale))
+    }
+
+    pub fn offset(&self, delta: Vector) -> Self {
         Self::new(self.position()+delta, self.size())
     }
 }
