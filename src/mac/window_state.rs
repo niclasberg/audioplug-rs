@@ -2,8 +2,6 @@ use std::cell::RefCell;
 
 use crate::{event::Event, window::WindowHandler};
 
-use super::Renderer;
-
 pub(crate) struct WindowState {
 	handler: RefCell<Box<dyn WindowHandler>>
 }

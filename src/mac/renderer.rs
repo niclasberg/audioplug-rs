@@ -1,8 +1,8 @@
 use icrate::Foundation::{CGRect, CGPoint, CGSize};
 
-use crate::core::{Rectangle, Color, Point, Size};
+use crate::core::{Rectangle, Color, Point, Size, Vector};
 
-use super::core_graphics::{CGContext, CGColor, CGRef};
+use super::{core_graphics::{CGContext, CGColor, CGRef}, TextLayout};
 
 impl Into<CGPoint> for Point {
     fn into(self) -> CGPoint {
@@ -22,11 +22,15 @@ impl Into<CGRect> for Rectangle {
     }
 }
 
-pub(crate) struct Renderer<'a> {
+pub(crate) struct RendererRef<'a> {
 	context: &'a CGContext
 }
 
-impl<'a> Renderer<'a> {
+impl<'a> RendererRef<'a> {
+	pub fn set_offset(&mut self, delta: Vector) {
+        todo!()
+    }
+
 	pub fn draw_rectangle(&mut self, rect: Rectangle, color: Color, line_width: f32) {
         let color = to_cgcolor(color);
 		self.context.set_fill_color(&color);
@@ -43,9 +47,13 @@ impl<'a> Renderer<'a> {
         todo!()
     }
 
-	pub fn draw_text(&mut self, text: &str, bounds: Rectangle) {
-		todo!()
-	}
+	pub fn fill_ellipse(&mut self, origin: Point, radii: Size, color: Color) {
+        todo!()
+    }
+
+    pub fn draw_text(&mut self, text_layout: &TextLayout, position: Point, color: Color) {
+        todo!()
+    }
 }
 
 fn to_cgcolor(color: Color) -> CGRef<CGColor> {
