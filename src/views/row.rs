@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use crate::{Event, RenderContext};
+use crate::{Event, RenderContext, LayoutHint};
 use crate::view::{ViewSequence, View, BuildContext, EventContext, LayoutContext};
 use crate::core::{Alignment, Constraint, Size, Vector};
 
@@ -91,5 +91,9 @@ impl<Msg: 'static, VS: ViewSequence<Msg>> View for Row<Msg, VS> {
 
     fn render(&self, state: &Self::State, ctx: &mut RenderContext) {
         self.view_seq.render(state, ctx)
+    }
+
+    fn layout_hint(&self, state: &Self::State) -> (LayoutHint, LayoutHint) {
+        self.view_seq.layout_hint(state)
     }
 }

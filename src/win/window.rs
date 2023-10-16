@@ -4,7 +4,8 @@ use windows::{core::{PCWSTR, w, Result, Error},
     Win32::{
         Foundation::*, 
         System::LibraryLoader::GetModuleHandleW, 
-        UI::WindowsAndMessaging::*, 
+        UI::{WindowsAndMessaging::*, Input::KeyboardAndMouse::TrackMouseEvent}, 
+        UI::Input::*,
         Graphics::Gdi::{self, InvalidateRect}}};
 
 use super::{com, Renderer};
@@ -71,7 +72,7 @@ impl WindowState {
                     Gdi::BeginPaint(hwnd, &mut ps);
     
                     renderer.begin_draw();
-                    renderer.clear(Color::BLUE);
+                    renderer.clear(Color::WHITE);
                 }
     
                 {
@@ -137,10 +138,19 @@ impl WindowState {
                         self.publish_event(Event::Mouse(MouseEvent::Moved { position }));
                     }
                 } else {
+                    unsafe { 
+                        let mut ev = KeyboardAndMouse::TRACKMOUSEEVENT {
+                            cbSize: std::mem::size_of::<KeyboardAndMouse::TRACKMOUSEEVENT>() as u32,
+                            dwFlags: KeyboardAndMouse::TME_LEAVE,
+                            hwndTrack: hwnd,
+                            dwHoverTime: 0,
+                        };
+                        TrackMouseEvent(&mut ev);
+                    };
                     self.publish_event(Event::Mouse(MouseEvent::Enter));
                     self.publish_event(Event::Mouse(MouseEvent::Moved { position }));
                 }
-                
+                unsafe { InvalidateRect(hwnd, None, false) };
                 Some(LRESULT(0))
             },
 

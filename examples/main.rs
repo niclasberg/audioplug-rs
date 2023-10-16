@@ -1,6 +1,6 @@
-use audioplug::core::{Color, Constraint, Size, Vector};
-use audioplug::views::{use_state, Row, Label, Button};
-use audioplug::{window::*, View, Event, EventContext, MouseEvent, Application, LayoutContext, BuildContext, RenderContext, Shape};
+use audioplug::core::{Color, Constraint, Size, Vector, Alignment};
+use audioplug::views::{use_state, Row, Label, Button, Stack, Slider, Column};
+use audioplug::{window::*, View, Event, EventContext, MouseEvent, Application, LayoutContext, BuildContext, RenderContext, Shape, LayoutHint};
 
 struct MyWidget {
     active: bool
@@ -21,14 +21,13 @@ impl View for MyWidget {
     fn render(&self, _state: &Self::State, ctx: &mut RenderContext) {
         let color = if self.active { Color::BLACK } else { Color::WHITE };
         let bounds = ctx.local_bounds();
-        ctx.fill(&Shape::rect(bounds.size().scale(0.5)), bounds.position() + Vector::new(40.0, 40.0), color);
+        ctx.fill(&Shape::rect(bounds.size().scale(0.5)), bounds.center() + Vector::new(40.0, 40.0), color);
     }
 
     fn event(&mut self, _state: &mut Self::State, event: Event, ctx: &mut EventContext<Self::Message>) {
-        println!("{:?}", event);
         match event {
             Event::Mouse(mouse_event) => match mouse_event { 
-                MouseEvent::Down { .. } => { ctx.publish_message(MyMessage::Clicked) },
+                MouseEvent::Down { position, .. } if ctx.local_bounds().contains(position) => { ctx.publish_message(MyMessage::Clicked) },
                 MouseEvent::Up { .. } => { self.active = false; },
                 _ => {}
             },
@@ -39,6 +38,10 @@ impl View for MyWidget {
     fn layout(&self, _state: &mut Self::State, constraint: Constraint, _ctx: &mut LayoutContext) -> Size {
         constraint.clamp(Size::new(300.0, 100.0))
     }
+
+    fn layout_hint(&self, _state: &Self::State) -> (audioplug::LayoutHint, audioplug::LayoutHint) {
+        (LayoutHint::Fixed, LayoutHint::Fixed)
+    }
 }
 
 fn main() {
@@ -48,16 +51,24 @@ fn main() {
     let mut app = Application::new();
     let _ = Window::open(
         Row::new((
-            Shape::rounded_rect(Size::new(40.0, 40.0), Size::new(5.0, 5.0)).fill(Color::RED),
-            use_state(
-                || true, 
-                |state| { MyWidget { active: *state } }, 
-                |_msg, state| { *state = !*state; }),
-            Row::new((
-                Button::new(Label::new("Babushka!")).map(|_| ()),
-                Shape::rect(Size::new(40.0, 40.0)).fill(Color::GREEN)
-            )).with_alignment(audioplug::core::Alignment::Center)
-            .with_spacing(5.0)
+            Column::new((
+                Row::new((
+                    Label::new("Slider"),
+                    Slider::new().with_range(1.0, 10.0).map(|ev| println!("{:?}", ev))
+                )).with_spacing(5.0),
+                Row::new((
+                    Label::new("Button"),
+                    Button::new(Label::new("Filled")).map(|_| ())
+                )).with_spacing(5.0)
+            )).with_alignment(Alignment::Leading),
+            Column::new((
+                Shape::rounded_rect(Size::new(40.0, 40.0), Size::new(5.0, 5.0)).fill(Color::RED),
+                use_state(
+                    || true, 
+                    |state| { MyWidget { active: *state } }, 
+                    |_msg, state| { *state = !*state; }),
+            )),
+            Shape::circle(40.0).fill(Color::GREEN)
         )).with_alignment(audioplug::core::Alignment::TopLeading)
         .with_spacing(5.0));
 

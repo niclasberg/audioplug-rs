@@ -41,7 +41,7 @@ where
         state.view = view;
     }
 
-    fn event(&mut self, state: &mut Self::State, event: crate::Event, ctx: &mut crate::EventContext<Self::Message>) {
+    fn event(&mut self, state: &mut Self::State, event: crate::Event, ctx: &mut EventContext<Self::Message>) {
         let mut messages = Vec::<ViewMessage<V::Message>>::new();
         ctx.with_message_container(&mut messages, |ctx| {
             state.view.event(&mut state.view_state, event, ctx);
@@ -64,6 +64,10 @@ where
 
     fn render(&self, state: &Self::State, ctx: &mut RenderContext) {
         state.view.render(&state.view_state, ctx)
+    }
+
+    fn layout_hint(&self, state: &Self::State) -> (crate::LayoutHint, crate::LayoutHint) {
+        state.view.layout_hint(&state.view_state)
     }
 }
 

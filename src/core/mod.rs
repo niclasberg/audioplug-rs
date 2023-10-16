@@ -7,6 +7,7 @@ mod vector;
 mod alignment;
 mod transform;
 mod range;
+mod color_map;
 
 pub use color::Color;
 pub use point::Point;
@@ -17,3 +18,4 @@ pub use vector::Vector;
 pub use alignment::Alignment;
 pub use transform::Transform;
 pub use range::Range;
+pub use color_map::*;

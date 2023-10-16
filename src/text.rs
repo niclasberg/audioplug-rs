@@ -12,9 +12,9 @@ impl TextLayout {
         Self(
             platform::TextLayout::new(
                 str, 
-                "verdana", 
+                "arial", 
                 FontWeight::Normal, 
-                18.0, 
+                12.0, 
                 max_size)
         )
     }

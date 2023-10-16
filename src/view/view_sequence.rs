@@ -1,5 +1,5 @@
 use crate::core::{Constraint, Size};
-use crate::{View, Id, BuildContext, Event, EventContext, LayoutContext, RenderContext};
+use crate::{View, Id, BuildContext, Event, EventContext, LayoutContext, RenderContext, LayoutHint};
 
 pub struct LayoutProxy<Msg, VS: ViewSequence<Msg>> {
     pub layout: fn(&VS, &VS::State, Constraint, &mut LayoutContext) -> Size
@@ -10,6 +10,7 @@ pub trait ViewSequence<Msg>: Sized {
 
     fn len(&self) -> usize;
     fn layout_proxies(&self) -> Vec<LayoutProxy<Msg, Self>>;
+    fn layout_hint(&self, state: &Self::State) -> (LayoutHint, LayoutHint);
     fn build(&mut self, ctx: &mut BuildContext) -> Self::State;
     fn rebuild(&mut self, state: &mut Self::State, ctx: &mut BuildContext);
     fn event(&mut self, state: &mut Self::State, event: Event, ctx: &mut EventContext<Msg>);
@@ -24,6 +25,16 @@ macro_rules! impl_view_seq_tuple {
 
             fn layout_proxies(&self) -> Vec<LayoutProxy<Msg, Self>> {
                 todo!()
+            }
+
+            fn layout_hint(&self, state: &Self::State) -> (LayoutHint, LayoutHint) {
+                let (mut hints_x, mut hints_y) = (LayoutHint::Fixed, LayoutHint::Fixed);
+                $( 
+                    let (hint_x, hint_y) = self.$s.layout_hint(&state.$s);
+                    hints_x = hints_x.combine(&hint_x); 
+                    hints_y = hints_y.combine(&hint_y); 
+                )*
+                (hints_x, hints_y)
             }
 
             fn build(&mut self, ctx: &mut BuildContext) -> Self::State {
@@ -73,6 +84,10 @@ impl<Msg, V: View<Message = Msg>> ViewSequence<Msg> for Vec<V> {
         }).collect()
     }
 
+    fn layout_hint(&self, state: &Self::State) -> (LayoutHint, LayoutHint) {
+        todo!()
+    }
+
     fn layout_proxies(&self) -> Vec<LayoutProxy<Msg, Self>> {
         todo!()
     }
@@ -83,9 +98,9 @@ impl<Msg, V: View<Message = Msg>> ViewSequence<Msg> for Vec<V> {
     }
 
     fn event(&mut self, state: &mut Self::State, event: Event, ctx: &mut EventContext<Msg>) {
-        for ((view, state), mut ctx) in self.iter_mut().rev().zip(state.iter_mut().rev()).zip(ctx.child_iter().rev()) {
+        /*for ((view, state), mut ctx) in self.iter_mut().rev().zip(state.iter_mut().rev()).zip(ctx.child_iter().rev()) {
             view.event(state, event, &mut ctx);
-        }
+        }*/
     }
 
     fn layout(&self, state: &mut Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Vec<Size> {

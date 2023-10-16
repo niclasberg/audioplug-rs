@@ -6,7 +6,7 @@ use crate::{Event, ViewMessage, LayoutContext, BuildContext, RenderContext, View
 
 pub trait WindowHandler {
     fn event(&mut self, event: Event);
-    fn render(&mut self, bounds: Rectangle, renderer: &mut platform::RendererRef);
+    fn render(&mut self, bounds: Rectangle, renderer: &mut platform::Renderer);
 }
 
 pub struct Window(platform::Window);
@@ -50,7 +50,8 @@ impl<V: View> MyHandler<V> {
 impl<V: View + 'static> WindowHandler for MyHandler<V> {
     fn event(&mut self, event: Event) {
         {
-            let mut ctx = EventContext::new(&mut self.view_node, &mut self.messages);
+            let mut is_handled = false;
+            let mut ctx = EventContext::new(&mut self.view_node, &mut self.messages, &mut is_handled);
             self.view.event(&mut self.view_state, event, &mut ctx);
         }
         {
@@ -64,7 +65,7 @@ impl<V: View + 'static> WindowHandler for MyHandler<V> {
         self.dispatch_messages_to_views();
     }
 
-    fn render(&mut self, bounds: Rectangle, renderer: &mut platform::RendererRef) {
+    fn render(&mut self, bounds: Rectangle, renderer: &mut platform::Renderer) {
         self.do_layout(bounds);
         {
             let mut ctx = RenderContext::new(&mut self.view_node, renderer);

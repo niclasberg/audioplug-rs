@@ -1,4 +1,4 @@
-use crate::{event::Event, core::{Constraint, Size}, ViewMessage}; 
+use crate::{event::Event, core::{Constraint, Size, Color}, ViewMessage}; 
 
 mod id;
 mod any_view;
@@ -13,6 +13,20 @@ pub use view_node::*;
 pub use view_sequence::*;
 pub use shape::*;
 
+#[derive(Debug, PartialEq)]
+pub enum LayoutHint {
+    Fixed,
+    Flexible
+}
+
+impl LayoutHint {
+    pub fn combine(&self, other: &Self) -> Self {
+        match (self, other) {
+            (LayoutHint::Fixed, LayoutHint::Fixed) => LayoutHint::Fixed,
+            _ => LayoutHint::Flexible,
+        }
+    }
+}
 
 pub trait View: Sized {
 	type Message: 'static;
@@ -24,9 +38,12 @@ pub trait View: Sized {
 
     /// Layout the view and (possibly) its subviews
     /// The view is passed a constraint and returns the size it wants.
-    /// If the view is supposed to fill as much of the available space as possible,
-    /// the size can be INFINITY.
     fn layout(&self, state: &mut Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Size;
+
+    /// Suggests how the size of the view is determined. 
+    /// - A Fixed layout does not care about the suggested size passed into layout
+    /// - The size of a Flexible layout depends on the size suggestion passed to layout
+    fn layout_hint(&self, state: &Self::State) -> (LayoutHint, LayoutHint);
     fn render(&self, state: &Self::State, ctx: &mut RenderContext);
     
     fn map<Msg, F>(self, f: F) -> Map<Self, F> 
@@ -34,6 +51,10 @@ pub trait View: Sized {
         F: Fn(Self::Message) -> Msg 
     {
         Map { view: self, map: f }
+    }
+
+    fn background(self, color: Color) -> Background<Self> {
+        Background { view: self, color }
     }
 }
 
@@ -75,5 +96,44 @@ where
 
     fn render(&self, state: &Self::State, ctx: &mut RenderContext) {
         self.view.render(state, ctx)
+    }
+
+    fn layout_hint(&self, state: &Self::State) -> (LayoutHint, LayoutHint) {
+        self.view.layout_hint(state)
+    }
+}
+
+pub struct Background<V: View> {
+    view: V,
+    color: Color,
+}
+
+impl<V: View> View for Background<V> {
+    type Message = V::Message;
+    type State = V::State;
+
+    fn build(&mut self, ctx: &mut BuildContext) -> Self::State {
+        self.view.build(ctx)
+    }
+
+    fn rebuild(&mut self, state: &mut Self::State, ctx: &mut BuildContext) {
+        self.view.rebuild(state, ctx)
+    }
+
+    fn event(&mut self, state: &mut Self::State, event: Event, ctx: &mut EventContext<Self::Message>) {
+        self.view.event(state, event, ctx)
+    }
+
+    fn layout(&self, state: &mut Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Size {
+        self.view.layout(state, constraint, ctx)
+    }
+
+    fn render(&self, state: &Self::State, ctx: &mut RenderContext) {
+        ctx.fill(&Shape::rect(ctx.local_bounds().size()), ctx.local_bounds().center(), self.color);
+        self.view.render(state, ctx)
+    }
+
+    fn layout_hint(&self, state: &Self::State) -> (LayoutHint, LayoutHint) {
+        self.view.layout_hint(state)
     }
 }

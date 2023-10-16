@@ -1,4 +1,4 @@
-use crate::{view::View, core::{Size, Color, Point}, text::TextLayout};
+use crate::{view::View, core::{Size, Color, Point}, text::TextLayout, Shape, LayoutHint};
 
 pub struct Label {
     pub text: String
@@ -39,4 +39,8 @@ impl View for Label {
     }
 
     fn event(&mut self, _state: &mut Self::State, _event: crate::Event, _ctx: &mut crate::EventContext<Self::Message>) {}
+
+    fn layout_hint(&self, state: &Self::State) -> (LayoutHint, LayoutHint) {
+        (LayoutHint::Flexible, LayoutHint::Flexible)
+    }
 }

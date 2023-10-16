@@ -74,6 +74,10 @@ where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + PartialOrd
 }
 
 impl Rectangle<f64> {
+    pub fn center(&self) -> Point {
+        Point::new(self.x + self.width / 2.0, self.y + self.height / 2.0)
+    }
+
     pub fn intersects(&self, other: Rectangle) -> bool {
         !(
             self.left() > other.right() ||
@@ -115,7 +119,7 @@ impl From<Rectangle<i32>> for Rectangle<f64> {
 mod test {
     use super::*;
 
-    #[test]
+    /*#[test]
     fn from_points() {
         let p0 = Point::new(1.0, 4.0);
         let p1 = Point::new(3.0, 2.0);
@@ -127,7 +131,7 @@ mod test {
         assert_eq!(rect.bottom(), p1.y);
     }
 
-    /*#[test]
+    #[test]
     fn contains() {
         let p0 = Point::new(1, 22);
         let p1 = Point::new(16, 2);

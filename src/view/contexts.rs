@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use crate::{ViewMessage, Id, ViewFlags, core::{Rectangle, Point, Color}, Event, text::TextLayout, Shape};
+use crate::{ViewMessage, Id, ViewFlags, core::{Rectangle, Point, Color, Vector}, Event, text::TextLayout, Shape, MouseEvent};
 use super::{IdPath, ViewNode};
 use crate::platform;
 
@@ -168,14 +168,14 @@ impl<'a> LayoutContext<'a> {
     }
 }
 
-pub struct RenderContext<'a, 'b> {
+pub struct RenderContext<'a> {
     id_path: IdPath,
     node: &'a mut ViewNode,
-    renderer: &'a mut platform::RendererRef<'b>,
+    renderer: &'a mut platform::Renderer,
 }
 
-impl<'a, 'b> RenderContext<'a, 'b> {
-    pub(crate) fn new(node: &'a mut ViewNode, renderer: &'a mut platform::RendererRef<'b>) -> Self {
+impl<'a> RenderContext<'a> {
+    pub(crate) fn new(node: &'a mut ViewNode, renderer: &'a mut platform::Renderer) -> Self {
         Self { node, id_path: IdPath::root(), renderer}
     }
 
@@ -186,10 +186,16 @@ impl<'a, 'b> RenderContext<'a, 'b> {
     pub fn fill(&mut self, shape: &Shape, origin: Point, color: Color) {
         match shape {
             Shape::Rect { size } => 
-                self.renderer.fill_rectangle(Rectangle::new(origin, *size), color),
+                self.renderer.fill_rectangle(Rectangle::new(
+                    origin - Vector::new(size.width / 2.0, size.height / 2.0), *size), 
+                    color),
             Shape::RoundedRect { size, corner_radius } => 
-                self.renderer.fill_rounded_rectangle(Rectangle::new(origin, *size), *corner_radius, color),
-            Shape::Ellipse {  } => todo!(),
+                self.renderer.fill_rounded_rectangle(Rectangle::new(
+                    origin- Vector::new(size.width / 2.0, size.height / 2.0) , *size), 
+                    *corner_radius, 
+                    color),
+            Shape::Ellipse { radii } => 
+                self.renderer.fill_ellipse(origin, *radii, color),
         }
     }
 
@@ -201,7 +207,7 @@ impl<'a, 'b> RenderContext<'a, 'b> {
         self.renderer.draw_text(&text_layout.0, position, color)
     }
 
-    pub fn with_child<T>(&mut self, id: Id, f: impl FnOnce(&mut RenderContext<'_, '_>) -> T) -> T {
+    pub fn with_child<T>(&mut self, id: Id, f: impl FnOnce(&mut RenderContext<'_>) -> T) -> T {
         let child = self.node.children.get_mut(id.0).unwrap();
         self.renderer.set_offset(child.origin().into());
         let mut child_ctx = RenderContext { 
@@ -217,12 +223,13 @@ pub struct EventContext<'a, Msg: 'static> {
     id_path: IdPath,
     node: &'a mut ViewNode,
     pub(crate) messages: &'a mut Vec<ViewMessage<Msg>>,
-    _phantom: PhantomData<&'a Msg>,
+    is_handled: &'a mut bool
 }
 
-pub struct EventContextIter<'a, Msg: 'static> {
+/*pub struct EventContextIter<'a, Msg: 'static> {
     node_iter: ContextIter<'a>,
     messages: *mut Vec<ViewMessage<Msg>>,
+    is_handled: &'a mut bool,
 }
 
 impl<'a, Msg: 'static> Iterator for EventContextIter<'a, Msg> {
@@ -234,7 +241,7 @@ impl<'a, Msg: 'static> Iterator for EventContextIter<'a, Msg> {
                 id_path, 
                 node, 
                 messages: unsafe {&mut *self.messages },
-                _phantom: PhantomData 
+                is_handled: self.is_handled
             }
         })
     }
@@ -247,49 +254,107 @@ impl<'a, Msg: 'static> DoubleEndedIterator for EventContextIter<'a, Msg> {
                 id_path, 
                 node, 
                 messages: unsafe {&mut *self.messages },
-                _phantom: PhantomData 
+                is_handled: self.is_handled 
             }
         })
     }
-}
+}*/
 
 impl<'a, Msg> EventContext<'a, Msg> {
-    pub fn new(node: &'a mut ViewNode, messages: &'a mut Vec<ViewMessage<Msg>>) -> Self{
-        Self { id_path: IdPath::root(), node, messages, _phantom: PhantomData }
+    pub fn new(node: &'a mut ViewNode, messages: &'a mut Vec<ViewMessage<Msg>>, is_handled: &'a mut bool) -> Self{
+        Self { id_path: IdPath::root(), node, messages, is_handled }
     }
 
     pub fn id_path(&self) -> &IdPath {
         &self.id_path
     }
 
-    pub fn child_iter(&mut self) -> EventContextIter<'_, Msg> {
-        EventContextIter { 
-            node_iter: ContextIter::new(&self.id_path, &mut self.node.children),
-            messages: self.messages
-        }
+    pub fn local_bounds(&self) -> Rectangle {
+        Rectangle::new(Point::ZERO, self.node.size())
     }
 
+    pub fn set_handled(&mut self) {
+        *self.is_handled = true;
+    }
+
+    pub fn is_handled(&self) -> bool {
+        *self.is_handled
+    }
+
+    /*pub fn child_iter(&mut self) -> EventContextIter<'_, Msg> {
+        EventContextIter { 
+            node_iter: ContextIter::new(&self.id_path, &mut self.node.children),
+            messages: self.messages,
+            is_handled: self.is_handled
+        }
+    }*/
+
     pub fn forward_to_child(&mut self, id: Id, event: Event, mut f: impl FnMut(&mut EventContext<'_, Msg>, Event)) {
+        if *self.is_handled {
+            return;
+        }
+
         let child = self.node.children.get_mut(id.0).unwrap();
         let offset = child.offset();
         let bounds = child.local_bounds();
-        let mut child_ctx = EventContext { 
-            id_path: self.id_path.child_id(id), 
-            node: child, 
-            messages: &mut self.messages, 
-            _phantom: PhantomData
-        };
 
         match event {
             Event::Mouse(mouse_event) => {
                 let mouse_event = mouse_event.with_offset(offset);
-                match mouse_event.position() {
-                    None => f(&mut child_ctx, Event::Mouse(mouse_event)),
-                    Some(position) if bounds.contains(position) => f(&mut child_ctx, Event::Mouse(mouse_event)),
-                    _ => {}
-                }
+                match mouse_event {
+                    MouseEvent::Moved { position } if bounds.contains(position) => {
+                        if !child.flag_is_set(ViewFlags::UNDER_MOUSE_CURSOR) {
+                            child.set_flag(ViewFlags::UNDER_MOUSE_CURSOR);
+                            f(&mut EventContext { 
+                                id_path: self.id_path.child_id(id), 
+                                node: child, 
+                                messages: &mut self.messages, 
+                                is_handled: self.is_handled
+                            }, Event::Mouse(MouseEvent::Enter));
+                        }
+
+                        f(&mut EventContext { 
+                            id_path: self.id_path.child_id(id), 
+                            node: child, 
+                            messages: &mut self.messages, 
+                            is_handled: self.is_handled
+                        }, Event::Mouse(mouse_event));
+                    },
+                    // Mouse exited the child's parent, or the mouse moved
+                    // and the mouse is not over the child
+                    MouseEvent::Moved { .. } | MouseEvent::Exit => {
+                        if child.flag_is_set(ViewFlags::UNDER_MOUSE_CURSOR) {
+                            child.clear_flag(ViewFlags::UNDER_MOUSE_CURSOR);
+                            f(&mut EventContext { 
+                                id_path: self.id_path.child_id(id), 
+                                node: child, 
+                                messages: &mut self.messages, 
+                                is_handled: self.is_handled
+                            }, Event::Mouse(MouseEvent::Exit));
+                        }
+                        f(&mut EventContext { 
+                            id_path: self.id_path.child_id(id), 
+                            node: child, 
+                            messages: &mut self.messages, 
+                            is_handled: self.is_handled
+                        }, Event::Mouse(mouse_event));
+                    },
+                    // Filter these out
+                    MouseEvent::Enter => {},
+                    _ => f(&mut EventContext { 
+                        id_path: self.id_path.child_id(id), 
+                        node: child, 
+                        messages: &mut self.messages, 
+                        is_handled: self.is_handled
+                    }, Event::Mouse(mouse_event))
+                };
             },
-            other => f(&mut child_ctx, other),
+            other => f(&mut EventContext { 
+                id_path: self.id_path.child_id(id), 
+                node: child, 
+                messages: &mut self.messages, 
+                is_handled: self.is_handled
+            }, other),
         };
     }
 
@@ -298,7 +363,7 @@ impl<'a, Msg> EventContext<'a, Msg> {
             id_path: self.id_path.clone(),
             node: self.node,
             messages,
-            _phantom: PhantomData
+            is_handled: self.is_handled
         };
         f(&mut ctx)
     }

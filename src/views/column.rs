@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use crate::{Event, RenderContext};
+use crate::{Event, RenderContext, LayoutHint};
 use crate::view::{ViewSequence, View, BuildContext, EventContext, LayoutContext};
 use crate::core::{Alignment, Constraint, Size, Vector};
 
@@ -47,49 +47,53 @@ impl<Msg: 'static, VS: ViewSequence<Msg>> View for Column<Msg, VS> {
         self.view_seq.event(state, event, ctx);
     }
 
-    fn layout(&self, state: &Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Size {
-        // layout all children given infinite width
+    fn layout(&self, state: &mut Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Size {
+        // layout all children given infinite height
         let sizes = {
-            let child_constraint = Constraint { min_size: Size::ZERO, max_size: constraint.max().with_width(f64::INFINITY) };
+            let child_constraint = Constraint { min_size: Size::ZERO, max_size: constraint.max().with_height(f64::INFINITY) };
             self.view_seq.layout(state, child_constraint, ctx)
         };
 
-        let max_height: f64 = sizes.iter()
-            .map(|size| size.height)
-            .fold(0.0, |acc, height| acc.max(height));
+        let max_width: f64 = sizes.iter()
+            .map(|size| size.width)
+            .fold(0.0, |acc, width| acc.max(width));
 
         if constraint.max().width.is_finite() {
             let total_spacing = self.spacing * (self.view_seq.len().saturating_sub(1) as f64);
-            let total_width: f64 = sizes.iter()
-                .map(|size| size.width)
+            let total_height: f64 = sizes.iter()
+                .map(|size| size.height)
                 .sum();
 
-            let total_size = constraint.clamp(Size::new(total_spacing + total_width, max_height));
-            let mut pos_x = self.alignment.compute_offset_x(total_width + total_spacing, total_size.width);
+            let total_size = constraint.clamp(Size::new(max_width, total_spacing + total_height));
+            let mut pos_y = self.alignment.compute_offset_y(total_size.height, total_height + total_spacing);
             
             for (node, size) in ctx.node.children.iter_mut().zip(sizes) {
-                let pos_y = self.alignment.compute_offset_y(size.height, total_size.height);
+                let pos_x = self.alignment.compute_offset_x(size.width, total_size.width);
                 node.set_offset(Vector::new(pos_x, pos_y));
                 node.set_size(size);
 
-                pos_x += self.spacing + size.width;
+                pos_y += self.spacing + size.height;
             }
 
             total_size
         } else {
-            let mut pos_x = 0.0;
+            let mut pos_y = 0.0;
             for (node, size) in ctx.node.children.iter_mut().zip(sizes) {
-                let pos_y = self.alignment.compute_offset_y(size.height, max_height);
+                let pos_x = self.alignment.compute_offset_x(size.width, max_width);
                 node.set_offset(Vector::new(pos_x, pos_y));
                 node.set_size(size);
-                pos_x += self.spacing + size.width;
+                pos_y += self.spacing + size.height;
             }
 
-            Size::new(pos_x, max_height)
+            Size::new(max_width, pos_y)
         }
     }
 
     fn render(&self, state: &Self::State, ctx: &mut RenderContext) {
         self.view_seq.render(state, ctx)
+    }
+
+    fn layout_hint(&self, state: &Self::State) -> (LayoutHint, LayoutHint) {
+        self.view_seq.layout_hint(state)
     }
 }

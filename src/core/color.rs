@@ -49,4 +49,17 @@ impl Color {
     pub const fn from_rgb(r: f32, g: f32, b: f32) -> Self{
         Self::from_rgba(r, g, b, 1.0)
     }
+
+    pub fn from_rgba8(r: u8, g: u8, b: u8, a: f32) -> Self {
+        Self {
+            r: f32::from(r) / 255.0,
+            g: f32::from(g) / 255.0,
+            b: f32::from(b) / 255.0,
+            a
+        }
+    }
+
+    pub fn from_rgb8(r: u8, g: u8, b: u8) -> Self {
+        Self::from_rgba8(r, g, b, 1.0)
+    }
 }

@@ -7,7 +7,7 @@ pub struct Size<T = f64> {
 }
 
 impl<T> Size<T> {
-    pub fn new(width: T, height: T) -> Self {
+    pub const fn new(width: T, height: T) -> Self {
         Self { width, height }
     }
 
@@ -80,6 +80,16 @@ impl Add for Size {
     type Output = Size;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self { width: self.width + rhs.width, height: self.height + self.height }
+        Self { width: self.width + rhs.width, height: self.height + rhs.height }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn size_add() {
+        assert_eq!(Size::new(5.0, 10.0) + Size::new(1.0, 2.0), Size::new(6.0, 12.0));
     }
 }

@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use crate::{view::{View, EventContext}, core::{Size, Rectangle, Constraint, Alignment}, ViewSequence, Event, LayoutContext, BuildContext, RenderContext};
+use crate::{view::{View, EventContext}, core::{Size, Rectangle, Constraint, Alignment}, ViewSequence, Event, LayoutContext, BuildContext, RenderContext, LayoutHint};
 
 pub struct Stack<Msg: 'static, VS: ViewSequence<Msg>> {
     view_seq: VS,
@@ -53,5 +53,9 @@ impl<Msg: 'static, VS: ViewSequence<Msg>> View for Stack<Msg, VS> {
 
     fn render(&self, state: &Self::State, ctx: &mut RenderContext) {
         self.view_seq.render(state, ctx)
+    }
+
+    fn layout_hint(&self, state: &Self::State) -> (LayoutHint, LayoutHint) {
+        self.view_seq.layout_hint(state)
     }
 }

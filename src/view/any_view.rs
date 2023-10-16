@@ -1,10 +1,11 @@
 use std::{any::Any, ops::{DerefMut, Deref}};
-use crate::{Event, core::{Constraint, Size}, RenderContext, LayoutContext, BuildContext, ViewMessage};
+use crate::{Event, core::{Constraint, Size}, RenderContext, LayoutContext, BuildContext, ViewMessage, LayoutHint};
 use super::{EventContext, View};
 
 pub trait AnyView {
     fn as_any_mut(&mut self) -> &mut dyn Any;
     fn as_any(&self) -> &dyn Any;
+    fn dyn_layout_hint(&self, state: &Box<dyn Any>) -> (LayoutHint, LayoutHint);
     fn dyn_build(&mut self, ctx: &mut BuildContext) -> Box<dyn Any>;
     fn dyn_rebuild(&mut self, state: &mut Box<dyn Any>, ctx: &mut BuildContext);
     fn dyn_event(&mut self, state: &mut Box<dyn Any>, event: Event, ctx: &mut EventContext<Box<dyn Any>>);
@@ -19,6 +20,10 @@ impl<V: View + 'static> AnyView for V {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn dyn_layout_hint(&self, state: &Box<dyn Any>) -> (LayoutHint, LayoutHint) {
+        self.layout_hint(state.downcast_ref().unwrap())
     }
 
     fn dyn_build(&mut self, ctx: &mut BuildContext) -> Box<dyn Any> {
@@ -60,6 +65,10 @@ impl<V: View + 'static> AnyView for V {
 impl View for Box<dyn AnyView> {
 	type Message = Box<dyn Any>;
     type State = Box<dyn Any>;
+
+    fn layout_hint(&self, state: &Self::State) -> (LayoutHint, LayoutHint) {
+        self.deref().dyn_layout_hint(state)
+    }
 
     fn build(&mut self, ctx: &mut BuildContext) -> Self::State {
         self.deref_mut().dyn_build(ctx)
