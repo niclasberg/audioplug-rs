@@ -12,14 +12,14 @@ impl TextLayout {
         font_size: f32,
         max_size: Size
     ) -> Self {
-        todo!()
+        Self {}
     }
 
     pub fn set_max_size(&mut self, size: Size) {
-        todo!()
+        
     }
 
     pub fn measure(&self) -> Size {
-        todo!()
+        Size::ZERO
     }
 }

@@ -32,7 +32,7 @@ impl Window {
 			}
 		};
 
-		let view = View::new();
+		let view = View::new(widget);
 
 		unsafe {
 			window.makeKeyAndOrderFront(None);

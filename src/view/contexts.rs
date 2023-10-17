@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, borrow::Borrow};
 use crate::{ViewMessage, Id, ViewFlags, core::{Rectangle, Point, Color, Vector}, Event, text::TextLayout, Shape, MouseEvent};
 use super::{IdPath, ViewNode};
 use crate::platform;
@@ -168,14 +168,15 @@ impl<'a> LayoutContext<'a> {
     }
 }
 
-pub struct RenderContext<'a> {
+pub struct RenderContext<'a, 'b> {
     id_path: IdPath,
     node: &'a mut ViewNode,
-    renderer: &'a mut platform::Renderer,
+    renderer: &'a mut platform::RendererRef<'b>,
 }
 
-impl<'a> RenderContext<'a> {
-    pub(crate) fn new(node: &'a mut ViewNode, renderer: &'a mut platform::Renderer) -> Self {
+impl<'a, 'b> RenderContext<'a, 'b> {
+	#[cfg(target_os = "macos")]
+    pub(crate) fn new(node: &'a mut ViewNode, renderer: &'a mut platform::RendererRef<'b>) -> Self {
         Self { node, id_path: IdPath::root(), renderer}
     }
 
@@ -207,7 +208,7 @@ impl<'a> RenderContext<'a> {
         self.renderer.draw_text(&text_layout.0, position, color)
     }
 
-    pub fn with_child<T>(&mut self, id: Id, f: impl FnOnce(&mut RenderContext<'_>) -> T) -> T {
+    pub fn with_child<T>(&mut self, id: Id, f: impl FnOnce(&mut RenderContext<'_, 'b>) -> T) -> T {
         let child = self.node.children.get_mut(id.0).unwrap();
         self.renderer.set_offset(child.origin().into());
         let mut child_ctx = RenderContext { 

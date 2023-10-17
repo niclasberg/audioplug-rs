@@ -19,6 +19,7 @@ impl View for MyWidget {
     fn rebuild(&mut self, _state: &mut Self::State, _ctx: &mut BuildContext) {}
 
     fn render(&self, _state: &Self::State, ctx: &mut RenderContext) {
+		println!("{:?}", ctx.local_bounds());
         let color = if self.active { Color::BLACK } else { Color::WHITE };
         let bounds = ctx.local_bounds();
         ctx.fill(&Shape::rect(bounds.size().scale(0.5)), bounds.center() + Vector::new(40.0, 40.0), color);
@@ -62,7 +63,7 @@ fn main() {
                 )).with_spacing(5.0)
             )).with_alignment(Alignment::Leading),
             Column::new((
-                Shape::rounded_rect(Size::new(40.0, 40.0), Size::new(5.0, 5.0)).fill(Color::RED),
+                Shape::rect(Size::new(40.0, 40.0)).fill(Color::RED),
                 use_state(
                     || true, 
                     |state| { MyWidget { active: *state } }, 
