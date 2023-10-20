@@ -5,11 +5,11 @@ use windows::{core::{PCWSTR, w, Result, Error},
         Foundation::*, 
         System::LibraryLoader::GetModuleHandleW, 
         UI::{WindowsAndMessaging::*, Input::KeyboardAndMouse::TrackMouseEvent}, 
-        UI::Input::*,
+        UI::Input::{*, KeyboardAndMouse::VIRTUAL_KEY},
         Graphics::Gdi::{self, InvalidateRect}}};
 
-use super::{com, Renderer};
-use crate::{core::{Color, Point, Rectangle}, Event, event::{MouseEvent, WindowEvent}, window::WindowHandler};
+use super::{com, Renderer, keyboard::{vk_to_key, get_modifiers}};
+use crate::{core::{Color, Point, Rectangle}, Event, event::{MouseEvent, WindowEvent, KeyEvent}, window::WindowHandler};
 use crate::event::MouseButton;
 
 const WINDOW_CLASS: PCWSTR = w!("my_window");
@@ -139,6 +139,7 @@ impl WindowState {
                     }
                 } else {
                     unsafe { 
+                        // Setup tracking so that we get notified when the mouse leaves the client area
                         let mut ev = KeyboardAndMouse::TRACKMOUSEEVENT {
                             cbSize: std::mem::size_of::<KeyboardAndMouse::TRACKMOUSEEVENT>() as u32,
                             dwFlags: KeyboardAndMouse::TME_LEAVE,
@@ -158,6 +159,29 @@ impl WindowState {
                 self.last_mouse_pos.replace(None);
                 self.publish_event(Event::Mouse(MouseEvent::Exit));
                 Some(LRESULT(0))
+            },
+
+            WM_KEYDOWN => {
+                let key = vk_to_key(VIRTUAL_KEY(wparam.0 as u16));
+                let modifiers = get_modifiers();
+                self.publish_event(Event::Keyboard(KeyEvent::KeyDown { key, modifiers }));
+                Some(LRESULT(0))
+            },
+
+            WM_CHAR => {
+                match wparam.0 as u16 {
+                    0x08 | 0x0A | 0x1B  => { // backspace, linefeed, escape
+                        None
+                    },
+                    str => {
+                        if let Ok(str) = String::from_utf16(&[str]) {
+                            self.publish_event(Event::Keyboard(KeyEvent::Characters { str }));
+                            Some(LRESULT(0))
+                        } else {
+                            None
+                        }
+                    }
+                }
             },
 
             WM_DESTROY => {

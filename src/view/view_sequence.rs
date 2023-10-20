@@ -49,7 +49,7 @@ macro_rules! impl_view_seq_tuple {
             }
         
             fn event(&mut self, state: &mut Self::State, event: Event, ctx: &mut EventContext<Msg>) {
-                $( ctx.forward_to_child(Id($s_rev), event, |c, event| self.$s_rev.event(&mut state.$s_rev, event, c)); )*
+                $( ctx.forward_to_child(Id($s_rev), event.clone(), |c, event| self.$s_rev.event(&mut state.$s_rev, event, c)); )*
             }
         
             fn layout(&self, state: &mut Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Vec<Size> {

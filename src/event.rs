@@ -1,4 +1,4 @@
-use crate::core::{Point, Size, Vector};
+use crate::{core::{Point, Size, Vector}, keyboard::{Key, Modifiers}};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MouseButton {
@@ -51,6 +51,21 @@ impl MouseEvent {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum KeyEvent {
+    KeyUp {
+        key: Key,
+        modifiers: Modifiers
+    },
+    KeyDown {
+        key: Key,
+        modifiers: Modifiers
+    },
+    Characters {
+        str: String
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum WindowEvent {
     Resize {
@@ -60,8 +75,9 @@ pub enum WindowEvent {
     Unfocused
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Event {
     Mouse(MouseEvent),
-    Window(WindowEvent)
+    Window(WindowEvent),
+    Keyboard(KeyEvent)
 }

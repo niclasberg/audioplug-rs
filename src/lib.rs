@@ -18,6 +18,7 @@ pub mod param;
 mod editor;
 mod text;
 mod platform;
+mod keyboard;
 
 pub use plugin::*;
 pub use editor::*;

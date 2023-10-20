@@ -36,6 +36,8 @@ impl Into<Direct2D::Common::D2D_POINT_2F> for Point {
     }
 }
 
+pub type RendererRef<'a> = &'a mut Renderer;
+
 pub struct Renderer {
     render_target: Direct2D::ID2D1HwndRenderTarget,
     brush: Direct2D::ID2D1SolidColorBrush

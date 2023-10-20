@@ -1,5 +1,5 @@
 use audioplug::core::{Color, Constraint, Size, Vector, Alignment};
-use audioplug::views::{use_state, Row, Label, Button, Stack, Slider, Column};
+use audioplug::views::{use_state, Row, Label, Button, Stack, Slider, Column, TextBox};
 use audioplug::{window::*, View, Event, EventContext, MouseEvent, Application, LayoutContext, BuildContext, RenderContext, Shape, LayoutHint};
 
 struct MyWidget {
@@ -60,7 +60,11 @@ fn main() {
                 Row::new((
                     Label::new("Button"),
                     Button::new(Label::new("Filled")).map(|_| ())
-                )).with_spacing(5.0)
+                )).with_spacing(5.0),
+                Row::new((
+                    Label::new("Text input"),
+                    TextBox::new().map(|_| ())
+                ))
             )).with_alignment(Alignment::Leading),
             Column::new((
                 Shape::rect(Size::new(40.0, 40.0)).fill(Color::RED),

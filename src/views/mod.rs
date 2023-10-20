@@ -6,6 +6,7 @@ mod row;
 mod column;
 mod slider;
 mod xy_pad;
+mod textbox;
 
 pub use button::Button;
 pub use column::Column;
@@ -15,3 +16,4 @@ pub use use_state::use_state;
 pub use row::Row;
 pub use slider::{Slider, SliderMessage};
 pub use xy_pad::XyPad;
+pub use textbox::TextBox;

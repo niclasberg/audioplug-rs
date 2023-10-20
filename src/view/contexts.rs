@@ -175,7 +175,6 @@ pub struct RenderContext<'a, 'b> {
 }
 
 impl<'a, 'b> RenderContext<'a, 'b> {
-	#[cfg(target_os = "macos")]
     pub(crate) fn new(node: &'a mut ViewNode, renderer: &'a mut platform::RendererRef<'b>) -> Self {
         Self { node, id_path: IdPath::root(), renderer}
     }

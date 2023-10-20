@@ -14,3 +14,4 @@ impl ColorMap {
         Self { color_positions: color_positions.into() }
     }
 }
+
