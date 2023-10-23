@@ -1,4 +1,6 @@
-use std::ops::{Add, Mul};
+use std::ops::{Add, Mul, Div, Sub};
+
+use num::Zero;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Size<T = f64> {
@@ -76,11 +78,39 @@ impl From<[u16; 2]> for Size {
     }
 }
 
-impl Add for Size {
-    type Output = Size;
+impl<T: Add<Output = T>> Add for Size<T> {
+    type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
         Self { width: self.width + rhs.width, height: self.height + rhs.height }
+    }
+}
+
+impl<T: Sub<Output = T>> Sub for Size<T> {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self { width: self.width - rhs.width, height: self.height - rhs.height }
+    }
+}
+
+impl Mul<f64> for Size {
+    type Output = Self;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        Size::new(self.width * rhs, self.height * rhs)
+    }
+}
+
+impl Div<f64> for Size {
+    type Output = Self;
+
+    fn div(self, rhs: f64) -> Self::Output {
+        if rhs.is_zero() {
+            panic!("Cannot divide size by zero");
+        }
+
+        Size::new(self.width / rhs, self.height / rhs)
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::{View, event::KeyEvent, text::TextLayout, core::{Size, Point, Color}, LayoutHint};
+use crate::{View, event::KeyEvent, text::TextLayout, core::{Size, Point, Color}, LayoutHint, Shape};
 
 pub struct TextBox {
 
@@ -20,6 +20,8 @@ pub enum TextBoxMessage {
 
 }
 
+const PADDING: f64 = 2.0;
+
 impl View for TextBox {
     type Message = TextBoxMessage;
     type State = TextBoxState;
@@ -38,7 +40,8 @@ impl View for TextBox {
                 match key_event {
                     KeyEvent::Characters { str } => {
                         state.value.push_str(&str);
-                        state.text_layout = TextLayout::new(&state.value, Size::ZERO);
+                        state.text_layout = TextLayout::new(&state.value, Size::INFINITY);
+                        ctx.request_render();
                     },
                     _ => {}
                 }
@@ -50,15 +53,18 @@ impl View for TextBox {
     fn layout(&self, state: &mut Self::State, constraint: crate::core::Constraint, ctx: &mut crate::LayoutContext) -> crate::core::Size {
         state.text_layout.set_max_size(constraint.max());
         let size = state.text_layout.measure();
+        let size = size + Size::new(PADDING*2.0, PADDING*2.0);
 
         constraint.clamp(size)
     }
 
-    fn layout_hint(&self, state: &Self::State) -> (crate::LayoutHint, crate::LayoutHint) {
+    fn layout_hint(&self, _state: &Self::State) -> (crate::LayoutHint, crate::LayoutHint) {
         (LayoutHint::Fixed, LayoutHint::Flexible)
     }
 
     fn render(&self, state: &Self::State, ctx: &mut crate::RenderContext) {
-        ctx.draw_text(&state.text_layout, Point::ZERO, Color::BLACK)
+        ctx.stroke(&Shape::rect(ctx.local_bounds().size()), ctx.local_bounds().center(), Color::RED, 1.0);
+
+        ctx.draw_text(&state.text_layout, Point::new(PADDING, PADDING), Color::BLACK)
     }
 }

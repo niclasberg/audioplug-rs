@@ -6,6 +6,7 @@ mod contexts;
 mod view_node;
 mod view_sequence;
 mod shape;
+mod component;
 pub use id::{Id, IdPath};
 pub use any_view::*;
 pub use contexts::{LayoutContext, EventContext, BuildContext, RenderContext};

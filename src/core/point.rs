@@ -1,6 +1,6 @@
 use std::ops::{Add, Sub};
 
-use super::Vector;
+use super::{Vector, Size};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Point<T = f64> {
@@ -58,6 +58,14 @@ impl<T: Sub<Output = T>> Sub for Point<T> {
 
     fn sub(self, rhs: Self) -> Self::Output {
         Self { x: self.x - rhs.x, y: self.y - rhs.y }
+    }
+}
+
+impl<T: Sub<Output = T>> Sub<Size<T>> for Point<T> {
+    type Output = Self;
+
+    fn sub(self, rhs: Size<T>) -> Self::Output {
+        Self { x: self.x - rhs.width, y: self.y - rhs.height }
     }
 }
 

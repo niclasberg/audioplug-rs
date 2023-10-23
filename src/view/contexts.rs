@@ -186,12 +186,12 @@ impl<'a, 'b> RenderContext<'a, 'b> {
     pub fn fill(&mut self, shape: &Shape, origin: Point, color: Color) {
         match shape {
             Shape::Rect { size } => 
-                self.renderer.fill_rectangle(Rectangle::new(
-                    origin - Vector::new(size.width / 2.0, size.height / 2.0), *size), 
+                self.renderer.fill_rectangle(
+                    Rectangle::new(origin - *size / 2.0, *size), 
                     color),
             Shape::RoundedRect { size, corner_radius } => 
-                self.renderer.fill_rounded_rectangle(Rectangle::new(
-                    origin- Vector::new(size.width / 2.0, size.height / 2.0) , *size), 
+                self.renderer.fill_rounded_rectangle(
+                    Rectangle::new(origin - *size / 2.0, *size), 
                     *corner_radius, 
                     color),
             Shape::Ellipse { radii } => 
@@ -199,8 +199,16 @@ impl<'a, 'b> RenderContext<'a, 'b> {
         }
     }
 
-    pub fn draw_rectangle(&mut self, rect: Rectangle, color: Color, line_width: f32) {
-        self.renderer.draw_rectangle(rect, color, line_width)
+    pub fn stroke(&mut self, shape: &Shape, origin: Point, color: Color, line_width: f32) {
+        match shape {
+            Shape::Rect { size } => 
+                self.renderer.draw_rectangle(
+                    Rectangle::new(origin -  *size / 2.0, *size),
+                    color, 
+                    line_width),
+            Shape::RoundedRect { size, corner_radius } => todo!(),
+            Shape::Ellipse { radii } => todo!(),
+        }
     }
 
     pub fn draw_text(&mut self, text_layout: &TextLayout, position: Point, color: Color) {
