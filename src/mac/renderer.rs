@@ -2,7 +2,7 @@ use icrate::Foundation::{CGRect, CGPoint, CGSize, CGFloat};
 
 use crate::core::{Rectangle, Color, Point, Size, Vector};
 
-use super::{core_graphics::{CGContext, CGColor, CGRef}, TextLayout};
+use super::{core_graphics::{CGContext, CGColor}, TextLayout, IRef};
 
 impl Into<CGPoint> for Point {
     fn into(self) -> CGPoint {
@@ -97,10 +97,10 @@ impl<'a> RendererRef<'a> {
     }
 
     pub fn draw_text(&mut self, text_layout: &TextLayout, position: Point, color: Color) {
-        
+
     }
 }
 
-fn to_cgcolor(color: Color) -> CGRef<CGColor> {
+fn to_cgcolor(color: Color) -> IRef<CGColor> {
 	CGColor::from_rgba(color.r.into(), color.g.into(), color.b.into(), color.a.into())
 }

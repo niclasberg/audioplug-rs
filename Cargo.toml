@@ -44,6 +44,8 @@ features = [
 	"AppKit_NSView",
 	"AppKit_NSEvent",
 	"AppKit_NSApplication",
+	"Foundation_NSAttributedString",
+	"Foundation_NSString"
 ]
 
 [[example]]
