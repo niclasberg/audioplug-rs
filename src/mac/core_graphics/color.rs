@@ -1,36 +1,7 @@
-use std::ops::Deref;
+use crate::mac::{IRefCounted, IRef};
 
 use super::CGFloat;
 use objc2::{Encode, RefEncode};
-
-pub unsafe trait CGReffable {
-	unsafe fn release(this: *mut Self);
-	unsafe fn retain(this: *mut Self);
-}
-
-pub struct CGRef<T: CGReffable> {
-	ptr: *mut T
-}
-
-impl<T: CGReffable> CGRef<T> {
-	unsafe fn wrap(ptr: *mut T) -> CGRef<T> {
-		CGRef { ptr }
-	}
-}
-
-impl<T: CGReffable> Drop for CGRef<T> {
-    fn drop(&mut self) {
-		unsafe { <T as CGReffable>::release(self.ptr) };
-    }
-}
-
-impl<T:CGReffable> Deref for CGRef<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        unsafe { &*self.ptr }
-    }
-}
 
 #[repr(C)]
 pub struct CGColor {
@@ -46,7 +17,7 @@ unsafe impl RefEncode for CGColor {
 	const ENCODING_REF: objc2::Encoding = objc2::Encoding::Pointer(&CGColor::ENCODING);
 }
 
-unsafe impl CGReffable for CGColor {
+unsafe impl IRefCounted for CGColor {
     unsafe fn release(this: *mut Self) {
         CGColorRelease(this)
     }
@@ -57,8 +28,8 @@ unsafe impl CGReffable for CGColor {
 }
 
 impl CGColor {
-	pub fn from_rgba(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) -> CGRef<Self> {
-		unsafe { CGRef::wrap(CGColorCreateSRGB(red, green, blue, alpha)) }
+	pub fn from_rgba(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) -> IRef<Self> {
+		unsafe { IRef::wrap(CGColorCreateSRGB(red, green, blue, alpha)) }
 	}
 }
 
