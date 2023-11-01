@@ -1,5 +1,5 @@
 use std::ffi::c_void;
-use audioplug::{Plugin, AudioLayout, Bus, ChannelType};
+use audioplug::{Plugin, AudioLayout, Bus, ChannelType, ProcessContext};
 use audioplug::vst3::Factory;
 
 struct MyPlugin {
@@ -40,6 +40,14 @@ impl Plugin for MyPlugin {
 
     fn editor(&self) -> Option<Box<dyn audioplug::Editor>> {
         None
+    }
+
+    fn process(&mut self, ctx: ProcessContext) {
+        for (in_channel, mut out_channel) in ctx.input.channels_iter().zip(ctx.output.channels_iter_mut()) {
+            for (in_sample, out_sample)in in_channel.iter().zip(out_channel.iter_mut()) {
+                *out_sample = in_sample * 0.5;
+            }
+        }
     }
 }
 

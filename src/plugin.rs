@@ -1,4 +1,6 @@
-use crate::AudioLayout;
+use windows::Win32::Media::Audio;
+
+use crate::{AudioLayout, AudioBuffer};
 use crate::editor::Editor;
 
 pub struct PluginInfo {
@@ -19,6 +21,11 @@ impl PluginInfo {
     }
 }
 
+pub struct ProcessContext<'a> {
+    pub input: &'a AudioBuffer,
+    pub output: &'a mut AudioBuffer
+}
+
 pub trait Plugin {
     const NAME: &'static str;
     const VENDOR: &'static str;
@@ -32,5 +39,5 @@ pub trait Plugin {
         None
     }
 
-    //fn process(&mut self);
+    fn process(&mut self, context: ProcessContext);
 }

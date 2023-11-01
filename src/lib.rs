@@ -19,6 +19,7 @@ mod editor;
 mod text;
 mod platform;
 mod keyboard;
+mod audio_buffer;
 
 pub use plugin::*;
 pub use editor::*;
@@ -27,3 +28,4 @@ pub use event::{Event, MouseEvent};
 pub use view::*;
 pub use message::*;
 pub use audiolayout::*;
+pub use audio_buffer::*;

@@ -8,7 +8,7 @@ use std::ffi::c_void;
 
 use vst3_sys as vst3_com;
 
-use crate::Plugin;
+use crate::{Plugin, AudioBuffer, ProcessContext};
 use super::editcontroller::EditController;
 use super::util::strcpyw;
 
@@ -95,12 +95,20 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
             
         }*/
 
-        //let inputs = unsafe { slice::from_raw_parts_mut(data.inputs, data.num_inputs as usize) };
-        //let outputs = unsafe { slice::from_raw_parts_mut(data.outputs, data.num_outputs as usize)};
+        let input = AudioBuffer::from_ptr((*data.inputs).buffers as *const *mut _, (*data.inputs).num_channels as usize, data.num_samples as usize);
+        let mut output = AudioBuffer::from_ptr((*data.outputs).buffers as *const *mut _, (*data.outputs).num_channels as usize, data.num_samples as usize);
+
+        let context = ProcessContext {
+            input: &input,
+            output: &mut output,
+        };
+
+        self.plugin.borrow_mut().process(context);
 
         /*if let Some(output_param_changes) = data.output_param_changes.upgrade() {
             output_param_changes.add_parameter_data(id, index)
         }*/
+
         kResultOk
     }
 
