@@ -1,7 +1,11 @@
-use icrate::Foundation::NSAttributedString;
+use std::mem::MaybeUninit;
+
+use icrate::Foundation::{NSAttributedString, CGSize};
 use objc2::{Encode, RefEncode};
 
-use crate::mac::{IRef, IRefCounted, CFType};
+use crate::mac::{IRef, IRefCounted, CFType, core_foundation::{CFRange, CFDictionary}, core_graphics::CGPath};
+
+use super::CTFrame;
 
 #[repr(C)]
 pub struct CTFrameSetter {
@@ -23,9 +27,27 @@ impl CTFrameSetter {
 	pub fn from_attributed_string(attributed_string: &NSAttributedString) -> IRef<Self> {
 		unsafe { IRef::wrap(CTFramesetterCreateWithAttributedString(attributed_string)) }
 	}
+
+	pub fn suggest_frame_size_with_constraints(&self, string_range: CFRange, frame_attributes: Option<&CFDictionary>, constraints: CGSize) -> (CFRange, CGSize) {
+		unsafe {
+			let mut fit_range = MaybeUninit::<CFRange>::uninit();
+			let result = CTFramesetterSuggestFrameSizeWithConstraints(self, string_range, frame_attributes.map(|x| x as *const _).unwrap_or(std::ptr::null()), constraints, fit_range.as_mut_ptr());
+			let fit_range = fit_range.assume_init();
+			(fit_range, result)
+		}
+	}
+
+	pub fn create_frame(&self, string_range: CFRange, path: &CGPath, frame_attributes: Option<&CFDictionary>) -> IRef<CTFrame> {
+		unsafe {
+			let path_ptr = CTFramesetterCreateFrame(self, string_range, path, frame_attributes.map(|x| x as *const _).unwrap_or(std::ptr::null()));
+			IRef::wrap_and_retain(path_ptr)
+		}
+	}
 }
 
 #[link(name = "CoreText", kind = "framework")]
 extern "C" {
 	fn CTFramesetterCreateWithAttributedString(attrString: *const NSAttributedString) -> *mut CTFrameSetter;
+	fn CTFramesetterSuggestFrameSizeWithConstraints(framesetter: *const CTFrameSetter, string_range: CFRange, frame_attributes: *const CFDictionary, constraints: CGSize, fit_range: *mut CFRange) -> CGSize;
+	fn CTFramesetterCreateFrame(framesetter: *const CTFrameSetter, string_range: CFRange, path: *const CGPath, frame_attributes: *const CFDictionary) -> *const CTFrame;
 }

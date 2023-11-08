@@ -18,11 +18,11 @@ unsafe impl RefEncode for CGColor {
 }
 
 unsafe impl IRefCounted for CGColor {
-    unsafe fn release(this: *mut Self) {
+    unsafe fn release(this: *const Self) {
         CGColorRelease(this)
     }
 
-    unsafe fn retain(this: *mut Self) {
+    unsafe fn retain(this: *const Self) {
         CGColorRetain(this)
     }
 }
@@ -36,6 +36,6 @@ impl CGColor {
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
 	fn CGColorCreateSRGB(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) -> *mut CGColor;
-	fn CGColorRelease(color: *mut CGColor);
-	fn CGColorRetain(color: *mut CGColor);
+	fn CGColorRelease(color: *const CGColor);
+	fn CGColorRetain(color: *const CGColor);
 }

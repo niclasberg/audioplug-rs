@@ -9,6 +9,7 @@ mod error;
 mod text;
 mod iref;
 mod core_text;
+mod core_foundation;
 
 pub(crate) use application::Application;
 pub(crate) use window::Window;

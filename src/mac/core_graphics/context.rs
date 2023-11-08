@@ -1,5 +1,6 @@
 use icrate::Foundation::CGFloat;
 use objc2::{Encode, RefEncode};
+use super::CGAffineTransform;
 use super::CGColor;
 use super::CGRect;
 
@@ -61,6 +62,11 @@ impl CGContext {
 	pub fn fill_path(&self) {
 		unsafe { CGContextFillPath(self) }
 	}
+
+	pub fn set_text_matrix(&self, t: CGAffineTransform) {
+		unsafe { CGContextSetTextMatrix(self, t) }
+	}
+
 }
 
 #[link(name = "CoreGraphics", kind = "framework")]
@@ -77,5 +83,5 @@ extern "C" {
 	fn CGContextAddArcToPoint(c: *const CGContext, x1: CGFloat, y1: CGFloat, x2: CGFloat, y2: CGFloat, radius: CGFloat);
 	fn CGContextFillPath(c: *const CGContext);
 	fn CGContextFillEllipseInRect(c: *const CGContext, rect: CGRect);
-
+	fn CGContextSetTextMatrix(c: *const CGContext, t: CGAffineTransform);
 }

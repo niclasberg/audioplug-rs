@@ -1,6 +1,7 @@
 use objc2::{Encode, RefEncode};
 
-use crate::mac::{CFType, core_graphics::CGContext};
+use crate::mac::{CFType, core_graphics::{CGContext, CGPath}, IRef};
+use crate::mac::core_foundation::CFRange;
 
 #[repr(C)]
 pub struct CTFrame {
@@ -19,9 +20,21 @@ unsafe impl RefEncode for CTFrame {
 }
 
 impl CTFrame {
-	fn draw(&self, context: &CGContext) {
+	pub fn draw(&self, context: &CGContext) {
 		unsafe {
 			CTFrameDraw(self, context);
+		}
+	}
+
+	pub fn get_path(&self) -> IRef<CGPath> {
+		unsafe { 
+			IRef::wrap_and_retain(CTFrameGetPath(self))
+		}
+	}
+
+	pub fn get_visible_string_range(&self) -> CFRange {
+		unsafe {
+			CTFrameGetVisibleStringRange(self)
 		}
 	}
 }
@@ -29,4 +42,6 @@ impl CTFrame {
 #[link(name = "CoreText", kind = "framework")]
 extern "C" {
 	fn CTFrameDraw(frame: *const CTFrame, context: *const CGContext);
+	fn CTFrameGetPath(frame: *const CTFrame) -> *const CGPath;
+	fn CTFrameGetVisibleStringRange(frame: *const CTFrame) -> CFRange;
 }

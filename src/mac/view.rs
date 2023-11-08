@@ -10,6 +10,7 @@ use objc2::{declare_class, mutability, ClassType, msg_send_id, msg_send};
 
 use crate::core::Point;
 use crate::event::MouseButton;
+use crate::mac::core_graphics::CGAffineTransform;
 use crate::{MouseEvent, Event};
 use crate::mac::RendererRef;
 use crate::window::WindowHandler;
@@ -89,8 +90,12 @@ declare_class!(
 		fn draw_rect(&self, rect: NSRect) {
 			let a = unsafe { self.frame() };
 			println!("Draw: {:?}", a);
+
 			let graphics_context = NSGraphicsContext::current().unwrap();
 			let context = graphics_context.cg_context();
+
+			context.set_text_matrix(CGAffineTransform::scale(1.0, -1.0));
+
 			let color = CGColor::from_rgba(1.0, 0.0, 1.0, 1.0);
 			context.set_fill_color(&color);
 			context.fill_rect(rect);

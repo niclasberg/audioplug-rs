@@ -1,21 +1,21 @@
-use std::{ops::Deref, os::raw::c_void};
+use std::{ops::{Deref, DerefMut}, os::raw::c_void};
 
 pub unsafe trait IRefCounted {
-	unsafe fn release(this: *mut Self);
-	unsafe fn retain(this: *mut Self);
+	unsafe fn release(this: *const Self);
+	unsafe fn retain(this: *const Self);
 }
 
 // Marker traits for CFTypes
 pub unsafe trait CFType {}
 
 unsafe impl<T: CFType> IRefCounted for T {
-    unsafe fn release(this: *mut Self) {
+    unsafe fn release(this: *const Self) {
         unsafe {
-			CFRelease(this as *mut c_void)
+			CFRelease(this as *const c_void)
 		}
     }
 
-    unsafe fn retain(this: *mut Self) {
+    unsafe fn retain(this: *const Self) {
         unsafe {
 			CFRetain(this as *mut c_void);
 		}
@@ -23,11 +23,16 @@ unsafe impl<T: CFType> IRefCounted for T {
 }
 
 pub struct IRef<T: IRefCounted> {
-	ptr: *mut T
+	ptr: *const T
 }
 
 impl<T: IRefCounted> IRef<T> {
-	pub unsafe fn wrap(ptr: *mut T) -> IRef<T> {
+	pub unsafe fn wrap(ptr: *const T) -> IRef<T> {
+		IRef { ptr }
+	}
+
+	pub unsafe fn wrap_and_retain(ptr: *const T) -> IRef<T> {
+		T::retain(ptr);
 		IRef { ptr }
 	}
 }
@@ -46,8 +51,39 @@ impl<T:IRefCounted> Deref for IRef<T> {
     }
 } 
 
+pub struct IRefMut<T: IRefCounted> {
+	ptr: *mut T
+}
+
+impl<T: IRefCounted> IRefMut<T> {
+	pub unsafe fn wrap(ptr: *mut T) -> IRef<T> {
+		IRef { ptr }
+	}
+}
+
+impl<T: IRefCounted> Drop for IRefMut<T> {
+    fn drop(&mut self) {
+		unsafe { <T as IRefCounted>::release(self.ptr) };
+    }
+}
+
+impl<T:IRefCounted> Deref for IRefMut<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*self.ptr }
+    }
+}
+
+impl<T:IRefCounted> DerefMut for IRefMut<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut *self.ptr }
+    }
+}
+
+
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
-	fn CFRelease(cf: *mut c_void);
-	fn CFRetain(cf: *mut c_void) -> *mut c_void;
+	fn CFRelease(cf: *const c_void);
+	fn CFRetain(cf: *const c_void) -> *const c_void;
 }

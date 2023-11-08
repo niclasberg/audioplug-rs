@@ -1,50 +1,18 @@
 use icrate::Foundation::{CGRect, CGPoint, CGSize, CGFloat};
 
-use crate::core::{Rectangle, Color, Point, Size, Vector};
+use crate::core::{Rectangle, Color, Point, Size, Vector, Transform};
 
-use super::{core_graphics::{CGContext, CGColor}, TextLayout, IRef};
-
-impl Into<CGPoint> for Point {
-    fn into(self) -> CGPoint {
-        CGPoint { x: self.x, y: self.y }
-    }
-}
-
-impl From<CGPoint> for Point {
-    fn from(value: CGPoint) -> Self {
-        Point::new(value.x, value.y)
-    }
-}
-
-impl Into<CGSize> for Size {
-    fn into(self) -> CGSize {
-        CGSize { width: self.width, height: self.height }
-    }
-}
-
-impl From<CGSize> for Size {
-    fn from(value: CGSize) -> Self {
-        Size::new(value.width, value.height)
-    }
-}
-
-impl Into<CGRect> for Rectangle {
-    fn into(self) -> CGRect {
-        CGRect { origin: self.position().into(), size: self.size().into() }
-    }
-}
-
-impl From<CGRect> for Rectangle {
-    fn from(value: CGRect) -> Self {
-        Rectangle::new(value.origin.into(), value.size.into())
-    }
-}
+use super::{core_graphics::{CGContext, CGColor, CGPath}, TextLayout, IRef};
 
 pub struct RendererRef<'a> {
 	pub(super) context: &'a CGContext
 }
 
 impl<'a> RendererRef<'a> {
+	pub fn transform(&mut self, transform: Transform) {
+		
+	}
+
 	pub fn set_offset(&mut self, delta: Vector) {
         self.context.translate(delta.x, delta.y)
     }
@@ -97,7 +65,12 @@ impl<'a> RendererRef<'a> {
     }
 
     pub fn draw_text(&mut self, text_layout: &TextLayout, position: Point, color: Color) {
-
+		let (string_range, size) = text_layout.suggested_range_and_size();
+		let size = size.into();
+		let rect = Rectangle::new(position - size / 2.0, size).into();
+		let path = CGPath::create_with_rect(rect, None);
+		let frame = text_layout.frame_setter.create_frame(string_range, &path, None);
+		frame.draw(self.context);
     }
 }
 
