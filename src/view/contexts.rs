@@ -1,5 +1,5 @@
 use std::{marker::PhantomData, borrow::Borrow};
-use crate::{ViewMessage, Id, ViewFlags, core::{Rectangle, Point, Color, Vector}, Event, text::TextLayout, Shape, MouseEvent};
+use crate::{ViewMessage, Id, ViewFlags, core::{Rectangle, Point, Color, Vector, Transform}, Event, text::TextLayout, Shape, MouseEvent};
 use super::{IdPath, ViewNode};
 use crate::platform;
 
@@ -116,12 +116,13 @@ impl<'a> BuildContext<'a> {
     }
 }
 
-pub struct LayoutContext<'a> {
+pub struct LayoutContext<'a, 'b> {
     id_path: IdPath,
     pub node: &'a mut ViewNode,
+	handle: &'a platform::HandleRef<'b>
 }
 
-pub struct LayoutContextIter<'a> {
+/*pub struct LayoutContextIter<'a> {
     node_iter: ContextIter<'a>
 }
 
@@ -133,31 +134,32 @@ impl<'a> Iterator for LayoutContextIter<'a> {
             LayoutContext { id_path, node }
         })
     }
-}
+}*/
 
-impl<'a> LayoutContext<'a> {
-    pub fn new(node: &'a mut ViewNode) -> Self {
-        Self { node, id_path: IdPath::root() }
+impl<'a, 'b> LayoutContext<'a, 'b> {
+    pub fn new(node: &'a mut ViewNode, handle: &'a platform::HandleRef<'b>) -> Self {
+        Self { node, id_path: IdPath::root(), handle }
     }
 
-    pub fn request_render(&mut self) {
-        self.node.set_flag_recursive(ViewFlags::NEEDS_RENDER);
+    pub fn invalidate(&mut self) {
+        self.handle.invalidate(self.node.global_bounds())
     }
 
     pub fn id_path(&self) -> &IdPath {
         &self.id_path
     }
 
-    pub fn child_iter(&mut self) -> LayoutContextIter<'_> {
+    /*pub fn child_iter(&mut self) -> LayoutContextIter<'_> {
         LayoutContextIter { node_iter: ContextIter::new(&self.id_path, &mut self.node.children) }
-    }
+    }*/
 
-    pub fn with_child<T>(&mut self, id: Id, f: impl FnOnce(&mut LayoutContext<'_>) -> T) -> T {
+    pub fn with_child<T>(&mut self, id: Id, f: impl FnOnce(&mut LayoutContext<'_, 'b>) -> T) -> T {
         let result = {
             let child = self.node.children.get_mut(id.0).unwrap();
             let mut child_ctx = LayoutContext { 
                 id_path: self.id_path.child_id(id), 
-                node: child
+                node: child,
+				handle: self.handle
             };
             f(&mut child_ctx)
         };
@@ -183,7 +185,9 @@ impl<'a, 'b> RenderContext<'a, 'b> {
         Rectangle::new(Point::ZERO, self.node.size())
     }
 
-    pub fn fill(&mut self, shape: &Shape, origin: Point, color: Color) {
+    pub fn fill(&mut self, shape: &Shape, origin: impl Into<Point>, color: impl Into<Color>) {
+		let origin = origin.into();
+		let color = color.into();
         match shape {
             Shape::Rect { size } => 
                 self.renderer.fill_rectangle(
@@ -217,21 +221,27 @@ impl<'a, 'b> RenderContext<'a, 'b> {
 
     pub fn with_child<T>(&mut self, id: Id, f: impl FnOnce(&mut RenderContext<'_, 'b>) -> T) -> T {
         let child = self.node.children.get_mut(id.0).unwrap();
-        self.renderer.set_offset(child.origin().into());
+
+		self.renderer.save();
+		self.renderer.transform(Transform::translate(child.offset));
+
         let mut child_ctx = RenderContext { 
             id_path: self.id_path.child_id(id), 
             node: child, 
             renderer: self.renderer
         };
-        f(&mut child_ctx)
+        let result = f(&mut child_ctx);
+		self.renderer.restore();
+		result
     }
 }
 
-pub struct EventContext<'a, Msg: 'static> {
+pub struct EventContext<'a, 'b, Msg: 'static> {
     id_path: IdPath,
     node: &'a mut ViewNode,
     pub(crate) messages: &'a mut Vec<ViewMessage<Msg>>,
-    is_handled: &'a mut bool
+    is_handled: &'a mut bool,
+	handle: &'a platform::HandleRef<'b>
 }
 
 /*pub struct EventContextIter<'a, Msg: 'static> {
@@ -268,9 +278,9 @@ impl<'a, Msg: 'static> DoubleEndedIterator for EventContextIter<'a, Msg> {
     }
 }*/
 
-impl<'a, Msg> EventContext<'a, Msg> {
-    pub fn new(node: &'a mut ViewNode, messages: &'a mut Vec<ViewMessage<Msg>>, is_handled: &'a mut bool) -> Self{
-        Self { id_path: IdPath::root(), node, messages, is_handled }
+impl<'a, 'b, Msg> EventContext<'a, 'b, Msg> {
+    pub fn new(node: &'a mut ViewNode, messages: &'a mut Vec<ViewMessage<Msg>>, is_handled: &'a mut bool, handle: &'a platform::HandleRef<'b>) -> Self{
+        Self { id_path: IdPath::root(), node, messages, is_handled, handle }
     }
 
     pub fn id_path(&self) -> &IdPath {
@@ -297,7 +307,7 @@ impl<'a, Msg> EventContext<'a, Msg> {
         }
     }*/
 
-    pub fn forward_to_child(&mut self, id: Id, event: Event, mut f: impl FnMut(&mut EventContext<'_, Msg>, Event)) {
+    pub fn forward_to_child(&mut self, id: Id, event: Event, mut f: impl FnMut(&mut EventContext<'_, 'b, Msg>, Event)) {
         if *self.is_handled {
             return;
         }
@@ -317,7 +327,8 @@ impl<'a, Msg> EventContext<'a, Msg> {
                                 id_path: self.id_path.child_id(id), 
                                 node: child, 
                                 messages: &mut self.messages, 
-                                is_handled: self.is_handled
+                                is_handled: self.is_handled,
+								handle: self.handle
                             }, Event::Mouse(MouseEvent::Enter));
                         }
 
@@ -325,7 +336,8 @@ impl<'a, Msg> EventContext<'a, Msg> {
                             id_path: self.id_path.child_id(id), 
                             node: child, 
                             messages: &mut self.messages, 
-                            is_handled: self.is_handled
+                            is_handled: self.is_handled,
+							handle: self.handle
                         }, Event::Mouse(mouse_event));
                     },
                     // Mouse exited the child's parent, or the mouse moved
@@ -337,14 +349,16 @@ impl<'a, Msg> EventContext<'a, Msg> {
                                 id_path: self.id_path.child_id(id), 
                                 node: child, 
                                 messages: &mut self.messages, 
-                                is_handled: self.is_handled
+                                is_handled: self.is_handled,
+								handle: self.handle
                             }, Event::Mouse(MouseEvent::Exit));
                         }
                         f(&mut EventContext { 
                             id_path: self.id_path.child_id(id), 
                             node: child, 
                             messages: &mut self.messages, 
-                            is_handled: self.is_handled
+                            is_handled: self.is_handled,
+							handle: self.handle
                         }, Event::Mouse(mouse_event));
                     },
                     // Filter these out
@@ -353,7 +367,8 @@ impl<'a, Msg> EventContext<'a, Msg> {
                         id_path: self.id_path.child_id(id), 
                         node: child, 
                         messages: &mut self.messages, 
-                        is_handled: self.is_handled
+                        is_handled: self.is_handled,
+						handle: self.handle
                     }, Event::Mouse(mouse_event))
                 };
             },
@@ -361,17 +376,19 @@ impl<'a, Msg> EventContext<'a, Msg> {
                 id_path: self.id_path.child_id(id), 
                 node: child, 
                 messages: &mut self.messages, 
-                is_handled: self.is_handled
+                is_handled: self.is_handled,
+				handle: self.handle
             }, other),
         };
     }
 
-    pub fn with_message_container<'s, Msg2: 'static>(&'s mut self, messages: &'s mut Vec<ViewMessage<Msg2>>, f: impl FnOnce(&mut EventContext<'s, Msg2>)) {
+    pub fn with_message_container<'s, Msg2: 'static>(&'s mut self, messages: &'s mut Vec<ViewMessage<Msg2>>, f: impl FnOnce(&mut EventContext<'s, 'b, Msg2>)) {
         let mut ctx = EventContext {
             id_path: self.id_path.clone(),
             node: self.node,
             messages,
-            is_handled: self.is_handled
+            is_handled: self.is_handled,
+			handle: self.handle
         };
         f(&mut ctx)
     }
@@ -381,7 +398,7 @@ impl<'a, Msg> EventContext<'a, Msg> {
     }
 
     pub fn request_render(&mut self) {
-        self.node.set_flag(ViewFlags::NEEDS_RENDER);
+        
     }
 
     pub fn request_rebuild(&mut self) {

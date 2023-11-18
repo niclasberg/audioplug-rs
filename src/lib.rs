@@ -1,9 +1,3 @@
-#[cfg(target_os = "windows")]
-mod win;
-
-#[cfg(target_os = "macos")]
-mod mac;
-
 pub mod vst3;
 mod plugin;
 pub mod views;

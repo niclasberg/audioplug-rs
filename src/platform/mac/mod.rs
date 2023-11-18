@@ -10,7 +10,9 @@ mod text;
 mod iref;
 mod core_text;
 mod core_foundation;
+mod handle;
 
+pub(crate) use handle::HandleRef;
 pub(crate) use application::Application;
 pub(crate) use window::Window;
 pub(crate) use renderer::RendererRef;

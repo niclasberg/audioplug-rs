@@ -3,16 +3,15 @@ use std::os::raw::c_void;
 use std::ptr::NonNull;
 
 use icrate::AppKit::{NSView, NSEvent};
-use icrate::Foundation::{NSRect, CGPoint};
-use objc2::rc::{Id, WeakId};
+use icrate::Foundation::NSRect;
+use objc2::rc::Id;
 use objc2::declare::{IvarDrop, Ivar};
 use objc2::{declare_class, mutability, ClassType, msg_send_id, msg_send};
 
 use crate::core::Point;
 use crate::event::MouseButton;
-use crate::mac::core_graphics::CGAffineTransform;
 use crate::{MouseEvent, Event};
-use crate::mac::RendererRef;
+use super::{RendererRef, HandleRef};
 use crate::window::WindowHandler;
 
 use super::appkit::NSGraphicsContext;
@@ -44,7 +43,11 @@ declare_class!(
 
 				Ivar::write(&mut this.state, state);
 
-				NonNull::from(this)
+				let this = NonNull::from(this);
+
+				this.as_ref().state.handler.borrow_mut().init(HandleRef::new(this.as_ref()));
+
+				this
 			})
 		}
 
@@ -61,7 +64,7 @@ declare_class!(
 		#[method(mouseDown:)]
         fn mouse_down(&self, event: &NSEvent) {
 			if let (Some(button), Some(position)) = (mouse_button(event), self.mouse_position(event)) {
-				self.state.handler.borrow_mut().event(Event::Mouse(
+				self.dispatch_event(Event::Mouse(
 					MouseEvent::Down { button, position }
 				))
 			}
@@ -70,7 +73,7 @@ declare_class!(
 		#[method(mouseUp:)]
         fn mouse_up(&self, event: &NSEvent) {
 			if let (Some(button), Some(position)) = (mouse_button(event), self.mouse_position(event)) {
-				self.state.handler.borrow_mut().event(Event::Mouse(
+				self.dispatch_event(Event::Mouse(
 					MouseEvent::Up { button, position }
 				))
 			}
@@ -78,9 +81,8 @@ declare_class!(
 
 		#[method(mouseMoved:)]
         fn mouse_moved(&self, event: &NSEvent) {
-			println!("Moved");
             if let Some(position) = self.mouse_position(event) {
-				self.state.handler.borrow_mut().event(Event::Mouse(
+				self.dispatch_event(Event::Mouse(
 					MouseEvent::Moved { position }
 				))
 			}
@@ -88,19 +90,14 @@ declare_class!(
 
 		#[method(drawRect:)]
 		fn draw_rect(&self, rect: NSRect) {
-			let a = unsafe { self.frame() };
-			println!("Draw: {:?}", a);
-
 			let graphics_context = NSGraphicsContext::current().unwrap();
 			let context = graphics_context.cg_context();
-
-			context.set_text_matrix(CGAffineTransform::scale(1.0, -1.0));
 
 			let color = CGColor::from_rgba(1.0, 0.0, 1.0, 1.0);
 			context.set_fill_color(&color);
 			context.fill_rect(rect);
 			
-			let renderer = RendererRef { context };
+			let renderer = RendererRef::new(context);
 
 			self.state.handler.borrow_mut().render(
 				rect.into(),
@@ -120,6 +117,10 @@ impl View {
 				initWithHandler: Box::into_raw(state) as *mut c_void
 			]
 		}
+	}
+
+	fn dispatch_event(&self, event: Event) {
+		self.state.handler.borrow_mut().event(event, HandleRef::new(&self) )
 	}
 
 	fn mouse_position(&self, event: &NSEvent) -> Option<Point> {

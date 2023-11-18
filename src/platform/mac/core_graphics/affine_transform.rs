@@ -34,3 +34,9 @@ impl From<Transform> for CGAffineTransform {
         CGAffineTransform { a: value.m11, b: value.m12, c: value.m21, d: value.m22, tx: value.tx, ty: value.ty }
     }
 }
+
+impl From<CGAffineTransform> for Transform {
+    fn from(value: CGAffineTransform) -> Self {
+        Transform { m11: value.a, m12: value.b, m21: value.c, m22: value.d, tx: value.tx, ty: value.ty }
+    }
+}

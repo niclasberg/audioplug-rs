@@ -40,6 +40,10 @@ impl ViewNode {
         Rectangle::new(Point::ZERO, self.size)
     }
 
+	pub fn global_bounds(&self) -> Rectangle {
+		Rectangle::new(self.origin, self.size)
+	}
+
     pub fn set_flag(&mut self, flag: ViewFlags) {
         self.flags |= flag;
     }

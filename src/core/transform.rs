@@ -1,7 +1,8 @@
-use std::ops::Mul;
+use std::ops::{Mul, Add};
 
 use super::{Vector, Point, Size};
 
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Transform<T = f64> {
     pub m11: T,
 	pub m12: T, 
@@ -23,12 +24,30 @@ impl Transform {
     }
 
     pub fn translate(v: Vector) -> Self {
-        Self::new(0.0, 0.0, 0.0, 0.0, v.x, v.y)
+        Self::new(1.0, 0.0, 0.0, 1.0, v.x, v.y)
     }
 
 	pub fn scale(sx: f64, sy: f64) -> Self {
 		Self::new(sx, 0.0, 0.0, sy, 0.0, 0.0)
 	}
+}
+
+impl<T> Mul<Transform<T>> for Transform<T> 
+where 
+	T: Mul<T, Output = T> + Add<T, Output = T> + Copy
+{
+    type Output = Transform<T>;
+
+    fn mul(self, rhs: Transform<T>) -> Self::Output {
+        Self {
+            m11: self.m11 * rhs.m11 + self.m12 * rhs.m21,
+            m12: self.m11 * rhs.m12 + self.m12 * rhs.m22,
+            m21: self.m21 * rhs.m11 + self.m22 * rhs.m12,
+            m22: self.m21 * rhs.m12 + self.m22 * rhs.m22,
+            tx: self.tx + self.m11 * rhs.tx + self.m12 * rhs.ty,
+            ty: self.ty + self.m21 * rhs.tx + self.m22 * rhs.ty,
+        }
+    }
 }
 
 impl Mul<Vector> for Transform {

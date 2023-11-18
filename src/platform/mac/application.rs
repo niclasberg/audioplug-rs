@@ -1,5 +1,5 @@
-use icrate::Foundation::{NSObject, NSPoint, NSRect, NSSize};
-use icrate::AppKit::{NSWindow, NSApplication, NSApplicationDelegate, NSView, NSEvent, NSBackingStoreBuffered, NSWindowStyleMaskClosable, NSWindowStyleMaskResizable, NSWindowStyleMaskTitled, NSApplicationActivationPolicyRegular};
+use icrate::Foundation::NSObject;
+use icrate::AppKit::{NSApplication, NSApplicationDelegate, NSApplicationActivationPolicyRegular};
 use objc2::rc::Id;
 use objc2::runtime::{NSObjectProtocol, ProtocolObject, AnyObject};
 use objc2::{declare_class, mutability, ClassType, msg_send_id};

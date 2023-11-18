@@ -3,7 +3,7 @@ use std::mem::MaybeUninit;
 use icrate::Foundation::{NSAttributedString, CGSize};
 use objc2::{Encode, RefEncode};
 
-use crate::mac::{IRef, IRefCounted, CFType, core_foundation::{CFRange, CFDictionary}, core_graphics::CGPath};
+use crate::platform::mac::{IRef, CFType, core_foundation::{CFRange, CFDictionary}, core_graphics::CGPath};
 
 use super::CTFrame;
 

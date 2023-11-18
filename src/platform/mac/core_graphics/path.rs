@@ -1,7 +1,7 @@
 use icrate::Foundation::CGRect;
 use objc2::{Encode, RefEncode};
 
-use crate::mac::{IRefCounted, IRef};
+use crate::platform::mac::{IRefCounted, IRef};
 
 use super::CGAffineTransform;
 

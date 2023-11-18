@@ -1,11 +1,13 @@
 use raw_window_handle::RawWindowHandle;
 
 use crate::core::{Rectangle, Constraint, Point};
+use crate::event::WindowEvent;
 use crate::view::{View, ViewNode, EventContext};
 use crate::{Event, ViewMessage, LayoutContext, BuildContext, RenderContext, ViewFlags, platform};
 
 pub trait WindowHandler {
-    fn event(&mut self, event: Event);
+	fn init(&mut self, handle: platform::HandleRef);
+    fn event(&mut self, event: Event, handle: platform::HandleRef);
     fn render(&mut self, bounds: Rectangle, renderer: platform::RendererRef);
 }
 
@@ -34,10 +36,10 @@ impl<V: View> MyHandler<V> {
         self.messages.clear();
     }
 
-    fn do_layout(&mut self, bounds: Rectangle) {
-        let constraint = Constraint::exact(bounds.size());
+    fn do_layout(&mut self, handle: &mut platform::HandleRef) {
+        let constraint = Constraint::exact(handle.global_bounds().size());
         let size = {
-            let mut ctx = LayoutContext::new(&mut self.view_node);
+            let mut ctx = LayoutContext::new(&mut self.view_node, handle);
             let size = self.view.layout(&mut self.view_state, constraint, &mut ctx);
             constraint.clamp(size)
         };
@@ -48,16 +50,30 @@ impl<V: View> MyHandler<V> {
 }
 
 impl<V: View + 'static> WindowHandler for MyHandler<V> {
-    fn event(&mut self, event: Event) {
+    fn event(&mut self, event: Event, mut handle: platform::HandleRef) {
+		match event {
+			Event::Window(window_event) => match window_event {
+				WindowEvent::Resize { new_size } => {
+					self.do_layout(&mut handle);
+					handle.invalidate(handle.global_bounds());
+				},
+				_ => {}
+			},
+			_ => {}
+		};
+
         {
             let mut is_handled = false;
-            let mut ctx = EventContext::new(&mut self.view_node, &mut self.messages, &mut is_handled);
+            let mut ctx = EventContext::new(&mut self.view_node, &mut self.messages, &mut is_handled, &mut handle);
             self.view.event(&mut self.view_state, event, &mut ctx);
         }
         {
             let mut ctx = BuildContext::root(&mut self.view_node);
             self.view.rebuild(&mut self.view_state, &mut ctx)
         }
+		{
+			self.do_layout(&mut handle);
+		}
         // 1. Dispatch messages, may update the state
         // 2. Rebuild if was requested, or the state was updated, rebuild
         // 3. Perform layout, if requested
@@ -65,14 +81,16 @@ impl<V: View + 'static> WindowHandler for MyHandler<V> {
         self.dispatch_messages_to_views();
     }
 
-    fn render(&mut self, bounds: Rectangle, mut renderer: platform::RendererRef<'_>) {
-		println!("{:?}", bounds);
-        self.do_layout(bounds);
+    fn render(&mut self, _: Rectangle, mut renderer: platform::RendererRef<'_>) {
         {
             let mut ctx = RenderContext::new(&mut self.view_node, &mut renderer);
             self.view.render(&self.view_state, &mut ctx);
         }
         self.view_node.clear_flag_recursive(ViewFlags::NEEDS_RENDER);
+    }
+
+    fn init(&mut self, mut handle: platform::HandleRef) {
+        self.do_layout(&mut handle);
     }
 }
 

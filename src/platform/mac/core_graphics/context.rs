@@ -3,6 +3,7 @@ use objc2::{Encode, RefEncode};
 use super::CGAffineTransform;
 use super::CGColor;
 use super::CGRect;
+use super::CGPoint;
 
 #[repr(C)]
 pub struct CGContext {
@@ -43,8 +44,24 @@ impl CGContext {
 		unsafe { CGContextFillEllipseInRect(self, rect) }
 	}
 
-	pub fn translate(&self, tx: CGFloat, ty: CGFloat) {
+	pub fn clip_to_rect(&self, rect: CGRect) {
+		unsafe { CGContextClipToRect(self, rect) }
+	}
+
+	pub fn translate_ctm(&self, tx: CGFloat, ty: CGFloat) {
 		unsafe { CGContextTranslateCTM(self, tx, ty) };
+	}
+
+	pub fn scale_ctm(&self, sx: CGFloat, sy: CGFloat) {
+		unsafe { CGContextScaleCTM(self, sx, sy) }
+	}
+
+	pub fn concat_ctm(&self, transform: CGAffineTransform) {
+		unsafe { CGContextConcatCTM(self, transform) }
+	}
+
+	pub fn get_ctm(&self) -> CGAffineTransform {
+		unsafe { CGContextGetCTM(self) }
 	}
 
 	pub fn move_to_point(&self, x: CGFloat, y: CGFloat) {
@@ -67,6 +84,26 @@ impl CGContext {
 		unsafe { CGContextSetTextMatrix(self, t) }
 	}
 
+	pub fn get_text_matrix(&self) -> CGAffineTransform {
+		unsafe { CGContextGetTextMatrix(self) }
+	}
+
+	pub fn get_text_position(&self) -> CGPoint {
+		unsafe { CGContextGetTextPosition(self) }
+	}
+
+	pub fn set_text_position(&self, x: CGFloat, y: CGFloat) {
+		unsafe { CGContextSetTextPosition(self, x, y) }
+	}
+
+	pub fn save_state(&self) {
+		unsafe { CGContextSaveGState(self) }
+	}
+
+	pub fn restore_state(&self) {
+		unsafe { CGContextRestoreGState(self) }
+	}
+
 }
 
 #[link(name = "CoreGraphics", kind = "framework")]
@@ -76,12 +113,25 @@ extern "C" {
 	fn CGContextSetStrokeColorWithColor(c: *const CGContext, color: *const CGColor);
 	fn CGContextStrokeRectWithWidth(context: *const CGContext, rect: CGRect, width: CGFloat);
 	fn CGContextFillRect(context: *const CGContext, rect: CGRect);
+	
 	fn CGContextTranslateCTM(context: *const CGContext, tx: CGFloat, ty: CGFloat);
+	fn CGContextGetCTM(context: *const CGContext) -> CGAffineTransform;
+	fn CGContextConcatCTM(context: *const CGContext, transform: CGAffineTransform);
+	fn CGContextScaleCTM(context: *const CGContext, sx: CGFloat, sy: CGFloat);
+
+	fn CGContextClipToRect(context: *const CGContext, rect: CGRect);
 
 	fn CGContextMoveToPoint(c: *const CGContext, x: CGFloat, y: CGFloat);
 	fn CGContextClosePath(c: *const CGContext);
 	fn CGContextAddArcToPoint(c: *const CGContext, x1: CGFloat, y1: CGFloat, x2: CGFloat, y2: CGFloat, radius: CGFloat);
 	fn CGContextFillPath(c: *const CGContext);
 	fn CGContextFillEllipseInRect(c: *const CGContext, rect: CGRect);
+
+	fn CGContextGetTextPosition(c: *const CGContext) -> CGPoint;
+	fn CGContextSetTextPosition(c: *const CGContext, x: CGFloat, y: CGFloat);
 	fn CGContextSetTextMatrix(c: *const CGContext, t: CGAffineTransform);
+	fn CGContextGetTextMatrix(c: *const CGContext) -> CGAffineTransform;
+
+	fn CGContextSaveGState(c: *const CGContext);
+	fn CGContextRestoreGState(c: *const CGContext);
 }

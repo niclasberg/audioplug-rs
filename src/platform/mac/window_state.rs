@@ -12,6 +12,6 @@ impl WindowState {
 	}
 
 	pub(crate) fn dispatch_event(&self, event: Event) {
-		self.handler.borrow_mut().event(event);
+		//self.handler.borrow_mut().event(event);
 	}
 }

@@ -2,19 +2,35 @@ use icrate::Foundation::{CGRect, CGPoint, CGSize, CGFloat};
 
 use crate::core::{Rectangle, Color, Point, Size, Vector, Transform};
 
-use super::{core_graphics::{CGContext, CGColor, CGPath}, TextLayout, IRef};
+use super::{core_graphics::{CGContext, CGColor, CGPath, CGAffineTransform}, TextLayout, IRef};
 
 pub struct RendererRef<'a> {
-	pub(super) context: &'a CGContext
+	pub(super) context: &'a CGContext,
+	transforms: Vec<CGAffineTransform>
 }
 
 impl<'a> RendererRef<'a> {
+	pub fn new(context: &'a CGContext) -> Self {
+		Self { context, transforms: Vec::new() }
+	}
+
+	pub fn save(&mut self) {
+		self.transforms.push(self.context.get_ctm());
+		self.context.save_state();
+	}
+
+	pub fn restore(&mut self) {
+		if self.transforms.pop().is_some() {
+			self.context.restore_state();
+		}
+	}
+
 	pub fn transform(&mut self, transform: Transform) {
-		
+		self.context.concat_ctm(transform.into());
 	}
 
 	pub fn set_offset(&mut self, delta: Vector) {
-        self.context.translate(delta.x, delta.y)
+        self.context.translate_ctm(delta.x, delta.y)
     }
 
 	pub fn draw_rectangle(&mut self, rect: Rectangle, color: Color, line_width: f32) {
@@ -26,7 +42,6 @@ impl<'a> RendererRef<'a> {
     pub fn fill_rectangle(&mut self, rect: Rectangle, color: Color) {
         let color = to_cgcolor(color);
 		self.context.set_fill_color(&color);
-		println!("Render: {:?}", rect);println!("{:?}", rect);
 		self.context.fill_rect(rect.into());
     }
 
@@ -35,8 +50,6 @@ impl<'a> RendererRef<'a> {
 		let min = r.min();
 		let mid = r.mid();
 		let max = r.max();
-
-		println!("{:?}, {:?}, {:?}", min, mid, max);
 
 		let color = to_cgcolor(color);
 		self.context.set_fill_color(&color);
@@ -67,10 +80,17 @@ impl<'a> RendererRef<'a> {
     pub fn draw_text(&mut self, text_layout: &TextLayout, position: Point, color: Color) {
 		let (string_range, size) = text_layout.suggested_range_and_size();
 		let size = size.into();
-		let rect = Rectangle::new(position - size / 2.0, size).into();
+		let rect = Rectangle::new(Point::ZERO, size).into();
 		let path = CGPath::create_with_rect(rect, None);
 		let frame = text_layout.frame_setter.create_frame(string_range, &path, None);
+
+		self.context.save_state();
+
+		self.context.translate_ctm(position.x, position.y + rect.size.height);
+		self.context.scale_ctm(1.0, -1.0);
 		frame.draw(self.context);
+
+		self.context.restore_state();
     }
 }
 

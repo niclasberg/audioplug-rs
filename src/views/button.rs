@@ -1,4 +1,4 @@
-use crate::{View, Event, MouseEvent, event::MouseButton, LayoutContext, BuildContext, RenderContext, core::{Size, Constraint, Vector, Color, Point}, Id, LayoutHint};
+use crate::{View, Event, MouseEvent, event::MouseButton, LayoutContext, BuildContext, RenderContext, core::{Size, Constraint, Vector, Color}, Id, LayoutHint};
 
 use super::Label;
 
@@ -32,7 +32,6 @@ impl View for Button {
     }
 
     fn event(&mut self, _state: &mut Self::State, event: crate::Event, ctx: &mut crate::EventContext<ButtonMessage>) {
-        println!("Button: {:?}", event);
         match event {
             Event::Mouse(mouse_event) => match mouse_event {
                 MouseEvent::Down { button, position } if ctx.local_bounds().contains(position) => {

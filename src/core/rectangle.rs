@@ -35,18 +35,22 @@ where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + PartialOrd
         Self { x: left, y: top, width: right - left, height: bottom - top}
     }
 
+	#[inline]
     pub fn left(&self) -> T {
         self.x
     }
 
+	#[inline]
     pub fn right(&self) -> T {
         self.x + self.width
     }
 
+	#[inline]
     pub fn top(&self) -> T {
         self.y
     }
 
+	#[inline]
     pub fn bottom(&self) -> T {
         self.y + self.height
     }
@@ -102,6 +106,14 @@ impl Rectangle<f64> {
     pub fn offset(&self, delta: Vector) -> Self {
         Self::new(self.position()+delta, self.size())
     }
+
+	pub fn combine_with(&self, other: &Self) -> Self {
+		let left = self.left().min(other.left());
+		let right = self.right().max(other.right());
+		let top = self.top().min(other.top());
+		let bottom = self.bottom().max(other.bottom());
+		Self::from_ltrb(left, top, right, bottom)
+	}
 }
 
 impl From<Rectangle<i32>> for Rectangle<f64> {

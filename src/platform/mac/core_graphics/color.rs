@@ -1,4 +1,4 @@
-use crate::mac::{IRefCounted, IRef};
+use crate::platform::mac::{IRefCounted, IRef};
 
 use super::CGFloat;
 use objc2::{Encode, RefEncode};

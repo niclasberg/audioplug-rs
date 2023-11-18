@@ -104,7 +104,7 @@ impl<Msg, V: View<Message = Msg>> ViewSequence<Msg> for Vec<V> {
     }
 
     fn layout(&self, state: &mut Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Vec<Size> {
-        let mut child_ctx_iter = ctx.child_iter();
+        //let mut child_ctx_iter = ctx.child_iter();
         todo!()
     }
 

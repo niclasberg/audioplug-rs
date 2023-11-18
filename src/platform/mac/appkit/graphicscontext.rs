@@ -1,6 +1,6 @@
 use objc2::{extern_class, mutability, ClassType, runtime::NSObject, extern_methods, rc::Id};
 
-use crate::mac::core_graphics::CGContext;
+use crate::platform::mac::core_graphics::CGContext;
 
 extern_class!(
 	#[derive(PartialEq, Eq, Hash)]

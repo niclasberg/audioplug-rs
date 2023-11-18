@@ -1,7 +1,7 @@
 use objc2::{Encode, RefEncode};
 
-use crate::mac::{CFType, core_graphics::{CGContext, CGPath}, IRef};
-use crate::mac::core_foundation::CFRange;
+use crate::platform::mac::{CFType, core_graphics::{CGContext, CGPath}, IRef};
+use crate::platform::mac::core_foundation::CFRange;
 
 #[repr(C)]
 pub struct CTFrame {
