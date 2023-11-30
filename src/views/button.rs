@@ -1,4 +1,4 @@
-use crate::{View, Event, MouseEvent, event::MouseButton, LayoutContext, BuildContext, RenderContext, core::{Size, Constraint, Vector, Color}, Id, LayoutHint};
+use crate::{View, Event, MouseEvent, event::MouseButton, LayoutContext, BuildContext, RenderContext, core::{Size, Constraint, Vector, Color, Shape}, Id, LayoutHint};
 
 use super::Label;
 
@@ -88,12 +88,10 @@ impl View for Button {
                 Color::from_rgb8(106, 156, 137)
             }
         };
-        let size = ctx.local_bounds().size();
 
-        ctx.fill(
-            &crate::Shape::RoundedRect { size, corner_radius: Size::new(4.0, 4.0) }, 
-            ctx.local_bounds().center(), 
-            color);
+        let shape = Shape::RoundedRect { rect: ctx.local_bounds(), corner_radius: Size::new(4.0, 4.0) };
+        ctx.fill(shape, color);
+        ctx.stroke(shape, Color::BLACK, 1.0);
         ctx.with_child(Id(0), |ctx| self.label.render(state, ctx));
     }
 

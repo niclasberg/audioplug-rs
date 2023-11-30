@@ -6,8 +6,11 @@ mod application;
 mod factories;
 mod text;
 mod keyboard;
+mod handle;
+mod util;
 
 pub use windows::core::Error as Error;
+pub(crate) use handle::{HandleRef, Handle};
 pub(crate) use window::Window;
 pub(crate) use renderer::{Renderer, RendererRef};
 pub(crate) use application::Application;

@@ -1,4 +1,4 @@
-use crate::{View, core::{Point, Color, Size, Rectangle}, Shape, Event, MouseEvent, event::MouseButton, LayoutHint};
+use crate::{View, core::{Point, Color, Size, Rectangle, Shape}, Event, MouseEvent, event::MouseButton, LayoutHint};
 
 #[derive(Debug, PartialEq)]
 pub enum SliderMessage {
@@ -26,6 +26,10 @@ impl SliderState {
         let knob_y = bounds.center().y;
         Point::new(knob_x, knob_y)
     }
+
+    fn knob_shape(&self, bounds: Rectangle) -> Shape {
+        Shape::circle(self.slider_position(bounds), 5.0)
+    }
 }
 
 pub struct Slider {
@@ -34,8 +38,6 @@ pub struct Slider {
 }
 
 impl Slider {
-    const KNOB_SHAPE: Shape = Shape::circle(5.0);
-
     pub fn new() -> Self {
         Self { min: 0.0, max: 1.0 }
     }
@@ -67,7 +69,7 @@ impl View for Slider {
             Event::Mouse(mouse_event) => {
                 match mouse_event {
                     MouseEvent::Down { button, position } => {
-                        if Self::KNOB_SHAPE.hit_test(position - state.slider_position(ctx.local_bounds())) {
+                        if state.knob_shape(ctx.local_bounds()).hit_test(position) {
                             ctx.set_handled();
                             if button == MouseButton::LEFT && state.state != State::Dragging {
                                 ctx.request_render();
@@ -79,13 +81,13 @@ impl View for Slider {
                     MouseEvent::Moved { position } => {
                         match state.state {
                             State::Idle => {
-                                if Self::KNOB_SHAPE.hit_test(position - state.slider_position(ctx.local_bounds())) {
+                                if state.knob_shape(ctx.local_bounds()).hit_test(position) {
                                     ctx.request_render();
                                     state.state = State::KnobHover;
                                 }
                             },
                             State::KnobHover => {
-                                if !Self::KNOB_SHAPE.hit_test(position - state.slider_position(ctx.local_bounds())) {
+                                if !state.knob_shape(ctx.local_bounds()).hit_test(position) {
                                     ctx.request_render();
                                     state.state = State::Idle;
                                 }
@@ -110,7 +112,7 @@ impl View for Slider {
                                 ctx.publish_message(SliderMessage::DragEnded);
                             }
                             ctx.request_render();
-                            state.state = if Self::KNOB_SHAPE.hit_test(position - state.slider_position(ctx.local_bounds())) {
+                            state.state = if state.knob_shape(ctx.local_bounds()).hit_test(position) {
                                 State::KnobHover
                             } else {
                                 State::Idle
@@ -138,8 +140,8 @@ impl View for Slider {
             State::Dragging => Color::from_rgb(0.75, 0.75, 0.75),
         };
 
-        ctx.fill(&Shape::rect(Size::new(width, 2.0)), center, Color::BLACK);
-        ctx.fill(&Self::KNOB_SHAPE, state.slider_position(bounds), knob_color);
+        ctx.fill(Rectangle::from_center(center, Size::new(width, 2.0)), Color::BLACK);
+        ctx.fill(state.knob_shape(bounds), knob_color);
     }
 
     fn layout_hint(&self, _state: &Self::State) -> (LayoutHint, LayoutHint) {

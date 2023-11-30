@@ -7,6 +7,7 @@ mod column;
 mod slider;
 mod xy_pad;
 mod textbox;
+mod filled;
 
 pub use button::Button;
 pub use column::Column;
@@ -17,3 +18,4 @@ pub use row::Row;
 pub use slider::{Slider, SliderMessage};
 pub use xy_pad::XyPad;
 pub use textbox::TextBox;
+pub use filled::*;

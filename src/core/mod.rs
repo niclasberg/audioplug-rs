@@ -8,6 +8,7 @@ mod alignment;
 mod transform;
 mod range;
 mod color_map;
+mod shape;
 
 pub use color::Color;
 pub use point::Point;
@@ -19,3 +20,4 @@ pub use alignment::Alignment;
 pub use transform::Transform;
 pub use range::Range;
 pub use color_map::*;
+pub use shape::*;

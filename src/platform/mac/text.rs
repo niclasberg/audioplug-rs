@@ -20,7 +20,8 @@ impl TextLayout {
         font_family: &str, 
         font_weight: FontWeight,
         font_size: f32,
-        max_size: Size
+        max_size: Size,
+		color: Color
     ) -> Self {
 		let string = NSString::from_str(string);
 		let attributes = NSDictionary::new();

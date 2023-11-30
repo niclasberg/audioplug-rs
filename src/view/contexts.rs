@@ -1,5 +1,5 @@
-use std::{marker::PhantomData, borrow::Borrow};
-use crate::{ViewMessage, Id, ViewFlags, core::{Rectangle, Point, Color, Vector, Transform}, Event, text::TextLayout, Shape, MouseEvent};
+use std::marker::PhantomData;
+use crate::{ViewMessage, Id, ViewFlags, core::{Rectangle, Point, Color, Transform, Shape}, Event, text::TextLayout, MouseEvent};
 use super::{IdPath, ViewNode};
 use crate::platform;
 
@@ -185,38 +185,44 @@ impl<'a, 'b> RenderContext<'a, 'b> {
         Rectangle::new(Point::ZERO, self.node.size())
     }
 
-    pub fn fill(&mut self, shape: &Shape, origin: impl Into<Point>, color: impl Into<Color>) {
-		let origin = origin.into();
+    pub fn fill(&mut self, shape: impl Into<Shape>, color: impl Into<Color>) {
 		let color = color.into();
-        match shape {
-            Shape::Rect { size } => 
-                self.renderer.fill_rectangle(
-                    Rectangle::new(origin - *size / 2.0, *size), 
-                    color),
-            Shape::RoundedRect { size, corner_radius } => 
-                self.renderer.fill_rounded_rectangle(
-                    Rectangle::new(origin - *size / 2.0, *size), 
-                    *corner_radius, 
-                    color),
-            Shape::Ellipse { radii } => 
-                self.renderer.fill_ellipse(origin, *radii, color),
+        match shape.into() {
+            Shape::Rect(rect) => 
+                self.renderer.fill_rectangle(rect, color),
+            Shape::RoundedRect { rect, corner_radius } => 
+                self.renderer.fill_rounded_rectangle(rect, corner_radius, color),
+            Shape::Ellipse { center, radii } => 
+                self.renderer.fill_ellipse(center, radii, color),
+            Shape::Line { p0, p1 } =>
+                self.renderer.draw_line(p0, p1, color, 1.0)
         }
     }
 
-    pub fn stroke(&mut self, shape: &Shape, origin: Point, color: Color, line_width: f32) {
-        match shape {
-            Shape::Rect { size } => 
-                self.renderer.draw_rectangle(
-                    Rectangle::new(origin -  *size / 2.0, *size),
-                    color, 
+    pub fn stroke(&mut self, shape: impl Into<Shape>, color: impl Into<Color>, line_width: f32) {
+        match shape.into() {
+            Shape::Rect(rect) => 
+                self.renderer.draw_rectangle(rect, color.into(), line_width),
+            Shape::RoundedRect { rect, corner_radius } => 
+                self.renderer.draw_rounded_rectangle(
+                    rect, 
+                    corner_radius, 
+                    color.into(), 
                     line_width),
-            Shape::RoundedRect { size, corner_radius } => todo!(),
-            Shape::Ellipse { radii } => todo!(),
+            Shape::Ellipse { center, radii } => todo!(),
+            Shape::Line { p0, p1 } => self.renderer.draw_line(p0, p1, color.into(), line_width)
         }
     }
 
-    pub fn draw_text(&mut self, text_layout: &TextLayout, position: Point, color: Color) {
-        self.renderer.draw_text(&text_layout.0, position, color)
+    pub fn draw_text(&mut self, text_layout: &TextLayout, position: Point) {
+        self.renderer.draw_text(&text_layout.0, position)
+    }
+
+    pub fn use_clip(&mut self, rect: impl Into<Rectangle>, f: impl FnOnce(&mut RenderContext<'_, 'b>)) {
+        self.renderer.save();
+        self.renderer.clip(rect.into());
+        f(self);
+        self.renderer.restore();
     }
 
     pub fn with_child<T>(&mut self, id: Id, f: impl FnOnce(&mut RenderContext<'_, 'b>) -> T) -> T {
@@ -398,7 +404,7 @@ impl<'a, 'b, Msg> EventContext<'a, 'b, Msg> {
     }
 
     pub fn request_render(&mut self) {
-        
+        self.handle.invalidate(self.node.global_bounds())
     }
 
     pub fn request_rebuild(&mut self) {

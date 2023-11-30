@@ -12,6 +12,20 @@ bitflags! {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Key {
     Unknown,
+
+    BackSpace,
+    Delete,
+    Insert,
+    Home,
+    End,
+    PageUp,
+    PageDown,
+
+    Left,
+    Right,
+    Up,
+    Down,
+
     Key0,
     Key1,
     Key2,

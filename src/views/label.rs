@@ -1,4 +1,4 @@
-use crate::{view::View, core::{Size, Color, Point}, text::TextLayout, Shape, LayoutHint};
+use crate::{view::View, core::{Size, Color, Point, Shape}, text::TextLayout, LayoutHint};
 
 pub struct Label {
     pub text: String
@@ -19,7 +19,7 @@ impl View for Label {
     type State = LabelState;
 
     fn build(&mut self, _ctx: &mut crate::BuildContext) -> Self::State {
-        let text_layout = TextLayout::new(self.text.as_str(), Size::INFINITY);
+        let text_layout = TextLayout::new(self.text.as_str(), Color::BLACK, Size::INFINITY);
         Self::State { text_layout }
     }
 
@@ -35,7 +35,7 @@ impl View for Label {
     }
 
     fn render(&self, state: &Self::State, ctx: &mut crate::RenderContext) {
-        ctx.draw_text(&state.text_layout, Point::ZERO, Color::BLACK)
+        ctx.draw_text(&state.text_layout, Point::ZERO)
     }
 
     fn event(&mut self, _state: &mut Self::State, _event: crate::Event, _ctx: &mut crate::EventContext<Self::Message>) {}

@@ -1,6 +1,5 @@
 use std::fmt::Debug;
-use std::ops::Add;
-use std::ops::Sub;
+use std::ops::{Add, Mul, Sub};
 
 use super::Point;
 use super::Size;
@@ -15,9 +14,9 @@ pub struct Rectangle<T = f64> {
 }
 
 impl<T> Rectangle<T> 
-where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + PartialOrd
+where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + Mul<Output=T> + PartialOrd
 {
-    pub fn new(point: Point<T>, size: Size<T>) -> Self {
+    pub const fn new(point: Point<T>, size: Size<T>) -> Self {
         Self { x: point.x, y: point.y, width: size.width, height: size.height }
     }
 
@@ -32,6 +31,8 @@ where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + PartialOrd
     }
 
     pub fn from_ltrb(left: T, top: T, right: T, bottom: T) -> Self {
+        assert!(left <= right);
+        assert!(top <= bottom);
         Self { x: left, y: top, width: right - left, height: bottom - top}
     }
 
@@ -59,8 +60,16 @@ where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + PartialOrd
         Point::new(self.x, self.y)
     }
 
+    pub fn with_position(&self, position: Point<T>) -> Self {
+        Self::new(position, self.size())
+    }
+
     pub fn size(&self) -> Size<T> {
         Size::new(self.width, self.height)
+    }
+
+    pub fn with_size(&self, size: Size<T>) -> Self {
+        Self::new(self.position(), size)
     }
 
     pub fn width(&self) -> T {
@@ -75,20 +84,29 @@ where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + PartialOrd
         point.x >= self.x && (point.x - self.width) <= self.x &&
         point.y >= self.y && (point.y - self.height) <= self.y
     }
-}
 
-impl Rectangle<f64> {
-    pub fn center(&self) -> Point {
-        Point::new(self.x + self.width / 2.0, self.y + self.height / 2.0)
-    }
-
-    pub fn intersects(&self, other: Rectangle) -> bool {
+    pub fn intersects(&self, other: &Self) -> bool {
         !(
             self.left() > other.right() ||
             self.right() < other.left() ||
             self.top() < other.bottom() ||
             self.bottom() > other.bottom()
         )
+    }
+}
+
+impl Rectangle<f64> {
+    pub fn from_center(center: Point, size: Size) -> Self {
+        Self::new(center - size / 2.0, size)
+    }
+
+    /// Shrink the rectangle by `amount`, keeping the same center position
+    pub fn shrink(&self, amount: f64) -> Self {
+        Self::from_center(self.center(), self.size() - Size::new(amount, amount))
+    }
+
+    pub fn center(&self) -> Point {
+        Point::new(self.x + self.width / 2.0, self.y + self.height / 2.0)
     }
 
     pub fn scale(&self, scale: f64) -> Self{

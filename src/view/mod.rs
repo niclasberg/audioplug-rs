@@ -1,18 +1,16 @@
-use crate::{event::Event, core::{Constraint, Size, Color}, ViewMessage}; 
+use crate::{event::Event, core::{Constraint, Size, Color, Shape}, ViewMessage}; 
 
 mod id;
 mod any_view;
 mod contexts;
 mod view_node;
 mod view_sequence;
-mod shape;
 mod component;
 pub use id::{Id, IdPath};
 pub use any_view::*;
 pub use contexts::{LayoutContext, EventContext, BuildContext, RenderContext};
 pub use view_node::*;
 pub use view_sequence::*;
-pub use shape::*;
 
 #[derive(Debug, PartialEq)]
 pub enum LayoutHint {
@@ -130,7 +128,7 @@ impl<V: View> View for Background<V> {
     }
 
     fn render(&self, state: &Self::State, ctx: &mut RenderContext) {
-        ctx.fill(&Shape::rect(ctx.local_bounds().size()), ctx.local_bounds().center(), self.color);
+        ctx.fill(ctx.local_bounds(), self.color);
         self.view.render(state, ctx)
     }
 

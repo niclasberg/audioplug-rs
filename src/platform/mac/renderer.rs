@@ -39,6 +39,10 @@ impl<'a> RendererRef<'a> {
 		self.context.stroke_rect(rect.into(), line_width.into());
     }
 
+	pub fn draw_line(&mut self, p0: Point, p1: Point, color: Color, line_width: f32) {
+		todo!()
+	}
+
     pub fn fill_rectangle(&mut self, rect: Rectangle, color: Color) {
         let color = to_cgcolor(color);
 		self.context.set_fill_color(&color);

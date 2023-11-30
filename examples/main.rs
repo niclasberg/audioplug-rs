@@ -1,6 +1,6 @@
-use audioplug::core::{Color, Constraint, Size, Vector, Alignment};
-use audioplug::views::{use_state, Row, Label, Button, Stack, Slider, Column, TextBox};
-use audioplug::{window::*, View, Event, EventContext, MouseEvent, Application, LayoutContext, BuildContext, RenderContext, Shape, LayoutHint};
+use audioplug::core::{Color, Constraint, Size, Vector, Alignment, Shape, Rectangle, Point};
+use audioplug::views::{use_state, Row, Label, Button, Slider, Column, TextBox, Fill};
+use audioplug::{window::*, View, Event, EventContext, MouseEvent, Application, LayoutContext, BuildContext, RenderContext, LayoutHint};
 
 struct MyWidget {
     active: bool
@@ -21,7 +21,7 @@ impl View for MyWidget {
     fn render(&self, _state: &Self::State, ctx: &mut RenderContext) {
         let color = if self.active { Color::BLACK } else { Color::WHITE };
         let bounds = ctx.local_bounds();
-        ctx.fill(&Shape::rect(bounds.size().scale(0.5)), bounds.center() + Vector::new(40.0, 40.0), color);
+        ctx.fill(bounds.scale(0.5).offset(Vector::new(40.0, 40.0)), color);
     }
 
     fn event(&mut self, _state: &mut Self::State, event: Event, ctx: &mut EventContext<Self::Message>) {
@@ -64,15 +64,16 @@ fn main() {
                     Label::new("Text input"),
                     TextBox::new().map(|_| ())
                 ))
-            )).with_alignment(Alignment::Leading),
+            )).with_alignment(Alignment::Leading)
+            .with_spacing(5.0),
             Column::new((
-                Shape::rect(Size::new(40.0, 40.0)).fill(Color::RED),
+                Rectangle::new(Point::ZERO, Size::new(40.0, 40.0)).fill(Color::RED),
                 use_state(
                     || true, 
                     |state| { MyWidget { active: *state } }, 
                     |_msg, state| { *state = !*state; }),
             )),
-            Shape::circle(40.0).fill(Color::GREEN)
+            Shape::circle(Point::new(40.0, 40.0), 40.0).fill(Color::GREEN)
         )).with_alignment(audioplug::core::Alignment::TopLeading)
         .with_spacing(5.0));
 

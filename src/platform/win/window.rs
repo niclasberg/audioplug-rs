@@ -8,7 +8,7 @@ use windows::{core::{PCWSTR, w, Result, Error},
         UI::Input::{*, KeyboardAndMouse::VIRTUAL_KEY},
         Graphics::Gdi::{self, InvalidateRect}}};
 
-use super::{com, Renderer, keyboard::{vk_to_key, get_modifiers}};
+use super::{com, Renderer, keyboard::{vk_to_key, get_modifiers}, Handle};
 use crate::{core::{Color, Point, Rectangle}, Event, event::{MouseEvent, WindowEvent, KeyEvent}, window::WindowHandler};
 use crate::event::MouseButton;
 
@@ -55,8 +55,9 @@ struct WindowState {
 }
 
 impl WindowState {
-    fn publish_event(&self, event: Event) {
-        self.handler.borrow_mut().event(event);
+    fn publish_event(&self, hwnd: HWND, event: Event) {
+        let mut handle = Handle::new(hwnd);
+        self.handler.borrow_mut().event(event, &mut handle);
     }
 
     fn handle_message(&self, hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
@@ -76,7 +77,7 @@ impl WindowState {
                 }
     
                 {
-                    let rect: Rectangle = get_client_rect(hwnd).into();
+                    let rect: Rectangle = super::util::get_client_rect(hwnd).into();
                     self.handler.borrow_mut()
                         .render(Rectangle::new(Point::ZERO, rect.size()), renderer);
                 }
@@ -103,17 +104,18 @@ impl WindowState {
                 }
 
                 let window_event = WindowEvent::Resize { new_size: [width, height].into() };
-                self.publish_event(Event::Window(window_event));
+                self.publish_event(hwnd, Event::Window(window_event));
+                unsafe { InvalidateRect(hwnd, None, false) };
                 Some(LRESULT(0))
             },
 
             WM_SETFOCUS => {
-                self.publish_event(Event::Window(WindowEvent::Focused));
+                self.publish_event(hwnd, Event::Window(WindowEvent::Focused));
                 Some(LRESULT(0))
             },
 
             WM_KILLFOCUS => {
-                self.publish_event(Event::Window(WindowEvent::Unfocused));
+                self.publish_event(hwnd, Event::Window(WindowEvent::Unfocused));
                 Some(LRESULT(0))
             },
             
@@ -122,8 +124,7 @@ impl WindowState {
             WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK => {
                 let mouse_event = self.get_mouse_event(message, wparam, lparam);
 
-                self.publish_event(Event::Mouse(mouse_event));
-                unsafe { InvalidateRect(hwnd, None, false) };
+                self.publish_event(hwnd, Event::Mouse(mouse_event));
                 Some(LRESULT(0))
             },
 
@@ -135,7 +136,7 @@ impl WindowState {
                 if let Some(last_mouse_pos) = last_mouse_pos {
                     // Filter out spurious mouse move events
                     if phys_pos != last_mouse_pos {
-                        self.publish_event(Event::Mouse(MouseEvent::Moved { position }));
+                        self.publish_event(hwnd, Event::Mouse(MouseEvent::Moved { position }));
                     }
                 } else {
                     unsafe { 
@@ -148,23 +149,22 @@ impl WindowState {
                         };
                         TrackMouseEvent(&mut ev);
                     };
-                    self.publish_event(Event::Mouse(MouseEvent::Enter));
-                    self.publish_event(Event::Mouse(MouseEvent::Moved { position }));
+                    self.publish_event(hwnd, Event::Mouse(MouseEvent::Enter));
+                    self.publish_event(hwnd, Event::Mouse(MouseEvent::Moved { position }));
                 }
-                unsafe { InvalidateRect(hwnd, None, false) };
                 Some(LRESULT(0))
             },
 
             0x02A3 /* WM_MOUSELEAVE */ => {
                 self.last_mouse_pos.replace(None);
-                self.publish_event(Event::Mouse(MouseEvent::Exit));
+                self.publish_event(hwnd, Event::Mouse(MouseEvent::Exit));
                 Some(LRESULT(0))
             },
 
             WM_KEYDOWN => {
                 let key = vk_to_key(VIRTUAL_KEY(wparam.0 as u16));
                 let modifiers = get_modifiers();
-                self.publish_event(Event::Keyboard(KeyEvent::KeyDown { key, modifiers }));
+                self.publish_event(hwnd, Event::Keyboard(KeyEvent::KeyDown { key, modifiers }));
                 Some(LRESULT(0))
             },
 
@@ -175,7 +175,7 @@ impl WindowState {
                     },
                     str => {
                         if let Ok(str) = String::from_utf16(&[str]) {
-                            self.publish_event(Event::Keyboard(KeyEvent::Characters { str }));
+                            self.publish_event(hwnd, Event::Keyboard(KeyEvent::Characters { str }));
                             Some(LRESULT(0))
                         } else {
                             None
@@ -290,12 +290,6 @@ fn loword(lparam: LPARAM) -> u16 {
 
 fn hiword(lparam: LPARAM) -> u16 {
     ((lparam.0 >> 16) & 0xFFFF) as u16
-}
-
-fn get_client_rect(hwnd: HWND) -> Rectangle<i32> {
-    let mut rect: RECT = RECT::default();
-    unsafe { GetClientRect(hwnd, &mut rect) };
-    Rectangle::from_ltrb(rect.left, rect.top, rect.right, rect.bottom)
 }
 
 fn point_from_lparam(lparam: LPARAM) -> Point<i32> {
