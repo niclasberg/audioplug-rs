@@ -1,7 +1,7 @@
 use icrate::Foundation::CGRect;
 use objc2::{Encode, RefEncode};
 
-use crate::platform::mac::{IRefCounted, IRef};
+use crate::platform::{mac::{IRefCounted, IRef}, IMut};
 
 use super::CGAffineTransform;
 
@@ -30,8 +30,11 @@ unsafe impl IRefCounted for CGPath {
 }
 
 impl CGPath {
-	fn new_mut() -> IRef<CGPath> {
-		todo!()
+	fn new_mut() -> IMut<CGPath> {
+		unsafe {
+			let ptr = CGPathCreateMutable();
+			IMut::wrap(ptr)
+		}
 	}
 
 	pub fn create_with_rect(rect: CGRect, transform: Option<&CGAffineTransform>) -> IRef<CGPath> {

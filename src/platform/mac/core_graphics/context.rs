@@ -80,6 +80,10 @@ impl CGContext {
 		unsafe { CGContextFillPath(self) }
 	}
 
+	pub fn stroke_path(&self) {
+		unsafe { CGContextStrokePath(self) }
+	}
+
 	pub fn set_text_matrix(&self, t: CGAffineTransform) {
 		unsafe { CGContextSetTextMatrix(self, t) }
 	}
@@ -125,6 +129,7 @@ extern "C" {
 	fn CGContextClosePath(c: *const CGContext);
 	fn CGContextAddArcToPoint(c: *const CGContext, x1: CGFloat, y1: CGFloat, x2: CGFloat, y2: CGFloat, radius: CGFloat);
 	fn CGContextFillPath(c: *const CGContext);
+	fn CGContextStrokePath(c: *const CGContext);
 	fn CGContextFillEllipseInRect(c: *const CGContext, rect: CGRect);
 
 	fn CGContextGetTextPosition(c: *const CGContext) -> CGPoint;

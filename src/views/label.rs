@@ -1,7 +1,8 @@
 use crate::{view::View, core::{Size, Color, Point, Shape}, text::TextLayout, LayoutHint};
 
 pub struct Label {
-    pub text: String
+    pub text: String,
+	color: Color
 }
 
 pub struct LabelState {
@@ -10,8 +11,13 @@ pub struct LabelState {
 
 impl Label {
     pub fn new(str: impl Into<String>) -> Self {
-        Self { text: str.into() }
+        Self { text: str.into(), color: Color::BLACK }
     }
+
+	pub fn with_color(mut self, color: Color) -> Self {
+		self.color = color;
+		self
+	}
 }
 
 impl View for Label {
@@ -19,7 +25,7 @@ impl View for Label {
     type State = LabelState;
 
     fn build(&mut self, _ctx: &mut crate::BuildContext) -> Self::State {
-        let text_layout = TextLayout::new(self.text.as_str(), Color::BLACK, Size::INFINITY);
+        let text_layout = TextLayout::new(self.text.as_str(), self.color, Size::INFINITY);
         Self::State { text_layout }
     }
 

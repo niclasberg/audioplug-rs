@@ -6,7 +6,9 @@ pub unsafe trait IRefCounted {
 }
 
 // Marker traits for CFTypes
-pub unsafe trait CFType {}
+pub unsafe trait CFType {
+	
+}
 
 unsafe impl<T: CFType> IRefCounted for T {
     unsafe fn release(this: *const Self) {
@@ -35,6 +37,10 @@ impl<T: IRefCounted> IRef<T> {
 		T::retain(ptr);
 		IRef { ptr }
 	}
+
+	pub fn as_ptr(&self) -> *const T {
+		self.ptr
+	}
 }
 
 impl<T: IRefCounted> Drop for IRef<T> {
@@ -51,23 +57,23 @@ impl<T:IRefCounted> Deref for IRef<T> {
     }
 } 
 
-pub struct IRefMut<T: IRefCounted> {
+pub struct IMut<T: IRefCounted> {
 	ptr: *mut T
 }
 
-impl<T: IRefCounted> IRefMut<T> {
-	pub unsafe fn wrap(ptr: *mut T) -> IRef<T> {
-		IRef { ptr }
+impl<T: IRefCounted> IMut<T> {
+	pub unsafe fn wrap(ptr: *mut T) -> IMut<T> {
+		IMut { ptr }
 	}
 }
 
-impl<T: IRefCounted> Drop for IRefMut<T> {
+impl<T: IRefCounted> Drop for IMut<T> {
     fn drop(&mut self) {
 		unsafe { <T as IRefCounted>::release(self.ptr) };
     }
 }
 
-impl<T:IRefCounted> Deref for IRefMut<T> {
+impl<T:IRefCounted> Deref for IMut<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -75,9 +81,15 @@ impl<T:IRefCounted> Deref for IRefMut<T> {
     }
 }
 
-impl<T:IRefCounted> DerefMut for IRefMut<T> {
+impl<T:IRefCounted> DerefMut for IMut<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *self.ptr }
+    }
+}
+
+impl<T: IRefCounted> From<IMut<T>> for IRef<T> {
+    fn from(value: IMut<T>) -> Self {
+        Self { ptr: value.ptr }
     }
 }
 

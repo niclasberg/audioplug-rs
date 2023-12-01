@@ -29,12 +29,16 @@ impl<'a> RendererRef<'a> {
 		self.context.concat_ctm(transform.into());
 	}
 
+	pub fn clip(&mut self, rect: Rectangle) {
+		self.context.clip_to_rect(rect.into());
+	}
+
 	pub fn set_offset(&mut self, delta: Vector) {
         self.context.translate_ctm(delta.x, delta.y)
     }
 
 	pub fn draw_rectangle(&mut self, rect: Rectangle, color: Color, line_width: f32) {
-        let color = to_cgcolor(color);
+        let color = CGColor::from_color(color);
 		self.context.set_fill_color(&color);
 		self.context.stroke_rect(rect.into(), line_width.into());
     }
@@ -44,19 +48,34 @@ impl<'a> RendererRef<'a> {
 	}
 
     pub fn fill_rectangle(&mut self, rect: Rectangle, color: Color) {
-        let color = to_cgcolor(color);
+        let color = CGColor::from_color(color);
 		self.context.set_fill_color(&color);
 		self.context.fill_rect(rect.into());
     }
 
     pub fn fill_rounded_rectangle(&mut self, rect: Rectangle, radius: Size, color: Color) {
-        let r: CGRect = rect.into();
+		let color = CGColor::from_color(color);
+		self.context.set_fill_color(&color);
+
+		self.add_rounded_rectangle(rect, radius);
+		// Fill & stroke the path 
+		self.context.fill_path(); 
+    }
+
+	pub fn draw_rounded_rectangle(&mut self, rect: Rectangle, radius: Size, color: Color, line_width: f32) {
+		let color = CGColor::from_color(color);
+		self.context.set_stroke_color(&color);
+
+		self.add_rounded_rectangle(rect, radius);
+
+		self.context.stroke_path(); 
+    }
+
+	fn add_rounded_rectangle(&mut self, rect: Rectangle, radius: Size) {
+		let r: CGRect = rect.into();
 		let min = r.min();
 		let mid = r.mid();
 		let max = r.max();
-
-		let color = to_cgcolor(color);
-		self.context.set_fill_color(&color);
 
 		self.context.move_to_point(min.x, mid.y); 
 		// Add an arc through 2 to 3 
@@ -69,19 +88,16 @@ impl<'a> RendererRef<'a> {
 		self.context.add_arc_to_point(min.x, max.y, min.x, mid.y, radius.height); 
 		// Close the path 
 		self.context.close_path(); 
-		// Fill & stroke the path 
-		self.context.fill_path(); 
- 
-    }
+	}
 
 	pub fn fill_ellipse(&mut self, origin: Point, radii: Size, color: Color) {
-        let color = to_cgcolor(color);
+        let color = CGColor::from_color(color);
 		self.context.set_fill_color(&color);
 		let rect = Rectangle::new(origin - Vector::new(radii.width, radii.height), radii.scale(2.0));
 		self.context.fill_ellipse_in_rect(rect.into());
     }
 
-    pub fn draw_text(&mut self, text_layout: &TextLayout, position: Point, color: Color) {
+    pub fn draw_text(&mut self, text_layout: &TextLayout, position: Point) {
 		let (string_range, size) = text_layout.suggested_range_and_size();
 		let size = size.into();
 		let rect = Rectangle::new(Point::ZERO, size).into();
@@ -96,8 +112,4 @@ impl<'a> RendererRef<'a> {
 
 		self.context.restore_state();
     }
-}
-
-fn to_cgcolor(color: Color) -> IRef<CGColor> {
-	CGColor::from_rgba(color.r.into(), color.g.into(), color.b.into(), color.a.into())
 }

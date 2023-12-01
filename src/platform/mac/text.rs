@@ -3,14 +3,15 @@ use std::cell::RefCell;
 use icrate::Foundation::{NSAttributedString, NSString, NSDictionary, CGSize};
 use objc2::rc::Id;
 
-use crate::{text::FontWeight, core::Size};
+use crate::{text::FontWeight, core::{Color, Size, Point}};
 
-use super::{core_text::CTFrameSetter, IRef, core_foundation::{CFDictionary, CFRange}};
+use super::{core_text::{CTFrameSetter, CTFrame, AttributedStringBuilder}, IRef, core_foundation::{CFRange, CFString, CFAttributedString}, IMut, core_graphics::CGColor};
 
 pub struct TextLayout{
-    pub(super) attributed_string: Id<NSAttributedString>,
+    pub(super) attributed_string: IMut<CFAttributedString>,
 	pub(super) frame_setter: IRef<CTFrameSetter>,
 	pub(super) max_size: CGSize,
+	frame: Option<IRef<CTFrame>>,
 	suggested_size_result: RefCell<Option<(CFRange, CGSize)>>
 }
 
@@ -23,15 +24,18 @@ impl TextLayout {
         max_size: Size,
 		color: Color
     ) -> Self {
-		let string = NSString::from_str(string);
-		let attributes = NSDictionary::new();
-		let attributed_string = unsafe { NSAttributedString::new_with_attributes(string.as_ref(), attributes.as_ref()) };
+		let string = CFString::new(string);
+		let mut builder = AttributedStringBuilder::new(&string);
+		let color = CGColor::from_color(color);
+		builder.set_foreground_color(builder.range(), &color);
+		let attributed_string = builder.0;
 		let frame_setter = CTFrameSetter::from_attributed_string(&attributed_string);
 
         Self {
 			attributed_string,
 			frame_setter,
 			max_size: max_size.into(),
+			frame: None,
 			suggested_size_result: RefCell::new(None)
 		}
     }
@@ -42,6 +46,14 @@ impl TextLayout {
 
 	pub fn measure(&self) -> Size {
 		self.suggested_range_and_size().1.into()
+	}
+
+	pub fn text_index_at_point(&self, point: Point) -> Option<usize> {
+        None
+    }
+
+    pub fn point_at_text_index(&self, index: usize) -> Option<Point> {
+		None
 	}
 
 	pub(super) fn suggested_range_and_size(&self) -> (CFRange, CGSize) {

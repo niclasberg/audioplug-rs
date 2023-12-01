@@ -1,9 +1,9 @@
 use std::mem::MaybeUninit;
 
-use icrate::Foundation::{NSAttributedString, CGSize};
+use icrate::Foundation::{CGSize};
 use objc2::{Encode, RefEncode};
 
-use crate::platform::mac::{IRef, CFType, core_foundation::{CFRange, CFDictionary}, core_graphics::CGPath};
+use crate::platform::mac::{IRef, CFType, core_foundation::{CFRange, CFDictionary, CFAttributedString}, core_graphics::CGPath};
 
 use super::CTFrame;
 
@@ -13,7 +13,8 @@ pub struct CTFrameSetter {
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
-unsafe impl CFType for CTFrameSetter {}
+unsafe impl CFType for CTFrameSetter {
+}
 
 unsafe impl Encode for CTFrameSetter {
     const ENCODING: objc2::Encoding = objc2::Encoding::Struct("CTFrameSetter", &[]);
@@ -24,7 +25,7 @@ unsafe impl RefEncode for CTFrameSetter {
 }
 
 impl CTFrameSetter {
-	pub fn from_attributed_string(attributed_string: &NSAttributedString) -> IRef<Self> {
+	pub fn from_attributed_string(attributed_string: &CFAttributedString) -> IRef<Self> {
 		unsafe { IRef::wrap(CTFramesetterCreateWithAttributedString(attributed_string)) }
 	}
 
@@ -47,7 +48,7 @@ impl CTFrameSetter {
 
 #[link(name = "CoreText", kind = "framework")]
 extern "C" {
-	fn CTFramesetterCreateWithAttributedString(attrString: *const NSAttributedString) -> *mut CTFrameSetter;
+	fn CTFramesetterCreateWithAttributedString(attrString: *const CFAttributedString) -> *mut CTFrameSetter;
 	fn CTFramesetterSuggestFrameSizeWithConstraints(framesetter: *const CTFrameSetter, string_range: CFRange, frame_attributes: *const CFDictionary, constraints: CGSize, fit_range: *mut CFRange) -> CGSize;
 	fn CTFramesetterCreateFrame(framesetter: *const CTFrameSetter, string_range: CFRange, path: *const CGPath, frame_attributes: *const CFDictionary) -> *const CTFrame;
 }

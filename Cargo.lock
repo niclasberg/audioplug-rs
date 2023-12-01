@@ -7,6 +7,7 @@ name = "audioplug"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "c-enum",
  "icrate",
  "num",
  "objc2",
@@ -45,6 +46,12 @@ dependencies = [
  "block-sys",
  "objc2",
 ]
+
+[[package]]
+name = "c-enum"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8883dee7de1e38357323d49767550c9fd64fa5c60ae22f6b01ab2c5edcd1bf9e"
 
 [[package]]
 name = "icrate"

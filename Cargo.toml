@@ -34,6 +34,7 @@ features = [
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.4.1"
+c-enum = "0.2.2"
 
 [target.'cfg(target_os = "macos")'.dependencies.icrate]
 version = "0.0.4"
@@ -45,6 +46,8 @@ features = [
 	"AppKit_NSEvent",
 	"AppKit_NSApplication",
 	"Foundation_NSAttributedString",
+	"Foundation_NSMutableAttributedString",
+	"Foundation_NSDictionary",
 	"Foundation_NSString"
 ]
 

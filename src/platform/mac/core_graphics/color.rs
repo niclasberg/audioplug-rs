@@ -1,4 +1,4 @@
-use crate::platform::mac::{IRefCounted, IRef};
+use crate::{platform::{mac::{IRefCounted, IRef}, CFType}, core::Color};
 
 use super::CGFloat;
 use objc2::{Encode, RefEncode};
@@ -17,19 +17,15 @@ unsafe impl RefEncode for CGColor {
 	const ENCODING_REF: objc2::Encoding = objc2::Encoding::Pointer(&CGColor::ENCODING);
 }
 
-unsafe impl IRefCounted for CGColor {
-    unsafe fn release(this: *const Self) {
-        CGColorRelease(this)
-    }
-
-    unsafe fn retain(this: *const Self) {
-        CGColorRetain(this)
-    }
-}
+unsafe impl CFType for CGColor { }
 
 impl CGColor {
 	pub fn from_rgba(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) -> IRef<Self> {
 		unsafe { IRef::wrap(CGColorCreateSRGB(red, green, blue, alpha)) }
+	}
+
+	pub fn from_color(color: Color) -> IRef<Self> {
+		Self::from_rgba(color.r.into(), color.g.into(), color.b.into(), color.a.into())
 	}
 }
 

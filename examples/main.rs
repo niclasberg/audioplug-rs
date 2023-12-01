@@ -61,7 +61,7 @@ fn main() {
                     Button::new(Label::new("Filled")).map(|_| ())
                 )).with_spacing(5.0),
                 Row::new((
-                    Label::new("Text input"),
+                    Label::new("Text input").with_color(Color::BLUE),
                     TextBox::new().map(|_| ())
                 ))
             )).with_alignment(Alignment::Leading)
