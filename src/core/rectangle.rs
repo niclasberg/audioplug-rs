@@ -22,14 +22,15 @@ where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + Mul<Output
 
     pub fn from_points(x0: Point<T>, x1: Point<T>) -> Self {
         assert!(x0.x <= x1.x);
-        assert!(x0.y >= x1.y);
-        Self { x: x0.x, y: x0.y, width: x1.x - x0.x, height: x0.y - x1.y }
+        assert!(x0.y <= x1.y);
+        Self { x: x0.x, y: x0.y, width: x1.x - x0.x, height: x1.y - x0.y }
     }
 
     pub fn from_xywh(x: T, y: T, width: T, height: T) -> Self {
         Self { x, y, width, height }
     }
 
+    #[inline]
     pub fn from_ltrb(left: T, top: T, right: T, bottom: T) -> Self {
         assert!(left <= right);
         assert!(top <= bottom);
@@ -54,6 +55,26 @@ where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + Mul<Output
 	#[inline]
     pub fn bottom(&self) -> T {
         self.y + self.height
+    }
+
+    #[inline]
+    pub fn bottom_left(&self) -> Point<T> {
+        Point::new(self.left(), self.bottom())
+    }
+
+    #[inline]
+    pub fn top_left(&self) -> Point<T> {
+        Point::new(self.left(), self.top())
+    }
+
+    #[inline]
+    pub fn bottom_right(&self) -> Point<T> {
+        Point::new(self.right(), self.bottom())
+    }
+
+    #[inline]
+    pub fn top_right(&self) -> Point<T> {
+        Point::new(self.right(), self.top())
     }
 
     pub fn position(&self) -> Point<T> {

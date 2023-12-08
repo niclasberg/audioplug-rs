@@ -79,5 +79,6 @@ pub enum WindowEvent {
 pub enum Event {
     Mouse(MouseEvent),
     Window(WindowEvent),
-    Keyboard(KeyEvent)
+    Keyboard(KeyEvent),
+    AnimationFrame { timestamp: f64 }
 }

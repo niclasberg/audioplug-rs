@@ -1,7 +1,7 @@
-use windows::{Win32::{Graphics::DirectWrite, Foundation::BOOL}, core::HSTRING, w};
+use windows::{Win32::{Graphics::DirectWrite, Foundation::BOOL}, core::{HSTRING, w}};
 
 use crate::{core::{Size, Color, Point}, text::FontWeight};
-use super::com::direct_write_factory;
+use super::{com::direct_write_factory, util};
 
 impl Into<DirectWrite::DWRITE_FONT_WEIGHT> for FontWeight {
     fn into(self) -> DirectWrite::DWRITE_FONT_WEIGHT {
@@ -13,6 +13,7 @@ impl Into<DirectWrite::DWRITE_FONT_WEIGHT> for FontWeight {
 }
 
 pub struct TextLayout {
+    pub(super) string: String,
     pub(super) text_layout: DirectWrite::IDWriteTextLayout,
     pub(super) color: Color
 }
@@ -48,7 +49,11 @@ impl TextLayout {
             ).unwrap() 
         };
         
-        Self { text_layout, color }
+        Self { string: string.to_owned(), text_layout, color }
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.string
     }
 
     pub fn set_max_size(&mut self, size: Size) {
@@ -80,28 +85,28 @@ impl TextLayout {
         }
     }
 
-    pub fn point_at_text_index(&self, index: usize) -> Option<Point> {
+    pub fn point_at_text_index(&self, index: usize) -> Point {
         unsafe {
+            let index = index.min(self.string.len());
+            assert!(self.string.is_char_boundary(index));
+            let index = util::count_utf16(&self.string[..index]);
+
             let mut metric = std::mem::MaybeUninit::uninit();
-            let istrailinghit = BOOL::default();
+            let istrailinghit: BOOL = true.into();
             let mut pointx = std::mem::MaybeUninit::uninit();
             let mut pointy = std::mem::MaybeUninit::uninit();
-            let result = self.text_layout.HitTestTextPosition(
+            self.text_layout.HitTestTextPosition(
                 index as u32, 
                 istrailinghit, 
                 pointx.as_mut_ptr(), 
                 pointy.as_mut_ptr(), 
                 metric.as_mut_ptr()
-            );
+            ).expect("Error in HitTestTextPosition");
 
-            if result.is_ok() {
-                let pointx = pointx.assume_init();
-                let pointy = pointy.assume_init();
+            let pointx = pointx.assume_init();
+            let pointy = pointy.assume_init();
 
-                Some(Point::new(pointx as f64, pointy as f64))
-            } else {
-                None
-            }
+            Point::new(pointx as f64, pointy as f64)
         }
     }
 

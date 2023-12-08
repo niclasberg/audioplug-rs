@@ -53,7 +53,7 @@ impl<V: View + 'static> WindowHandler for MyHandler<V> {
     fn event(&mut self, event: Event, mut handle: platform::HandleRef) {
 		match event {
 			Event::Window(window_event) => match window_event {
-				WindowEvent::Resize { new_size } => {
+				WindowEvent::Resize { .. } => {
 					self.do_layout(&mut handle);
 					handle.invalidate(handle.global_bounds());
 				},

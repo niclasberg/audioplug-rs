@@ -2,8 +2,8 @@ use std::{sync::Once, cell::RefCell, marker::PhantomData, rc::Rc};
 
 use windows::{core::{PCWSTR, w, Result, Error}, 
     Win32::{
-        Foundation::*, 
-        System::LibraryLoader::GetModuleHandleW, 
+        Foundation::*,
+        System::{LibraryLoader::GetModuleHandleW, Performance}, 
         UI::{WindowsAndMessaging::*, Input::KeyboardAndMouse::TrackMouseEvent}, 
         UI::Input::{*, KeyboardAndMouse::VIRTUAL_KEY},
         Graphics::Gdi::{self, InvalidateRect}}};
@@ -14,6 +14,7 @@ use crate::event::MouseButton;
 
 const WINDOW_CLASS: PCWSTR = w!("my_window");
 static REGISTER_WINDOW_CLASS: Once = Once::new();
+const ANIMATION_FRAME_TIMER: usize = 10;
 
 pub trait CheckOk {
     type Output: Sized;
@@ -51,7 +52,8 @@ pub struct Window {
 struct WindowState {
     renderer: RefCell<Option<Renderer>>,
     handler: RefCell<Box<dyn WindowHandler>>,
-    last_mouse_pos: RefCell<Option<Point<i32>>>
+    last_mouse_pos: RefCell<Option<Point<i32>>>,
+    ticks_per_second: f64
 }
 
 impl WindowState {
@@ -62,6 +64,21 @@ impl WindowState {
 
     fn handle_message(&self, hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         match message {
+            WM_CREATE => {
+                unsafe {
+                    SetTimer(hwnd, ANIMATION_FRAME_TIMER, 1000 / 60, None);
+                    Some(LRESULT(0))
+                }
+            },
+
+            WM_DESTROY => {
+                unsafe { 
+                    KillTimer(hwnd, ANIMATION_FRAME_TIMER).unwrap();
+                    PostQuitMessage(0);
+                };
+                Some(LRESULT(0))
+            },
+
             WM_PAINT => {   
                 let mut renderer_ref = self.renderer.borrow_mut();
                 let renderer = renderer_ref.get_or_insert_with(|| {
@@ -147,11 +164,24 @@ impl WindowState {
                             hwndTrack: hwnd,
                             dwHoverTime: 0,
                         };
-                        TrackMouseEvent(&mut ev);
+                        TrackMouseEvent(&mut ev).unwrap();
                     };
                     self.publish_event(hwnd, Event::Mouse(MouseEvent::Enter));
                     self.publish_event(hwnd, Event::Mouse(MouseEvent::Moved { position }));
                 }
+                Some(LRESULT(0))
+            },
+
+            WM_TIMER => {
+                match wparam.0 {
+                    ANIMATION_FRAME_TIMER => {
+                        if let Some(timestamp) = self.current_timestamp() {
+                            self.publish_event(hwnd, Event::AnimationFrame { timestamp });
+                        }
+                    },
+                    _ => {}
+                };
+
                 Some(LRESULT(0))
             },
 
@@ -183,11 +213,6 @@ impl WindowState {
                     }
                 }
             },
-
-            WM_DESTROY => {
-                unsafe { PostQuitMessage(0) };
-                Some(LRESULT(0))
-            },
             _ => None
         }
     }
@@ -212,6 +237,13 @@ impl WindowState {
             _ => unreachable!()
         }
     }
+
+    fn current_timestamp(&self) -> Option<f64> {
+        let mut lpperformancecount: i64 = 0;
+        unsafe { Performance::QueryPerformanceCounter(&mut lpperformancecount as *mut _) }
+            .map(|_| (lpperformancecount as f64) / self.ticks_per_second)
+            .ok()
+    }
 }
 
 impl Window {
@@ -231,7 +263,7 @@ impl Window {
             size.top(), 
             size.width(), 
             size.height(), 
-            SET_WINDOW_POS_FLAGS::default()).ok()
+            SET_WINDOW_POS_FLAGS::default())
         }
     }
 
@@ -241,7 +273,7 @@ impl Window {
             let class = WNDCLASSW {
                 lpszClassName: WINDOW_CLASS,
                 hCursor: unsafe { LoadCursorW(None, IDC_ARROW).ok().unwrap() },
-                hInstance: instance,
+                hInstance: instance.into(),
                 lpfnWndProc: Some(wndproc),
                 style: CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS,
                 ..WNDCLASSW::default()
@@ -251,10 +283,17 @@ impl Window {
 
         com::com_initialized();
 
+        let ticks_per_second = unsafe {
+            let mut frequency: i64 = 0;
+            Performance::QueryPerformanceFrequency(&mut frequency as *mut _)
+                .map(|_| frequency as f64)
+        }?;
+
         let window_state = Rc::new(WindowState {
             renderer: RefCell::new(None),
             handler: RefCell::new(Box::new(handler)),
             last_mouse_pos: RefCell::new(None),
+            ticks_per_second
         });
 
         let hwnd = unsafe {

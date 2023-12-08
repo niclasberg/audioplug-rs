@@ -2,9 +2,9 @@ use windows::{
     core::*,
     Win32::{
         Media::Audio, 
-        System::Com,
+        System::Com::{self, StructuredStorage::PropVariantGetStringElem},
         Devices::Properties,
-        System::Threading::{CreateEventExW, EVENT_MODIFY_STATE, SYNCHRONIZATION_SYNCHRONIZE, CREATE_EVENT_MANUAL_RESET}, UI::Shell::PropertiesSystem::PropVariantGetStringElem
+        System::Threading::{CreateEventExW, EVENT_MODIFY_STATE, SYNCHRONIZATION_SYNCHRONIZE, CREATE_EVENT_MANUAL_RESET}
     }
 };
 

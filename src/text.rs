@@ -24,12 +24,16 @@ impl TextLayout {
         self.0.text_index_at_point(point.into())
     }
 
-    pub fn point_at_text_index(&self, index: usize) -> Option<Point> {
+    pub fn point_at_text_index(&self, index: usize) -> Point {
         self.0.point_at_text_index(index)
     }
 
     pub fn measure(&self) -> Size {
         self.0.measure()
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
     }
 
     pub fn set_max_size(&mut self, size: Size) {

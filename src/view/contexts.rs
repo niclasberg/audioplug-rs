@@ -225,6 +225,10 @@ impl<'a, 'b> RenderContext<'a, 'b> {
         self.renderer.restore();
     }
 
+    pub fn transform(&mut self, transform: impl Into<Transform>) {
+        self.renderer.transform(transform.into());
+    }
+
     pub fn with_child<T>(&mut self, id: Id, f: impl FnOnce(&mut RenderContext<'_, 'b>) -> T) -> T {
         let child = self.node.children.get_mut(id.0).unwrap();
 
@@ -416,5 +420,9 @@ impl<'a, 'b, Msg> EventContext<'a, 'b, Msg> {
             view_id: self.id_path().clone(),
             message
         });
+    }
+
+    pub fn get_clipboard(&mut self) -> Option<String> {
+        self.handle.get_clipboard()
     }
 }
