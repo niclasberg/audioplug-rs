@@ -1,4 +1,4 @@
-use windows::Win32::UI::Input::KeyboardAndMouse::*;
+use windows::Win32::{UI::Input::KeyboardAndMouse::*, Foundation::LPARAM};
 
 use crate::keyboard::{Key, Modifiers};
 
@@ -11,6 +11,21 @@ pub fn get_modifiers() -> Modifiers {
         modifiers |= Modifiers::CONTROL;
     }
     modifiers
+}
+
+#[derive(Debug)]
+pub struct KeyFlags {
+    pub repeat_count: u16,
+    pub scan_code: u8,
+}
+
+impl KeyFlags {
+    pub fn from_lparam(lparam: LPARAM) -> Self {
+        Self {
+            repeat_count: (lparam.0 & 0xFFFF) as u16 ,
+            scan_code: ((lparam.0 >> 16) & 0xFF) as u8,
+        }
+    }
 }
 
 pub fn vk_to_key(vk: VIRTUAL_KEY) -> Key {

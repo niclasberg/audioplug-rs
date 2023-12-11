@@ -423,6 +423,10 @@ impl<'a, 'b, Msg> EventContext<'a, 'b, Msg> {
     }
 
     pub fn get_clipboard(&mut self) -> Option<String> {
-        self.handle.get_clipboard()
+        self.handle.get_clipboard().ok().flatten()
+    }
+
+    pub fn set_clipboard(&mut self, string: &str) {
+        self.handle.set_clipboard(string).unwrap();
     }
 }

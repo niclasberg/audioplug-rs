@@ -1,6 +1,6 @@
 use std::ops::Range;
 use crate::{View, event::{KeyEvent, MouseButton}, text::TextLayout, core::{Size, Point, Shape, Color, Vector, Rectangle}, LayoutHint, keyboard::{Key, Modifiers}, Event, MouseEvent};
-use unicode_segmentation::UnicodeSegmentation;
+use unicode_segmentation::{UnicodeSegmentation, GraphemeIndices, GraphemeCursor};
 
 pub struct TextBox {
     width: f64
@@ -23,7 +23,6 @@ pub struct TextBoxState {
 
 struct Editor {
     value: String,
-    character_count: usize,
     position: usize,
     selection_start: Option<usize>,
 }
@@ -32,7 +31,6 @@ impl Editor {
     fn new(string: &str) -> Self {
         Self {
             value: string.to_owned(),
-            character_count: string.graphemes(true).count(),
             position: 0,
             selection_start: None
         }
@@ -63,79 +61,191 @@ impl Editor {
         true
     }
 
-    fn move_left(&mut self, select: bool) -> bool {
-
-        self.set_or_clear_selection_start(select);
-        if self.position > 0 {
-            self.position -= 1;
-            true
-        } else {
-            false
-        }
+    fn prev(&self) -> Option<usize> {
+        GraphemeCursor::new(self.position, self.value.len(), true)
+            .prev_boundary(&self.value, 0).unwrap()
     }
 
-    fn set_or_clear_selection_start(&mut self, select: bool) {
-        if self.selection_start.is_some() && !select {
-            self.selection_start = None;
-        } else if self.selection_start.is_none() && select {
-            self.selection_start = Some(self.position);
+    fn prev_word(&self) -> Option<usize> {
+        self.value.unicode_word_indices()
+            .map(|(index, _)| index)
+            .take_while(|index| *index < self.position)
+            .last()
+    }
+
+    fn next(&self) -> Option<usize> {
+        GraphemeCursor::new(self.position, self.value.len(), true)
+            .next_boundary(&self.value, 0).unwrap()
+    }
+
+    fn next_word(&self) -> Option<usize> {
+        self.value.unicode_word_indices()
+            .map(|(index, _)| index)
+            .skip_while(|index| *index <= self.position)
+            .chain(std::iter::once(self.value.len()))
+            .next()
+    }
+
+    fn move_left(&mut self, select: bool) -> bool {
+        match (self.selection_start, select) {
+            (Some(_), true) | (None, false) => {
+                self.prev().is_some_and(|position| {
+                    self.position = position;
+                    true
+                })
+            },
+            (Some(selection_start), false) => {
+                self.position = self.position.min(selection_start);
+                self.selection_start = None;
+                true
+            },
+            (None, true) => {
+                if let Some(position) = self.prev() {
+                    self.selection_start = Some(self.position);
+                    self.position = position;
+                    true
+                } else {
+                    false
+                }
+            },
         }
     }
 
     fn move_word_left(&mut self, select: bool) -> bool {
-        self.set_or_clear_selection_start(select);
-        true
+        match (self.selection_start, select) {
+            (Some(_), true) | (None, false) => {
+                self.prev_word().is_some_and(|position| {
+                    self.position = position;
+                    true
+                })
+            },
+            (Some(selection_start), false) => {
+                self.position = self.position.min(selection_start);
+                self.position = self.prev_word().unwrap_or(self.position);
+                self.selection_start = None;
+                true
+            },
+            (None, true) => {
+                self.prev_word().is_some_and(|position| {
+                    self.selection_start = Some(self.position);
+                    self.position = position;
+                    true
+                })
+            },
+        }
     }
 
     fn move_right(&mut self, select: bool) -> bool {
-        self.set_or_clear_selection_start(select);
-        if self.position < self.character_count {
-            self.position += 1;
-            true
-        } else {
-            false
+        match (self.selection_start, select) {
+            (Some(_), true) | (None, false) => {
+                if let Some(position) = self.next() {
+                    self.position = position;
+                    true
+                } else {
+                    false
+                }
+            },
+            (Some(selection_start), false) => {
+                self.position = self.position.max(selection_start);
+                self.selection_start = None;
+                true
+            },
+            (None, true) => {
+                if let Some(position) = self.next() {
+                    self.selection_start = Some(self.position);
+                    self.position = position;
+                    true
+                } else {
+                    false
+                }
+            },
         }
     }
 
     fn move_word_right(&mut self, select: bool) -> bool {
-        self.set_or_clear_selection_start(select);
-        true
+        match (self.selection_start, select) {
+            (Some(_), true) | (None, false) => {
+                if let Some(position) = self.next_word() {
+                    self.position = position;
+                    true
+                } else {
+                    false
+                }
+            },
+            (Some(selection_start), false) => {
+                self.position = self.position.max(selection_start);
+                self.position = self.next_word().unwrap_or(self.position);
+                self.selection_start = None;
+                true
+            },
+            (None, true) => {
+                if let Some(position) = self.next_word() {
+                    self.selection_start = Some(self.position);
+                    self.position = position;
+                    true
+                } else {
+                    false
+                }
+            },
+        }
     }
 
     fn insert(&mut self, string: &str) -> bool {
         if let Some(selection) = self.selection() {
-
+            self.value.replace_range(selection.clone(), string);
+            self.selection_start = None;
+            self.position = selection.start + string.len();
         } else {
-            if self.position == self.character_count {
+            if self.position == self.value.len() {
                 self.value.extend(string.chars());
+                self.position += string.len();
+            } else {
+                self.value.insert_str(self.position, string);
                 self.position += string.len();
             }
         }
         true
     }
 
-    fn remove_left(&mut self) -> bool {
-        true
-    }
-
-    fn remove_right(&mut self) -> bool {
-        true
-    }
-
-    fn remove_word_left(&mut self) -> bool {
-        true
-    }
-
-    fn remove_word_right(&mut self) -> bool {
-        true
-    }
-
-    fn remove_selected(&mut self, range: Range<usize>) -> bool {
+    fn remove_selected(&mut self) -> bool {
         if let Some(selection) = self.selection() {
+            self.position = selection.start;
+            self.value.replace_range(selection, "");
+            self.selection_start = None;
             true
         } else {
             false
         }
+    }
+
+    fn remove_left(&mut self) -> bool {
+        self.remove_selected() || self.prev().is_some_and(|pos_left| {
+            self.value.replace_range(pos_left..self.position, "");
+            self.position = pos_left;
+            true
+        })
+    }
+
+    fn remove_right(&mut self) -> bool {
+        self.remove_selected() || self.next().is_some_and(|pos_right| {
+            self.value.replace_range(self.position..pos_right, "");
+            true
+        })
+    }
+
+    fn remove_word_left(&mut self) -> bool {
+        self.remove_selected() || self.prev_word().is_some_and(|pos_left| {
+            self.value.replace_range(pos_left..self.position, "");
+            self.position = pos_left;
+            true
+        })
+    }
+
+    fn remove_word_right(&mut self) -> bool {
+        self.remove_selected() || self.next_word().is_some_and(|pos_right| {
+            self.value.replace_range(self.position..pos_right, "");
+            true
+        })
     }
 }
 
@@ -172,63 +282,68 @@ impl View for TextBox {
         match event {
             Event::Keyboard(key_event) => {
                 match key_event {
-                    KeyEvent::KeyDown { key, modifiers } =>
-                        match key {
-                            Key::BackSpace if modifiers.contains(Modifiers::CONTROL) => {
+                    KeyEvent::KeyDown { key, modifiers, str } =>
+                        match (key, str) {
+                            (Key::BackSpace, _) if modifiers.contains(Modifiers::CONTROL) => {
                                 if state.editor.remove_word_left() {
                                     rebuild_text_layout(state, ctx);
                                 }
                             }, 
-                            Key::BackSpace => {
+                            (Key::BackSpace, _) => {
                                 if state.editor.remove_left() {
                                     rebuild_text_layout(state, ctx);
                                 }
                             },
-                            Key::Delete if modifiers.contains(Modifiers::CONTROL) => {
+                            (Key::Delete, _) if modifiers.contains(Modifiers::CONTROL) => {
                                 if state.editor.remove_word_right() {
                                     rebuild_text_layout(state, ctx);
                                 }
                             },
-                            Key::Delete => {
-                                if state.editor.remove_left() {
+                            (Key::Delete, _) => {
+                                if state.editor.remove_right() {
                                     rebuild_text_layout(state, ctx);
                                 }
                             },
-                            Key::Left if modifiers.contains(Modifiers::CONTROL) => {
+                            (Key::Left, _) if modifiers.contains(Modifiers::CONTROL) => {
                                 if state.editor.move_word_left(modifiers.contains(Modifiers::SHIFT)) {
                                     ctx.request_render();
                                 }
                             }
-                            Key::Left => {
+                            (Key::Left, _) => {
                                 if state.editor.move_left(modifiers.contains(Modifiers::SHIFT)) {
                                     ctx.request_render();
                                 }
                             },
-                            Key::Right if modifiers.contains(Modifiers::CONTROL) => {
+                            (Key::Right, _) if modifiers.contains(Modifiers::CONTROL) => {
                                 if state.editor.move_word_right(modifiers.contains(Modifiers::SHIFT)) {
                                     ctx.request_render();
                                 }
                             },
-                            Key::Right => {
+                            (Key::Right, _) => {
                                 if state.editor.move_right(modifiers.contains(Modifiers::SHIFT)) {
                                     ctx.request_render();
                                 }
                             },
-                            Key::C if modifiers == Modifiers::CONTROL => {
+                            (Key::C, _) if modifiers == Modifiers::CONTROL => {
+                                if let Some(selected_text) = state.editor.selected_text() {
+                                    ctx.set_clipboard(selected_text);
+                                }
+                            },
+                            (Key::V, _) if modifiers == Modifiers::CONTROL => {
+                                if let Some(text_to_insert) = ctx.get_clipboard() {
+                                    state.editor.insert(text_to_insert.as_str());
+                                    rebuild_text_layout(state, ctx);
+                                }
+                            },
+                            (Key::X, _) if modifiers == Modifiers::CONTROL => {
 
                             },
-                            Key::V if modifiers == Modifiers::CONTROL => {
-
-                            },
-                            Key::X if modifiers == Modifiers::CONTROL => {
-
-                            },
+                            (_, Some(str)) if !modifiers.contains(Modifiers::CONTROL) => {
+                                state.editor.insert(str.as_str());
+                                rebuild_text_layout(state, ctx);
+                            }
                             _ => {}
                         },
-                    KeyEvent::Characters { str } => {
-                        state.editor.insert(str.as_str());
-                        rebuild_text_layout(state, ctx);
-                    },
                     _ => {}
                 }
             },

@@ -1,6 +1,6 @@
-use std::{sync::Once, cell::RefCell, marker::PhantomData, rc::Rc};
+use std::{sync::Once, cell::RefCell, marker::PhantomData, rc::Rc, mem::MaybeUninit};
 
-use windows::{core::{PCWSTR, w, Result, Error}, 
+use windows::{core::{PCWSTR, w  , Result, Error}, 
     Win32::{
         Foundation::*,
         System::{LibraryLoader::GetModuleHandleW, Performance}, 
@@ -8,8 +8,8 @@ use windows::{core::{PCWSTR, w, Result, Error},
         UI::Input::{*, KeyboardAndMouse::VIRTUAL_KEY},
         Graphics::Gdi::{self, InvalidateRect}}};
 
-use super::{com, Renderer, keyboard::{vk_to_key, get_modifiers}, Handle};
-use crate::{core::{Color, Point, Rectangle}, Event, event::{MouseEvent, WindowEvent, KeyEvent}, window::WindowHandler};
+use super::{com, Renderer, keyboard::{vk_to_key, get_modifiers, KeyFlags}, Handle};
+use crate::{core::{Color, Point, Rectangle}, Event, event::{MouseEvent, WindowEvent, KeyEvent}, window::WindowHandler, keyboard::{Modifiers, Key}};
 use crate::event::MouseButton;
 
 const WINDOW_CLASS: PCWSTR = w!("my_window");
@@ -49,11 +49,17 @@ pub struct Window {
     _phantom: PhantomData<*mut ()>,
 }
 
+struct TmpKeyEvent {
+    chars: Vec<u16>,
+    key: Key
+}
+
 struct WindowState {
     renderer: RefCell<Option<Renderer>>,
     handler: RefCell<Box<dyn WindowHandler>>,
     last_mouse_pos: RefCell<Option<Point<i32>>>,
-    ticks_per_second: f64
+    ticks_per_second: f64,
+    current_key_event: RefCell<Option<TmpKeyEvent>>
 }
 
 impl WindowState {
@@ -194,24 +200,53 @@ impl WindowState {
             WM_KEYDOWN => {
                 let key = vk_to_key(VIRTUAL_KEY(wparam.0 as u16));
                 let modifiers = get_modifiers();
-                self.publish_event(hwnd, Event::Keyboard(KeyEvent::KeyDown { key, modifiers }));
+                let flags = KeyFlags::from_lparam(lparam);
+                // If a keydown message can be translated into a character, a WM_CHAR message
+                // will follow directly after the WM_KEYDOWN message (with the same scancode).
+                // We collapse the KEYDOWN and CHAR message into the same KeyEvent (the WM_CHAR message
+                // is used to construct the string representation)
+                if has_wm_char_message(hwnd, flags) {
+                    debug_assert!(self.current_key_event.borrow().is_none());
+                    *(self.current_key_event.borrow_mut()) = Some(TmpKeyEvent { chars: Vec::new(), key });
+                } else {
+                    self.publish_event(hwnd, Event::Keyboard(KeyEvent::KeyDown { key, modifiers, str: None }));
+                }
+
                 Some(LRESULT(0))
             },
 
             WM_CHAR => {
-                match wparam.0 as u16 {
-                    0x08 | 0x0A | 0x1B  => { // backspace, linefeed, escape
-                        None
-                    },
-                    str => {
-                        if let Ok(str) = String::from_utf16(&[str]) {
-                            self.publish_event(hwnd, Event::Keyboard(KeyEvent::Characters { str }));
-                            Some(LRESULT(0))
-                        } else {
+                let flags = KeyFlags::from_lparam(lparam);
+                self.current_key_event.borrow_mut().as_mut().unwrap()
+                    .chars.push(wparam.0 as u16);
+                
+                if !has_wm_char_message(hwnd, flags) {
+                    let current_key_event = self.current_key_event.borrow_mut().take().unwrap();
+                    let modifiers = get_modifiers();
+                    let str = String::from_utf16(&current_key_event.chars).ok();
+                    let key_event = KeyEvent::KeyDown { 
+                        key: current_key_event.key, 
+                        modifiers, 
+                        str
+                    };
+                    
+                    self.publish_event(hwnd, Event::Keyboard(key_event));
+
+                    /*match wparam.0 as u16 {
+                        0x08 | 0x0A | 0x1B  => { // backspace, linefeed, escape
                             None
+                        },
+                        str => {
+                            if let Ok(str) = String::from_utf16(&[str]) {
+                                
+                                Some(LRESULT(0))
+                            } else {
+                                None
+                            }
                         }
-                    }
+                    }*/
                 }
+                Some(LRESULT(0))
             },
             _ => None
         }
@@ -293,7 +328,8 @@ impl Window {
             renderer: RefCell::new(None),
             handler: RefCell::new(Box::new(handler)),
             last_mouse_pos: RefCell::new(None),
-            ticks_per_second
+            ticks_per_second,
+            current_key_event: RefCell::new(None)
         });
 
         let hwnd = unsafe {
@@ -333,6 +369,25 @@ fn hiword(lparam: LPARAM) -> u16 {
 
 fn point_from_lparam(lparam: LPARAM) -> Point<i32> {
     Point::new(loword(lparam) as i32, hiword(lparam) as i32)
+}
+
+fn peek_message(hwnd: HWND, msgmin: u32, msgmax: u32) -> Option<MSG> {
+    let mut msg = MaybeUninit::uninit();
+    let avail = unsafe { PeekMessageW(msg.as_mut_ptr(), hwnd, msgmin, msgmax, PM_NOREMOVE) };
+    if avail.into() {
+        Some(unsafe { msg.assume_init() })
+    } else {
+        None
+    }
+}
+
+fn has_wm_char_message(hwnd: HWND, last_flags: KeyFlags) -> bool {
+    peek_message(hwnd, WM_CHAR, WM_CHAR)
+        .filter(|msg| {
+            let flags = KeyFlags::from_lparam(msg.lParam);
+            flags.scan_code == last_flags.scan_code
+        })
+        .is_some()
 }
 
 unsafe extern "system" fn wndproc(hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {

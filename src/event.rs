@@ -59,10 +59,8 @@ pub enum KeyEvent {
     },
     KeyDown {
         key: Key,
-        modifiers: Modifiers
-    },
-    Characters {
-        str: String
+        modifiers: Modifiers,
+        str: Option<String>
     }
 }
 

@@ -1,3 +1,4 @@
+use std::ffi::{CString, c_char, CStr};
 use std::mem::size_of;
 
 use windows::Win32::System::DataExchange::CloseClipboard;
@@ -51,12 +52,13 @@ impl Handle {
         unsafe { DataExchange::EmptyClipboard() }?;
 
         if string.len() > 0 {
-            let chars: Vec<u16> = string.encode_utf16().chain(std::iter::once(0)).collect();
+            let chars = CString::new(string).unwrap();
+            let chars = chars.as_bytes_with_nul();
             unsafe {
-                let hmem: HGLOBAL =  Memory::GlobalAlloc(GMEM_MOVEABLE, chars.len() * size_of::<u16>())?;
+                let hmem: HGLOBAL =  Memory::GlobalAlloc(GMEM_MOVEABLE, chars.len() * size_of::<u8>())?;
                 let mem_loc = Memory::GlobalLock(hmem);
-                std::ptr::copy_nonoverlapping(chars.as_ptr(), mem_loc as *mut u16, chars.len());
-                Memory::GlobalUnlock(hmem)?;
+                std::ptr::copy_nonoverlapping(chars.as_ptr(), mem_loc as *mut u8, chars.len());
+                let _ = Memory::GlobalUnlock(hmem);
                 DataExchange::SetClipboardData(CF_TEXT.0.into(), HANDLE(hmem.0 as isize))?;
             };
         }
@@ -78,11 +80,14 @@ impl Handle {
             let hmem = HGLOBAL(hmem.0 as *mut _);
             let str_handle = Memory::GlobalLock(hmem);
 
-            let result = utf16_ptr_to_string(str_handle as *const u16);
- 
-            Memory::GlobalUnlock(hmem)?;
+            assert!(!str_handle.is_null());
 
-            Ok(result)
+            let str = CStr::from_ptr(str_handle as *mut _);
+            let result = str.to_str().map(str::to_owned);
+
+            let _ = Memory::GlobalUnlock(hmem);
+
+            Ok(result.ok())
         }
     }
 }

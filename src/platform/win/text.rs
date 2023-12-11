@@ -92,7 +92,7 @@ impl TextLayout {
             let index = util::count_utf16(&self.string[..index]);
 
             let mut metric = std::mem::MaybeUninit::uninit();
-            let istrailinghit: BOOL = true.into();
+            let istrailinghit: BOOL = false.into();
             let mut pointx = std::mem::MaybeUninit::uninit();
             let mut pointy = std::mem::MaybeUninit::uninit();
             self.text_layout.HitTestTextPosition(
