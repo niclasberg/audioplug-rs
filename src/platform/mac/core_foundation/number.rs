@@ -1,8 +1,8 @@
 use std::os::raw::c_void;
 
-use crate::platform::{IRef, CFType};
+use crate::platform::IRef;
 
-use super::{CFIndex, CFAllocator, kCFAllocatorDefault};
+use super::{CFIndex, CFAllocator, kCFAllocatorDefault, CFTyped, CFTypeID};
 use c_enum::c_enum;
 
 c_enum! {
@@ -34,8 +34,13 @@ pub struct CFNumber {
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
-unsafe impl CFType for CFNumber {}
+unsafe impl CFTyped for CFNumber {
+    fn type_id() -> CFTypeID {
+        unsafe { CFNumberGetTypeID() }
+    }
+}
 
+#[allow(dead_code)]
 impl CFNumber {
 	pub fn from_i8(value: i8) -> IRef<Self> {
 		unsafe {
@@ -78,4 +83,5 @@ impl CFNumber {
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
 	fn CFNumberCreate(allocator: *const CFAllocator, theType: CFNumberType, valuePtr: *const c_void) -> *const CFNumber;
+	fn CFNumberGetTypeID() -> CFTypeID;
 }

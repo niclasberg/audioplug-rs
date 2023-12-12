@@ -40,18 +40,23 @@ features = [
 	"Win32_Graphics_DirectWrite"]
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2 = "0.4.1"
 c-enum = "0.2.2"
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2]
+version = "0.4.1"
+features = ["exception"]
 
 [target.'cfg(target_os = "macos")'.dependencies.icrate]
 version = "0.0.4"
 features = [
 	"Foundation",
 	"AppKit",
-	"AppKit_NSWindow",
-	"AppKit_NSView",
-	"AppKit_NSEvent",
 	"AppKit_NSApplication",
+	"AppKit_NSEvent",
+	"AppKit_NSPasteboard",
+	"AppKit_NSTrackingArea",
+	"AppKit_NSView",
+	"AppKit_NSWindow",
 	"Foundation_NSAttributedString",
 	"Foundation_NSMutableAttributedString",
 	"Foundation_NSDictionary",

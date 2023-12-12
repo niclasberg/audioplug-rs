@@ -32,6 +32,10 @@ impl CGContext {
 		unsafe { CGContextSetStrokeColorWithColor(self, color)}
 	}
 
+	pub fn set_line_width(&self, width: CGFloat) {
+		unsafe { CGContextSetLineWidth(self, width) }
+	}
+
 	pub fn fill_rect(&self, rect: CGRect) {
 		unsafe { CGContextFillRect(self, rect) }
 	}
@@ -64,6 +68,7 @@ impl CGContext {
 		unsafe { CGContextGetCTM(self) }
 	}
 
+	// Constructing paths
 	pub fn move_to_point(&self, x: CGFloat, y: CGFloat) {
 		unsafe { CGContextMoveToPoint(self, x, y) }
 	}
@@ -74,6 +79,10 @@ impl CGContext {
 
 	pub fn add_arc_to_point(&self, x1: CGFloat, y1: CGFloat, x2: CGFloat, y2: CGFloat, radius: CGFloat) {
 		unsafe { CGContextAddArcToPoint(self, x1, y1, x2, y2, radius) }
+	}
+
+	pub fn add_line_to_point(&self, x: CGFloat, y: CGFloat) {
+		unsafe { CGContextAddLineToPoint(self, x, y) }
 	}
 
 	pub fn fill_path(&self) {
@@ -115,6 +124,8 @@ extern "C" {
 	fn CGContextFlush(c: *const CGContext);
 	fn CGContextSetFillColorWithColor(c: *const CGContext, color: *const CGColor);
 	fn CGContextSetStrokeColorWithColor(c: *const CGContext, color: *const CGColor);
+	fn CGContextSetLineWidth(c: *const CGContext, width: CGFloat);
+
 	fn CGContextStrokeRectWithWidth(context: *const CGContext, rect: CGRect, width: CGFloat);
 	fn CGContextFillRect(context: *const CGContext, rect: CGRect);
 	
@@ -128,6 +139,7 @@ extern "C" {
 	fn CGContextMoveToPoint(c: *const CGContext, x: CGFloat, y: CGFloat);
 	fn CGContextClosePath(c: *const CGContext);
 	fn CGContextAddArcToPoint(c: *const CGContext, x1: CGFloat, y1: CGFloat, x2: CGFloat, y2: CGFloat, radius: CGFloat);
+	fn CGContextAddLineToPoint(c: *const CGContext, x: CGFloat, y: CGFloat);
 	fn CGContextFillPath(c: *const CGContext);
 	fn CGContextStrokePath(c: *const CGContext);
 	fn CGContextFillEllipseInRect(c: *const CGContext, rect: CGRect);

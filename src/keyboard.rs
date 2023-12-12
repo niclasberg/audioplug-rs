@@ -20,6 +20,9 @@ pub enum Key {
     End,
     PageUp,
     PageDown,
+	Escape,
+	Tab,
+	Enter,
 
     Left,
     Right,
@@ -36,6 +39,17 @@ pub enum Key {
     Key7,
     Key8,
     Key9,
+
+	Numpad0,
+	Numpad1,
+	Numpad2,
+	Numpad3,
+	Numpad4,
+	Numpad5,
+	Numpad6,
+	Numpad7,
+	Numpad8,
+	Numpad9,
 
     A, 
     B,
@@ -63,7 +77,8 @@ pub enum Key {
     X,
     Y,
     Z,
-
+	Space,
+	Period,
 
     F1, 
     F2, 

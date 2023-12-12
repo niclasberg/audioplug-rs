@@ -29,6 +29,7 @@ unsafe impl IRefCounted for CGPath {
     }
 }
 
+#[allow(dead_code)]
 impl CGPath {
 	fn new_mut() -> IMut<CGPath> {
 		unsafe {
@@ -43,6 +44,12 @@ impl CGPath {
 			IRef::wrap_and_retain(ptr)
 		}
 	}
+
+	pub fn bounding_box(&self) -> CGRect {
+		unsafe {
+			CGPathGetBoundingBox(self)
+		}
+	}
 }
 
 #[link(name = "CoreGraphics", kind = "framework")]
@@ -51,4 +58,5 @@ extern "C" {
 	fn CGPathRelease(path: *const CGPath);
 	fn CGPathRetain(path: *const CGPath) -> *const CGPath;
 	fn CGPathCreateWithRect(rect: CGRect, transform: *const CGAffineTransform) -> *const CGPath;
+	fn CGPathGetBoundingBox(path: *const CGPath) -> CGRect;
 }

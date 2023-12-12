@@ -2,14 +2,16 @@ use std::cell::RefCell;
 use std::os::raw::c_void;
 use std::ptr::NonNull;
 
-use icrate::AppKit::{NSView, NSEvent};
-use icrate::Foundation::NSRect;
+use icrate::AppKit::{NSView, NSEvent, NSTrackingArea, NSTrackingActiveAlways, NSTrackingMouseEnteredAndExited, NSTrackingMouseMoved};
+use icrate::Foundation::{NSRect, NSDictionary, CGRect};
 use objc2::rc::Id;
 use objc2::declare::{IvarDrop, Ivar};
+use objc2::exception;
 use objc2::{declare_class, mutability, ClassType, msg_send_id, msg_send};
 
 use crate::core::Point;
-use crate::event::MouseButton;
+use crate::event::{MouseButton, KeyEvent};
+use crate::platform::mac::keyboard::{key_from_code, get_modifiers};
 use crate::{MouseEvent, Event};
 use super::{RendererRef, HandleRef};
 use crate::window::WindowHandler;
@@ -18,7 +20,8 @@ use super::appkit::NSGraphicsContext;
 use super::core_graphics::CGColor;
 
 pub struct ViewState {
-	handler: RefCell<Box<dyn WindowHandler>>
+	handler: RefCell<Box<dyn WindowHandler>>,
+	tracking_area: RefCell<Option<Id<NSTrackingArea>>>
 }
 
 declare_class!(
@@ -58,7 +61,12 @@ declare_class!(
 
 		#[method(keyDown:)]
         fn key_down(&self, event: &NSEvent) {
-			println!("assd");
+			let key = key_from_code(unsafe { event.keyCode() });
+			let modifiers = get_modifiers(unsafe { event.modifierFlags() });
+			let str = unsafe { event.characters() };
+			let str = str.map(|str| str.to_string()).filter(|str| str.len() > 0);
+			let key_event = KeyEvent::KeyDown { key, modifiers, str };
+			self.dispatch_event(Event::Keyboard(key_event));
 		}
 
 		#[method(mouseDown:)]
@@ -88,6 +96,28 @@ declare_class!(
 			}
         }
 
+		#[method(acceptsFirstResponder)]
+        fn accepts_first_responder(&self) -> bool {
+            true
+        }
+
+		#[method(viewDidMoveToWindow)]
+		fn view_did_move_to_window(&self) {
+			let visible_rect = unsafe { self.visibleRect() };
+			self.set_tracking_area(visible_rect);
+		}
+
+		#[method(updateTrackingAreas)]
+		fn update_tracking_areas(&self) {
+			let visible_rect = unsafe { self.visibleRect() };
+			self.set_tracking_area(visible_rect);
+		}
+
+		#[method(acceptsFirstMouse:)]
+        fn accepts_first_mouse(&self, _event: &NSEvent) -> bool {
+            true
+        }
+
 		#[method(drawRect:)]
 		fn draw_rect(&self, rect: NSRect) {
 			let graphics_context = NSGraphicsContext::current().unwrap();
@@ -109,7 +139,9 @@ declare_class!(
 
 impl View {
 	pub(crate) fn new(handler: impl WindowHandler + 'static) -> Id<Self> {
-		let state = Box::new(ViewState { handler: RefCell::new(Box::new(handler)) });
+		let handler = RefCell::new(Box::new(handler));
+		let tracking_area = RefCell::new(None);
+		let state = Box::new(ViewState { handler, tracking_area });
 
 		unsafe {
 			msg_send_id![
@@ -121,6 +153,28 @@ impl View {
 
 	fn dispatch_event(&self, event: Event) {
 		self.state.handler.borrow_mut().event(event, HandleRef::new(&self) )
+	}
+
+	fn set_tracking_area(&self, rect: CGRect) {
+		// Use try-borrow here to avoid re-entrancy problems
+		if let Ok(mut tracking_area_ref) = self.state.tracking_area.try_borrow_mut() {
+			if let Some(tracking_area) = tracking_area_ref.as_ref() {
+				unsafe { self.removeTrackingArea(tracking_area) };
+				*tracking_area_ref = None;
+			}
+	
+			let tracking_area = unsafe { 
+				let tracking_area = NSTrackingArea::alloc();
+				NSTrackingArea::initWithRect_options_owner_userInfo(tracking_area, 
+					rect, 
+					NSTrackingActiveAlways | NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved, 
+					Some(self), 
+					None)
+			};
+	
+			let tracking_area = tracking_area_ref.insert(tracking_area);
+			unsafe { self.addTrackingArea(tracking_area) };
+		}
 	}
 
 	fn mouse_position(&self, event: &NSEvent) -> Option<Point> {
@@ -136,7 +190,7 @@ impl View {
 			None
 		} else {
 			let x = pos.x;
-			let y = frame.size.height - pos.y;
+			let y = pos.y;
 			Some(Point::new(x, y))
 		}
 	}

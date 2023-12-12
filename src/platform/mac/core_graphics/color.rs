@@ -1,4 +1,5 @@
-use crate::{platform::{mac::{IRefCounted, IRef}, CFType}, core::Color};
+use crate::{platform::mac::IRef, core::Color};
+use crate::platform::mac::core_foundation::{CFTyped, CFTypeID};
 
 use super::CGFloat;
 use objc2::{Encode, RefEncode};
@@ -17,8 +18,13 @@ unsafe impl RefEncode for CGColor {
 	const ENCODING_REF: objc2::Encoding = objc2::Encoding::Pointer(&CGColor::ENCODING);
 }
 
-unsafe impl CFType for CGColor { }
+unsafe impl CFTyped for CGColor {
+    fn type_id() -> CFTypeID {
+        unsafe { CGColorGetTypeID() }
+    }
+}
 
+#[allow(dead_code)]
 impl CGColor {
 	pub fn from_rgba(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) -> IRef<Self> {
 		unsafe { IRef::wrap(CGColorCreateSRGB(red, green, blue, alpha)) }
@@ -32,6 +38,5 @@ impl CGColor {
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
 	fn CGColorCreateSRGB(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) -> *mut CGColor;
-	fn CGColorRelease(color: *const CGColor);
-	fn CGColorRetain(color: *const CGColor);
+	fn CGColorGetTypeID() -> CFTypeID;
 }

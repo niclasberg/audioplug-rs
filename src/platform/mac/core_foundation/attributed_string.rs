@@ -1,6 +1,8 @@
-use crate::platform::{IMut, IRef, CFType};
+use std::ptr::NonNull;
 
-use super::{CFString, CFDictionary, CFAllocator, kCFAllocatorDefault, CFIndex, CFRange, CFTypeRef};
+use crate::platform::{IMut, IRef};
+
+use super::{CFString, CFTyped, CFDictionary, CFAllocator, kCFAllocatorDefault, CFIndex, CFRange, CFTypeRef, CFTypeID, CFType};
 
 
 #[repr(C)]
@@ -9,8 +11,13 @@ pub struct CFAttributedString {
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
-unsafe impl CFType for CFAttributedString {}
+unsafe impl CFTyped for CFAttributedString {
+	fn type_id() -> CFTypeID {
+		unsafe { CFAttributedStringGetTypeID() }
+	}
+}
 
+#[allow(dead_code)]
 impl CFAttributedString {
 	pub fn new(str: &CFString, attributes: &CFDictionary) -> IRef<Self> {
 		unsafe {
@@ -30,9 +37,17 @@ impl CFAttributedString {
 		}
 	}
 
-	pub fn set_attribute<T: CFType>(&mut self, range: CFRange, attr_name: &CFString, value: &T) {
+	pub fn set_attribute<T: CFTyped>(&mut self, range: CFRange, attr_name: &CFString, value: &T) {
 		unsafe {
 			CFAttributedStringSetAttribute(self, range, attr_name, value as *const _ as *const _)
+		}
+	}
+
+	pub fn get_attribute<T: CFTyped>(&self, loc: CFIndex, attr_name: &CFString, effective_range: Option<CFRange>) -> Option<IRef<T>> {
+		unsafe {
+			let effective_range = effective_range.map_or_else(|| std::ptr::null(), |x| &x as *const _);
+			IRef::wrap_and_retain_if_non_null(CFAttributedStringGetAttribute(self, loc, attr_name, effective_range))
+				.and_then(CFTyped::from_iref)
 		}
 	}
 
@@ -57,4 +72,6 @@ extern "C" {
 	fn CFAttributedStringSetAttribute(aStr: *mut CFAttributedString, range: CFRange, attrName: *const CFString, value: CFTypeRef );
 	fn CFAttributedStringReplaceString(aStr: *mut CFAttributedString, range: CFRange, replacement: *const CFString);
 	fn CFAttributedStringGetLength(aStr: *const CFAttributedString) -> CFIndex;
+	fn CFAttributedStringGetAttribute(aStr: *const CFAttributedString, loc: CFIndex, attrName: *const CFString, effectiveRange: *const CFRange) -> *const CFType;
+	fn CFAttributedStringGetTypeID() -> CFTypeID;
 }

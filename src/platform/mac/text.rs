@@ -1,18 +1,47 @@
-use std::cell::RefCell;
+use icrate::Foundation::{CGSize, CGPoint};
 
-use icrate::Foundation::{NSAttributedString, NSString, NSDictionary, CGSize};
-use objc2::rc::Id;
-
-use crate::{text::FontWeight, core::{Color, Size, Point}};
-
-use super::{core_text::{CTFrameSetter, CTFrame, AttributedStringBuilder}, IRef, core_foundation::{CFRange, CFString, CFAttributedString}, IMut, core_graphics::CGColor};
+use crate::{text::FontWeight, core::{Color, Size, Point, Rectangle}};
+use super::{core_text::{CTFrameSetter, CTFrame, AttributedStringBuilder, CTLine}, IRef, core_foundation::{CFRange, CFString, CFAttributedString, CFTyped, CFIndex}, IMut, core_graphics::{CGColor, CGPath}};
 
 pub struct TextLayout{
     pub(super) attributed_string: IMut<CFAttributedString>,
 	pub(super) frame_setter: IRef<CTFrameSetter>,
-	pub(super) max_size: CGSize,
-	frame: Option<IRef<CTFrame>>,
-	suggested_size_result: RefCell<Option<(CFRange, CGSize)>>
+	text_frame: TextFrame,
+	max_size: CGSize
+}
+
+struct TextLine {
+	line: IRef<CTLine>,
+	origin: CGPoint,
+	char_range: CFRange
+}
+
+struct TextFrame {
+	frame: IRef<CTFrame>,
+	lines: Vec<TextLine>
+}
+
+impl TextFrame {
+	fn new(frame_setter: &CTFrameSetter, string_range: CFRange, max_size: CGSize) -> Self {
+		let (string_range, size) = frame_setter.suggest_frame_size_with_constraints(string_range, None, max_size.into());
+
+		let rect = Rectangle::new(Point::ZERO, size.into()).into();
+		let path = CGPath::create_with_rect(rect, None);
+		let frame = frame_setter.create_frame(string_range, &path, None);
+
+		let lines = frame.get_lines();
+		let origins = frame.get_line_origins();
+		let lines = lines.into_iter().zip(origins.into_iter())
+			.map(|(line, origin)| {
+				let char_range = line.string_range();
+				TextLine { line, origin, char_range }
+			}).collect();
+
+		Self {
+			frame,
+			lines
+		}
+	}
 }
 
 impl TextLayout {
@@ -31,37 +60,53 @@ impl TextLayout {
 		let attributed_string = builder.0;
 		let frame_setter = CTFrameSetter::from_attributed_string(&attributed_string);
 
+		let string_range = (0..attributed_string.length() as isize).into();
+		let text_frame = TextFrame::new(&frame_setter, string_range, max_size.into());
+
         Self {
 			attributed_string,
 			frame_setter,
-			max_size: max_size.into(),
-			frame: None,
-			suggested_size_result: RefCell::new(None)
+			text_frame,
+			max_size: max_size.into()
 		}
     }
 
     pub fn set_max_size(&mut self, size: Size) {
-		self.max_size = size.into();
+		let size = size.into();
+		if self.max_size != size {
+			self.max_size = size;
+			let string_range = (0..self.attributed_string.length() as isize).into();
+			self.text_frame = TextFrame::new(&self.frame_setter, string_range, size);
+		}
     }
 
 	pub fn measure(&self) -> Size {
-		self.suggested_range_and_size().1.into()
+		self.text_frame.frame.path().bounding_box().size.into()
 	}
 
 	pub fn text_index_at_point(&self, point: Point) -> Option<usize> {
         None
     }
 
-    pub fn point_at_text_index(&self, index: usize) -> Option<Point> {
-		None
+    pub fn point_at_text_index(&self, index: usize) -> Point {
+		let index = index as CFIndex;
+		self.text_frame.lines.iter()
+			.find(|line| line.char_range.contains(index))
+			.map(|line| {
+				let origin: Point = line.origin.into();
+				let line_index = index - line.char_range.location;
+				let offset = line.line.offset_for_string_index(line_index);
+				origin + Point::new(offset, 0.0)
+			})
+			.unwrap_or(Point::ZERO)
 	}
 
-	pub(super) fn suggested_range_and_size(&self) -> (CFRange, CGSize) {
-		let mut suggested_size_result = self.suggested_size_result.borrow_mut();
-		let range_size = suggested_size_result.get_or_insert_with(|| {
-			let string_range = (0..self.attributed_string.length() as isize).into();
-			self.frame_setter.suggest_frame_size_with_constraints(string_range, None, self.max_size.into())
-		});
-		*range_size
+	pub fn frame(&self) -> IRef<CTFrame> {
+		/*let (string_range, size) = self.suggested_range_and_size();
+		let size = size.into();
+		let rect = Rectangle::new(Point::ZERO, size).into();
+		let path = CGPath::create_with_rect(rect, None);
+		self.frame_setter.create_frame(string_range, &path, None)*/
+		self.text_frame.frame.clone()
 	}
 }

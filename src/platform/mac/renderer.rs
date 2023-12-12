@@ -1,8 +1,8 @@
-use icrate::Foundation::{CGRect, CGPoint, CGSize, CGFloat};
+use icrate::Foundation::{CGRect, CGFloat};
 
 use crate::core::{Rectangle, Color, Point, Size, Vector, Transform};
 
-use super::{core_graphics::{CGContext, CGColor, CGPath, CGAffineTransform}, TextLayout, IRef};
+use super::{core_graphics::{CGContext, CGColor, CGAffineTransform}, TextLayout};
 
 pub struct RendererRef<'a> {
 	pub(super) context: &'a CGContext,
@@ -44,7 +44,13 @@ impl<'a> RendererRef<'a> {
     }
 
 	pub fn draw_line(&mut self, p0: Point, p1: Point, color: Color, line_width: f32) {
-		todo!()
+		let color = CGColor::from_color(color);
+		self.context.set_stroke_color(&color);
+		self.context.set_line_width(line_width.into());
+
+		self.context.move_to_point(p0.x, p0.y); 
+		self.context.add_line_to_point(p1.x, p1.y);
+		self.context.stroke_path();
 	}
 
     pub fn fill_rectangle(&mut self, rect: Rectangle, color: Color) {
@@ -65,6 +71,7 @@ impl<'a> RendererRef<'a> {
 	pub fn draw_rounded_rectangle(&mut self, rect: Rectangle, radius: Size, color: Color, line_width: f32) {
 		let color = CGColor::from_color(color);
 		self.context.set_stroke_color(&color);
+		self.context.set_line_width(line_width as CGFloat);
 
 		self.add_rounded_rectangle(rect, radius);
 
@@ -98,15 +105,12 @@ impl<'a> RendererRef<'a> {
     }
 
     pub fn draw_text(&mut self, text_layout: &TextLayout, position: Point) {
-		let (string_range, size) = text_layout.suggested_range_and_size();
-		let size = size.into();
-		let rect = Rectangle::new(Point::ZERO, size).into();
-		let path = CGPath::create_with_rect(rect, None);
-		let frame = text_layout.frame_setter.create_frame(string_range, &path, None);
+		let frame = text_layout.frame();
+		let bounds = frame.path().bounding_box();
 
 		self.context.save_state();
 
-		self.context.translate_ctm(position.x, position.y + rect.size.height);
+		self.context.translate_ctm(position.x, position.y + bounds.size.height);
 		self.context.scale_ctm(1.0, -1.0);
 		frame.draw(self.context);
 

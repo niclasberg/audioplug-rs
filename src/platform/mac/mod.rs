@@ -11,6 +11,8 @@ mod iref;
 mod core_text;
 mod core_foundation;
 mod handle;
+mod util;
+mod keyboard;
 
 pub(crate) use handle::HandleRef;
 pub(crate) use application::Application;

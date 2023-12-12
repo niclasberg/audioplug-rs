@@ -1,9 +1,9 @@
 use icrate::Foundation::NSString;
 use c_enum::c_enum;
 use objc2::runtime::Bool;
-use crate::platform::{IRef, CFType};
+use crate::platform::IRef;
 
-use super::{CFAllocator, CFIndex, kCFAllocatorDefault};
+use super::{CFAllocator, CFIndex, kCFAllocatorDefault, CFTyped, CFTypeID};
 
 
 c_enum! {
@@ -19,7 +19,11 @@ pub struct CFString {
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
-unsafe impl CFType for CFString {}
+unsafe impl CFTyped for CFString {
+    fn type_id() -> CFTypeID {
+        unsafe { CFStringGetTypeID() }
+    }
+}
 
 impl CFString {
 	pub fn new(str: &str) -> IRef<Self> {
@@ -49,5 +53,5 @@ impl AsMut<NSString> for CFString {
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
 	fn CFStringCreateWithBytes(alloc: *const CFAllocator, bytes: *const u8, numBytes: CFIndex, encoding: u32, isExternalRepresentation: Bool) -> *const CFString;
-
+	fn CFStringGetTypeID() -> CFTypeID;
 }

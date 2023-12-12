@@ -1,5 +1,7 @@
+use icrate::{AppKit::{NSPasteboard, NSPasteboardTypeString}, Foundation::NSString};
+
 use crate::core::Rectangle;
-use super::view::View;
+use super::{view::View, Error};
 
 pub struct HandleRef<'a> {
 	view: &'a View
@@ -15,7 +17,26 @@ impl<'a> HandleRef<'a> {
 	}
 
 	pub fn invalidate(&self, rect: Rectangle) {
-		println!("Invalidate: {:?}", rect);
 		unsafe { self.view.setNeedsDisplayInRect(rect.into()) }
+	}
+
+	pub fn set_clipboard(&self, string: &str) -> Result<(), Error> {
+		unsafe {
+			let string = NSString::from_str(string);
+			let pasteboard = NSPasteboard::generalPasteboard();
+			let _ = pasteboard.clearContents();
+
+			pasteboard.setString_forType(string.as_ref(), &NSPasteboardTypeString);
+
+			Ok(())
+		}
+	}
+
+	pub fn get_clipboard(&self) -> Result<Option<String>, Error> {
+		unsafe {
+			let pasteboard = NSPasteboard::generalPasteboard();
+			let string = pasteboard.stringForType(&NSPasteboardTypeString);
+			Ok(string.map(|str| str.to_string()))
+		}
 	}
 }
