@@ -30,12 +30,11 @@ pub trait Plugin {
     const URL: &'static str;
     const EMAIL: &'static str;
     const AUDIO_LAYOUT: &'static [AudioLayout];
+    type Editor: Editor;
 
     fn new() -> Self;
     fn reset(&mut self, sample_rate: f64);
-    fn editor(&self) -> Option<Box<dyn Editor>> {
-        None
-    }
+    fn editor(&self) -> Self::Editor;
 
     fn process(&mut self, context: ProcessContext);
 }

@@ -1,4 +1,4 @@
-use std::{fmt::Display, marker::PhantomData};
+use std::{fmt::Display, marker::PhantomData, ops::Index};
 
 #[derive(Clone, Debug)]
 pub struct ParseError;
@@ -49,18 +49,58 @@ pub enum Unit {
     Custom(&'static str)
 }
 
-pub enum Parameter {
-    Float(FloatParameter),
-    Int(IntParameter),
-    StringList(StringListParameter),
-    ByPass
+/// Normalized parameter value, in range 0.0 to 1.0
+#[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
+pub struct NormalizedValue(f64);
+
+impl NormalizedValue {
+    #[inline]
+    pub unsafe fn from_f64_unchecked(value: f64) -> Self {
+        Self(value)
+    }
+
+    #[inline]
+    pub fn value(&self) -> f64 {
+        self.0
+    }
+}
+
+impl Into<f64> for NormalizedValue {
+    fn into(self) -> f64 {
+        self.0
+    }
+}
+
+/// Plain parameter value
+#[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
+pub struct PlainValue(f64);
+
+impl PlainValue {
+    #[inline]
+    pub fn new(value: f64) -> Self {
+        Self(value)
+    }
+}
+
+impl Into<f64> for PlainValue {
+    fn into(self) -> f64 {
+        self.0
+    }
 }
 
 pub enum ParameterValue {
     Float(f64),
     Int(i64),
-    StringList(i64, &'static str),
+    StringList(i64),
     ByPass(bool),
+}
+
+pub enum Parameter {
+    Float(FloatParameter),
+    Int(IntParameter),
+    StringList(StringListParameter),
+    ByPass,
+    Bool(BoolParameter)
 }
 
 impl Parameter {
@@ -70,46 +110,53 @@ impl Parameter {
             Self::Float(p) => p.name,
             Self::Int(p) => p.name,
             Self::StringList(StringListParameter{ name, .. }) => name,
+            Self::Bool(p) => p.name,
         }
     }
 
-    pub fn default(&self) -> f64 {
-        match self {
+    pub fn default(&self) -> PlainValue {
+        let value = match self {
             Parameter::Float(p) => p.default,
             Parameter::Int(p) => p.default as f64,
             Parameter::StringList(p) => p.default_index as f64,
             Parameter::ByPass => 0.0,
-        }
+            Parameter::Bool(p) => if p.default { 1.0 } else { 0.0 }
+        };
+        PlainValue(value)
     }
 
-    pub fn default_normalized(&self) -> f64 {
+    pub fn default_normalized(&self) -> NormalizedValue {
         self.normalize(self.default())
     }
 
-    pub fn normalize(&self, value: f64) -> f64 {
-        match self {
+    pub fn normalize(&self, value: PlainValue) -> NormalizedValue {
+        let value = value.0;
+        let normalized_value = match self {
             Parameter::Float(p) => p.range.normalize(value),
             Parameter::Int(p) => p.range.normalize(value),
             Parameter::StringList(p) => value.clamp(0.0, p.string_count() as f64) / (p.string_count() as f64),
-            Parameter::ByPass => value,
-        }
+            Parameter::ByPass | Parameter::Bool(_) => value,
+        };
+        NormalizedValue(normalized_value)  
     }
 
-    pub fn denormalize(&self, value: f64) -> f64 {
-        match self {
-            Parameter::Float(_) => todo!(),
+    pub fn denormalize(&self, value: NormalizedValue) -> PlainValue {
+        let value = value.0;
+        let plain_value = match self {
+            Parameter::Float(p) => todo!(),
             Parameter::Int(_) => todo!(),
             Parameter::StringList(p) => value * (p.string_count() as f64),
-            Parameter::ByPass => value,
-        }
+            Parameter::ByPass | Parameter::Bool(_) => value,
+        };
+        PlainValue(plain_value)
     }
 
     pub fn step_count(&self) -> usize {
         match self {
-            Self::ByPass => 1,
+            Self::ByPass | Self::Bool(_) => 1,
             Self::Int(p) => p.range.steps(),
             Self::Float(FloatParameter {.. }) => 0,
-            Self::StringList(string_list) => string_list.strings.len()
+            Self::StringList(string_list) => string_list.step_count()
         }
     }
 }
@@ -159,8 +206,11 @@ impl IntParameter {
             default: 0
         }
     }
-}
 
+    pub fn range(&self) -> IntRange {
+        self.range
+    }
+}
 
 pub struct StringListParameter {
     name: &'static str,
@@ -180,17 +230,40 @@ impl StringListParameter {
     pub fn string_count(&self) -> usize {
         self.strings.len()
     }
+
+    pub fn step_count(&self) -> usize {
+        if self.strings.is_empty() {
+            0
+        } else {
+            self.strings.len() - 1
+        }
+    }
+
+    pub fn index_of(&self, key: &str) -> Option<usize> {
+        self.strings.iter().position(|x| x == key)
+    }
+}
+
+pub struct BoolParameter {
+    name: &'static str,
+    default: bool
+}
+
+impl BoolParameter {
+    pub fn new(name: &'static str, default: bool) -> Self {
+        Self { name, default }
+    }
 }
 
 pub trait ParameterSet<Store> {
     fn init_store(&self) -> Store;
     fn parameter_ref(&self, index: usize) -> &Parameter;
-    fn set_normalized(&self, store: &mut Store, index: usize, value: f64);
-    fn get_normalized(&self, store: &Store, index: usize) -> f64;
+    fn set_normalized(&self, store: &mut Store, index: usize, value: NormalizedValue);
+    fn get_normalized(&self, store: &Store, index: usize) -> NormalizedValue;
 }
 
-impl ParameterSet<Vec<f64>> for Vec<Parameter> {
-    fn init_store(&self) -> Vec<f64> {
+impl ParameterSet<Vec<PlainValue>> for Vec<Parameter> {
+    fn init_store(&self) -> Vec<PlainValue> {
         let mut store = Vec::with_capacity(self.len());
         for param in self.iter() {
             store.push(param.default());
@@ -198,7 +271,7 @@ impl ParameterSet<Vec<f64>> for Vec<Parameter> {
         store
     }
 
-    fn set_normalized(&self, store: &mut Vec<f64>, index: usize, value: f64) {
+    fn set_normalized(&self, store: &mut Vec<PlainValue>, index: usize, value: NormalizedValue) {
         debug_assert!(index < self.len());
 
         if let Some(param) = self.get(index) {
@@ -206,13 +279,13 @@ impl ParameterSet<Vec<f64>> for Vec<Parameter> {
         }
     }
 
-    fn get_normalized(&self, store: &Vec<f64>, index: usize) -> f64 {
+    fn get_normalized(&self, store: &Vec<PlainValue>, index: usize) -> NormalizedValue {
         debug_assert!(index < self.len());
         
         if let Some(param) = self.get(index) {
             param.normalize(store[index])
         } else {
-            0.0
+            NormalizedValue(0.0)
         }
     }
 

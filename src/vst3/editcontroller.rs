@@ -9,7 +9,7 @@ use vst3_sys::vst::{IEditController, ParameterInfo, IComponentHandler};
 
 use vst3_sys as vst3_com;
 
-use crate::param::{Parameter, FloatParameter, FloatRange};
+use crate::param::{Parameter, FloatParameter, FloatRange, NormalizedValue, PlainValue};
 
 use super::plugview::PlugView;
 use super::util::strcpyw;
@@ -19,7 +19,7 @@ use super::util::strcpyw;
 pub struct EditController {
     component_handler: RefCell<Option<VstPtr<dyn IComponentHandler>>>,
     parameters: Vec<Parameter>,
-    parameter_values: RefCell<Vec<f64>>,
+    parameter_values: RefCell<Vec<NormalizedValue>>,
 }
 
 impl EditController {
@@ -31,8 +31,8 @@ impl EditController {
                 .with_range(FloatRange::Linear { min: 0.0, max: 2.0 }).into(),
             FloatParameter::new("test").into()
         ];
-        let parameter_values: Vec<_> = parameters.iter().map(|param| {
-            param.default()
+        let parameter_values: Vec<NormalizedValue> = parameters.iter().map(|param| {
+            param.default_normalized()
         }).collect();
 
         Self::allocate(RefCell::new(None), parameters, RefCell::new(parameter_values))
@@ -72,8 +72,9 @@ impl IEditController for EditController {
                 Parameter::Int(_) => ParameterFlags::kCanAutomate as i32,
                 Parameter::Float(_) => ParameterFlags::kCanAutomate as i32,
                 Parameter::StringList(_) => ParameterFlags::kCanAutomate as i32 | ParameterFlags::kIsList as i32,
+                Parameter::Bool(_) => ParameterFlags::kCanAutomate as i32,
             };
-            info.default_normalized_value = 0.0;
+            info.default_normalized_value = parameter.default_normalized().into();
             strcpyw(parameter.name(), &mut info.short_title);
             strcpyw(parameter.name(), &mut info.title);
             info.step_count = parameter.step_count() as i32;
@@ -94,23 +95,26 @@ impl IEditController for EditController {
     }
 
     unsafe fn normalized_param_to_plain(&self, id: u32, value_normalized: f64) -> f64 {
-        0.0
+        let value_normalized = NormalizedValue::from_f64_unchecked(value_normalized);
+        self.parameters
+            .get(id as usize)
+            .map_or(0.0, |param| param.denormalize(value_normalized).into())
     }
 
     unsafe fn plain_param_to_normalized(&self, id: u32, plain_value: f64) -> f64 {
-        if let Some(param) = self.parameters.get(id as usize) {
-            param.normalize(plain_value)
-        } else {
-            debug_assert!(false, "Invalid parameter index");
-            0.0
-        }
+        let plain_value = PlainValue::new(plain_value);
+        self.parameters
+            .get(id as usize)
+            .map_or(0.0, |param| param.normalize(plain_value).into())
     }
 
     unsafe fn get_param_normalized(&self, id: u32) -> f64 {
-        0.0
+        let a = self.parameter_values.borrow();
+        todo!()
     }
 
     unsafe fn set_param_normalized(&self, id: u32, value: f64) -> tresult {
+        let value = NormalizedValue::from_f64_unchecked(value);
         kNotImplemented
     }
 

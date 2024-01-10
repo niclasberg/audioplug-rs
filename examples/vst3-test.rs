@@ -1,9 +1,21 @@
 use std::ffi::c_void;
-use audioplug::{Plugin, AudioLayout, Bus, ChannelType, ProcessContext};
+use audioplug::core::Color;
+use audioplug::views::Label;
+use audioplug::{Plugin, AudioLayout, Bus, ChannelType, ProcessContext, Editor};
 use audioplug::vst3::Factory;
 
 struct MyPlugin {
 
+}
+
+struct MyEditor {
+
+}
+
+impl Editor for MyEditor {
+    fn view(&self) -> impl audioplug::View {
+        Label::new("Text input").with_color(Color::BLUE)
+    }
 }
 
 struct OscillatorParams {
@@ -16,8 +28,7 @@ struct OscillatorParams {
 }
 
 struct MyPluginParams {
-    oscillators: [OscillatorParams; 4],
-    
+    oscillators: [OscillatorParams; 4],   
 }
 
 impl Plugin for MyPlugin {
@@ -29,6 +40,7 @@ impl Plugin for MyPlugin {
         main_input: Some(Bus { name: "Stereo Input", channel: ChannelType::Stereo }),
         main_output: Some(Bus { name: "Stereo Output", channel: ChannelType::Stereo })
     }];
+    type Editor = MyEditor;
 
     fn new() -> Self {
         Self {}
@@ -38,13 +50,13 @@ impl Plugin for MyPlugin {
         
     }
 
-    fn editor(&self) -> Option<Box<dyn audioplug::Editor>> {
-        None
+    fn editor(&self) -> Self::Editor {
+        MyEditor {}
     }
 
     fn process(&mut self, ctx: ProcessContext) {
         for (in_channel, mut out_channel) in ctx.input.channels_iter().zip(ctx.output.channels_iter_mut()) {
-            for (in_sample, out_sample)in in_channel.iter().zip(out_channel.iter_mut()) {
+            for (in_sample, out_sample) in in_channel.iter().zip(out_channel.iter_mut()) {
                 *out_sample = in_sample * 0.5;
             }
         }
