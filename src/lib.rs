@@ -1,4 +1,4 @@
-pub mod vst3;
+pub mod wrapper;
 mod plugin;
 pub mod views;
 pub mod core;
@@ -14,6 +14,7 @@ mod text;
 mod platform;
 mod keyboard;
 mod audio_buffer;
+mod theme;
 
 pub use plugin::*;
 pub use editor::*;

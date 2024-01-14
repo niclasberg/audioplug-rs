@@ -13,6 +13,7 @@ mod core_foundation;
 mod handle;
 mod util;
 mod keyboard;
+mod core_audio;
 
 pub(crate) use handle::HandleRef;
 pub(crate) use application::Application;

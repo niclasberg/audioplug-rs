@@ -1,4 +1,4 @@
-use std::{fmt::Display, marker::PhantomData, ops::Index};
+use std::{fmt::Display, marker::PhantomData};
 
 #[derive(Clone, Debug)]
 pub struct ParseError;

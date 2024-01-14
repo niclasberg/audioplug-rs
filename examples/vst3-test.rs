@@ -2,7 +2,7 @@ use std::ffi::c_void;
 use audioplug::core::Color;
 use audioplug::views::Label;
 use audioplug::{Plugin, AudioLayout, Bus, ChannelType, ProcessContext, Editor};
-use audioplug::vst3::Factory;
+use audioplug::wrapper::vst3::Factory;
 
 struct MyPlugin {
 

@@ -5,7 +5,7 @@ use vst3_sys::{VST3, IID};
 use vst3_sys::base::{IPluginFactory, PFactoryInfo, PClassInfo, tresult, FactoryFlags, kResultOk, kInvalidArgument, ClassCardinality, kResultFalse};
 use vst3_sys as vst3_com;
 use crate::Plugin;
-use crate::vst3::editcontroller::EditController;
+use super::editcontroller::EditController;
 
 use super::Vst3Plugin;
 use super::util::strcpy;

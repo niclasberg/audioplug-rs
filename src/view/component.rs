@@ -1,8 +1,12 @@
+use crate::AnyView;
+
 use super::View;
 
 pub trait Component {
     type Input: 'static;
     type Output: 'static;
+
+	fn view(&self) -> dyn AnyView;
 }
 
 impl<C: Component> View for C {

@@ -11,6 +11,7 @@ use crate::views::Fill;
 use crate::window::Window;
 
 const VST3_PLATFORM_HWND: &str = "HWND";
+const VST3_PLATFORM_NSVIEW: &str = "NSView";
 
 use vst3_sys as vst3_com;
 #[VST3(implements(IPlugView))]
@@ -54,6 +55,11 @@ impl IPlugView for PlugView {
                     h.hwnd = parent;
                     RawWindowHandle::Win32(h)
                 }, 
+				#[cfg(target_os = "macos")]
+				Ok(type_) if type_ == VST3_PLATFORM_NSVIEW => {
+					let h = Win32WindowHandle::empty();
+					RawWindowHandle::Win32(h)
+				},
                 _ => {
                     return kInvalidArgument;
                 }

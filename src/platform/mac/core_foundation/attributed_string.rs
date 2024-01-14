@@ -1,5 +1,3 @@
-use std::ptr::NonNull;
-
 use crate::platform::{IMut, IRef};
 
 use super::{CFString, CFTyped, CFDictionary, CFAllocator, kCFAllocatorDefault, CFIndex, CFRange, CFTypeRef, CFTypeID, CFType};
