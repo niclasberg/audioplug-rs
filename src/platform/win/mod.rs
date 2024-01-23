@@ -9,6 +9,7 @@ mod keyboard;
 mod handle;
 mod util;
 
+pub(crate) use audio::{AudioHost, AudioDevice};
 pub use windows::core::Error as Error;
 pub(crate) use handle::{HandleRef, Handle};
 pub(crate) use window::Window;

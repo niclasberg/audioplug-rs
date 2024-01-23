@@ -1,5 +1,6 @@
 use std::sync::OnceLock;
 use windows::Win32::System::Com;
+use windows::Win32::Media::Audio;
 use windows::Win32::Graphics::{DirectWrite, Direct2D};
 
 thread_local! { static COM_INITIALIZED: ComInitialized = {

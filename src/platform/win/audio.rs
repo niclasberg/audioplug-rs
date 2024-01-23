@@ -1,3 +1,5 @@
+use std::{sync::OnceLock, cell::{RefCell, OnceCell}, rc::Rc, thread::JoinHandle};
+
 use windows::{
     core::*,
     Win32::{
@@ -10,25 +12,35 @@ use windows::{
 
 use super::com;
 
-struct AudioClientWrapper {
-    audio_client: Audio::IAudioClient
-}
+pub struct AudioHost;
 
-impl AudioClientWrapper {
-    
-}
-
-pub struct Device {
-    device: Audio::IMMDevice
-}
-
-struct Enumerator(Audio::IMMDeviceEnumerator);
-
-impl Device {
-    pub fn default_output_device() -> Device {
-        todo!()
+impl AudioHost {
+    pub fn default_input_device() -> Result<AudioDevice> {
+        let device = unsafe { device_enumerator().GetDefaultAudioEndpoint(Audio::eCapture, Audio::eConsole)? };
+        Ok(AudioDevice::new(device))
     }
 
+    pub fn default_output_device() -> Result<AudioDevice> {
+        let device = unsafe { device_enumerator().GetDefaultAudioEndpoint(Audio::eRender, Audio::eConsole)? };
+        Ok(AudioDevice::new(device))
+    }
+
+    pub fn devices() -> Result<Vec<AudioDevice>> {
+        let endpoints = unsafe { device_enumerator().EnumAudioEndpoints(Audio::eAll, Audio::DEVICE_STATE_ACTIVE)? };
+        let count = unsafe { endpoints.GetCount()? };
+        (0..count).map(|i| {
+            let device = unsafe { endpoints.Item(i)? };
+            Ok(AudioDevice::new(device))
+        }).collect()
+    }
+}
+
+pub struct AudioDevice {
+    device: Audio::IMMDevice,
+    audio_client: OnceCell<Audio::IAudioClient>,
+}
+
+impl AudioDevice {
     pub fn id(&self) -> Result<String> {
         let id = unsafe { self.device.GetId()? };
         Ok(unsafe { id.to_string()? })
@@ -41,12 +53,35 @@ impl Device {
         Ok(unsafe { str.to_string()? })
     }
 
-    pub fn new() -> Result<Self> {
-        com::com_initialized();
-        let device_enumerator: Audio::IMMDeviceEnumerator = unsafe { Com::CoCreateInstance(&Audio::MMDeviceEnumerator, None, Com::CLSCTX_ALL)? };
+    fn get_audio_client(&self) -> Result<&Audio::IAudioClient> {
+        if let Some(audio_client) = self.audio_client.get() {
+            Ok(audio_client)
+        } else {
+            let audio_client = unsafe { self.device.Activate::<Audio::IAudioClient>(Com::CLSCTX_INPROC_SERVER, None)? };
+            self.audio_client.set(audio_client).unwrap();
+            Ok(self.audio_client.get().unwrap())
+        }
+    }
+
+    pub fn sample_rate(&self) -> Result<u32> {
+        let audio_client = self.get_audio_client()?;
+        unsafe {
+            let mix_format = audio_client.GetMixFormat()?;
+            Ok((*mix_format).nSamplesPerSec)
+        }
+    }
+
+    pub fn new(device: Audio::IMMDevice) -> Self {
+        Self { device, audio_client: OnceCell::new() }
+    }
+
+    pub fn create_output_stream(&self) -> Result<Stream> {
+        todo!()
+    }
+
+    /*pub fn new2() -> Result<Self> {
         //let device_collection: IMMDeviceCollection = unsafe {device_enumerator.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)? };
-        let endpoint = unsafe { device_enumerator.GetDefaultAudioEndpoint(Audio::eRender, Audio::eConsole)? };
-        let audio_client = unsafe { endpoint.Activate::<Audio::IAudioClient>(Com::CLSCTX_INPROC_SERVER, None)? };
+        let endpoint = unsafe { device_enumerator().GetDefaultAudioEndpoint(Audio::eRender, Audio::eConsole)? };  
 
         let mix_format = unsafe { audio_client.GetMixFormat()? };
 
@@ -72,5 +107,29 @@ impl Device {
         Ok(Self {
             device: endpoint
         })
+    }*/
+}
+
+struct Enumerator(Audio::IMMDeviceEnumerator);
+unsafe impl Sync for Enumerator {}
+unsafe impl Send for Enumerator {}
+
+fn device_enumerator() -> &'static Audio::IMMDeviceEnumerator {
+    static INSTANCE: OnceLock<Enumerator> = OnceLock::new();
+    let enumerator = INSTANCE.get_or_init(|| {
+        com::com_initialized();
+        let enumerator = unsafe { Com::CoCreateInstance(&Audio::MMDeviceEnumerator, None, Com::CLSCTX_ALL) }.unwrap();
+        Enumerator(enumerator)
+    });
+    &enumerator.0
+}
+
+pub struct Stream {
+    thread_handle: Option<JoinHandle<()>>
+}
+
+impl Drop for Stream {
+    fn drop(&mut self) {
+        self.thread_handle.take().unwrap().join().unwrap()
     }
 }
