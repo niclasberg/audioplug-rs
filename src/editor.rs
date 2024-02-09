@@ -1,10 +1,15 @@
-use crate::{View, Plugin};
+use crate::{View, Plugin, core::{Rectangle, Color, Point, Size}, views::Fill};
 
 pub trait Editor {
     fn view(&self) -> impl View;
 }
 
-struct GenericEditor {
+pub struct GenericEditor {
 
 }
 
+impl Editor for GenericEditor {
+    fn view(&self) -> impl View {
+        Rectangle::new(Point::ZERO, Size::new(200.0, 200.0)).fill(Color::RED)
+    }
+}

@@ -78,10 +78,11 @@ impl<Msg, V: View<Message = Msg>> ViewSequence<Msg> for Vec<V> {
     type State = Vec<V::State>;
 
     fn build(&mut self, ctx: &mut BuildContext) -> Self::State {
-        ctx.set_number_of_children(self.len());
+        /*ctx.set_number_of_children(self.len());
         self.iter_mut().zip(ctx.child_iter()).map(|(view, mut ctx)| {
             view.build(&mut ctx)
-        }).collect()
+        }).collect()*/
+        todo!()
     }
 
     fn layout_hint(&self, state: &Self::State) -> (LayoutHint, LayoutHint) {
@@ -93,7 +94,7 @@ impl<Msg, V: View<Message = Msg>> ViewSequence<Msg> for Vec<V> {
     }
 
     fn rebuild(&mut self, state: &mut Self::State, ctx: &mut BuildContext) {
-        let mut child_ctx_iter = ctx.child_iter();
+        //let mut child_ctx_iter = ctx.child_iter();
         todo!()
     }
 
