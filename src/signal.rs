@@ -1,25 +1,66 @@
 use std::{marker::PhantomData, rc::{Weak, Rc}, cell::RefCell, sync::atomic::AtomicUsize, any::Any, collections::HashSet};
 use slotmap::{new_key_type, SlotMap, SecondaryMap, Key};
 
+new_key_type! { 
+    pub struct NodeId;
+} 
+
+struct Node {
+    node_type: NodeType,
+    state: NodeState
+}
+
+impl Node {
+    fn get_value_as<T: Any>(&self) -> Option<&T> {
+        match &self.node_type {
+            NodeType::Signal { value } => value.downcast_ref(),
+            NodeType::Memo { value, .. } => value.as_ref().and_then(|value| value.downcast_ref()),
+            NodeType::Effect { .. } => None,
+        }
+    }
+}
+
+enum NodeType {
+    Signal {
+        value: Box<dyn Any>
+    },
+    Memo {
+        f: Box<dyn Fn(&mut AppContext) -> Box<dyn Any>>,
+        value: Option<Box<dyn Any>>,
+    },
+    Effect {
+        f: Box<dyn Fn(&mut AppContext)>,
+    }
+}
+
+enum NodeState {
+    /// Reactive value is valid, no need to recompute
+    Clean,
+    /// Reactive value might be stale, check parent nodes to decide whether to recompute
+    Check,
+    /// Reactive value is invalid, parents have changed, valueneeds to be recomputed
+    Dirty
+}
+
 pub trait SignalGet {
     type Value;
 
     /// Map the current value using `f` and subscribe to changes
-    fn map_ref<R>(&self, ctx: &mut AppContext, f: impl Fn(&Self::Value) -> R) -> R;
+    fn map_ref<R>(&self, cx: &mut AppContext, f: impl Fn(&Self::Value) -> R) -> R;
 
     /// Get the current value and subscribe to changes
-    fn get(&self, ctx: &mut AppContext) -> Self::Value 
+    fn get(&self, cx: &mut AppContext) -> Self::Value 
         where Self::Value: Clone 
     {
-        self.map_ref(ctx, Self::Value::clone)
+        self.map_ref(cx, Self::Value::clone)
     }
 
-    fn map_ref_untracked<R>(&self, ctx: &mut AppContext, f: impl Fn(&Self::Value) -> R) -> R;
+    fn map_ref_untracked<R>(&self, cx: &AppContext, f: impl Fn(&Self::Value) -> R) -> R;
 
-    fn get_untracked(&self, ctx: &mut AppContext) -> Self::Value 
+    fn get_untracked(&self, cx: &AppContext) -> Self::Value 
         where Self::Value: Clone 
     {
-        self.map_ref_untracked(ctx, Self::Value::clone)
+        self.map_ref_untracked(cx, Self::Value::clone)
     }
 }
 
@@ -27,20 +68,20 @@ pub trait SignalSet {
     type Value;
 
     /// Sets the current value without notifying subscribers
-    fn set_untracked(&self, ctx: &mut AppContext, value: Self::Value) {
-        self.set_with_untracked(ctx, move || value)
+    fn set_untracked(&self, cx: &mut AppContext, value: Self::Value) {
+        self.set_with_untracked(cx, move || value)
     }
 
     /// Sets the current value without notifying subscribers
-    fn set_with_untracked(&self, ctx: &mut AppContext, f: impl FnOnce() -> Self::Value);
+    fn set_with_untracked(&self, cx: &mut AppContext, f: impl FnOnce() -> Self::Value);
 
     /// Set the current value, notifies subscribers
-    fn set(&self, ctx: &mut AppContext, value: Self::Value) {
-        self.set_with(ctx, move || value)
+    fn set(&self, cx: &mut AppContext, value: Self::Value) {
+        self.set_with(cx, move || value)
     }
 
     /// Set the current value, notifies subscribers
-    fn set_with(&self, ctx: &mut AppContext, f: impl FnOnce() -> Self::Value);
+    fn set_with(&self, cx: &mut AppContext, f: impl FnOnce() -> Self::Value);
 }
 
 new_key_type! { 
@@ -49,37 +90,44 @@ new_key_type! {
     pub struct EffectId;
 }
 
+#[derive(Clone, Copy)]
 pub struct Signal<T> {
-    id: SignalId,
-    ref_counts: Weak<RefCell<RefCounts<SignalId>>>,
+    id: NodeId,
     _marker: PhantomData<T>
+}
+
+impl<T: Any> Signal<T> {
+    pub fn update(&self, cx: &mut AppContext, f: impl Fn(&T) -> T) {
+        let new_value = self.map_ref_untracked(cx, f);
+        self.set(cx, new_value);
+    }
 }
 
 impl<T: Any> SignalSet for Signal<T> {
     type Value = T;
 
-    fn set_with(&self, ctx: &mut AppContext, f: impl FnOnce() -> Self::Value) {
-        ctx.set_signal_value(self, f())
+    fn set_with(&self, cx: &mut AppContext, f: impl FnOnce() -> Self::Value) {
+        cx.set_signal_value(self, f())
     }
 
-    fn set_with_untracked(&self, ctx: &mut AppContext, f: impl FnOnce() -> Self::Value) {
-        ctx.set_signal_value_untracked(self, f())
+    fn set_with_untracked(&self, cx: &mut AppContext, f: impl FnOnce() -> Self::Value) {
+        cx.set_signal_value_untracked(self, f())
     }
 }
 
 impl<T: 'static> SignalGet for Signal<T> {
     type Value = T;
 
-    fn map_ref<R>(&self, ctx: &mut AppContext, f: impl Fn(&T) -> R) -> R {
-        f(ctx.get_signal_value_ref(self))
+    fn map_ref<R>(&self, cx: &mut AppContext, f: impl Fn(&T) -> R) -> R {
+        f(cx.get_signal_value_ref(self))
     }
 
-    fn map_ref_untracked<R>(&self, ctx: &mut AppContext, f: impl Fn(&Self::Value) -> R) -> R {
-        todo!()
+    fn map_ref_untracked<R>(&self, cx: &AppContext, f: impl Fn(&Self::Value) -> R) -> R {
+        f(cx.get_signal_value_ref_untracked(self))
     }
 }
 
-impl<T> Clone for Signal<T> {
+/*impl<T> Clone for Signal<T> {
     fn clone(&self) -> Self {
         if let Some(ref_counts) = self.ref_counts.upgrade() {
             RefCounts::retain(&mut ref_counts.borrow_mut(), self.id);
@@ -99,11 +147,10 @@ impl<T> Drop for Signal<T> {
             RefCounts::release(&ref_counts, self.id)
         }
     }
-}
+}*/
 
 pub struct Memo<T> {
-    id: MemoId,
-    ref_counts: Weak<RefCell<RefCounts<MemoId>>>,
+    id: NodeId,
     _marker: PhantomData<T>
 }
 
@@ -114,7 +161,7 @@ impl<T> SignalGet for Memo<T> {
         todo!()
     }
 
-    fn map_ref_untracked<R>(&self, ctx: &mut AppContext, f: impl Fn(&Self::Value) -> R) -> R {
+    fn map_ref_untracked<R>(&self, ctx: &AppContext, f: impl Fn(&Self::Value) -> R) -> R {
         todo!()
     }
 }
@@ -199,23 +246,29 @@ impl MemoState {
 }
 
 struct EffectState {
+    id: NodeId,
     f: Box<dyn Fn(&mut AppContext)>,
     dependencies: HashSet<SourceId>
 }
 
 impl EffectState {
-    fn new(f: impl Fn(&mut AppContext) + 'static) -> Self {
+    fn new(id: NodeId, f: impl Fn(&mut AppContext) + 'static) -> Self {
         Self {
+            id,
             f: Box::new(f),
             dependencies: Default::default()
         }
     }
 
     fn run(&self, cx: &mut AppContext) {
+        let old_scope = cx.scope;
+        cx.scope = Scope::Effect(self.id);
         (self.f)(cx);
+        cx.scope = old_scope;
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum SubscriberId {
     Memo(MemoId),
     Effect(EffectId)
@@ -226,109 +279,179 @@ enum SourceId {
     Effect(EffectId)
 }
 
+#[derive(Debug, Clone, Copy)]
 enum Scope {
-    Signal(SignalId),
-    Memo(MemoId),
-    Effect(EffectId)
+    Root,
+    Memo(NodeId),
+    Effect(NodeId)
 }
 
 pub struct AppContext {
-    current_scope: Vec<EffectId>,
-    signals: SecondaryMap<SignalId, SignalState>,
-    signal_ref_counts: Rc<RefCell<RefCounts<SignalId>>>,
-    signal_subscriptions: SecondaryMap<SignalId, HashSet<SubscriberId>>,
-    memos: SecondaryMap<MemoId, MemoState>,
-    memo_ref_counts: Rc<RefCell<RefCounts<MemoId>>>,
-    effects: SlotMap<EffectId, Option<EffectState>>
+    scope: Scope,
+    pending_effects: Vec<NodeId>,
+    nodes: SlotMap<NodeId, Node>,
+    subscriptions: SecondaryMap<NodeId, HashSet<NodeId>>,
+    dependencies: SecondaryMap<NodeId, HashSet<NodeId>>,
 }
 
 impl AppContext {
     pub fn new() -> Self {
         Self {
-            current_scope: Default::default(),
-            signal_ref_counts: Default::default(),
-            signals: Default::default(),
-            signal_subscriptions: Default::default(),
-            memos: Default::default(),
-            memo_ref_counts: Default::default(),
-            effects: Default::default()
+            scope: Scope::Root,
+            pending_effects: Default::default(),
+            nodes: Default::default(),
+            subscriptions: Default::default(),
+            dependencies: Default::default()
         }
     }
 
     pub fn create_signal<T: Any>(&mut self, value: T) -> Signal<T> {
-        let id = RefCounts::alloc_id(&self.signal_ref_counts);
-        self.signals.insert(id, SignalState::new(value));
-        self.signal_subscriptions.insert(id, HashSet::new());
-        Signal { 
-            ref_counts: Rc::downgrade(&self.signal_ref_counts), 
-            id,
-            _marker: PhantomData
+        let node_type = NodeType::Signal { value: Box::new(value) };
+        let id = self.create_node(node_type, NodeState::Clean);
+        Signal { id, _marker: PhantomData }
+    }
+
+    pub fn create_memo<T: PartialEq + 'static>(&mut self, f: impl Fn(&mut Self) -> T + 'static) -> Memo<T> {
+        let node_type = NodeType::Memo { f: Box::new(move |cx| Box::new(f(cx))), value: None };
+        let id = self.create_node(node_type, NodeState::Check);
+        Memo { id, _marker: PhantomData }
+    }
+
+    pub fn create_effect(&mut self, f: impl Fn(&mut Self) + 'static) {
+        let id = self.create_node(NodeType::Effect { f: Box::new(f) }, NodeState::Clean);
+        //let effect = EffectState::new(id, f);
+        //self.pending_effects.push(effect);
+        self.flush_effects();
+    }
+
+    fn create_node(&mut self, node_type: NodeType, state: NodeState) -> NodeId {
+        let node = Node { node_type, state };
+        let id = self.nodes.insert(node);
+        self.subscriptions.insert(id, HashSet::new());
+        self.dependencies.insert(id, HashSet::new());
+        id
+    }
+
+    fn remove_node(&mut self, id: NodeId) -> Node{
+        // Remove the node's subscriptions to other nodes
+        let node_dependencies = self.dependencies.remove(id).expect("Missing dependencies for node");
+        for node_id in node_dependencies {
+            self.subscriptions[node_id].remove(&id);
         }
+
+        // Remove other nodes' subscriptions to this node
+        let node_subscriptions = self.subscriptions.remove(id).expect("Missing subscriptions for node");
+        for node_id in node_subscriptions {
+            self.dependencies[node_id].remove(&id);
+        }
+
+        self.nodes.remove(id).expect("Missing node")
     }
 
-    fn remove_signal(&mut self, id: SignalId) {
-        self.signals.remove(id);
-        self.signal_subscriptions.remove(id);
-    }
-
-    fn set_signal_value_untracked<T: Any>(&mut self, signal: &Signal<T>, value: T) {
-        let signal = self.signals.get_mut(signal.id).expect("No signal found");
-        signal.value = Box::new(value);
+    fn set_signal_value_untracked<T: Any>(&mut self, signal: &Signal<T>, new_value: T) {
+        let signal = self.nodes.get_mut(signal.id).expect("No signal found");
+        match &mut signal.node_type {
+            NodeType::Signal { ref value } => {
+                //value = Box::new(new_value);
+            },
+            _ => unreachable!()
+        }
     }
 
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
         self.set_signal_value_untracked(signal, value);
         
         // Take all the current subscribers, the effects will resubscribe when evaluated
-        let subscribers = std::mem::take(&mut self.signal_subscriptions[signal.id]);
+        let subscribers = std::mem::take(&mut self.subscriptions[signal.id]);
         subscribers.iter().for_each(|subscriber| {
             self.notify(subscriber);
         });
         //std::mem::swap(&mut subscribers, &mut self.signal_subscriptions[signal.id]);
     }
 
-    fn notify(&mut self, subscriber: &SubscriberId) {
-        match subscriber {
-            SubscriberId::Memo(_) => {
-                todo!()
-            },
-            SubscriberId::Effect(_) => {
-                todo!()
-            }
+    fn notify(&mut self, node_id: &NodeId) {
+        let node = self.nodes.get_mut(*node_id).expect("Node has been removed");
+        match &node.node_type {
+            NodeType::Signal { value } => todo!(),
+            NodeType::Memo { f, value } => todo!(),
+            NodeType::Effect { f } => todo!(),
         }
+        /*{
+            if let Some(effect_state) = std::mem::take(&mut self.effects[*id]) {
+                self.pending_effects.push(effect_state);
+                self.flush_effects();
+            }
+        }*/
     }
 
     fn get_signal_value_ref_untracked<T: Any>(&self, signal: &Signal<T>) -> &T {
-        let signal = self.signals.get(signal.id).expect("No Signal found");
-        let signal = signal.value.downcast_ref();
-        signal.as_ref().expect("Signal has wrong type")
-    }
-
-    fn get_signal_value_ref<T: Any>(&mut self, signal: &Signal<T>) -> &T {
-        let value = self.get_signal_value_ref_untracked(signal);
-
-        value
-    }
-
-    pub fn create_memo<T: PartialEq>(&mut self, f: impl Fn(&mut Self) -> T) -> Memo<T> {
-        let id = RefCounts::alloc_id(&self.memo_ref_counts);
-        //self.current_scope.push(id);
-        Memo { 
-            id, 
-            ref_counts: Rc::downgrade(&self.memo_ref_counts), 
-            _marker: PhantomData 
+        let node = self.nodes.get(signal.id).expect("No Signal found");
+        match &node.node_type {
+            NodeType::Signal { value } => value.downcast_ref().expect("Node had wrong value type"),
+            _ => unreachable!()
         }
     }
 
-    pub fn create_effect(&mut self, f: impl Fn(&mut Self) + 'static) {
-        let id = self.effects.insert(None);
-        let effect = EffectState::new(f);
-        self.current_scope.push(id);
-        (effect.f)(self);
-        self.current_scope.pop();
+    fn get_signal_value_ref<T: Any>(&mut self, signal: &Signal<T>) -> &T {
+        match self.scope {
+            Scope::Root => { 
+                todo!()
+            },
+            Scope::Memo(_) => todo!(),
+            Scope::Effect(node_id) => {
+                self.subscriptions[signal.id].insert(node_id);
+            },
+        }
+        
+        self.get_signal_value_ref_untracked(signal)
     }
 
-    pub fn create_stateful_effect<S>(&mut self, f_init: impl FnOnce() -> S, f: impl Fn(S) -> S) {
+    fn flush_effects(&mut self) {
+        while let Some(effect_state) = self.pending_effects.pop() {
+            /*let id = effect_state.id;
+            effect_state.run(self);
+            // Put it back in the effects map so it can be executed again
+            self.effects[id] = Some(effect_state);*/
+        }
+    }
 
+    /*pub fn create_stateful_effect<S>(&mut self, f_init: impl FnOnce() -> S, f: impl Fn(S) -> S) {
+
+    }*/
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn effects_execute_upon_creation() {
+        let mut cx = AppContext::new();
+        let signal = cx.create_signal(0);
+        {
+            let signal = signal.clone();
+            cx.create_effect(move |cx| {
+                signal.set_untracked(cx, 1);
+            });
+        }
+        
+        assert_eq!(signal.get_untracked(&cx), 1);
+    }
+
+    #[test]
+    fn effects_execute_when_signal_changes() {
+        let mut cx = AppContext::new();
+        let source_signal = cx.create_signal(0);
+        let dest_signal = cx.create_signal(0);
+        cx.create_effect(move |cx| {
+            let new_value = source_signal.get(cx);
+            dest_signal.set_untracked(cx, new_value);
+        });
+
+        source_signal.set(&mut cx, 1);
+        assert_eq!(dest_signal.get_untracked(&cx), 1);
+
+        source_signal.set(&mut cx, 2);
+        assert_eq!(dest_signal.get_untracked(&cx), 2);
     }
 }
