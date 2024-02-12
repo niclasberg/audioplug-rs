@@ -9,7 +9,11 @@ impl<P: Plugin> AudioProcessor<P> {
         Self { plugin: P::new() }
     }
 
-    pub fn run(&mut self) {
+    pub fn run(mut self) {
+        for device in AudioHost::devices().unwrap() {
+            println!("{:?}", device.name())
+        }
+
         let output_device = AudioHost::default_output_device().unwrap();
         let sample_rate = output_device.sample_rate().unwrap();
 

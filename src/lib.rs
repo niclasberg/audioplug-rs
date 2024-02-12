@@ -15,6 +15,9 @@ mod platform;
 mod keyboard;
 mod audio_buffer;
 mod theme;
+pub mod signal;
+mod contexts;
+mod id;
 
 pub use plugin::*;
 pub use editor::*;
@@ -24,3 +27,5 @@ pub use view::*;
 pub use message::*;
 pub use audiolayout::*;
 pub use audio_buffer::*;
+pub use contexts::*;
+pub use id::*;

@@ -1,7 +1,9 @@
 use std::marker::PhantomData;
+
 use crate::{ViewMessage, Id, ViewFlags, core::{Rectangle, Point, Color, Transform, Shape}, Event, text::TextLayout, MouseEvent};
 use super::{IdPath, ViewNode};
 use crate::platform;
+
 
 pub struct ContextIter<'a> {
     parent_id_path: IdPath,
@@ -94,10 +96,6 @@ impl<'a> BuildContext<'a> {
         &self.id_path
     }
 
-    pub fn child_iter(&mut self) -> BuildContextIter<'_> {
-        BuildContextIter { node_iter: ContextIter::new(&self.id_path, &mut self.node.children) }
-    }
-
     pub fn get_child<'s>(&'s mut self, id: Id) -> Option<BuildContext<'s>> {
         self.node.children.get_mut(id.0).map(|node| {
             BuildContext { 
@@ -122,20 +120,6 @@ pub struct LayoutContext<'a, 'b> {
 	handle: &'a platform::HandleRef<'b>
 }
 
-/*pub struct LayoutContextIter<'a> {
-    node_iter: ContextIter<'a>
-}
-
-impl<'a> Iterator for LayoutContextIter<'a> {
-    type Item = LayoutContext<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.node_iter.next().map(|(id_path, node)| {
-            LayoutContext { id_path, node }
-        })
-    }
-}*/
-
 impl<'a, 'b> LayoutContext<'a, 'b> {
     pub fn new(node: &'a mut ViewNode, handle: &'a platform::HandleRef<'b>) -> Self {
         Self { node, id_path: IdPath::root(), handle }
@@ -148,10 +132,6 @@ impl<'a, 'b> LayoutContext<'a, 'b> {
     pub fn id_path(&self) -> &IdPath {
         &self.id_path
     }
-
-    /*pub fn child_iter(&mut self) -> LayoutContextIter<'_> {
-        LayoutContextIter { node_iter: ContextIter::new(&self.id_path, &mut self.node.children) }
-    }*/
 
     pub fn with_child<T>(&mut self, id: Id, f: impl FnOnce(&mut LayoutContext<'_, 'b>) -> T) -> T {
         let result = {
@@ -254,40 +234,6 @@ pub struct EventContext<'a, 'b, Msg: 'static> {
 	handle: &'a platform::HandleRef<'b>
 }
 
-/*pub struct EventContextIter<'a, Msg: 'static> {
-    node_iter: ContextIter<'a>,
-    messages: *mut Vec<ViewMessage<Msg>>,
-    is_handled: &'a mut bool,
-}
-
-impl<'a, Msg: 'static> Iterator for EventContextIter<'a, Msg> {
-    type Item = EventContext<'a, Msg>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.node_iter.next().map(|(id_path, node)| {
-            EventContext { 
-                id_path, 
-                node, 
-                messages: unsafe {&mut *self.messages },
-                is_handled: self.is_handled
-            }
-        })
-    }
-}
-
-impl<'a, Msg: 'static> DoubleEndedIterator for EventContextIter<'a, Msg> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.node_iter.next_back().map(|(id_path, node)| {
-            EventContext { 
-                id_path, 
-                node, 
-                messages: unsafe {&mut *self.messages },
-                is_handled: self.is_handled 
-            }
-        })
-    }
-}*/
-
 impl<'a, 'b, Msg> EventContext<'a, 'b, Msg> {
     pub fn new(node: &'a mut ViewNode, messages: &'a mut Vec<ViewMessage<Msg>>, is_handled: &'a mut bool, handle: &'a platform::HandleRef<'b>) -> Self{
         Self { id_path: IdPath::root(), node, messages, is_handled, handle }
@@ -308,14 +254,6 @@ impl<'a, 'b, Msg> EventContext<'a, 'b, Msg> {
     pub fn is_handled(&self) -> bool {
         *self.is_handled
     }
-
-    /*pub fn child_iter(&mut self) -> EventContextIter<'_, Msg> {
-        EventContextIter { 
-            node_iter: ContextIter::new(&self.id_path, &mut self.node.children),
-            messages: self.messages,
-            is_handled: self.is_handled
-        }
-    }*/
 
     pub fn forward_to_child(&mut self, id: Id, event: Event, mut f: impl FnMut(&mut EventContext<'_, 'b, Msg>, Event)) {
         if *self.is_handled {
