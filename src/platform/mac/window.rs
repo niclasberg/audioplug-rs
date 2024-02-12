@@ -1,4 +1,4 @@
-use icrate::Foundation::{NSPoint, NSRect, NSSize};
+use icrate::Foundation::{NSPoint, NSRect, NSSize, MainThreadMarker};
 use icrate::AppKit::{NSWindow, NSBackingStoreBuffered, NSWindowStyleMaskClosable, NSWindowStyleMaskResizable, NSWindowStyleMaskTitled};
 use objc2::rc::Id;
 use objc2::ClassType;
@@ -15,8 +15,9 @@ pub struct Window {
 
 impl Window {
 	pub(crate) fn open(widget: impl WindowHandler + 'static) -> Result<Self, Error> {
+		let mtm = MainThreadMarker::new().unwrap();
 		let window = {
-			let this = NSWindow::alloc();
+			let this = mtm.alloc();
 			let backing_store_type = NSBackingStoreBuffered;
 			let content_rect = NSRect::new(NSPoint::new(0., 0.), NSSize::new(1024., 768.));
 			let style = NSWindowStyleMaskClosable | NSWindowStyleMaskResizable | NSWindowStyleMaskTitled;
@@ -32,12 +33,10 @@ impl Window {
 			}
 		};
 
-		let view = View::new(widget);
+		let view = View::new(mtm, widget);
 
-		unsafe {
-			window.makeKeyAndOrderFront(None);
-			window.setContentView(Some(&*view));
-		}
+		window.makeKeyAndOrderFront(None);
+		window.setContentView(Some(&*view));
 
 		Ok(Self { window, view })
 	}

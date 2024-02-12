@@ -13,7 +13,7 @@ impl<'a> HandleRef<'a> {
 	}
 
 	pub fn global_bounds(&self) -> Rectangle {
-		unsafe { self.view.bounds().into() }
+		self.view.bounds().into()
 	}
 
 	pub fn invalidate(&self, rect: Rectangle) {

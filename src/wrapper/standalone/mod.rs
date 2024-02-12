@@ -1,6 +1,6 @@
 use crate::{Plugin, platform::AudioHost};
 
-struct AudioProcessor<P> {
+pub struct AudioProcessor<P> {
     plugin: P
 }
 

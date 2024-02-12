@@ -11,7 +11,6 @@ extern_class!(
 	unsafe impl ClassType for NSGraphicsContext {
 		type Super = NSObject;
 		type Mutability = mutability::InteriorMutable;
-		const NAME: &'static str = "NSGraphicsContext";
 	}
 );
 

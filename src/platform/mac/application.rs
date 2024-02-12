@@ -1,21 +1,23 @@
-use icrate::Foundation::NSObject;
+use icrate::Foundation::{NSObject, MainThreadMarker};
 use icrate::AppKit::{NSApplication, NSApplicationDelegate, NSApplicationActivationPolicyRegular};
 use objc2::rc::Id;
 use objc2::runtime::{NSObjectProtocol, ProtocolObject, AnyObject};
-use objc2::{declare_class, mutability, ClassType, msg_send_id};
+use objc2::{declare_class, DeclaredClass, mutability, ClassType, msg_send_id};
 
 declare_class!(
-	struct MyApplicationDelegate {
-
-	}
+	struct MyApplicationDelegate;
 
 	unsafe impl ClassType for MyApplicationDelegate {
 		type Super = NSObject;
-		type Mutability = mutability::InteriorMutable;
+		type Mutability = mutability::MainThreadOnly;
 		const NAME: &'static str = "MyApplicationDelegate";
 	}
 
-	unsafe impl MyApplicationDelegate {
+	impl DeclaredClass for MyApplicationDelegate {
+        type Ivars = ();
+    }
+
+	unsafe impl NSApplicationDelegate for MyApplicationDelegate {
 		#[method(applicationDidFinishLaunching:)]
         unsafe fn did_finish_launching(&self, sender: *mut AnyObject) {
             println!("Did finish launching!");
@@ -24,15 +26,13 @@ declare_class!(
         }
 	}
 
-	unsafe impl NSApplicationDelegate for MyApplicationDelegate {}
-
 	unsafe impl NSObjectProtocol for MyApplicationDelegate {}
 );
 
 impl MyApplicationDelegate {
-	fn new() -> Id<Self> {
+	fn new(mtm: MainThreadMarker) -> Id<Self> {
 		unsafe {
-			msg_send_id![Self::alloc(), init]
+			msg_send_id![mtm.alloc(), init]
 		}
 	}
 }
@@ -44,15 +44,14 @@ pub(crate) struct Application {
 
 impl Application {
 	pub fn new() -> Self {
-		let app: Id<NSApplication> = unsafe { NSApplication::sharedApplication() };
-		unsafe { app.setActivationPolicy(NSApplicationActivationPolicyRegular) };
+		let mtm = MainThreadMarker::new().unwrap();
+		let app: Id<NSApplication> = NSApplication::sharedApplication(mtm);
+		app.setActivationPolicy(NSApplicationActivationPolicyRegular);
 
-		let delegate: Id<MyApplicationDelegate> = MyApplicationDelegate::new();
+		let delegate: Id<MyApplicationDelegate> = MyApplicationDelegate::new(mtm);
 
-		unsafe { 
-			let object = ProtocolObject::from_ref(&*delegate);
-			app.setDelegate(Some(object));
-		};
+		let object = ProtocolObject::from_ref(&*delegate);
+		app.setDelegate(Some(object));
 
 		Self { app, delegate }
 	}

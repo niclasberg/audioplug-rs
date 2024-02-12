@@ -1,13 +1,10 @@
 use std::cell::RefCell;
-use std::os::raw::c_void;
-use std::ptr::NonNull;
 
-use icrate::AppKit::{NSView, NSEvent, NSTrackingArea, NSTrackingActiveAlways, NSTrackingMouseEnteredAndExited, NSTrackingMouseMoved};
-use icrate::Foundation::{NSRect, NSDictionary, CGRect};
+use icrate::AppKit::{NSView, NSEvent, NSTrackingArea, NSTrackingActiveAlways, NSTrackingMouseEnteredAndExited, NSTrackingMouseMoved, NSResponder};
+use icrate::Foundation::{NSRect, CGRect, MainThreadMarker};
 use objc2::rc::Id;
-use objc2::declare::{IvarDrop, Ivar};
-use objc2::exception;
-use objc2::{declare_class, mutability, ClassType, msg_send_id, msg_send};
+use objc2::runtime::{NSObject, NSObjectProtocol};
+use objc2::{declare_class, DeclaredClass, mutability, ClassType, msg_send_id};
 
 use crate::core::Point;
 use crate::event::{MouseButton, KeyEvent};
@@ -19,41 +16,26 @@ use crate::window::WindowHandler;
 use super::appkit::NSGraphicsContext;
 use super::core_graphics::CGColor;
 
-pub struct ViewState {
-	handler: RefCell<Box<dyn WindowHandler>>,
+pub struct Ivars {
+    handler: RefCell<Box<dyn WindowHandler>>,
 	tracking_area: RefCell<Option<Id<NSTrackingArea>>>
 }
 
 declare_class!(
-	pub(crate) struct View {
-		state: IvarDrop<Box<ViewState>, "_state">
-	}
-	mod ivars;
+	pub struct View;
 
 	unsafe impl ClassType for View {
+		#[inherits(NSResponder, NSObject)]
 		type Super = NSView;
-		type Mutability = mutability::InteriorMutable;
-		const NAME: &'static str = "MyView";
+		type Mutability = mutability::MainThreadOnly;
+		const NAME: &'static str = "View";
+	}
+
+	impl DeclaredClass for View {
+		type Ivars = Ivars;
 	}
 
 	unsafe impl View {
-		#[method(initWithHandler:)]
-		unsafe fn init_with_handler(this: *mut Self, state_ptr: *mut c_void) -> Option<NonNull<Self>> {
-			let this: Option<&mut Self> = unsafe { msg_send![super(this), init] };
-			this.map(|this| {
-				let state_ptr = state_ptr as *mut ViewState;
-				let state = Box::from_raw(state_ptr);
-
-				Ivar::write(&mut this.state, state);
-
-				let this = NonNull::from(this);
-
-				this.as_ref().state.handler.borrow_mut().init(HandleRef::new(this.as_ref()));
-
-				this
-			})
-		}
-
 		#[method(isFlipped)]
 		fn is_flipped(&self) -> bool {
 			true
@@ -103,13 +85,13 @@ declare_class!(
 
 		#[method(viewDidMoveToWindow)]
 		fn view_did_move_to_window(&self) {
-			let visible_rect = unsafe { self.visibleRect() };
+			let visible_rect = self.visibleRect();
 			self.set_tracking_area(visible_rect);
 		}
 
 		#[method(updateTrackingAreas)]
 		fn update_tracking_areas(&self) {
-			let visible_rect = unsafe { self.visibleRect() };
+			let visible_rect = self.visibleRect();
 			self.set_tracking_area(visible_rect);
 		}
 
@@ -129,35 +111,35 @@ declare_class!(
 			
 			let renderer = RendererRef::new(context);
 
-			self.state.handler.borrow_mut().render(
+			self.ivars().handler.borrow_mut().render(
 				rect.into(),
 				renderer
 			);
 		}
 	}
+
+	unsafe impl NSObjectProtocol for View {}
 );
 
 impl View {
-	pub(crate) fn new(handler: impl WindowHandler + 'static) -> Id<Self> {
+	pub(crate) fn new(mtm: MainThreadMarker, handler: impl WindowHandler + 'static) -> Id<Self> {
 		let handler = RefCell::new(Box::new(handler));
 		let tracking_area = RefCell::new(None);
-		let state = Box::new(ViewState { handler, tracking_area });
 
-		unsafe {
-			msg_send_id![
-				Self::alloc(), 
-				initWithHandler: Box::into_raw(state) as *mut c_void
-			]
-		}
+		let this = mtm.alloc();
+		let this = this.set_ivars(Ivars { handler, tracking_area });
+		let this: Id<Self> = unsafe { msg_send_id![super(this), init] };
+		this.ivars().handler.borrow_mut().init(HandleRef::new(this.as_ref()));
+		this
 	}
 
 	fn dispatch_event(&self, event: Event) {
-		self.state.handler.borrow_mut().event(event, HandleRef::new(&self) )
+		self.ivars().handler.borrow_mut().event(event, HandleRef::new(&self) )
 	}
 
 	fn set_tracking_area(&self, rect: CGRect) {
 		// Use try-borrow here to avoid re-entrancy problems
-		if let Ok(mut tracking_area_ref) = self.state.tracking_area.try_borrow_mut() {
+		if let Ok(mut tracking_area_ref) = self.ivars().tracking_area.try_borrow_mut() {
 			if let Some(tracking_area) = tracking_area_ref.as_ref() {
 				unsafe { self.removeTrackingArea(tracking_area) };
 				*tracking_area_ref = None;
