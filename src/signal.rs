@@ -1,5 +1,5 @@
-use std::{marker::PhantomData, rc::{Weak, Rc}, cell::RefCell, sync::atomic::AtomicUsize, any::Any, collections::HashSet};
-use slotmap::{new_key_type, SlotMap, SecondaryMap, Key};
+use std::{marker::PhantomData, any::Any, collections::HashSet};
+use slotmap::{new_key_type, SlotMap, SecondaryMap};
 
 new_key_type! { 
     pub struct NodeId;
@@ -13,24 +13,37 @@ struct Node {
 impl Node {
     fn get_value_as<T: Any>(&self) -> Option<&T> {
         match &self.node_type {
-            NodeType::Signal { value } => value.downcast_ref(),
-            NodeType::Memo { value, .. } => value.as_ref().and_then(|value| value.downcast_ref()),
-            NodeType::Effect { .. } => None,
+            NodeType::Signal(signal) => signal.value.downcast_ref(),
+            NodeType::Memo(memo) => memo.value.as_ref().and_then(|value| value.downcast_ref()),
+            NodeType::Effect(_) => None,
         }
     }
 }
 
 enum NodeType {
-    Signal {
-        value: Box<dyn Any>
-    },
-    Memo {
-        f: Box<dyn Fn(&mut AppContext) -> Box<dyn Any>>,
-        value: Option<Box<dyn Any>>,
-    },
-    Effect {
-        f: Box<dyn Fn(&mut AppContext)>,
+    Signal(SignalState),
+    Memo(MemoState),
+    Effect(EffectState)
+}
+
+struct SignalState  {
+	value: Box<dyn Any>
+}
+impl SignalState {
+    fn new<T: Any>(value: T) -> Self {
+        Self {
+            value: Box::new(value)
+        }
     }
+}
+
+struct MemoState {
+	f: Box<dyn Fn(&mut AppContext) -> Box<dyn Any>>,
+	value: Option<Box<dyn Any>>,
+}
+
+struct EffectState {
+	f: Box<dyn Fn(&mut AppContext)>,
 }
 
 enum NodeState {
@@ -38,7 +51,7 @@ enum NodeState {
     Clean,
     /// Reactive value might be stale, check parent nodes to decide whether to recompute
     Check,
-    /// Reactive value is invalid, parents have changed, valueneeds to be recomputed
+    /// Reactive value is invalid, parents have changed, value needs to be recomputed
     Dirty
 }
 
@@ -84,12 +97,6 @@ pub trait SignalSet {
     fn set_with(&self, cx: &mut AppContext, f: impl FnOnce() -> Self::Value);
 }
 
-new_key_type! { 
-    pub struct SignalId; 
-    pub struct MemoId;
-    pub struct EffectId;
-}
-
 #[derive(Clone, Copy)]
 pub struct Signal<T> {
     id: NodeId,
@@ -127,28 +134,6 @@ impl<T: 'static> SignalGet for Signal<T> {
     }
 }
 
-/*impl<T> Clone for Signal<T> {
-    fn clone(&self) -> Self {
-        if let Some(ref_counts) = self.ref_counts.upgrade() {
-            RefCounts::retain(&mut ref_counts.borrow_mut(), self.id);
-        }
-
-        Self { 
-            id: self.id.clone(), 
-            ref_counts: self.ref_counts.clone(), 
-            _marker: self._marker.clone() 
-        }
-    }
-}
-
-impl<T> Drop for Signal<T> {
-    fn drop(&mut self) {
-        if let Some(ref_counts) = self.ref_counts.upgrade() {
-            RefCounts::release(&ref_counts, self.id)
-        }
-    }
-}*/
-
 pub struct Memo<T> {
     id: NodeId,
     _marker: PhantomData<T>
@@ -164,119 +149,6 @@ impl<T> SignalGet for Memo<T> {
     fn map_ref_untracked<R>(&self, ctx: &AppContext, f: impl Fn(&Self::Value) -> R) -> R {
         todo!()
     }
-}
-
-struct RefCounts<K: Key> {
-    counts: SlotMap<K, AtomicUsize>,
-    dropped_ids: Vec<K>
-}
-
-impl<K: Key> RefCounts<K> {
-    fn alloc_id(this: &RefCell<Self>) -> K {
-        let mut this = this.borrow_mut();
-        this.counts.insert(1.into())
-    }
-
-    fn clear_dropped(&mut self) -> Vec<K> {
-        let dropped_ids = std::mem::take(&mut self.dropped_ids);
-        for id in dropped_ids.iter() {
-            self.counts.remove(*id);
-        }
-        dropped_ids
-    }
-
-    /// Increment the reference count for a value
-    /// 
-    /// # Panics
-    /// 
-    /// Panics if no value exists for the given id.
-    fn retain(&mut self, id: K) -> usize {
-        let count = self.counts.get(id)
-            .expect("Tried to retain a dropped Signal");
-        count.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
-    }
-
-    fn release(this: &RefCell<Self>, id: K) {
-        let last_count = {
-            let signal_map = this.borrow();
-            let count = signal_map.counts.get(id)
-                .expect("Signal should not be dropped");
-            count.fetch_sub(1, std::sync::atomic::Ordering::SeqCst)
-        };
-        
-        if last_count == 1 {
-            let mut signal_map = this.borrow_mut();
-            signal_map.dropped_ids.push(id);
-        }
-    }
-}
-
-impl<K: Key> Default for RefCounts<K> {
-    fn default() -> Self {
-        Self { 
-            counts: Default::default(), 
-            dropped_ids: Default::default() 
-        }
-    }
-}
-
-struct SignalState {
-    value: Box<dyn Any>
-}
-
-impl SignalState {
-    fn new<T: Any>(value: T) -> Self {
-        Self {
-            value: Box::new(value)
-        }
-    }
-}
-
-struct MemoState {
-    f: Box<dyn Fn(&mut AppContext) -> Box<dyn Any>>,
-    value: Option<Box<dyn Any>>,
-    subscribers: HashSet<SubscriberId>,
-    dependencies: HashSet<SourceId>
-}
-
-impl MemoState {
-    fn new() -> Self {
-        todo!()
-    }
-}
-
-struct EffectState {
-    id: NodeId,
-    f: Box<dyn Fn(&mut AppContext)>,
-    dependencies: HashSet<SourceId>
-}
-
-impl EffectState {
-    fn new(id: NodeId, f: impl Fn(&mut AppContext) + 'static) -> Self {
-        Self {
-            id,
-            f: Box::new(f),
-            dependencies: Default::default()
-        }
-    }
-
-    fn run(&self, cx: &mut AppContext) {
-        let old_scope = cx.scope;
-        cx.scope = Scope::Effect(self.id);
-        (self.f)(cx);
-        cx.scope = old_scope;
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-enum SubscriberId {
-    Memo(MemoId),
-    Effect(EffectId)
-}
-
-enum SourceId {
-    Memo(MemoId),
-    Effect(EffectId)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -306,19 +178,20 @@ impl AppContext {
     }
 
     pub fn create_signal<T: Any>(&mut self, value: T) -> Signal<T> {
-        let node_type = NodeType::Signal { value: Box::new(value) };
-        let id = self.create_node(node_type, NodeState::Clean);
+        let state = SignalState::new(value);
+        let id = self.create_node(NodeType::Signal(state), NodeState::Clean);
         Signal { id, _marker: PhantomData }
     }
 
     pub fn create_memo<T: PartialEq + 'static>(&mut self, f: impl Fn(&mut Self) -> T + 'static) -> Memo<T> {
-        let node_type = NodeType::Memo { f: Box::new(move |cx| Box::new(f(cx))), value: None };
-        let id = self.create_node(node_type, NodeState::Check);
+        let state = MemoState { f: Box::new(move |cx| Box::new(f(cx))), value: None };
+        let id = self.create_node(NodeType::Memo(state), NodeState::Check);
         Memo { id, _marker: PhantomData }
     }
 
     pub fn create_effect(&mut self, f: impl Fn(&mut Self) + 'static) {
-        let id = self.create_node(NodeType::Effect { f: Box::new(f) }, NodeState::Clean);
+		let state = EffectState { f: Box::new(f) };
+        let id = self.create_node(NodeType::Effect(state), NodeState::Clean);
         //let effect = EffectState::new(id, f);
         //self.pending_effects.push(effect);
         self.flush_effects();
@@ -351,8 +224,8 @@ impl AppContext {
     fn set_signal_value_untracked<T: Any>(&mut self, signal: &Signal<T>, new_value: T) {
         let signal = self.nodes.get_mut(signal.id).expect("No signal found");
         match &mut signal.node_type {
-            NodeType::Signal { ref value } => {
-                //value = Box::new(new_value);
+            NodeType::Signal(signal) => {
+				signal.value = Box::new(new_value);
             },
             _ => unreachable!()
         }
@@ -369,12 +242,16 @@ impl AppContext {
         //std::mem::swap(&mut subscribers, &mut self.signal_subscriptions[signal.id]);
     }
 
+	fn add_subscription(&mut self, src_id: NodeId, dst_id: NodeId) {
+
+	}
+
     fn notify(&mut self, node_id: &NodeId) {
         let node = self.nodes.get_mut(*node_id).expect("Node has been removed");
         match &node.node_type {
-            NodeType::Signal { value } => todo!(),
-            NodeType::Memo { f, value } => todo!(),
-            NodeType::Effect { f } => todo!(),
+            NodeType::Signal(signal) => todo!(),
+            NodeType::Memo(memo) => todo!(),
+            NodeType::Effect(effect) => todo!(),
         }
         /*{
             if let Some(effect_state) = std::mem::take(&mut self.effects[*id]) {
@@ -387,7 +264,7 @@ impl AppContext {
     fn get_signal_value_ref_untracked<T: Any>(&self, signal: &Signal<T>) -> &T {
         let node = self.nodes.get(signal.id).expect("No Signal found");
         match &node.node_type {
-            NodeType::Signal { value } => value.downcast_ref().expect("Node had wrong value type"),
+            NodeType::Signal(signal) => signal.value.downcast_ref().expect("Node had wrong value type"),
             _ => unreachable!()
         }
     }
