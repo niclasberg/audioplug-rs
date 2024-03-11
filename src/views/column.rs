@@ -1,22 +1,19 @@
-use std::marker::PhantomData;
-use crate::{Event, RenderContext, LayoutHint};
+use crate::{Event, LayoutHint, RenderContext, Widget};
 use crate::view::{ViewSequence, View, BuildContext, EventContext, LayoutContext};
 use crate::core::{Alignment, Constraint, Size, Vector};
 
-pub struct Column<Msg: 'static, VS: ViewSequence<Msg>> {
+pub struct Column<VS: ViewSequence> {
     view_seq: VS,
     alignment: Alignment,
     spacing: f64,
-    _phantom: PhantomData<Msg>
 }
 
-impl<Msg: 'static, VS: ViewSequence<Msg>> Column<Msg, VS> {
+impl<VS: ViewSequence> Column<VS> {
     pub fn new(view_seq: VS) -> Self {
         Self {
             view_seq,
             alignment: Alignment::Center,
-            spacing: 0.0,
-            _phantom: PhantomData
+            spacing: 0.0
         }
     }
 
@@ -31,23 +28,32 @@ impl<Msg: 'static, VS: ViewSequence<Msg>> Column<Msg, VS> {
     }
 }
 
-impl<Msg: 'static, VS: ViewSequence<Msg>> View for Column<Msg, VS> {
-    type Message = Msg;
-	type State = VS::State;
+impl<VS: ViewSequence> View for Column<VS> {
+    type Element = ColumnWidget;
 
-    fn build(&mut self, ctx: &mut BuildContext) -> Self::State {
-        self.view_seq.build(ctx)
+    fn build(self, ctx: &mut BuildContext) -> Self::Element {
+        let widgets = self.view_seq.build(ctx);
+
+        ColumnWidget {
+            widgets,
+            alignment: self.alignment,
+            spacing: self.spacing
+        }
     }
+}
 
-    fn rebuild(&mut self, state: &mut Self::State, ctx: &mut BuildContext) {
-        self.view_seq.rebuild(state, ctx);
-    }
+pub struct ColumnWidget {
+    widgets: Vec<Box<dyn Widget>>,
+    alignment: Alignment,
+    spacing: f64,
+}
 
-    fn event(&mut self, state: &mut Self::State, event: Event, ctx: &mut EventContext<Msg>) {
+impl Widget for ColumnWidget {
+    fn event(&mut self, event: Event, ctx: &mut EventContext<()>) {
         self.view_seq.event(state, event, ctx);
     }
 
-    fn layout(&self, state: &mut Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Size {
+    fn layout(&mut self, constraint: Constraint, ctx: &mut LayoutContext) -> Size {
         // layout all children given infinite height
         let sizes = {
             let child_constraint = Constraint { min_size: Size::ZERO, max_size: constraint.max().with_height(f64::INFINITY) };

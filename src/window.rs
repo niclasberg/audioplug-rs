@@ -15,9 +15,8 @@ pub struct Window(platform::Window);
 
 struct MyHandler<V: View> {
     view: V,
-    view_state: V::State,
     view_node: ViewNode,
-    messages: Vec<ViewMessage<V::Message>>,
+    messages: Vec<ViewMessage<()>>,
 }
 
 impl<V: View> MyHandler<V> {
@@ -26,7 +25,7 @@ impl<V: View> MyHandler<V> {
         let mut build_context = BuildContext::root(&mut view_meta);
         let view_state = view.build(&mut build_context);
         
-        Self { view, view_state, view_node: view_meta, messages: Vec::new() }
+        Self { view, view_node: view_meta, messages: Vec::new() }
     }
 
     fn dispatch_messages_to_views(&mut self) {
@@ -84,7 +83,7 @@ impl<V: View + 'static> WindowHandler for MyHandler<V> {
     fn render(&mut self, _: Rectangle, mut renderer: platform::RendererRef<'_>) {
         {
             let mut ctx = RenderContext::new(&mut self.view_node, &mut renderer);
-            self.view.render(&self.view_state, &mut ctx);
+            self.view.render(&mut ctx);
         }
         self.view_node.clear_flag_recursive(ViewFlags::NEEDS_RENDER);
     }

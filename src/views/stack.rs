@@ -1,18 +1,15 @@
-use std::marker::PhantomData;
-use crate::{view::{View, EventContext}, core::{Size, Constraint, Alignment}, ViewSequence, Event, LayoutContext, BuildContext, RenderContext, LayoutHint};
+use crate::{core::{Alignment, Constraint, Size}, view::{EventContext, View}, BuildContext, Event, Id, LayoutContext, LayoutHint, RenderContext, ViewSequence, Widget};
 
-pub struct Stack<Msg: 'static, VS: ViewSequence<Msg>> {
+pub struct Stack<VS> {
     view_seq: VS,
-    alignment: Alignment,
-    _phantom: PhantomData<Msg>
+    alignment: Alignment
 }
 
-impl<Msg: 'static, VS: ViewSequence<Msg>> Stack<Msg, VS> {
+impl<VS: ViewSequence> Stack<VS> {
     pub fn new(views: VS) -> Self {
         Self {
             view_seq: views,
-            alignment: Alignment::Center,
-            _phantom: PhantomData,
+            alignment: Alignment::Center
         }
     }
 
@@ -22,23 +19,33 @@ impl<Msg: 'static, VS: ViewSequence<Msg>> Stack<Msg, VS> {
     }
 }
 
-impl<Msg: 'static, VS: ViewSequence<Msg>> View for Stack<Msg, VS> {
-    type Message = Msg;
-	type State = VS::State;
+impl<VS: ViewSequence> View for Stack<VS> {
+	type Element = StackWidget;
 
-    fn build(&mut self, ctx: &mut BuildContext) -> Self::State {
-        self.view_seq.build(ctx)
+    fn build(self, ctx: &mut BuildContext) -> Self::Element {
+        let widgets = self.view_seq.build(ctx);
+        StackWidget {
+            widgets,
+            alignment: self.alignment
+        }
+    }
+}
+
+struct StackWidget {
+    widgets: Vec<Box<dyn Widget>>,
+    alignment: Alignment
+}
+
+impl Widget for StackWidget {
+    fn event(&mut self, event: Event, ctx: &mut EventContext<()>) {
+        for (i, widget) in self.widgets.iter_mut().enumerate().rev() {
+            ctx.forward_to_child(Id(i), event, |ctx| {
+                widget.event(event, ctx);
+            });
+        }
     }
 
-    fn rebuild(&mut self, state: &mut Self::State, ctx: &mut BuildContext) {
-        self.view_seq.rebuild(state, ctx);
-    }
-
-    fn event(&mut self, state: &mut Self::State, event: Event, ctx: &mut EventContext<Msg>) {
-        self.view_seq.event(state, event, ctx);
-    }
-
-    fn layout(&self, state: &mut Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Size {
+    fn layout(&mut self, constraint: Constraint, ctx: &mut LayoutContext) -> Size {
         let sizes = self.view_seq.layout(state, constraint.with_min(Size::ZERO), ctx);
         let max_size = sizes.iter().fold(Size::ZERO, |acc, x| acc.max(x));
         let max_size = constraint.clamp(max_size);

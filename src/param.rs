@@ -95,6 +95,12 @@ pub enum ParameterValue {
     ByPass(bool),
 }
 
+struct ParamLens<P, T> {
+    get_ref: fn(&P) -> &T,
+    get_mut: fn(&mut P) -> &mut T,
+}
+
+
 pub enum Parameter {
     Float(FloatParameter),
     Int(IntParameter),

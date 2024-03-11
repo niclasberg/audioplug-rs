@@ -1,11 +1,10 @@
-use crate::{event::Event, core::{Constraint, Size, Color, Shape}, ViewMessage}; 
+use std::any::Any;
 
-mod any_view;
+use crate::{event::Event, core::{Constraint, Size, Color}}; 
+
 mod view_node;
 mod view_sequence;
-mod component;
-pub use crate::id::{Id, IdPath};
-pub use any_view::*;
+pub use crate::id::IdPath;
 pub use crate::{LayoutContext, EventContext, BuildContext, RenderContext};
 pub use view_node::*;
 pub use view_sequence::*;
@@ -26,78 +25,45 @@ impl LayoutHint {
 }
 
 pub trait View: Sized {
-	type Message: 'static;
-    type State;
+    type Element: Widget;
 
-    fn build(&mut self, ctx: &mut BuildContext) -> Self::State;
-    fn rebuild(&mut self, state: &mut Self::State, ctx: &mut BuildContext);
-    fn event(&mut self, state: &mut Self::State, event: Event, ctx: &mut EventContext<Self::Message>);
-
-    /// Layout the view and (possibly) its subviews
-    /// The view is passed a constraint and returns the size it wants.
-    fn layout(&self, state: &mut Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Size;
-
-    /// Suggests how the size of the view is determined. 
-    /// - A Fixed layout does not care about the suggested size passed into layout
-    /// - The size of a Flexible layout depends on the size suggestion passed to layout
-    fn layout_hint(&self, state: &Self::State) -> (LayoutHint, LayoutHint);
-    fn render(&self, state: &Self::State, ctx: &mut RenderContext);
-    
-    fn map<Msg, F>(self, f: F) -> Map<Self, F> 
-    where 
-        F: Fn(Self::Message) -> Msg 
-    {
-        Map { view: self, map: f }
-    }
+    fn build(self, ctx: &mut BuildContext) -> Self::Element;
 
     fn background(self, color: Color) -> Background<Self> {
         Background { view: self, color }
     }
 }
 
-pub struct Map<V, F> {
-    view: V,
-    map: F
+pub trait AnyView {
+    fn dyn_build(&mut self, ctx: &mut BuildContext) -> Box<dyn Any>;
 }
 
-impl<V: View, F, Msg: 'static> View for Map<V, F>
-where
-    F: Fn(V::Message) -> Msg
-{
-	type Message = Msg;
-    type State = V::State;
-
-    fn build(&mut self, ctx: &mut BuildContext) -> Self::State {
-        self.view.build(ctx)
+impl<V: View + 'static> AnyView for V {
+    fn dyn_build(&mut self, ctx: &mut BuildContext) -> Box<dyn Widget> {
+        Box::new(self.build(ctx))
     }
+}
 
-    fn rebuild(&mut self, state: &mut Self::State, ctx: &mut BuildContext) {
-        self.view.rebuild(state, ctx)
+impl View for Box<dyn AnyView> {
+    type Element = Box<dyn Widget>;
+
+    fn build(&mut self, ctx: &mut BuildContext) -> Self::Element {
+        self.deref_mut().dyn_build(ctx)
     }
+}
 
-    fn event(&mut self, state: &mut Self::State, event: Event, ctx: &mut EventContext<Self::Message>) {
-        let mut messages: Vec<ViewMessage<V::Message>> = Vec::new();
-        ctx.with_message_container(&mut messages, |ctx| {
-            self.view.event(state, event, ctx);
-        });
+pub trait Widget {
+    fn event(&mut self, event: Event, ctx: &mut EventContext<()>);
 
-        ctx.messages.extend(messages.into_iter().map(|m| ViewMessage {
-            view_id: m.view_id,
-            message: (self.map)(m.message), 
-        }));
-    }
+    /// Layout the view and (possibly) its subviews
+    /// The view is passed a constraint and returns the size it wants.
+    fn layout(&mut self, constraint: Constraint, ctx: &mut LayoutContext) -> Size;
 
-    fn layout(&self, state: &mut Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Size {
-        self.view.layout(state, constraint, ctx)
-    }
-
-    fn render(&self, state: &Self::State, ctx: &mut RenderContext) {
-        self.view.render(state, ctx)
-    }
-
-    fn layout_hint(&self, state: &Self::State) -> (LayoutHint, LayoutHint) {
-        self.view.layout_hint(state)
-    }
+    /// Suggests how the size of the view is determined. 
+    /// - A Fixed layout does not care about the suggested size passed into layout
+    /// - The size of a Flexible layout depends on the size suggestion passed to layout
+    fn layout_hint(&self) -> (LayoutHint, LayoutHint);
+    fn render(&mut self, ctx: &mut RenderContext);
 }
 
 pub struct Background<V: View> {
@@ -106,31 +72,33 @@ pub struct Background<V: View> {
 }
 
 impl<V: View> View for Background<V> {
-    type Message = V::Message;
-    type State = V::State;
+    type Element = BackgroundWidget<V::Element>;
 
-    fn build(&mut self, ctx: &mut BuildContext) -> Self::State {
-        self.view.build(ctx)
-    }
-
-    fn rebuild(&mut self, state: &mut Self::State, ctx: &mut BuildContext) {
-        self.view.rebuild(state, ctx)
-    }
-
-    fn event(&mut self, state: &mut Self::State, event: Event, ctx: &mut EventContext<Self::Message>) {
-        self.view.event(state, event, ctx)
-    }
-
-    fn layout(&self, state: &mut Self::State, constraint: Constraint, ctx: &mut LayoutContext) -> Size {
-        self.view.layout(state, constraint, ctx)
-    }
-
-    fn render(&self, state: &Self::State, ctx: &mut RenderContext) {
-        ctx.fill(ctx.local_bounds(), self.color);
-        self.view.render(state, ctx)
-    }
-
-    fn layout_hint(&self, state: &Self::State) -> (LayoutHint, LayoutHint) {
-        self.view.layout_hint(state)
+    fn build(self, ctx: &mut BuildContext) -> Self::Element {
+        BackgroundWidget { widget: self.view.build(ctx), color: self.color }
     }
 }
+
+pub struct BackgroundWidget<W: Widget> {
+    widget: W,
+    color: Color,
+}
+
+impl<W: View> Widget for BackgroundWidget<W> {
+    fn event(&mut self, event: Event, ctx: &mut EventContext<()>) {
+        self.widget.event(event, ctx)
+    }
+
+    fn layout(&mut self, constraint: Constraint, ctx: &mut LayoutContext) -> Size {
+        self.widget.layout(constraint, ctx)
+    }
+
+    fn render(&mut self, ctx: &mut RenderContext) {
+        ctx.fill(ctx.local_bounds(), self.color);
+        self.widget.render(ctx)
+    }
+
+    fn layout_hint(&self) -> (LayoutHint, LayoutHint) {
+        self.widget.layout_hint()
+    }
+} 

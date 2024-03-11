@@ -1,12 +1,8 @@
-use crate::{view::View, core::{Size, Color, Point, Shape}, text::TextLayout, LayoutHint};
+use crate::{core::{Color, Point, Size}, text::TextLayout, view::View, LayoutHint, Widget};
 
 pub struct Label {
     pub text: String,
 	color: Color
-}
-
-pub struct LabelState {
-    text_layout: TextLayout
 }
 
 impl Label {
@@ -21,32 +17,33 @@ impl Label {
 }
 
 impl View for Label {
-    type Message = ();
-    type State = LabelState;
+    type Element = TextWidget;
 
-    fn build(&mut self, _ctx: &mut crate::BuildContext) -> Self::State {
+    fn build(&mut self, _ctx: &mut crate::BuildContext) -> Self::Element {
         let text_layout = TextLayout::new(self.text.as_str(), self.color, Size::INFINITY);
-        Self::State { text_layout }
+        TextWidget { text_layout }
     }
+}
 
-    fn rebuild(&mut self, _state: &mut Self::State, _ctx: &mut crate::BuildContext) {
+pub struct TextWidget {
+    text_layout: TextLayout
+}
 
-    }
-
-    fn layout(&self, state: &mut Self::State, constraint: crate::core::Constraint, ctx: &mut crate::LayoutContext) -> Size {
-        state.text_layout.set_max_size(constraint.max());
-        let size = state.text_layout.measure();
+impl Widget for TextWidget {
+    fn layout(&mut self, constraint: crate::core::Constraint, ctx: &mut crate::LayoutContext) -> Size {
+        self.text_layout.set_max_size(constraint.max());
+        let size = self.text_layout.measure();
 
         constraint.clamp(size)
     }
 
-    fn render(&self, state: &Self::State, ctx: &mut crate::RenderContext) {
-        ctx.draw_text(&state.text_layout, Point::ZERO)
+    fn render(&mut self, ctx: &mut crate::RenderContext) {
+        ctx.draw_text(&self.text_layout, Point::ZERO)
     }
 
-    fn event(&mut self, _state: &mut Self::State, _event: crate::Event, _ctx: &mut crate::EventContext<Self::Message>) {}
+    fn event(&mut self, _event: crate::Event, _ctx: &mut crate::EventContext<()>) {}
 
-    fn layout_hint(&self, state: &Self::State) -> (LayoutHint, LayoutHint) {
+    fn layout_hint(&self) -> (LayoutHint, LayoutHint) {
         (LayoutHint::Flexible, LayoutHint::Flexible)
     }
 }

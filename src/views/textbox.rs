@@ -1,6 +1,6 @@
 use std::ops::Range;
-use crate::{View, event::{KeyEvent, MouseButton}, text::TextLayout, core::{Size, Point, Shape, Color, Vector, Rectangle}, LayoutHint, keyboard::{Key, Modifiers}, Event, MouseEvent};
-use unicode_segmentation::{UnicodeSegmentation, GraphemeIndices, GraphemeCursor};
+use crate::{core::{Color, Point, Rectangle, Shape, Size, Vector}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, Event, LayoutHint, MouseEvent, View, Widget};
+use unicode_segmentation::{UnicodeSegmentation, GraphemeCursor};
 
 pub struct TextBox {
     width: f64
@@ -14,7 +14,22 @@ impl TextBox {
     }
 }
 
-pub struct TextBoxState {
+impl View for TextBox {
+    type Element = TextBoxWidget;
+
+    fn build(self, _ctx: &mut crate::BuildContext) -> Self::Element {
+        TextBoxWidget { 
+            width: self.width,
+            editor: Editor::new(""), 
+            text_layout: TextLayout::new("", Color::BLACK, Size::ZERO), 
+            cursor_on: true, 
+            last_cursor_timestamp: 0.0
+        }
+    }
+}
+
+pub struct TextBoxWidget {
+    width: f64,
     editor: Editor,
     text_layout: TextLayout,
     cursor_on: bool,
@@ -249,33 +264,13 @@ impl Editor {
     }
 }
 
-pub enum TextBoxMessage {
-
-}
-
 const PADDING: f64 = 2.0;
 const CURSOR_DELAY_SECONDS: f64 = 0.5;
 
-impl View for TextBox {
-    type Message = TextBoxMessage;
-    type State = TextBoxState;
-
-    fn build(&mut self, _ctx: &mut crate::BuildContext) -> Self::State {
-        TextBoxState { 
-            editor: Editor::new(""), 
-            text_layout: TextLayout::new("", Color::BLACK, Size::ZERO), 
-            cursor_on: true, 
-            last_cursor_timestamp: 0.0
-        }
-    }
-
-    fn rebuild(&mut self, _state: &mut Self::State, _ctx: &mut crate::BuildContext) {
-        
-    }
-
-    fn event(&mut self, state: &mut Self::State, event: crate::Event, ctx: &mut crate::EventContext<Self::Message>) {
-        let rebuild_text_layout = |state: &mut Self::State, ctx: &mut crate::EventContext<Self::Message>| {
-            state.text_layout = TextLayout::new(&state.editor.value, Color::BLACK, Size::INFINITY);
+impl Widget for TextBoxWidget {
+    fn event(&mut self, event: crate::Event, ctx: &mut crate::EventContext<()>) {
+        let rebuild_text_layout = |this: &mut Self, ctx: &mut crate::EventContext<()>| {
+            this.text_layout = TextLayout::new(&this.editor.value, Color::BLACK, Size::INFINITY);
             ctx.request_render();
         };
 
@@ -285,62 +280,62 @@ impl View for TextBox {
                     KeyEvent::KeyDown { key, modifiers, str } =>
                         match (key, str) {
                             (Key::BackSpace, _) if modifiers.contains(Modifiers::CONTROL) => {
-                                if state.editor.remove_word_left() {
-                                    rebuild_text_layout(state, ctx);
+                                if self.editor.remove_word_left() {
+                                    rebuild_text_layout(self, ctx);
                                 }
                             }, 
                             (Key::BackSpace, _) => {
-                                if state.editor.remove_left() {
-                                    rebuild_text_layout(state, ctx);
+                                if self.editor.remove_left() {
+                                    rebuild_text_layout(self, ctx);
                                 }
                             },
                             (Key::Delete, _) if modifiers.contains(Modifiers::CONTROL) => {
-                                if state.editor.remove_word_right() {
-                                    rebuild_text_layout(state, ctx);
+                                if self.editor.remove_word_right() {
+                                    rebuild_text_layout(self, ctx);
                                 }
                             },
                             (Key::Delete, _) => {
-                                if state.editor.remove_right() {
-                                    rebuild_text_layout(state, ctx);
+                                if self.editor.remove_right() {
+                                    rebuild_text_layout(self, ctx);
                                 }
                             },
                             (Key::Left, _) if modifiers.contains(Modifiers::CONTROL) => {
-                                if state.editor.move_word_left(modifiers.contains(Modifiers::SHIFT)) {
+                                if self.editor.move_word_left(modifiers.contains(Modifiers::SHIFT)) {
                                     ctx.request_render();
                                 }
                             }
                             (Key::Left, _) => {
-                                if state.editor.move_left(modifiers.contains(Modifiers::SHIFT)) {
+                                if self.editor.move_left(modifiers.contains(Modifiers::SHIFT)) {
                                     ctx.request_render();
                                 }
                             },
                             (Key::Right, _) if modifiers.contains(Modifiers::CONTROL) => {
-                                if state.editor.move_word_right(modifiers.contains(Modifiers::SHIFT)) {
+                                if self.editor.move_word_right(modifiers.contains(Modifiers::SHIFT)) {
                                     ctx.request_render();
                                 }
                             },
                             (Key::Right, _) => {
-                                if state.editor.move_right(modifiers.contains(Modifiers::SHIFT)) {
+                                if self.editor.move_right(modifiers.contains(Modifiers::SHIFT)) {
                                     ctx.request_render();
                                 }
                             },
                             (Key::C, _) if modifiers == Modifiers::CONTROL => {
-                                if let Some(selected_text) = state.editor.selected_text() {
+                                if let Some(selected_text) = self.editor.selected_text() {
                                     ctx.set_clipboard(selected_text);
                                 }
                             },
                             (Key::V, _) if modifiers == Modifiers::CONTROL => {
                                 if let Some(text_to_insert) = ctx.get_clipboard() {
-                                    state.editor.insert(text_to_insert.as_str());
-                                    rebuild_text_layout(state, ctx);
+                                    self.editor.insert(text_to_insert.as_str());
+                                    rebuild_text_layout(self, ctx);
                                 }
                             },
                             (Key::X, _) if modifiers == Modifiers::CONTROL => {
 
                             },
                             (_, Some(str)) if !modifiers.contains(Modifiers::CONTROL) => {
-                                state.editor.insert(str.as_str());
-                                rebuild_text_layout(state, ctx);
+                                self.editor.insert(str.as_str());
+                                rebuild_text_layout(self, ctx);
                             }
                             _ => {}
                         },
@@ -349,8 +344,8 @@ impl View for TextBox {
             },
             Event::Mouse(mouse) => match mouse {
                 MouseEvent::Down { button, position } if button == MouseButton::LEFT => {
-                    if let Some(new_cursor) = state.text_layout.text_index_at_point(position) {
-                        if state.editor.set_cursor(new_cursor, false) {
+                    if let Some(new_cursor) = self.text_layout.text_index_at_point(position) {
+                        if self.editor.set_cursor(new_cursor, false) {
                             ctx.request_render();
                         }
                     }
@@ -358,44 +353,44 @@ impl View for TextBox {
                 _ => {}
             },
             Event::AnimationFrame { timestamp } => {
-                if timestamp - state.last_cursor_timestamp > CURSOR_DELAY_SECONDS {
-                    state.cursor_on = !state.cursor_on;
+                if timestamp - self.last_cursor_timestamp > CURSOR_DELAY_SECONDS {
+                    self.cursor_on = !self.cursor_on;
                     ctx.request_render();
-                    state.last_cursor_timestamp = timestamp;
+                    self.last_cursor_timestamp = timestamp;
                 }
             }
             _ => {}
         };
     }
 
-    fn layout(&self, state: &mut Self::State, constraint: crate::core::Constraint, ctx: &mut crate::LayoutContext) -> crate::core::Size {
-        let size = state.text_layout.measure();
+    fn layout(&mut self, constraint: crate::core::Constraint, ctx: &mut crate::LayoutContext) -> crate::core::Size {
+        let size = self.text_layout.measure();
         let size = Size::new(self.width, size.height);
         let size = size + Size::new(PADDING*2.0, PADDING*2.0);
 
         constraint.clamp(size)
     }
 
-    fn layout_hint(&self, _state: &Self::State) -> (crate::LayoutHint, crate::LayoutHint) {
+    fn layout_hint(&self) -> (crate::LayoutHint, crate::LayoutHint) {
         (LayoutHint::Fixed, LayoutHint::Flexible)
     }
 
-    fn render(&self, state: &Self::State, ctx: &mut crate::RenderContext) {
+    fn render(&mut self, ctx: &mut crate::RenderContext) {
         ctx.stroke(ctx.local_bounds(), Color::RED, 1.0);
         let bounds = ctx.local_bounds().shrink(PADDING);
 
         ctx.use_clip(bounds, |ctx| {
-            if let Some(selection) = state.editor.selection() {
-                let left = state.text_layout.point_at_text_index(selection.start);
-                let right = state.text_layout.point_at_text_index(selection.end);
+            if let Some(selection) = self.editor.selection() {
+                let left = self.text_layout.point_at_text_index(selection.start);
+                let right = self.text_layout.point_at_text_index(selection.end);
                 let rect = Rectangle::from_points(bounds.top_left() + left, bounds.bottom_left() + right);
                 ctx.fill(rect, Color::from_rgb8(68, 85, 90));
             }
 
-            ctx.draw_text(&state.text_layout, bounds.position());
+            ctx.draw_text(&self.text_layout, bounds.position());
             
-            if state.cursor_on {
-                let cursor_point = state.text_layout.point_at_text_index(state.editor.position);
+            if self.cursor_on {
+                let cursor_point = self.text_layout.point_at_text_index(self.editor.position);
                 let p0 = bounds.bottom_left() + cursor_point; 
                 let p1 = bounds.top_left() + cursor_point;
                 ctx.fill(Shape::line(p0, p1), Color::BLACK);
