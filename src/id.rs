@@ -15,6 +15,14 @@ impl IdPath {
         Self(vec![Id(0)])
     }
 
+    pub fn push(&mut self, id: Id) {
+        self.0.push(id);
+    }
+
+    pub fn pop(&mut self) {
+        self.0.pop();
+    }
+
 	pub fn child_id(&self, id: Id) -> Self {
 		let mut id_path = self.clone();
 		id_path.0.push(id);

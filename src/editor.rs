@@ -1,4 +1,4 @@
-use crate::{View, Plugin, core::{Rectangle, Color, Point, Size}, views::Fill};
+use crate::{view::View, Plugin, core::{Rectangle, Color, Point, Size}, view::Fill};
 
 pub trait Editor {
     fn view(&self) -> impl View;

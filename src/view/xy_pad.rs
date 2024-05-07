@@ -1,4 +1,4 @@
-use crate::{View, core::Point};
+use crate::core::Point;
 
 pub struct XyPad {
     position: Point

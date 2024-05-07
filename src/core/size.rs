@@ -13,6 +13,18 @@ impl<T> Size<T> {
         Self { width, height }
     }
 
+    pub fn map<U>(self, f: impl Fn(T) -> U) -> Size<U> {
+        Size::new(f(self.width), f(self.height))
+    }
+
+    pub fn map_width(self, f: impl Fn(T) -> T) -> Self {
+        Self::new(f(self.width), self.height)
+    }
+
+    pub fn map_height(self, f: impl Fn(T) -> T) -> Self {
+        Self::new(self.width, f(self.height))
+    }
+
     pub fn with_width(mut self, width: T) -> Self {
         self.width = width;
         self

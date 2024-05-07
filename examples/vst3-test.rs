@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 use audioplug::core::Color;
-use audioplug::views::Label;
+use audioplug::view::Label;
 use audioplug::{Plugin, AudioLayout, Bus, ChannelType, ProcessContext, Editor};
 use audioplug::wrapper::vst3::Factory;
 
@@ -13,7 +13,7 @@ struct MyEditor {
 }
 
 impl Editor for MyEditor {
-    fn view(&self) -> impl audioplug::View {
+    fn view(&self) -> impl audioplug::view::View {
         Label::new("Text input").with_color(Color::BLUE)
     }
 }

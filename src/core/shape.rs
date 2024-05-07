@@ -1,4 +1,4 @@
-use super::{Size, Color, Point, Rectangle};
+use super::{Color, Point, Rectangle, Size, Vector};
 
 pub enum PathEl {
     MoveTo(Point),
@@ -34,6 +34,16 @@ impl Shape {
 
     pub const fn line(p0: Point, p1: Point) -> Self {
         Shape::Line { p0, p1 }
+    }
+
+    pub fn offset(self, delta: impl Into<Vector>) -> Self {
+        let delta = delta.into();
+        match self {
+            Shape::Rect(rect) => Shape::Rect(rect.offset(delta)),
+            Shape::RoundedRect { rect, corner_radius } => Shape::RoundedRect { rect: rect.offset(delta), corner_radius },
+            Shape::Ellipse { center, radii } => Shape::Ellipse { center: center + delta, radii },
+            Shape::Line { p0, p1 } => Shape::Line { p0: p0 + delta, p1: p1 + delta }
+        }
     }
 
     pub fn bounds(&self) -> Rectangle {

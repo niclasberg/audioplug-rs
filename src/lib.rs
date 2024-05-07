@@ -1,8 +1,7 @@
 pub mod wrapper;
 mod plugin;
-pub mod views;
 pub mod core;
-mod view;
+pub mod view;
 mod message;
 pub mod window;
 mod event;
@@ -16,16 +15,13 @@ mod keyboard;
 mod audio_buffer;
 mod theme;
 pub mod signal;
-mod contexts;
 mod id;
 
 pub use plugin::*;
 pub use editor::*;
 pub use application::Application;
 pub use event::{Event, MouseEvent};
-pub use view::*;
 pub use message::*;
 pub use audiolayout::*;
 pub use audio_buffer::*;
-pub use contexts::*;
 pub use id::*;

@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use std::ffi::{CStr, c_void};
 
 use crate::core::{Color, Rectangle, Size, Shape, Point};
-use crate::views::Fill;
+use crate::view::Fill;
 use crate::window::Window;
 
 const VST3_PLATFORM_HWND: &str = "HWND";

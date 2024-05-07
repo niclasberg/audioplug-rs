@@ -3,12 +3,7 @@ use crate::{Event, RenderContext, LayoutHint};
 use crate::view::{ViewSequence, View, BuildContext, EventContext, LayoutContext};
 use crate::core::{Alignment, Constraint, Size, Vector};
 
-pub struct Row<Msg: 'static, VS: ViewSequence<Msg>> {
-    view_seq: VS,
-    alignment: Alignment,
-    spacing: f64,
-    _phantom: PhantomData<Msg>
-}
+
 
 impl<Msg: 'static, VS: ViewSequence<Msg>> Row<Msg, VS> {
     pub fn new(view_seq: VS) -> Self {

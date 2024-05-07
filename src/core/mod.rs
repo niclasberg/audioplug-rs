@@ -9,6 +9,8 @@ mod transform;
 mod range;
 mod color_map;
 mod shape;
+mod axis;
+mod taffy_compat;
 
 pub use color::Color;
 pub use point::Point;
@@ -21,3 +23,4 @@ pub use transform::Transform;
 pub use range::Range;
 pub use color_map::*;
 pub use shape::*;
+pub use axis::Axis;

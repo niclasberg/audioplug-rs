@@ -8,6 +8,7 @@ mod text;
 mod keyboard;
 mod handle;
 mod util;
+mod executor;
 
 pub(crate) use audio::{AudioHost, AudioDevice};
 pub use windows::core::Error as Error;

@@ -1,6 +1,8 @@
 use std::ops::Range;
-use crate::{core::{Color, Point, Rectangle, Shape, Size, Vector}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, Event, LayoutHint, MouseEvent, View, Widget};
+use crate::{core::{Color, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, Event, MouseEvent};
 use unicode_segmentation::{UnicodeSegmentation, GraphemeCursor};
+
+use super::{BuildContext, EventContext, LayoutContext, RenderContext, View, Widget};
 
 pub struct TextBox {
     width: f64
@@ -17,7 +19,7 @@ impl TextBox {
 impl View for TextBox {
     type Element = TextBoxWidget;
 
-    fn build(self, _ctx: &mut crate::BuildContext) -> Self::Element {
+    fn build(self, _ctx: &mut BuildContext) -> Self::Element {
         TextBoxWidget { 
             width: self.width,
             editor: Editor::new(""), 
@@ -268,8 +270,8 @@ const PADDING: f64 = 2.0;
 const CURSOR_DELAY_SECONDS: f64 = 0.5;
 
 impl Widget for TextBoxWidget {
-    fn event(&mut self, event: crate::Event, ctx: &mut crate::EventContext<()>) {
-        let rebuild_text_layout = |this: &mut Self, ctx: &mut crate::EventContext<()>| {
+    fn event(&mut self, event: crate::Event, ctx: &mut EventContext) {
+        let rebuild_text_layout = |this: &mut Self, ctx: &mut EventContext| {
             this.text_layout = TextLayout::new(&this.editor.value, Color::BLACK, Size::INFINITY);
             ctx.request_render();
         };
@@ -333,6 +335,9 @@ impl Widget for TextBoxWidget {
                             (Key::X, _) if modifiers == Modifiers::CONTROL => {
 
                             },
+                            (Key::Tab, _) | (Key::Escape, _) => {
+
+                            },
                             (_, Some(str)) if !modifiers.contains(Modifiers::CONTROL) => {
                                 self.editor.insert(str.as_str());
                                 rebuild_text_layout(self, ctx);
@@ -362,22 +367,30 @@ impl Widget for TextBoxWidget {
             _ => {}
         };
     }
-
-    fn layout(&mut self, constraint: crate::core::Constraint, ctx: &mut crate::LayoutContext) -> crate::core::Size {
+    
+    fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
         let size = self.text_layout.measure();
         let size = Size::new(self.width, size.height);
-        let size = size + Size::new(PADDING*2.0, PADDING*2.0);
 
-        constraint.clamp(size)
+        ctx.compute_leaf_layout(inputs, |_, _| {
+            size.map(|x| x as f32).into()
+        })
     }
 
-    fn layout_hint(&self) -> (crate::LayoutHint, crate::LayoutHint) {
-        (LayoutHint::Fixed, LayoutHint::Flexible)
+    fn style(&self) -> taffy::Style {
+        use taffy::prelude::*;
+        let border = LengthPercentage::Length(1.0);
+        let padding = LengthPercentage::Length(2.0);
+        taffy::Style {
+            padding: Rect { left: padding, right: padding, top: padding, bottom: padding }, 
+            border: Rect { left: border, right: border, top: border, bottom: border }, 
+            ..Default::default()
+        }
     }
 
-    fn render(&mut self, ctx: &mut crate::RenderContext) {
-        ctx.stroke(ctx.local_bounds(), Color::RED, 1.0);
-        let bounds = ctx.local_bounds().shrink(PADDING);
+    fn render(&mut self, ctx: &mut RenderContext) {
+        let bounds = ctx.global_bounds();
+        ctx.stroke(bounds, Color::RED, 1.0);
 
         ctx.use_clip(bounds, |ctx| {
             if let Some(selection) = self.editor.selection() {

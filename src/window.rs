@@ -1,9 +1,9 @@
 use raw_window_handle::RawWindowHandle;
 
-use crate::core::{Rectangle, Constraint, Point};
+use crate::core::{Point, Rectangle};
 use crate::event::WindowEvent;
-use crate::view::{View, ViewNode, EventContext};
-use crate::{Event, ViewMessage, LayoutContext, BuildContext, RenderContext, ViewFlags, platform};
+use crate::view::{BuildContext, EventContext, LayoutContext, LayoutNodeRef, RenderContext, View, Widget, WidgetData, WidgetNode};
+use crate::{platform, Event, IdPath};
 
 pub trait WindowHandler {
 	fn init(&mut self, handle: platform::HandleRef);
@@ -13,42 +13,40 @@ pub trait WindowHandler {
 
 pub struct Window(platform::Window);
 
-struct MyHandler<V: View> {
-    view: V,
-    view_node: ViewNode,
-    messages: Vec<ViewMessage<()>>,
+struct MyHandler {
+    widget_node: WidgetNode,
 }
 
-impl<V: View> MyHandler<V> {
-    pub fn new(mut view: V) -> Self {
-        let mut view_meta = ViewNode::new();
-        let mut build_context = BuildContext::root(&mut view_meta);
-        let view_state = view.build(&mut build_context);
+impl MyHandler {
+    pub fn new<V: View>(view: V) -> Self {
+        let mut build_context = BuildContext::root();
+        let widget: Box<dyn Widget> = Box::new(view.build(&mut build_context));
+        let data = WidgetData::new(IdPath::root())
+            .with_style(|style| *style = widget.style());
+        let widget_node = WidgetNode { 
+            widget,
+            data
+        };
         
-        Self { view, view_node: view_meta, messages: Vec::new() }
-    }
-
-    fn dispatch_messages_to_views(&mut self) {
-        for message in self.messages.iter() {
-            println!("Message to; {:?}", message.view_id)
-        }
-        self.messages.clear();
+        Self { widget_node }
     }
 
     fn do_layout(&mut self, handle: &mut platform::HandleRef) {
-        let constraint = Constraint::exact(handle.global_bounds().size());
-        let size = {
-            let mut ctx = LayoutContext::new(&mut self.view_node, handle);
-            let size = self.view.layout(&mut self.view_state, constraint, &mut ctx);
-            constraint.clamp(size)
-        };
-        self.view_node.set_size(size);
-        self.view_node.set_origin(Point::ZERO);
-        self.view_node.clear_flag_recursive(ViewFlags::NEEDS_LAYOUT);
+        let bounds = handle.global_bounds().size();
+        {
+            let mut ctx = LayoutNodeRef { handle, widget: &mut self.widget_node.widget, data: &mut self.widget_node.data };
+            let available_space = taffy::Size { 
+                width: taffy::AvailableSpace::Definite(bounds.width as f32), 
+                height: taffy::AvailableSpace::Definite(bounds.height as f32)
+            };
+            taffy::compute_root_layout(&mut ctx, taffy::NodeId::from(usize::MAX), available_space);
+        }
+        self.widget_node.set_origin(Point::ZERO);
+        //self.view_node.clear_flag_recursive(ViewFlags::NEEDS_LAYOUT);
     }
 }
 
-impl<V: View + 'static> WindowHandler for MyHandler<V> {
+impl WindowHandler for MyHandler {
     fn event(&mut self, event: Event, mut handle: platform::HandleRef) {
 		match event {
 			Event::Window(window_event) => match window_event {
@@ -63,29 +61,20 @@ impl<V: View + 'static> WindowHandler for MyHandler<V> {
 
         {
             let mut is_handled = false;
-            let mut ctx = EventContext::new(&mut self.view_node, &mut self.messages, &mut is_handled, &mut handle);
-            self.view.event(&mut self.view_state, event, &mut ctx);
+            let mut ctx = EventContext::new(&mut self.widget_node.data, &mut is_handled, &mut handle);
+            self.widget_node.widget.event(event, &mut ctx);
         }
-        {
-            let mut ctx = BuildContext::root(&mut self.view_node);
-            self.view.rebuild(&mut self.view_state, &mut ctx)
+
+        if self.widget_node.layout_requested() {
+            self.do_layout(&mut handle);
         }
-		{
-			self.do_layout(&mut handle);
-		}
-        // 1. Dispatch messages, may update the state
-        // 2. Rebuild if was requested, or the state was updated, rebuild
-        // 3. Perform layout, if requested
-        // 4. Render
-        self.dispatch_messages_to_views();
     }
 
     fn render(&mut self, _: Rectangle, mut renderer: platform::RendererRef<'_>) {
         {
-            let mut ctx = RenderContext::new(&mut self.view_node, &mut renderer);
-            self.view.render(&mut ctx);
+            let mut ctx = RenderContext::new(&mut self.widget_node.data, &mut renderer);
+            self.widget_node.widget.render(&mut ctx);
         }
-        self.view_node.clear_flag_recursive(ViewFlags::NEEDS_RENDER);
     }
 
     fn init(&mut self, mut handle: platform::HandleRef) {

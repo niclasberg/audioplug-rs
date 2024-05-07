@@ -1,4 +1,6 @@
-use crate::{core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, Event, LayoutHint, MouseEvent, View, Widget};
+use crate::{core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, Event, MouseEvent};
+
+use super::{BuildContext, EventContext, LayoutContext, RenderContext, View, Widget};
 
 pub struct Slider {
     min: f64,
@@ -19,8 +21,8 @@ impl Slider {
         }
     }
 
-    pub fn on_value_changed(mut self, f: impl Fn()) -> Self {
-        self.on_value_changed = Box::new(f);
+    pub fn on_value_changed(mut self, f: impl Fn(f64) + 'static) -> Self {
+        self.on_value_changed = Some(Box::new(f));
         self
     }
 
@@ -34,7 +36,7 @@ impl Slider {
 impl View for Slider {
     type Element = SliderWidget;
 
-    fn build(&mut self, _ctx: &mut crate::BuildContext) -> Self::Element {
+    fn build(self, _ctx: &mut BuildContext) -> Self::Element {
         SliderWidget {
             position_normalized: 0.4,
             state: State::Idle,
@@ -78,12 +80,12 @@ impl SliderWidget {
 }
 
 impl Widget for SliderWidget {
-    fn event(&mut self, event: Event, ctx: &mut crate::EventContext<()>) {
+    fn event(&mut self, event: Event, ctx: &mut EventContext) {
         match event {
             Event::Mouse(mouse_event) => {
                 match mouse_event {
                     MouseEvent::Down { button, position } => {
-                        if self.knob_shape(ctx.local_bounds()).hit_test(position) {
+                        if self.knob_shape(ctx.bounds()).hit_test(position) {
                             ctx.set_handled();
                             if button == MouseButton::LEFT && self.state != State::Dragging {
                                 ctx.request_render();
@@ -97,19 +99,19 @@ impl Widget for SliderWidget {
                     MouseEvent::Moved { position } => {
                         match self.state {
                             State::Idle => {
-                                if self.knob_shape(ctx.local_bounds()).hit_test(position) {
+                                if self.knob_shape(ctx.bounds()).hit_test(position) {
                                     ctx.request_render();
                                     self.state = State::KnobHover;
                                 }
                             },
                             State::KnobHover => {
-                                if !self.knob_shape(ctx.local_bounds()).hit_test(position) {
+                                if !self.knob_shape(ctx.bounds()).hit_test(position) {
                                     ctx.request_render();
                                     self.state = State::Idle;
                                 }
                             },
                             State::Dragging => {
-                                let normalized_position = ((position.x - ctx.local_bounds().left()) / ctx.local_bounds().width()).clamp(0.0, 1.0);
+                                let normalized_position = ((position.x - ctx.bounds().left()) / ctx.bounds().width()).clamp(0.0, 1.0);
                                 println!("{}", normalized_position);
                                 if normalized_position != self.position_normalized {
                                     self.position_normalized = normalized_position;
@@ -129,7 +131,7 @@ impl Widget for SliderWidget {
                                 }
                             }
                             ctx.request_render();
-                            self.state = if self.knob_shape(ctx.local_bounds()).hit_test(position) {
+                            self.state = if self.knob_shape(ctx.bounds()).hit_test(position) {
                                 State::KnobHover
                             } else {
                                 State::Idle
@@ -143,12 +145,18 @@ impl Widget for SliderWidget {
         };
     }
 
-    fn layout(&mut self, constraint: crate::core::Constraint, _ctx: &mut crate::LayoutContext) -> Size {
-        constraint.clamp(Size::new(100.0, 20.0))
+    fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
+        ctx.compute_leaf_layout(inputs, |known_size, available_space| {
+            known_size.unwrap_or(available_space.map(|x| match x {
+                taffy::AvailableSpace::Definite(x) => x,
+                taffy::AvailableSpace::MinContent => 5.0,
+                taffy::AvailableSpace::MaxContent => 100.0,
+            }))
+        })
     }
 
-    fn render(&mut self, ctx: &mut crate::RenderContext) {
-        let bounds = ctx.local_bounds();
+    fn render(&mut self, ctx: &mut RenderContext) {
+        let bounds = ctx.global_bounds();
         let center = bounds.center();
         let width = bounds.width();
         let knob_color = match self.state {
@@ -160,9 +168,12 @@ impl Widget for SliderWidget {
         ctx.fill(Rectangle::from_center(center, Size::new(width, 2.0)), Color::BLACK);
         ctx.fill(self.knob_shape(bounds), knob_color);
     }
-
-    fn layout_hint(&self) -> (LayoutHint, LayoutHint) {
-        (LayoutHint::Flexible, LayoutHint::Fixed)
+    
+    fn style(&self) -> taffy::Style {
+        taffy::Style {
+            size: taffy::Size { width: taffy::Dimension::Auto, height: taffy::Dimension::Length(5.0) },
+            ..Default::default()
+        }
     }
 }
 

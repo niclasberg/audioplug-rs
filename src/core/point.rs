@@ -12,6 +12,18 @@ impl<T> Point<T> {
     pub fn new(x: T, y: T) -> Self {
         Self { x, y }
     }
+
+    pub fn map<U>(self, f: impl Fn(T) -> U) -> Point<U> {
+        Point::new(f(self.x), f(self.y))
+    }
+
+    pub fn map_x(self, f: impl Fn(T) -> T) -> Self {
+        Self::new(f(self.x), self.y)
+    }
+
+    pub fn map_y(self, f: impl Fn(T) -> T) -> Self {
+        Self::new(self.x, f(self.y))
+    }
 }
 
 impl Point<f64> {
