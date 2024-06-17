@@ -1,5 +1,5 @@
-use crate::{core::{Color, Shape, Size}, event::MouseButton, Event, Id, MouseEvent};
-use super::{BuildContext, EventContext, LayoutContext, RenderContext, View, Widget, WidgetNode};
+use crate::{core::{Color, Shape, Size}, event::MouseButton, Id, MouseEvent};
+use super::{BuildContext, EventContext, EventStatus, LayoutContext, RenderContext, View, Widget, WidgetNode};
 
 pub struct Button<V> {
     child: V,
@@ -21,6 +21,7 @@ impl<V: View> View for Button<V> {
     type Element = ButtonWidget; 
 
     fn build(self, ctx: &mut BuildContext) -> Self::Element {
+        ctx.set_focusable(true);
         ButtonWidget {
             child: ctx.build_child(Id(0), self.child),
             is_hot: false,
@@ -38,39 +39,39 @@ pub struct ButtonWidget {
 }
 
 impl Widget for ButtonWidget {
-    fn event(&mut self, event: crate::Event, ctx: &mut EventContext) {
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) -> EventStatus {
         match event {
-            Event::Mouse(mouse_event) => match mouse_event {
-                MouseEvent::Down { button, position } if ctx.bounds().contains(position) => {
-                    ctx.set_handled();
-                    if button == MouseButton::LEFT {
-                        self.mouse_down = true;
-                        ctx.request_render();
-                    }
-                },
-                MouseEvent::Up { button, position } if button == MouseButton::LEFT => {
-                    if self.mouse_down {
-                        self.mouse_down = false;
-                        ctx.set_handled();
-                        if ctx.bounds().contains(position) {
-                            ctx.request_render();
-                            if let Some(f) = self.click_fn.as_ref() {
-                                f();
-                            }
-                        }
-                    }
-                },
-                MouseEvent::Enter  => {
-                    self.is_hot = true;
-                    ctx.request_render();
-                },
-                MouseEvent::Exit  => {
-                    self.is_hot = false;
+            MouseEvent::Down { button, position } if ctx.bounds().contains(position) => {
+                if button == MouseButton::LEFT {
+                    self.mouse_down = true;
+                    ctx.capture_mouse();
                     ctx.request_render();
                 }
-                _ => {}
+                EventStatus::Handled
             },
-            _ => {}
+            MouseEvent::Up { button, position } if button == MouseButton::LEFT => {
+                if self.mouse_down {
+                    self.mouse_down = false;
+                    if ctx.bounds().contains(position) {
+                        ctx.request_render();
+                        if let Some(f) = self.click_fn.as_ref() {
+                            f();
+                        }
+                    }
+                }
+                EventStatus::Handled
+            },
+            MouseEvent::Enter  => {
+                self.is_hot = true;
+                ctx.request_render();
+                EventStatus::Handled
+            },
+            MouseEvent::Exit  => {
+                self.is_hot = false;
+                ctx.request_render();
+                EventStatus::Handled
+            }
+            _ => EventStatus::Ignored
         }
     }
 

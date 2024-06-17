@@ -1,6 +1,6 @@
 use crate::{core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, Event, MouseEvent};
 
-use super::{BuildContext, EventContext, LayoutContext, RenderContext, View, Widget};
+use super::{BuildContext, EventContext, EventStatus, LayoutContext, RenderContext, View, Widget};
 
 pub struct Slider {
     min: f64,
@@ -80,69 +80,66 @@ impl SliderWidget {
 }
 
 impl Widget for SliderWidget {
-    fn event(&mut self, event: Event, ctx: &mut EventContext) {
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) -> EventStatus {
         match event {
-            Event::Mouse(mouse_event) => {
-                match mouse_event {
-                    MouseEvent::Down { button, position } => {
+            MouseEvent::Down { button, position } => {
+                if self.knob_shape(ctx.bounds()).hit_test(position) {
+                    if button == MouseButton::LEFT && self.state != State::Dragging {
+                        ctx.request_render();
+                        if let Some(f) = self.on_drag_start.as_ref() {
+                            f();
+                        }
+                        self.state = State::Dragging;
+                    }
+                }
+                EventStatus::Handled
+            },
+            MouseEvent::Moved { position } => {
+                match self.state {
+                    State::Idle => {
                         if self.knob_shape(ctx.bounds()).hit_test(position) {
-                            ctx.set_handled();
-                            if button == MouseButton::LEFT && self.state != State::Dragging {
-                                ctx.request_render();
-                                if let Some(f) = self.on_drag_start.as_ref() {
-                                    f();
-                                }
-                                self.state = State::Dragging;
-                            }
-                        }
-                    },
-                    MouseEvent::Moved { position } => {
-                        match self.state {
-                            State::Idle => {
-                                if self.knob_shape(ctx.bounds()).hit_test(position) {
-                                    ctx.request_render();
-                                    self.state = State::KnobHover;
-                                }
-                            },
-                            State::KnobHover => {
-                                if !self.knob_shape(ctx.bounds()).hit_test(position) {
-                                    ctx.request_render();
-                                    self.state = State::Idle;
-                                }
-                            },
-                            State::Dragging => {
-                                let normalized_position = ((position.x - ctx.bounds().left()) / ctx.bounds().width()).clamp(0.0, 1.0);
-                                println!("{}", normalized_position);
-                                if normalized_position != self.position_normalized {
-                                    self.position_normalized = normalized_position;
-                                    ctx.request_render();
-                                    if let Some(f) = self.on_value_changed.as_ref() {
-                                        f(self.min + (self.max - self.min) * self.position_normalized);
-                                    }
-                                }
-                            },
-                        }
-                    },
-                    MouseEvent::Up { button, position } => {
-                        ctx.set_handled();
-                        if button == MouseButton::LEFT {
-                            if self.state == State::Dragging {
-                                if let Some(f) = self.on_drag_end.as_ref() {
-                                }
-                            }
                             ctx.request_render();
-                            self.state = if self.knob_shape(ctx.bounds()).hit_test(position) {
-                                State::KnobHover
-                            } else {
-                                State::Idle
-                            };
+                            self.state = State::KnobHover;
+                        }
+                    },
+                    State::KnobHover => {
+                        if !self.knob_shape(ctx.bounds()).hit_test(position) {
+                            ctx.request_render();
+                            self.state = State::Idle;
+                        }
+                    },
+                    State::Dragging => {
+                        let normalized_position = ((position.x - ctx.bounds().left()) / ctx.bounds().width()).clamp(0.0, 1.0);
+                        println!("{}", normalized_position);
+                        if normalized_position != self.position_normalized {
+                            self.position_normalized = normalized_position;
+                            ctx.request_render();
+                            if let Some(f) = self.on_value_changed.as_ref() {
+                                f(self.min + (self.max - self.min) * self.position_normalized);
+                            }
+                        }
+                    },
+                }
+                EventStatus::Handled
+            },
+            MouseEvent::Up { button, position } => {
+                if button == MouseButton::LEFT {
+                    if self.state == State::Dragging {
+                        if let Some(f) = self.on_drag_end.as_ref() {
+                            f()
                         }
                     }
-                    _ => {}
+                    ctx.request_render();
+                    self.state = if self.knob_shape(ctx.bounds()).hit_test(position) {
+                        State::KnobHover
+                    } else {
+                        State::Idle
+                    };
                 }
-            },
-            _ => {}
-        };
+                EventStatus::Handled
+            }
+            _ => EventStatus::Ignored
+        }
     }
 
     fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {

@@ -29,10 +29,6 @@ pub struct ScrollWidget {
 }
 
 impl Widget for ScrollWidget {
-    fn event(&mut self, event: crate::Event, ctx: &mut super::EventContext) {
-        
-    }
-
     fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut super::LayoutContext) -> taffy::LayoutOutput {
         self.child.layout(inputs, ctx)
     }

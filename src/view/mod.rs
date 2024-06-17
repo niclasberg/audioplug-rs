@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::{event::Event, core::Color}; 
+use crate::{core::Color, event::{Event, KeyEvent}, MouseEvent}; 
 
 mod view_node;
 mod view_sequence;
@@ -18,6 +18,8 @@ mod filled;
 mod contexts;
 mod styled;
 mod scroll;
+mod widget_id;
+mod message;
 
 pub use button::Button;
 pub use linear_layout::{Column, Row};
@@ -29,6 +31,8 @@ pub use filled::*;
 pub use contexts::*;
 pub use styled::*;
 pub use scroll::*;
+pub use widget_id::WidgetId;
+pub use message::*;
 
 pub trait View: Sized {
     type Element: Widget + 'static;
@@ -80,8 +84,23 @@ impl View for Box<dyn AnyView> {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum EventStatus {
+    Handled,
+    Ignored
+}
+
 pub trait Widget {
-    fn event(&mut self, event: Event, ctx: &mut EventContext);
+    fn mouse_event(&mut self, _event: MouseEvent, _ctx: &mut EventContext) -> EventStatus {
+        EventStatus::Ignored
+    }
+
+    fn key_event(&mut self, _event: KeyEvent, _ctx: &mut EventContext) -> EventStatus {
+        EventStatus::Ignored
+    }
+
+    fn focus_changed(&mut self, _has_focus: bool, _ctx: &mut EventContext) {}
+
     fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput;
     fn style(&self) -> taffy::Style;
     fn render(&mut self, ctx: &mut RenderContext);
@@ -95,8 +114,12 @@ pub trait Widget {
 }
 
 impl Widget for Box<dyn Widget> {
-    fn event(&mut self, event: Event, ctx: &mut EventContext) {
-        self.deref_mut().event(event, ctx)
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) -> EventStatus {
+        self.deref_mut().mouse_event(event, ctx)
+    }
+
+    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
+        self.deref_mut().key_event(event, ctx)
     }
 
     fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
@@ -151,8 +174,12 @@ pub struct BackgroundWidget<W> {
 }
 
 impl<W: Widget> Widget for BackgroundWidget<W> {
-    fn event(&mut self, event: Event, ctx: &mut EventContext) {
-        self.widget.event(event, ctx)
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) -> EventStatus {
+        self.widget.mouse_event(event, ctx)
+    }
+
+    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
+        self.widget.key_event(event, ctx)
     }
 
     fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {

@@ -1,15 +1,17 @@
-use crate::{Id, core::{Rectangle, Point, Color, Transform, Shape}, text::TextLayout};
+use crate::{core::{Color, Point, Rectangle, Shape, Transform}, text::TextLayout, window::WindowState, Id};
 use super::{IdPath, View, ViewFlags, Widget, WidgetData, WidgetNode};
 use crate::platform;
 
-pub struct BuildContext {
-    id_path: IdPath
+pub struct BuildContext<'a> {
+    id_path: IdPath,
+    widget_data: &'a mut WidgetData,
 }
 
-impl<'a> BuildContext {
-    pub fn root() -> Self {
+impl<'a> BuildContext<'a> {
+    pub fn root(widget_data: &'a mut WidgetData) -> Self {
         Self {
-            id_path: IdPath::root()
+            id_path: IdPath::root(),
+            widget_data
         }
     }
 
@@ -17,12 +19,23 @@ impl<'a> BuildContext {
         &self.id_path
     }
 
+    pub fn set_focusable(&mut self, focusable: bool) {
+        if focusable {
+            self.widget_data.set_flag(ViewFlags::FOCUSABLE)
+        } else {
+            self.widget_data.clear_flag(ViewFlags::FOCUSABLE)
+        }
+    }
+
     pub fn build_child<'s, V: View>(&'s mut self, id: Id, view: V) -> WidgetNode {
-        self.id_path.push(id);
-        let widget = Box::new(view.build(self));
         let mut data = WidgetData::new(self.id_path.clone());
+        let mut id_path = self.id_path.clone();
+        id_path.push_child(id);
+        let widget = Box::new(view.build(&mut BuildContext {
+            id_path,
+            widget_data: &mut data
+        }));
         data.style = widget.style();
-        self.id_path.pop();
         WidgetNode {
             widget,
             data
@@ -136,14 +149,15 @@ impl<'a, 'b, 'c, 'd> taffy::LayoutPartialTree for LayoutNodeRef<'a, 'b, 'c, 'd> 
     }
 }
 
-pub struct RenderContext<'a, 'b, 'c> {
+pub struct RenderContext<'a, 'b, 'c, 'd> {
     widget_data: &'a mut WidgetData,
     renderer: &'b mut platform::RendererRef<'c>,
+    window_state: &'d mut WindowState
 }
 
-impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
-    pub(crate) fn new(widget_data: &'a mut WidgetData, renderer: &'b mut platform::RendererRef<'c>) -> Self {
-        Self { widget_data, renderer}
+impl<'a, 'b, 'c, 'd> RenderContext<'a, 'b, 'c, 'd> {
+    pub(crate) fn new(widget_data: &'a mut WidgetData, renderer: &'b mut platform::RendererRef<'c>, window_state: &'d mut WindowState) -> Self {
+        Self { widget_data, renderer, window_state }
     }
 
     pub fn local_bounds(&self) -> Rectangle {
@@ -152,6 +166,11 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
 
     pub fn global_bounds(&self) -> Rectangle {
         self.widget_data.global_bounds()
+    }
+
+    pub fn has_focus(&self) -> bool {
+        self.window_state.focus_view.as_ref()
+            .is_some_and(|id_path| *id_path == *self.widget_data.id_path())
     }
 
     pub fn fill(&mut self, shape: impl Into<Shape>, color: impl Into<Color>) {
@@ -178,7 +197,7 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
                     corner_radius, 
                     color.into(), 
                     line_width),
-            Shape::Ellipse { center, radii } => todo!(),
+            Shape::Ellipse { center, radii } => self.renderer.draw_ellipse(center, radii, color.into(), line_width),
             Shape::Line { p0, p1 } => self.renderer.draw_line(p0, p1, color.into(), line_width)
         }
     }
@@ -187,7 +206,7 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
         self.renderer.draw_text(&text_layout.0, position)
     }
 
-    pub fn use_clip(&mut self, rect: impl Into<Rectangle>, f: impl FnOnce(&mut RenderContext<'_, '_, 'c>)) {
+    pub fn use_clip(&mut self, rect: impl Into<Rectangle>, f: impl FnOnce(&mut RenderContext<'_, '_, 'c, 'd>)) {
         self.renderer.save();
         self.renderer.clip(rect.into());
         f(self);
@@ -198,48 +217,50 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
         self.renderer.transform(transform.into());
     }
 
-    pub(super) fn with_child<'d>(&mut self, widget_data: &'d mut WidgetData, f: impl FnOnce(&mut RenderContext<'d, '_, 'c>)) {
+    pub(super) fn with_child<'e>(&mut self, widget_data: &'e mut WidgetData, f: impl FnOnce(&mut RenderContext<'e, '_, 'c, '_>)) {
         f(&mut RenderContext { 
             widget_data,
-            renderer: self.renderer
+            renderer: self.renderer,
+            window_state: self.window_state
         });
     }
 }
 
 pub struct EventContext<'a, 'b, 'c> {
     widget_data: &'a mut WidgetData,
-    is_handled: &'b mut bool,
+    window_state: &'b mut WindowState,
 	handle: &'b platform::HandleRef<'c>
 }
 
 impl<'a, 'b, 'c> EventContext<'a, 'b, 'c> {
-    pub fn new(widget_data: &'a mut WidgetData, is_handled: &'b mut bool, handle: &'b platform::HandleRef<'c>) -> Self{
-        Self { widget_data, is_handled, handle }
+    pub fn new(widget_data: &'a mut WidgetData, window_state: &'b mut WindowState, handle: &'b platform::HandleRef<'c>) -> Self{
+        Self { widget_data, window_state, handle }
     }
 
     pub fn bounds(&self) -> Rectangle {
         self.widget_data.global_bounds()
     }
 
-    pub(super) fn with_child<'d>(&mut self, widget_data: &'d mut WidgetData, f: impl FnOnce(&mut EventContext<'d, '_, '_>) -> ViewFlags) {
+    pub(crate) fn with_child<'d>(&mut self, widget_data: &'d mut WidgetData, f: impl FnOnce(&mut EventContext<'d, '_, '_>) -> ViewFlags) {
         let flags = {
             let mut ctx = EventContext { 
                 widget_data,
-                is_handled: self.is_handled,
+                window_state: self.window_state,
                 handle: self.handle
             };
-            f(&mut ctx)
+            f(&mut ctx);
+            ctx.view_flags()
         };
 
         self.widget_data.flags |= flags & (ViewFlags::NEEDS_LAYOUT | ViewFlags::NEEDS_RENDER);
     }
 
-    pub fn set_handled(&mut self) {
-        *self.is_handled = true;
+    pub fn capture_mouse(&mut self) {
+        self.window_state.mouse_capture_view = Some(self.widget_data.id_path().clone())
     }
 
-    pub fn is_handled(&self) -> bool {
-        *self.is_handled
+    pub fn take_focus(&mut self) {
+        self.window_state.focus_view = Some(self.widget_data.id_path().clone())
     }
 
     pub fn request_layout(&mut self) {

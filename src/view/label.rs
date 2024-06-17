@@ -57,8 +57,6 @@ impl Widget for TextWidget {
         self.text_layout.set_max_size(ctx.global_bounds().size());
         ctx.draw_text(&self.text_layout, ctx.global_bounds().top_left())
     }
-
-    fn event(&mut self, _event: crate::Event, _ctx: &mut EventContext) {}
     
     fn style(&self) -> taffy::Style {
         Default::default()

@@ -1,10 +1,11 @@
 use taffy::style_helpers::FromLength;
 
-use crate::{Event, Id};
+use crate::event::KeyEvent;
+use crate::MouseEvent;
 use crate::view::{ViewSequence, View, BuildContext, EventContext, LayoutContext};
-use crate::core::{Alignment, Axis};
+use crate::core::Alignment;
 
-use super::{RenderContext, Widget, WidgetNode};
+use super::{EventStatus, RenderContext, Widget, WidgetNode};
 
 pub struct Column<VS: ViewSequence> {
     view_seq: VS,
@@ -92,10 +93,15 @@ pub struct LinearLayoutWidget {
 }
 
 impl Widget for LinearLayoutWidget {
-    fn event(&mut self, event: Event, ctx: &mut EventContext) {
-        for widget in self.widgets.iter_mut() {
-            widget.event(event.clone(), ctx);
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) -> EventStatus {
+        let mut status = EventStatus::Ignored;
+        for widget in self.widgets.iter_mut().rev() {
+            status = widget.mouse_event(event.clone(), ctx);
+            if status == EventStatus::Handled {
+                break;
+            }
         }
+        status
     }
 
     fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {

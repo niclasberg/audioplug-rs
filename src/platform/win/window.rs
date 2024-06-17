@@ -9,7 +9,7 @@ use windows::{core::{PCWSTR, w  , Result, Error},
         Graphics::Gdi::{self, InvalidateRect}}};
 
 use super::{com, Renderer, keyboard::{vk_to_key, get_modifiers, KeyFlags}, Handle};
-use crate::{core::{Color, Point, Rectangle}, Event, event::{MouseEvent, WindowEvent, KeyEvent}, window::WindowHandler, keyboard::{Modifiers, Key}};
+use crate::{core::{Color, Point, Rectangle}, event::{AnimationFrame, KeyEvent, MouseEvent}, keyboard::{Key, Modifiers}, platform::WindowEvent, window::WindowHandler, Event};
 use crate::event::MouseButton;
 
 const WINDOW_CLASS: PCWSTR = w!("my_window");
@@ -63,9 +63,9 @@ struct WindowState {
 }
 
 impl WindowState {
-    fn publish_event(&self, hwnd: HWND, event: Event) {
+    fn publish_event(&self, hwnd: HWND, event: WindowEvent) {
         let mut handle = Handle::new(hwnd);
-        self.handler.borrow_mut().event(event, &mut handle);
+        self.handler.borrow_mut().event(event.into(), &mut handle);
     }
 
     fn handle_message(&self, hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
@@ -127,18 +127,18 @@ impl WindowState {
                 }
 
                 let window_event = WindowEvent::Resize { new_size: [width, height].into() };
-                self.publish_event(hwnd, Event::Window(window_event));
+                self.publish_event(hwnd, window_event);
                 unsafe { InvalidateRect(hwnd, None, false) };
                 Some(LRESULT(0))
             },
 
             WM_SETFOCUS => {
-                self.publish_event(hwnd, Event::Window(WindowEvent::Focused));
+                self.publish_event(hwnd, WindowEvent::Focused);
                 Some(LRESULT(0))
             },
 
             WM_KILLFOCUS => {
-                self.publish_event(hwnd, Event::Window(WindowEvent::Unfocused));
+                self.publish_event(hwnd, WindowEvent::Unfocused);
                 Some(LRESULT(0))
             },
             
@@ -147,7 +147,7 @@ impl WindowState {
             WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK => {
                 let mouse_event = self.get_mouse_event(message, wparam, lparam);
 
-                self.publish_event(hwnd, Event::Mouse(mouse_event));
+                self.publish_event(hwnd, WindowEvent::Mouse(mouse_event));
                 Some(LRESULT(0))
             },
 
@@ -159,7 +159,7 @@ impl WindowState {
                 if let Some(last_mouse_pos) = last_mouse_pos {
                     // Filter out spurious mouse move events
                     if phys_pos != last_mouse_pos {
-                        self.publish_event(hwnd, Event::Mouse(MouseEvent::Moved { position }));
+                        self.publish_event(hwnd, WindowEvent::Mouse(MouseEvent::Moved { position }));
                     }
                 } else {
                     unsafe { 
@@ -172,8 +172,8 @@ impl WindowState {
                         };
                         TrackMouseEvent(&mut ev).unwrap();
                     };
-                    self.publish_event(hwnd, Event::Mouse(MouseEvent::Enter));
-                    self.publish_event(hwnd, Event::Mouse(MouseEvent::Moved { position }));
+                    self.publish_event(hwnd, WindowEvent::Mouse(MouseEvent::Enter));
+                    self.publish_event(hwnd, WindowEvent::Mouse(MouseEvent::Moved { position }));
                 }
                 Some(LRESULT(0))
             },
@@ -182,7 +182,7 @@ impl WindowState {
                 match wparam.0 {
                     ANIMATION_FRAME_TIMER => {
                         if let Some(timestamp) = self.current_timestamp() {
-                            self.publish_event(hwnd, Event::AnimationFrame { timestamp });
+                            self.publish_event(hwnd, WindowEvent::Animation(AnimationFrame { timestamp }));
                         }
                     },
                     _ => {}
@@ -193,7 +193,7 @@ impl WindowState {
 
             0x02A3 /* WM_MOUSELEAVE */ => {
                 self.last_mouse_pos.replace(None);
-                self.publish_event(hwnd, Event::Mouse(MouseEvent::Exit));
+                self.publish_event(hwnd, WindowEvent::Mouse(MouseEvent::Exit));
                 Some(LRESULT(0))
             },
 
@@ -209,7 +209,7 @@ impl WindowState {
                     debug_assert!(self.current_key_event.borrow().is_none());
                     *(self.current_key_event.borrow_mut()) = Some(TmpKeyEvent { chars: Vec::new(), key });
                 } else {
-                    self.publish_event(hwnd, Event::Keyboard(KeyEvent::KeyDown { key, modifiers, str: None }));
+                    self.publish_event(hwnd, WindowEvent::Key(KeyEvent::KeyDown { key, modifiers, str: None }));
                 }
 
                 Some(LRESULT(0))
@@ -230,7 +230,7 @@ impl WindowState {
                         str
                     };
                     
-                    self.publish_event(hwnd, Event::Keyboard(key_event));
+                    self.publish_event(hwnd, WindowEvent::Key(key_event));
 
                     /*match wparam.0 as u16 {
                         0x08 | 0x0A | 0x1B  => { // backspace, linefeed, escape

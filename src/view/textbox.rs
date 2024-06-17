@@ -2,7 +2,7 @@ use std::ops::Range;
 use crate::{core::{Color, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, Event, MouseEvent};
 use unicode_segmentation::{UnicodeSegmentation, GraphemeCursor};
 
-use super::{BuildContext, EventContext, LayoutContext, RenderContext, View, Widget};
+use super::{BuildContext, EventContext, EventStatus, LayoutContext, RenderContext, View, Widget};
 
 pub struct TextBox {
     width: f64
@@ -270,102 +270,112 @@ const PADDING: f64 = 2.0;
 const CURSOR_DELAY_SECONDS: f64 = 0.5;
 
 impl Widget for TextBoxWidget {
-    fn event(&mut self, event: crate::Event, ctx: &mut EventContext) {
+    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
         let rebuild_text_layout = |this: &mut Self, ctx: &mut EventContext| {
             this.text_layout = TextLayout::new(&this.editor.value, Color::BLACK, Size::INFINITY);
             ctx.request_render();
         };
 
         match event {
-            Event::Keyboard(key_event) => {
-                match key_event {
-                    KeyEvent::KeyDown { key, modifiers, str } =>
-                        match (key, str) {
-                            (Key::BackSpace, _) if modifiers.contains(Modifiers::CONTROL) => {
-                                if self.editor.remove_word_left() {
-                                    rebuild_text_layout(self, ctx);
-                                }
-                            }, 
-                            (Key::BackSpace, _) => {
-                                if self.editor.remove_left() {
-                                    rebuild_text_layout(self, ctx);
-                                }
-                            },
-                            (Key::Delete, _) if modifiers.contains(Modifiers::CONTROL) => {
-                                if self.editor.remove_word_right() {
-                                    rebuild_text_layout(self, ctx);
-                                }
-                            },
-                            (Key::Delete, _) => {
-                                if self.editor.remove_right() {
-                                    rebuild_text_layout(self, ctx);
-                                }
-                            },
-                            (Key::Left, _) if modifiers.contains(Modifiers::CONTROL) => {
-                                if self.editor.move_word_left(modifiers.contains(Modifiers::SHIFT)) {
-                                    ctx.request_render();
-                                }
-                            }
-                            (Key::Left, _) => {
-                                if self.editor.move_left(modifiers.contains(Modifiers::SHIFT)) {
-                                    ctx.request_render();
-                                }
-                            },
-                            (Key::Right, _) if modifiers.contains(Modifiers::CONTROL) => {
-                                if self.editor.move_word_right(modifiers.contains(Modifiers::SHIFT)) {
-                                    ctx.request_render();
-                                }
-                            },
-                            (Key::Right, _) => {
-                                if self.editor.move_right(modifiers.contains(Modifiers::SHIFT)) {
-                                    ctx.request_render();
-                                }
-                            },
-                            (Key::C, _) if modifiers == Modifiers::CONTROL => {
-                                if let Some(selected_text) = self.editor.selected_text() {
-                                    ctx.set_clipboard(selected_text);
-                                }
-                            },
-                            (Key::V, _) if modifiers == Modifiers::CONTROL => {
-                                if let Some(text_to_insert) = ctx.get_clipboard() {
-                                    self.editor.insert(text_to_insert.as_str());
-                                    rebuild_text_layout(self, ctx);
-                                }
-                            },
-                            (Key::X, _) if modifiers == Modifiers::CONTROL => {
-
-                            },
-                            (Key::Tab, _) | (Key::Escape, _) => {
-
-                            },
-                            (_, Some(str)) if !modifiers.contains(Modifiers::CONTROL) => {
-                                self.editor.insert(str.as_str());
-                                rebuild_text_layout(self, ctx);
-                            }
-                            _ => {}
-                        },
-                    _ => {}
-                }
-            },
-            Event::Mouse(mouse) => match mouse {
-                MouseEvent::Down { button, position } if button == MouseButton::LEFT => {
-                    if let Some(new_cursor) = self.text_layout.text_index_at_point(position) {
-                        if self.editor.set_cursor(new_cursor, false) {
+            KeyEvent::KeyDown { key, modifiers, str } =>
+                match (key, str) {
+                    (Key::BackSpace, _) if modifiers.contains(Modifiers::CONTROL) => {
+                        if self.editor.remove_word_left() {
+                            rebuild_text_layout(self, ctx);
+                        }
+                        EventStatus::Handled
+                    }, 
+                    (Key::BackSpace, _) => {
+                        if self.editor.remove_left() {
+                            rebuild_text_layout(self, ctx);
+                        }
+                        EventStatus::Handled
+                    },
+                    (Key::Delete, _) if modifiers.contains(Modifiers::CONTROL) => {
+                        if self.editor.remove_word_right() {
+                            rebuild_text_layout(self, ctx);
+                        }
+                        EventStatus::Handled
+                    },
+                    (Key::Delete, _) => {
+                        if self.editor.remove_right() {
+                            rebuild_text_layout(self, ctx);
+                        }
+                        EventStatus::Handled
+                    },
+                    (Key::Left, _) if modifiers.contains(Modifiers::CONTROL) => {
+                        if self.editor.move_word_left(modifiers.contains(Modifiers::SHIFT)) {
                             ctx.request_render();
                         }
+                        EventStatus::Handled
                     }
+                    (Key::Left, _) => {
+                        if self.editor.move_left(modifiers.contains(Modifiers::SHIFT)) {
+                            ctx.request_render();
+                        }
+                        EventStatus::Handled
+                    },
+                    (Key::Right, _) if modifiers.contains(Modifiers::CONTROL) => {
+                        if self.editor.move_word_right(modifiers.contains(Modifiers::SHIFT)) {
+                            ctx.request_render();
+                        }
+                        EventStatus::Handled
+                    },
+                    (Key::Right, _) => {
+                        if self.editor.move_right(modifiers.contains(Modifiers::SHIFT)) {
+                            ctx.request_render();
+                        }
+                        EventStatus::Handled
+                    },
+                    (Key::C, _) if modifiers == Modifiers::CONTROL => {
+                        if let Some(selected_text) = self.editor.selected_text() {
+                            ctx.set_clipboard(selected_text);
+                        }
+                        EventStatus::Handled
+                    },
+                    (Key::V, _) if modifiers == Modifiers::CONTROL => {
+                        if let Some(text_to_insert) = ctx.get_clipboard() {
+                            self.editor.insert(text_to_insert.as_str());
+                            rebuild_text_layout(self, ctx);
+                        }
+                        EventStatus::Handled
+                    },
+                    (Key::X, _) if modifiers == Modifiers::CONTROL => {
+                        EventStatus::Handled
+                    },
+                    (Key::Tab, _) | (Key::Escape, _) => {
+                        EventStatus::Handled
+                    },
+                    (_, Some(str)) if !modifiers.contains(Modifiers::CONTROL) => {
+                        self.editor.insert(str.as_str());
+                        rebuild_text_layout(self, ctx);
+                        EventStatus::Handled
+                    }
+                    _ => EventStatus::Ignored
                 },
-                _ => {}
-            },
-            Event::AnimationFrame { timestamp } => {
-                if timestamp - self.last_cursor_timestamp > CURSOR_DELAY_SECONDS {
-                    self.cursor_on = !self.cursor_on;
-                    ctx.request_render();
-                    self.last_cursor_timestamp = timestamp;
+            _ => EventStatus::Ignored
+        }
+    }
+
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) -> EventStatus {
+        match event {
+            MouseEvent::Down { button, position } if button == MouseButton::LEFT => {
+                if let Some(new_cursor) = self.text_layout.text_index_at_point(position) {
+                    if self.editor.set_cursor(new_cursor, false) {
+                        ctx.request_render();
+                    }
                 }
+                EventStatus::Handled
+            },
+            _ => EventStatus::Ignored
+        }
+        /*Event::AnimationFrame { timestamp } => {
+            if timestamp - self.last_cursor_timestamp > CURSOR_DELAY_SECONDS {
+                self.cursor_on = !self.cursor_on;
+                ctx.request_render();
+                self.last_cursor_timestamp = timestamp;
             }
-            _ => {}
-        };
+        }*/
     }
     
     fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
@@ -402,7 +412,7 @@ impl Widget for TextBoxWidget {
 
             ctx.draw_text(&self.text_layout, bounds.position());
             
-            if self.cursor_on {
+            if ctx.has_focus() && self.cursor_on {
                 let cursor_point = self.text_layout.point_at_text_index(self.editor.position);
                 let p0 = bounds.bottom_left() + cursor_point; 
                 let p1 = bounds.top_left() + cursor_point;

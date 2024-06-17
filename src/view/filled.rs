@@ -1,4 +1,4 @@
-use crate::core::{Color, Rectangle, Shape, Size};
+use crate::core::{Color, Rectangle, Shape};
 use super::{BuildContext, EventContext, LayoutContext, RenderContext, View, Widget};
 
 
@@ -32,10 +32,6 @@ impl View for Filled {
 }
 
 impl Widget for Filled {
-    fn event(&mut self, _event: crate::Event, _ctx: &mut EventContext) {
-        
-    }
-
     fn layout(&mut self, _inputs: taffy::LayoutInput, _ctx: &mut LayoutContext) -> taffy::LayoutOutput {
         let size = self.shape.bounds().size().map(|x| x as f32);
         taffy::LayoutOutput::from_outer_size(size.into())

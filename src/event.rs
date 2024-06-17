@@ -65,18 +65,11 @@ pub enum KeyEvent {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub enum WindowEvent {
-    Resize {
-        new_size: Size
-    },
-    Focused,
-    Unfocused
+pub struct AnimationFrame { 
+    pub timestamp: f64 
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Event {
-    Mouse(MouseEvent),
-    Window(WindowEvent),
-    Keyboard(KeyEvent),
-    AnimationFrame { timestamp: f64 }
+    
 }

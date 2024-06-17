@@ -8,3 +8,6 @@ mod mac;
 pub use win::*;
 #[cfg(target_os = "macos")]
 pub use mac::*;
+
+mod shared;
+pub use shared::WindowEvent;

@@ -33,8 +33,12 @@ where
     W: Widget,
     F: Fn(&mut taffy::Style)
 {
-    fn event(&mut self, event: Event, ctx: &mut EventContext) {
-        self.widget.event(event, ctx)
+    fn mouse_event(&mut self, event: crate::MouseEvent, ctx: &mut EventContext) -> super::EventStatus {
+        self.widget.mouse_event(event, ctx)
+    }
+
+    fn key_event(&mut self, event: crate::event::KeyEvent, ctx: &mut EventContext) -> super::EventStatus {
+        self.widget.key_event(event, ctx)
     }
 
     fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
