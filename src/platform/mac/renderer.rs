@@ -53,6 +53,15 @@ impl<'a> RendererRef<'a> {
 		self.context.stroke_path();
 	}
 
+	pub fn draw_ellipse(&mut self, origin: Point, radii: Size, color: Color, line_width: f32) {
+		let color = CGColor::from_color(color);
+		self.context.set_stroke_color(&color);
+		self.context.set_line_width(line_width as CGFloat);
+
+		let rect = Rectangle::new(origin - Vector::new(radii.width, radii.height), radii.scale(2.0));
+		self.context.stroke_ellipse_in_rect(rect.into())
+	}
+
     pub fn fill_rectangle(&mut self, rect: Rectangle, color: Color) {
         let color = CGColor::from_color(color);
 		self.context.set_fill_color(&color);

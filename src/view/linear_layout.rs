@@ -1,6 +1,5 @@
 use taffy::style_helpers::FromLength;
 
-use crate::event::KeyEvent;
 use crate::MouseEvent;
 use crate::view::{ViewSequence, View, BuildContext, EventContext, LayoutContext};
 use crate::core::Alignment;

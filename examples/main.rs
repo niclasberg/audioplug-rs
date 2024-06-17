@@ -11,17 +11,15 @@ fn main() {
         Column::new((
             Rectangle::new(Point::ZERO, Size::new(50.0, 10.0)).fill(Color::BLUE),
             Rectangle::new(Point::ZERO, Size::new(50.0, 10.0)).fill(Color::RED),
-            Scroll::new(
-                Row::new((
-                    Label::new("Slider"),
-                    Slider::new().with_range(1.0, 10.0).with_style(|style| {
-                        style.align_self = Some(taffy::AlignItems::Center);
-                    })
-                )).with_spacing(5.0)
-            ),
+			Row::new((
+				Label::new("Slider"),
+				Slider::new().with_range(1.0, 10.0).with_style(|style| {
+					style.align_self = Some(taffy::AlignItems::Center);
+				})
+			)).with_spacing(5.0),
             Row::new((
                 Label::new("Button"),
-                Button::new(Label::new("Filled"))
+                Button::new(Label::new("Filled")).on_click(|| println!("Clicked"))
             )).with_spacing(5.0),
             Row::new((
                 Label::new("Text input").with_color(Color::BLUE),

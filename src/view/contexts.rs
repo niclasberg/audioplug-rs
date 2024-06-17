@@ -28,9 +28,9 @@ impl<'a> BuildContext<'a> {
     }
 
     pub fn build_child<'s, V: View>(&'s mut self, id: Id, view: V) -> WidgetNode {
-        let mut data = WidgetData::new(self.id_path.clone());
-        let mut id_path = self.id_path.clone();
+		let mut id_path = self.id_path.clone();
         id_path.push_child(id);
+        let mut data = WidgetData::new(id_path.clone());
         let widget = Box::new(view.build(&mut BuildContext {
             id_path,
             widget_data: &mut data

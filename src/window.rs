@@ -3,7 +3,7 @@ use raw_window_handle::RawWindowHandle;
 use crate::core::{Point, Rectangle};
 use crate::event::KeyEvent;
 use crate::platform::WindowEvent;
-use crate::view::{BuildContext, EventContext, EventStatus, LayoutNodeRef, RenderContext, View, ViewMessage, ViewMessageBody, Widget, WidgetData, WidgetNode};
+use crate::view::{BuildContext, EventContext, EventStatus, LayoutNodeRef, RenderContext, View, ViewFlags, ViewMessage, ViewMessageBody, Widget, WidgetData, WidgetNode};
 use crate::{platform, IdPath, MouseEvent};
 
 pub trait WindowHandler {
@@ -59,6 +59,15 @@ impl MyHandler {
     fn default_handle_key_event(&mut self, event: KeyEvent) {
 
     }
+
+	fn publish_focus_message(&mut self, focus_view: IdPath, is_focused: bool, handle: &mut platform::HandleRef) {
+		let mut ctx = EventContext::new(&mut self.widget_node.data, &mut self.window_state, handle);
+		let mut msg = ViewMessage {
+			destination: focus_view,
+			body: ViewMessageBody::FocusChanged(is_focused),
+		};
+		msg.handle(&mut self.widget_node.widget, &mut ctx)
+	}
 }
 
 impl WindowHandler for MyHandler {
@@ -69,9 +78,27 @@ impl WindowHandler for MyHandler {
                 handle.invalidate(handle.global_bounds());
 			},
             WindowEvent::Mouse(mouse_event) => {
-                if let Some(mut capture_view) = self.window_state.mouse_capture_view.clone() {
+				match mouse_event {
+					MouseEvent::Down { position, .. } => {
+						let new_focus_view = find_focus_view_at(position, &self.widget_node);
+						if new_focus_view != self.window_state.focus_view {
+							println!("Focus change {:?}, {:?}", self.window_state.focus_view, new_focus_view);
+							if let Some(focus_lost_view) = self.window_state.focus_view.as_ref() {
+								self.publish_focus_message(focus_lost_view.clone(), false, &mut handle);
+							}
+
+							self.window_state.focus_view = new_focus_view.clone();
+
+							if let Some(focus_gained_view) = new_focus_view {
+								self.publish_focus_message(focus_gained_view, true, &mut handle);
+							}
+						}
+					},
+					_ => {}
+				};
+
+                if let Some(capture_view) = self.window_state.mouse_capture_view.clone() {
                     let mut ctx = EventContext::new(&mut self.widget_node.data, &mut self.window_state, &mut handle);
-                    capture_view.pop_root();
                     let mut msg = ViewMessage {
                         destination: capture_view,
                         body: ViewMessageBody::Mouse(mouse_event)
@@ -90,23 +117,20 @@ impl WindowHandler for MyHandler {
                 }
             },
             WindowEvent::Key(key_event) => {
+				let mut event_status = EventStatus::Ignored;
                 if let Some(mut focus_view) = self.window_state.focus_view.clone() {
                     let mut ctx = EventContext::new(&mut self.widget_node.data, &mut self.window_state, &mut handle);
                     focus_view.pop_root();
-                    let event_status = handle_key_event(&mut focus_view, key_event.clone(), &mut self.widget_node.widget, &mut ctx);
-                    if event_status == EventStatus::Ignored {
-                        self.default_handle_key_event(key_event);
-                    }
+                    event_status = handle_key_event(&mut focus_view, key_event.clone(), &mut self.widget_node.widget, &mut ctx);
                 }
+
+				if event_status == EventStatus::Ignored {
+					self.default_handle_key_event(key_event);
+				}
             },
             WindowEvent::Unfocused => {
                 if let Some(focus_view) = self.window_state.focus_view.take() {
-                    let mut ctx = EventContext::new(&mut self.widget_node.data, &mut self.window_state, &mut handle);
-                    let mut msg = ViewMessage {
-                        destination: focus_view,
-                        body: ViewMessageBody::FocusChanged(false),
-                    };
-                    msg.handle(&mut self.widget_node.widget, &mut ctx)
+                    self.publish_focus_message(focus_view, false, &mut handle);
                 }
             },
 			_ => {}
@@ -129,7 +153,25 @@ impl WindowHandler for MyHandler {
     }
 }
 
-pub(crate) fn handle_key_event(id_path: &mut IdPath, event: KeyEvent, widget: &mut dyn Widget, ctx: &mut EventContext) -> EventStatus {
+fn find_focus_view_at(position: Point, widget_node: &WidgetNode) -> Option<IdPath> {
+	if !widget_node.data().global_bounds().contains(position) {
+		return None;
+	}
+
+	let child_focus_view = (0..widget_node.widget.child_count()).rev().find_map(|i| {
+		find_focus_view_at(position, widget_node.widget.get_child(i))
+	});
+
+	if child_focus_view.is_some() {
+		child_focus_view
+	} else if widget_node.data().flag_is_set(ViewFlags::FOCUSABLE) {
+		Some(widget_node.data().id_path().clone())
+	} else {
+		None
+	}
+}
+
+fn handle_key_event(id_path: &mut IdPath, event: KeyEvent, widget: &mut dyn Widget, ctx: &mut EventContext) -> EventStatus {
     let mut status = EventStatus::Ignored;
     if let Some(child_id) = id_path.pop_root() {
         if child_id.0 < widget.child_count() {

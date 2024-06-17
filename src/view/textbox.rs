@@ -378,6 +378,10 @@ impl Widget for TextBoxWidget {
             }
         }*/
     }
+
+	fn focus_changed(&mut self, _has_focus: bool, ctx: &mut EventContext) {
+		ctx.request_render();
+	}
     
     fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
         let size = self.text_layout.measure();
@@ -401,7 +405,9 @@ impl Widget for TextBoxWidget {
 
     fn render(&mut self, ctx: &mut RenderContext) {
         let bounds = ctx.global_bounds();
-        ctx.stroke(bounds, Color::RED, 1.0);
+
+		let stroke_color = if ctx.has_focus() { Color::RED } else { Color::from_rgb(0.3, 0.3, 0.3) };
+        ctx.stroke(bounds, stroke_color, 1.0);
 
         ctx.use_clip(bounds, |ctx| {
             if let Some(selection) = self.editor.selection() {

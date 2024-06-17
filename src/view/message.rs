@@ -8,11 +8,18 @@ pub struct ViewMessage {
 }
 
 impl ViewMessage {
-    pub(crate) fn handle(&mut self, widget: &mut dyn Widget, ctx: &mut EventContext) {
+	pub(crate) fn handle(&mut self, widget: &mut dyn Widget, ctx: &mut EventContext) {
+		self.destination.pop_root();
+		self.handle_impl(widget, ctx)
+	}
+
+    fn handle_impl(&mut self, widget: &mut dyn Widget, ctx: &mut EventContext) {
         if let Some(child_id) = self.destination.pop_root() {
-            if child_id.0 < widget.child_count() {
-                self.handle(&mut widget.get_child_mut(child_id.0).widget, ctx)
-            }
+			let child = widget.get_child_mut(child_id.0);
+			ctx.with_child(&mut child.data, |ctx| {
+				self.handle_impl(&mut child.widget, ctx);
+				ctx.view_flags()
+			});
         } else {
             match self.body {
                 ViewMessageBody::Mouse(mouse_event) => {

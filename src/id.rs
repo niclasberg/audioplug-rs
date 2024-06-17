@@ -37,9 +37,9 @@ impl IdPath {
     }
 
     pub fn with_child_id<T>(&mut self, id: Id, f: impl FnOnce(&Self) -> T) -> T {
-        self.0.push_back(id);
+        self.push_child(id);
         let result = f(self);
-        self.0.pop_back();
+        self.pop_child();
         result
     }
 }

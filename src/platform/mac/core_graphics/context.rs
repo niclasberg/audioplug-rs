@@ -48,6 +48,10 @@ impl CGContext {
 		unsafe { CGContextFillEllipseInRect(self, rect) }
 	}
 
+	pub fn stroke_ellipse_in_rect(&self, rect: CGRect) {
+		unsafe { CGContextStrokeEllipseInRect(self, rect) }
+	}
+
 	pub fn clip_to_rect(&self, rect: CGRect) {
 		unsafe { CGContextClipToRect(self, rect) }
 	}
@@ -142,7 +146,9 @@ extern "C" {
 	fn CGContextAddLineToPoint(c: *const CGContext, x: CGFloat, y: CGFloat);
 	fn CGContextFillPath(c: *const CGContext);
 	fn CGContextStrokePath(c: *const CGContext);
+
 	fn CGContextFillEllipseInRect(c: *const CGContext, rect: CGRect);
+	fn CGContextStrokeEllipseInRect(c: *const CGContext, rect: CGRect);
 
 	fn CGContextGetTextPosition(c: *const CGContext) -> CGPoint;
 	fn CGContextSetTextPosition(c: *const CGContext, x: CGFloat, y: CGFloat);

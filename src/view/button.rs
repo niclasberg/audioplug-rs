@@ -1,4 +1,4 @@
-use crate::{core::{Color, Shape, Size}, event::MouseButton, Id, MouseEvent};
+use crate::{core::{Color, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, Id, MouseEvent};
 use super::{BuildContext, EventContext, EventStatus, LayoutContext, RenderContext, View, Widget, WidgetNode};
 
 pub struct Button<V> {
@@ -74,6 +74,18 @@ impl Widget for ButtonWidget {
             _ => EventStatus::Ignored
         }
     }
+
+	fn key_event(&mut self, event: KeyEvent, _ctx: &mut EventContext) -> EventStatus {
+		match event {
+			KeyEvent::KeyDown { key, ..} if key == Key::Enter => {
+				if let Some(f) = self.click_fn.as_ref() {
+					f();
+				} 
+				EventStatus::Handled
+			},
+			_ => EventStatus::Ignored
+		}
+	}
 
     fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
         ctx.compute_block_layout(self, inputs)

@@ -7,9 +7,9 @@ use objc2::runtime::{NSObject, NSObjectProtocol};
 use objc2::{declare_class, DeclaredClass, mutability, ClassType, msg_send_id};
 
 use crate::core::Point;
-use crate::event::{MouseButton, KeyEvent};
+use crate::event::{MouseButton, KeyEvent, MouseEvent};
 use crate::platform::mac::keyboard::{key_from_code, get_modifiers};
-use crate::{MouseEvent, Event};
+use crate::platform::WindowEvent;
 use super::{RendererRef, HandleRef};
 use crate::window::WindowHandler;
 
@@ -48,13 +48,13 @@ declare_class!(
 			let str = unsafe { event.characters() };
 			let str = str.map(|str| str.to_string()).filter(|str| str.len() > 0);
 			let key_event = KeyEvent::KeyDown { key, modifiers, str };
-			self.dispatch_event(Event::Keyboard(key_event));
+			self.dispatch_event(WindowEvent::Key(key_event));
 		}
 
 		#[method(mouseDown:)]
         fn mouse_down(&self, event: &NSEvent) {
 			if let (Some(button), Some(position)) = (mouse_button(event), self.mouse_position(event)) {
-				self.dispatch_event(Event::Mouse(
+				self.dispatch_event(WindowEvent::Mouse(
 					MouseEvent::Down { button, position }
 				))
 			}
@@ -63,7 +63,7 @@ declare_class!(
 		#[method(mouseUp:)]
         fn mouse_up(&self, event: &NSEvent) {
 			if let (Some(button), Some(position)) = (mouse_button(event), self.mouse_position(event)) {
-				self.dispatch_event(Event::Mouse(
+				self.dispatch_event(WindowEvent::Mouse(
 					MouseEvent::Up { button, position }
 				))
 			}
@@ -72,7 +72,7 @@ declare_class!(
 		#[method(mouseMoved:)]
         fn mouse_moved(&self, event: &NSEvent) {
             if let Some(position) = self.mouse_position(event) {
-				self.dispatch_event(Event::Mouse(
+				self.dispatch_event(WindowEvent::Mouse(
 					MouseEvent::Moved { position }
 				))
 			}
@@ -133,7 +133,7 @@ impl View {
 		this
 	}
 
-	fn dispatch_event(&self, event: Event) {
+	fn dispatch_event(&self, event: WindowEvent) {
 		self.ivars().handler.borrow_mut().event(event, HandleRef::new(&self) )
 	}
 
