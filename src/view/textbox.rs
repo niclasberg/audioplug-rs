@@ -19,7 +19,8 @@ impl TextBox {
 impl View for TextBox {
     type Element = TextBoxWidget;
 
-    fn build(self, _ctx: &mut BuildContext) -> Self::Element {
+    fn build(self, ctx: &mut BuildContext) -> Self::Element {
+        ctx.set_focusable(true);
         TextBoxWidget { 
             width: self.width,
             editor: Editor::new(""), 
