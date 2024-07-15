@@ -43,6 +43,7 @@ impl Widget for ButtonWidget {
         match event {
             MouseEvent::Down { button, position } if ctx.bounds().contains(position) => {
                 if button == MouseButton::LEFT {
+                    println!("Down");
                     self.mouse_down = true;
                     ctx.capture_mouse();
                     ctx.request_render();
@@ -61,18 +62,14 @@ impl Widget for ButtonWidget {
                 }
                 EventStatus::Handled
             },
-            MouseEvent::Enter  => {
-                self.is_hot = true;
-                ctx.request_render();
-                EventStatus::Handled
-            },
-            MouseEvent::Exit  => {
-                self.is_hot = false;
-                ctx.request_render();
-                EventStatus::Handled
-            }
             _ => EventStatus::Ignored
         }
+    }
+
+    fn mouse_enter_exit(&mut self, has_mouse_over: bool, ctx: &mut EventContext)  -> EventStatus {
+        self.is_hot = has_mouse_over;
+        ctx.request_render();
+        EventStatus::Handled
     }
 
 	fn key_event(&mut self, event: KeyEvent, _ctx: &mut EventContext) -> EventStatus {

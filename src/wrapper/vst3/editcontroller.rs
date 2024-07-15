@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use vst3_com::VstPtr;
 use vst3_com::vst::{kRootUnitId, ParameterFlags};
@@ -9,6 +10,7 @@ use vst3_sys::vst::{IEditController, ParameterInfo, IComponentHandler};
 
 use vst3_sys as vst3_com;
 
+use crate::app::AppState;
 use crate::param::{Parameter, FloatParameter, FloatRange, NormalizedValue, PlainValue};
 
 use super::plugview::PlugView;
@@ -20,6 +22,7 @@ pub struct EditController {
     component_handler: RefCell<Option<VstPtr<dyn IComponentHandler>>>,
     parameters: Vec<Parameter>,
     parameter_values: RefCell<Vec<NormalizedValue>>,
+    app_state: Rc<RefCell<AppState>>
 }
 
 impl EditController {
@@ -35,7 +38,7 @@ impl EditController {
             param.default_normalized()
         }).collect();
 
-        Self::allocate(RefCell::new(None), parameters, RefCell::new(parameter_values))
+        Self::allocate(RefCell::new(None), parameters, RefCell::new(parameter_values), Rc::new(RefCell::new(AppState::new())))
     }
 
     pub fn create_instance() -> *mut c_void {
@@ -124,7 +127,7 @@ impl IEditController for EditController {
     }
 
     unsafe fn create_view(&self, _name: FIDString) -> *mut c_void {
-        PlugView::create_instance((*self.component_handler.borrow()).clone())
+        PlugView::create_instance((*self.component_handler.borrow()).clone(), self.app_state.clone())
     }
 }
 

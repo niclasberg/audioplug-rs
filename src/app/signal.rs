@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{reactive_graph::{RefCountMap, WeakRefCountMap}, NodeId, SignalContext, SignalGet, SignalSet, SignalUpdate};
+use super::{RefCountMap, WeakRefCountMap, NodeId, SignalContext, SignalGet, SignalSet, SignalUpdate};
 
 pub struct Signal<T> {
     pub(super) id: NodeId,
@@ -10,6 +10,7 @@ pub struct Signal<T> {
 
 impl<T: Any> Signal<T> {
     pub(super) fn new(id: NodeId, ref_count_map: WeakRefCountMap) -> Self {
+        RefCountMap::insert(&ref_count_map, id);
         Self {
             id,
             ref_count_map,
@@ -17,7 +18,7 @@ impl<T: Any> Signal<T> {
         }
     }
 
-    pub fn update(&self, cx: &mut dyn SignalContext, f: impl Fn(&T) -> T) {
+    pub fn update(&self, cx: &mut impl SignalContext, f: impl Fn(&T) -> T) {
         let new_value = self.with_ref_untracked(cx, f);
         self.set(cx, new_value);
     }
@@ -43,7 +44,7 @@ impl<T> Drop for Signal<T> {
 impl<T: Any> SignalSet for Signal<T> {
     type Value = T;
 
-    fn set_with(&self, cx: &mut dyn SignalContext, f: impl FnOnce() -> Self::Value) {
+    fn set_with(&self, cx: &mut impl SignalContext, f: impl FnOnce() -> Self::Value) {
         //cx.set_signal_value(self, f())
         todo!()
     }
@@ -52,7 +53,7 @@ impl<T: Any> SignalSet for Signal<T> {
 impl<T: Any> SignalUpdate for Signal<T> {
     type Value = T;
 
-    fn update(&self, cx: &mut dyn SignalContext, f: impl FnOnce(&mut Self::Value)) {
+    fn update(&self, cx: &mut impl SignalContext, f: impl FnOnce(&mut Self::Value)) {
         //cx.update_signal_value(self, f)
         todo!()
     }
@@ -61,14 +62,12 @@ impl<T: Any> SignalUpdate for Signal<T> {
 impl<T: 'static> SignalGet for Signal<T> {
     type Value = T;
 
-    fn with_ref<R>(&self, cx: &mut dyn SignalContext, f: impl FnOnce(&T) -> R) -> R {
-        //f(cx.get_signal_value_ref(self))
-        todo!()
+    fn with_ref<R>(&self, cx: &mut impl SignalContext, f: impl FnOnce(&T) -> R) -> R {
+        f(cx.get_signal_value_ref(self))
     }
 
-    fn with_ref_untracked<R>(&self, cx: &dyn SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-        //f(cx.get_signal_value_ref_untracked(self))
-        todo!()
+    fn with_ref_untracked<R>(&self, cx: &impl SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+        f(cx.get_signal_value_ref_untracked(self))
     }
 }
 

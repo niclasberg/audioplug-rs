@@ -5,7 +5,9 @@ use vst3_sys::base::*;
 use vst3_sys::gui::{IPlugView, ViewRect};
 use std::cell::RefCell;
 use std::ffi::{CStr, c_void};
+use std::rc::Rc;
 
+use crate::app::AppState;
 use crate::core::{Color, Rectangle, Size, Shape, Point};
 use crate::view::Fill;
 use crate::window::Window;
@@ -18,15 +20,16 @@ use vst3_sys as vst3_com;
 pub struct PlugView {
     window: RefCell<Option<Window>>,
     component_handler: Option<VstPtr<dyn IComponentHandler>>,
+    app_state: Rc<RefCell<AppState>>,
 }
 
 impl PlugView {
-    pub fn new(component_handler: Option<VstPtr<dyn IComponentHandler>>) -> Box<Self> {
-        Self::allocate(RefCell::new(None), component_handler)
+    pub fn new(component_handler: Option<VstPtr<dyn IComponentHandler>>, app_state: Rc<RefCell<AppState>>) -> Box<Self> {
+        Self::allocate(RefCell::new(None), component_handler, app_state)
     }
 
-    pub fn create_instance(component_handler: Option<VstPtr<dyn IComponentHandler>>) -> *mut c_void {
-        Box::into_raw(Self::new(component_handler)) as *mut c_void
+    pub fn create_instance(component_handler: Option<VstPtr<dyn IComponentHandler>>, app_state: Rc<RefCell<AppState>>) -> *mut c_void {
+        Box::into_raw(Self::new(component_handler, app_state)) as *mut c_void
     }
 }
 
@@ -65,7 +68,7 @@ impl IPlugView for PlugView {
                 }
             };
 
-            *window = Some(Window::attach(handle, Rectangle::new(Point::ZERO, Size::new(20.0, 20.0)).fill(Color::BLACK)));
+            *window = Some(Window::attach(self.app_state.clone(), handle, |_| Rectangle::new(Point::ZERO, Size::new(20.0, 20.0)).fill(Color::BLACK)));
 
             kResultOk
         } else {

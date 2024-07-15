@@ -77,6 +77,7 @@ pub fn vk_to_key(vk: VIRTUAL_KEY) -> Key {
         VK_NEXT => Key::PageDown,
         VK_TAB => Key::Tab,
         VK_ESCAPE => Key::Escape,
+        VK_RETURN => Key::Enter,
 
         VK_LEFT => Key::Left,
         VK_RIGHT => Key::Right,

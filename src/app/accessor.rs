@@ -1,9 +1,19 @@
-use super::{Memo, Signal, SignalGet};
+use super::{Memo, NodeId, Signal, SignalGet};
 
 pub enum Accessor<T> {
     Signal(Signal<T>),
     Memo(Memo<T>),
     Const(T)
+}
+
+impl<T> Accessor<T> {
+    pub(super) fn get_source_id(&self) -> Option<NodeId> {
+        match self {
+            Accessor::Signal(signal) => Some(signal.id),
+            Accessor::Memo(memo) => Some(memo.id),
+            Accessor::Const(_) => None,
+        }
+    }
 }
 
 impl<T> From<Signal<T>> for Accessor<T> {
@@ -27,7 +37,7 @@ impl<T> From<T> for Accessor<T> {
 impl<T: 'static> SignalGet for Accessor<T> {
     type Value = T;
 
-    fn with_ref<R>(&self, cx: &mut dyn super::SignalContext, f: impl Fn(&Self::Value) -> R) -> R {
+    fn with_ref<R>(&self, cx: &mut impl super::SignalContext, f: impl Fn(&Self::Value) -> R) -> R {
         match self {
             Accessor::Signal(signal) => signal.with_ref(cx, f),
             Accessor::Memo(memo) => memo.with_ref(cx, f),
@@ -35,7 +45,7 @@ impl<T: 'static> SignalGet for Accessor<T> {
         }
     }
 
-    fn with_ref_untracked<R>(&self, cx: &dyn super::SignalContext, f: impl Fn(&Self::Value) -> R) -> R {
+    fn with_ref_untracked<R>(&self, cx: &impl super::SignalContext, f: impl Fn(&Self::Value) -> R) -> R {
         match self {
             Accessor::Signal(signal) => signal.with_ref_untracked(cx, f),
             Accessor::Memo(memo) => memo.with_ref_untracked(cx, f),

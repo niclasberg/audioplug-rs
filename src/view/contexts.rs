@@ -1,18 +1,38 @@
-use crate::{core::{Color, Point, Rectangle, Shape, Transform}, text::TextLayout, window::WindowState, Id};
+use std::any::Any;
+
+use crate::{app::{Accessor, AppState, Signal, SignalContext, SignalGet}, core::{Color, Point, Rectangle, Shape, Transform}, text::TextLayout, window::WindowState, Cursor, Id};
 use super::{IdPath, View, ViewFlags, Widget, WidgetData, WidgetNode};
 use crate::platform;
 
-pub struct BuildContext<'a> {
+pub struct BuildContext<'a, 'b> {
     id_path: IdPath,
     widget_data: &'a mut WidgetData,
+    app_state: &'b mut AppState
 }
 
-impl<'a> BuildContext<'a> {
-    pub fn root(widget_data: &'a mut WidgetData) -> Self {
+impl<'a, 'b> BuildContext<'a, 'b> {
+    pub fn root(widget_data: &'a mut WidgetData, app_state: &'b mut AppState) -> Self {
         Self {
             id_path: IdPath::root(),
-            widget_data
+            widget_data,
+            app_state
         }
+    }
+
+    pub fn get_and_track<W: Widget, T: Clone + 'static>(&mut self, accessor: Accessor<T>, f: impl Fn(&T, &mut WidgetContext, &mut W) + 'static) -> T {
+        let value = accessor.get_untracked(self.app_state);
+        let binding = self.app_state.create_binding(accessor, self.id_path.clone(), move |value, widget_node| {
+            let mut ctx = WidgetContext {
+                widget_data: &mut widget_node.data,
+            };
+            // SAFETY: The window class guarantees that the message is dispatched to *this* widget
+            let widget = unsafe { &mut *(widget_node.widget.as_mut() as *mut dyn Widget as *mut W) };
+            f(value, &mut ctx, widget)
+        });
+        if let Some(binding) = binding {
+            self.widget_data.bindings.push(binding);
+        }
+        value
     }
 
     pub fn id_path(&self) -> &IdPath {
@@ -33,7 +53,8 @@ impl<'a> BuildContext<'a> {
         let mut data = WidgetData::new(id_path.clone());
         let widget = Box::new(view.build(&mut BuildContext {
             id_path,
-            widget_data: &mut data
+            widget_data: &mut data,
+            app_state: &mut self.app_state
         }));
         data.style = widget.style();
         WidgetNode {
@@ -41,6 +62,10 @@ impl<'a> BuildContext<'a> {
             data
         }
     }
+}
+
+pub struct WidgetContext<'a> {
+    widget_data: &'a mut WidgetData
 }
 
 pub struct LayoutContext<'a, 'b, 'c> {
@@ -241,7 +266,7 @@ impl<'a, 'b, 'c> EventContext<'a, 'b, 'c> {
         self.widget_data.global_bounds()
     }
 
-    pub(crate) fn with_child<'d>(&mut self, widget_data: &'d mut WidgetData, f: impl FnOnce(&mut EventContext<'d, '_, '_>) -> ViewFlags) {
+    pub(crate) fn with_child<'d>(&mut self, widget_data: &'d mut WidgetData, f: impl FnOnce(&mut EventContext<'d, '_, '_>)) {
         let flags = {
             let mut ctx = EventContext { 
                 widget_data,
@@ -285,5 +310,9 @@ impl<'a, 'b, 'c> EventContext<'a, 'b, 'c> {
 
     pub fn view_flags(&self) -> ViewFlags {
         self.widget_data.flags
+    }
+
+    pub fn set_cursor(&mut self, cursor: Cursor) {
+        self.window_state.cursor = cursor;
     }
 }

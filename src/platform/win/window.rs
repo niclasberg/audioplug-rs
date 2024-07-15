@@ -1,15 +1,11 @@
 use std::{sync::Once, cell::RefCell, marker::PhantomData, rc::Rc, mem::MaybeUninit};
 
-use windows::{core::{PCWSTR, w  , Result, Error}, 
+use windows::{core::{w, Error, Result, PCWSTR}, 
     Win32::{
-        Foundation::*,
-        System::{LibraryLoader::GetModuleHandleW, Performance}, 
-        UI::{WindowsAndMessaging::*, Input::KeyboardAndMouse::TrackMouseEvent}, 
-        UI::Input::{*, KeyboardAndMouse::VIRTUAL_KEY},
-        Graphics::Gdi::{self, InvalidateRect}}};
+        Foundation::*, Graphics::Gdi::{self, InvalidateRect, ScreenToClient}, System::{LibraryLoader::GetModuleHandleW, Performance}, UI::{Input::{KeyboardAndMouse::{TrackMouseEvent, VIRTUAL_KEY}, *}, WindowsAndMessaging::*}}};
 
-use super::{com, Renderer, keyboard::{vk_to_key, get_modifiers, KeyFlags}, Handle};
-use crate::{core::{Color, Point, Rectangle}, event::{AnimationFrame, KeyEvent, MouseEvent}, keyboard::{Key, Modifiers}, platform::WindowEvent, window::WindowHandler, Event};
+use super::{com, cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, Handle, Renderer};
+use crate::{core::{Color, Point, Rectangle}, event::{AnimationFrame, KeyEvent, MouseEvent}, keyboard::Key, platform::{WindowEvent, WindowHandler}};
 use crate::event::MouseButton;
 
 const WINDOW_CLASS: PCWSTR = w!("my_window");
@@ -172,9 +168,15 @@ impl WindowState {
                         };
                         TrackMouseEvent(&mut ev).unwrap();
                     };
-                    self.publish_event(hwnd, WindowEvent::Mouse(MouseEvent::Enter));
+                    self.publish_event(hwnd, WindowEvent::MouseEnter);
                     self.publish_event(hwnd, WindowEvent::Mouse(MouseEvent::Moved { position }));
                 }
+                Some(LRESULT(0))
+            },
+
+            0x02A3 /* WM_MOUSELEAVE */ => {
+                self.last_mouse_pos.replace(None);
+                self.publish_event(hwnd, WindowEvent::MouseExit);
                 Some(LRESULT(0))
             },
 
@@ -188,12 +190,6 @@ impl WindowState {
                     _ => {}
                 };
 
-                Some(LRESULT(0))
-            },
-
-            0x02A3 /* WM_MOUSELEAVE */ => {
-                self.last_mouse_pos.replace(None);
-                self.publish_event(hwnd, WindowEvent::Mouse(MouseEvent::Exit));
                 Some(LRESULT(0))
             },
 
@@ -248,6 +244,17 @@ impl WindowState {
                 }
                 Some(LRESULT(0))
             },
+
+            WM_SETCURSOR => {
+                let pos = get_message_pos(hwnd);
+                if let Some(cursor) = self.handler.borrow_mut().get_cursor(pos.into()) {
+                    unsafe { SetCursor(get_cursor(cursor)) };
+                    Some(LRESULT(0))
+                } else {
+                    None
+                }
+            },
+
             _ => None
         }
     }
@@ -369,6 +376,16 @@ fn hiword(lparam: LPARAM) -> u16 {
 
 fn point_from_lparam(lparam: LPARAM) -> Point<i32> {
     Point::new(loword(lparam) as i32, hiword(lparam) as i32)
+}
+
+fn get_message_pos(hwnd: HWND) -> Point<i32> {
+    let pos = unsafe { GetMessagePos() };
+    let x = ((pos & 0xFFFF) as u16) as i32;
+    let y = (((pos >> 16) & 0xFFFF) as u16) as i32;
+                
+    let mut screen_pos = POINT { x, y };
+    unsafe { ScreenToClient(hwnd, &mut screen_pos as *mut _) };
+    Point::new(screen_pos.x, screen_pos.y)
 }
 
 fn peek_message(hwnd: HWND, msgmin: u32, msgmax: u32) -> Option<MSG> {

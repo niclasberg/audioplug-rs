@@ -10,4 +10,4 @@ pub use win::*;
 pub use mac::*;
 
 mod shared;
-pub use shared::WindowEvent;
+pub use shared::{WindowEvent, WindowHandler};

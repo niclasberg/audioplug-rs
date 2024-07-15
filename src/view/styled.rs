@@ -1,6 +1,6 @@
-use crate::Event;
+use crate::Cursor;
 
-use super::{EventContext, LayoutContext, RenderContext, View, Widget, WidgetNode};
+use super::{EventContext, EventStatus, LayoutContext, RenderContext, View, Widget, WidgetNode};
 
 pub struct Styled<V, F> {
     pub(super) view: V,
@@ -33,16 +33,24 @@ where
     W: Widget,
     F: Fn(&mut taffy::Style)
 {
-    fn mouse_event(&mut self, event: crate::MouseEvent, ctx: &mut EventContext) -> super::EventStatus {
+    fn mouse_event(&mut self, event: crate::MouseEvent, ctx: &mut EventContext) -> EventStatus {
         self.widget.mouse_event(event, ctx)
     }
 
-    fn key_event(&mut self, event: crate::event::KeyEvent, ctx: &mut EventContext) -> super::EventStatus {
+    fn key_event(&mut self, event: crate::event::KeyEvent, ctx: &mut EventContext) -> EventStatus {
         self.widget.key_event(event, ctx)
+    }
+
+    fn focus_changed(&mut self, has_focus: bool, ctx: &mut EventContext) {
+        self.widget.focus_changed(has_focus, ctx)
     }
 
     fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
         self.widget.layout(inputs, ctx)
+    }
+
+    fn cursor(&self) -> Option<Cursor> {
+        self.widget.cursor()
     }
 
     fn style(&self) -> taffy::Style {
@@ -51,12 +59,8 @@ where
         style
     }
 
-    fn mouse_enter(&mut self, ctx: &mut EventContext) { 
-        self.widget.mouse_enter(ctx)
-    }
-
-    fn mouse_exit(&mut self, ctx: &mut EventContext) { 
-        self.widget.mouse_exit(ctx)
+    fn mouse_enter_exit(&mut self, has_mouse_over: bool, ctx: &mut EventContext) -> EventStatus {
+        self.widget.mouse_enter_exit(has_mouse_over, ctx)
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {

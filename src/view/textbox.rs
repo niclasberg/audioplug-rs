@@ -1,5 +1,5 @@
 use std::ops::Range;
-use crate::{core::{Color, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, Event, MouseEvent};
+use crate::{core::{Color, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, MouseEvent};
 use unicode_segmentation::{UnicodeSegmentation, GraphemeCursor};
 
 use super::{BuildContext, EventContext, EventStatus, LayoutContext, RenderContext, View, Widget};
@@ -26,7 +26,8 @@ impl View for TextBox {
             editor: Editor::new(""), 
             text_layout: TextLayout::new("", Color::BLACK, Size::ZERO), 
             cursor_on: true, 
-            last_cursor_timestamp: 0.0
+            last_cursor_timestamp: 0.0,
+            is_mouse_selecting: false
         }
     }
 }
@@ -36,7 +37,8 @@ pub struct TextBoxWidget {
     editor: Editor,
     text_layout: TextLayout,
     cursor_on: bool,
-    last_cursor_timestamp: f64
+    last_cursor_timestamp: f64,
+    is_mouse_selecting: bool,
 }
 
 struct Editor {
@@ -68,8 +70,13 @@ impl Editor {
         })
     }
 
-    fn set_cursor(&mut self, position: usize, select: bool) -> bool {
+    fn set_caret_position(&mut self, position: usize, select: bool) -> bool {
         let changed = position != self.position;
+        if select {
+            self.selection_start = self.selection_start.or(Some(self.position));
+        } else {
+            self.selection_start = None;
+        }
         self.position = position;
         changed
     }
@@ -267,7 +274,6 @@ impl Editor {
     }
 }
 
-const PADDING: f64 = 2.0;
 const CURSOR_DELAY_SECONDS: f64 = 0.5;
 
 impl Widget for TextBoxWidget {
@@ -344,8 +350,8 @@ impl Widget for TextBoxWidget {
                     (Key::X, _) if modifiers == Modifiers::CONTROL => {
                         EventStatus::Handled
                     },
-                    (Key::Tab, _) | (Key::Escape, _) => {
-                        EventStatus::Handled
+                    (Key::Tab, _) | (Key::Escape, _) | (Key::Enter, _) => {
+                        EventStatus::Ignored
                     },
                     (_, Some(str)) if !modifiers.contains(Modifiers::CONTROL) => {
                         self.editor.insert(str.as_str());
@@ -361,9 +367,25 @@ impl Widget for TextBoxWidget {
     fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) -> EventStatus {
         match event {
             MouseEvent::Down { button, position } if button == MouseButton::LEFT => {
-                if let Some(new_cursor) = self.text_layout.text_index_at_point(position) {
-                    if self.editor.set_cursor(new_cursor, false) {
+                ctx.capture_mouse();
+                if let Some(new_cursor) = self.text_layout.text_index_at_point(position - ctx.bounds().top_left()) {
+                    self.is_mouse_selecting = true;
+                    if self.editor.set_caret_position(new_cursor, false) {
                         ctx.request_render();
+                    }
+                }
+                EventStatus::Handled
+            },
+            MouseEvent::Up { button, .. } if button == MouseButton::LEFT => {
+                self.is_mouse_selecting = false;
+                EventStatus::Handled
+            },
+            MouseEvent::Moved { position } => {
+                if self.is_mouse_selecting {
+                    if let Some(new_cursor) = self.text_layout.text_index_at_point(position - ctx.bounds().top_left()) {
+                        if self.editor.set_caret_position(new_cursor, true) {
+                            ctx.request_render();
+                        }
                     }
                 }
                 EventStatus::Handled
@@ -390,6 +412,10 @@ impl Widget for TextBoxWidget {
         ctx.compute_leaf_layout(inputs, |_, _| {
             size.map(|x| x as f32).into()
         })
+    }
+
+    fn cursor(&self) -> Option<crate::Cursor> {
+        Some(crate::Cursor::IBeam)
     }
 
     fn style(&self) -> taffy::Style {

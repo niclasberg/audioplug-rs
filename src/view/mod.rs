@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::{core::Color, event::{Event, KeyEvent}, MouseEvent}; 
+use crate::{core::Color, Cursor, KeyEvent, MouseEvent}; 
 
 mod view_node;
 mod view_sequence;
@@ -19,9 +19,10 @@ mod contexts;
 mod styled;
 mod scroll;
 mod widget_id;
-mod message;
+mod view;
+mod checkbox;
 
-pub use button::Button;
+pub use button::{Button, ButtonWidget};
 pub use linear_layout::{Column, Row};
 pub use label::Label;
 pub use slider::Slider;
@@ -32,57 +33,10 @@ pub use contexts::*;
 pub use styled::*;
 pub use scroll::*;
 pub use widget_id::WidgetId;
-pub use message::*;
+pub use view::*;
+pub use checkbox::Checkbox;
 
-pub trait View: Sized {
-    type Element: Widget + 'static;
 
-    fn build(self, ctx: &mut BuildContext) -> Self::Element;
-
-    fn background(self, color: Color) -> Background<Self> {
-        Background { view: self, color }
-    }
-
-    fn with_style<F: Fn(&mut taffy::Style)>(self, f: F) -> Styled<Self, F> {
-        Styled {
-            view: self,
-            style_function: f
-        }
-    }
-
-    fn as_any(self) -> Box<dyn AnyView> 
-    where 
-        Self: 'static 
-    {
-        Box::new(self)
-    }
-}
-
-impl<W: Widget + 'static, F: FnOnce(&mut BuildContext) -> W> View for F {
-    type Element = W;
-
-    fn build(self, ctx: &mut BuildContext) -> Self::Element {
-        self(ctx)
-    }
-}
-
-pub trait AnyView {
-    fn dyn_build(self, ctx: &mut BuildContext) -> Box<dyn Widget>;
-}
-
-impl<V: View + 'static> AnyView for V {
-    fn dyn_build(self, ctx: &mut BuildContext) -> Box<dyn Widget> {
-        Box::new(self.build(ctx))
-    }
-}
-
-impl View for Box<dyn AnyView> {
-    type Element = Box<dyn Widget>;
-
-    fn build(self, ctx: &mut BuildContext) -> Self::Element {
-        self.dyn_build(ctx)
-    }
-}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum EventStatus {
@@ -95,18 +49,23 @@ pub trait Widget {
         EventStatus::Ignored
     }
 
+    fn mouse_enter_exit(&mut self, _has_mouse_over: bool, _ctx: &mut EventContext) -> EventStatus { 
+        EventStatus::Ignored
+    }
+
     fn key_event(&mut self, _event: KeyEvent, _ctx: &mut EventContext) -> EventStatus {
         EventStatus::Ignored
     }
 
     fn focus_changed(&mut self, _has_focus: bool, _ctx: &mut EventContext) {}
+    
+    fn cursor(&self) -> Option<Cursor> {
+        None
+    }
 
     fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput;
     fn style(&self) -> taffy::Style;
     fn render(&mut self, ctx: &mut RenderContext);
-
-    fn mouse_enter(&mut self, _ctx: &mut EventContext) { }
-    fn mouse_exit(&mut self, _ctx: &mut EventContext) { }
 
     fn child_count(&self) -> usize { 0 }
     fn get_child<'a>(&'a self, _i: usize) -> &'a WidgetNode { unreachable!() }
@@ -122,6 +81,10 @@ impl Widget for Box<dyn Widget> {
         self.deref_mut().key_event(event, ctx)
     }
 
+    fn focus_changed(&mut self, has_focus: bool, ctx: &mut EventContext) {
+        self.deref_mut().focus_changed(has_focus, ctx)
+    }
+
     fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
         self.deref_mut().layout(inputs, ctx)
     }
@@ -130,12 +93,12 @@ impl Widget for Box<dyn Widget> {
         self.deref_mut().render(ctx)
     }
 
-    fn mouse_enter(&mut self, ctx: &mut EventContext) { 
-        self.deref_mut().mouse_enter(ctx)
+    fn mouse_enter_exit(&mut self, has_mouse_over: bool, ctx: &mut EventContext) -> EventStatus { 
+        self.deref_mut().mouse_enter_exit(has_mouse_over, ctx)
     }
 
-    fn mouse_exit(&mut self, ctx: &mut EventContext) { 
-        self.deref_mut().mouse_exit(ctx)
+    fn cursor(&self) -> Option<Cursor> {
+        self.deref().cursor()
     }
 
     fn style(&self) -> taffy::Style {
@@ -182,8 +145,16 @@ impl<W: Widget> Widget for BackgroundWidget<W> {
         self.widget.key_event(event, ctx)
     }
 
+    fn focus_changed(&mut self, has_focus: bool, ctx: &mut EventContext) {
+        self.widget.focus_changed(has_focus, ctx)
+    }
+
     fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
         self.widget.layout(inputs, ctx)
+    }
+
+    fn cursor(&self) -> Option<Cursor> {
+        self.widget.cursor()
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {
@@ -191,12 +162,8 @@ impl<W: Widget> Widget for BackgroundWidget<W> {
         self.widget.render(ctx)
     }
 
-    fn mouse_enter(&mut self, ctx: &mut EventContext) { 
-        self.widget.mouse_enter(ctx)
-    }
-
-    fn mouse_exit(&mut self, ctx: &mut EventContext) { 
-        self.widget.mouse_exit(ctx)
+    fn mouse_enter_exit(&mut self, has_mouse_over: bool, ctx: &mut EventContext) -> EventStatus { 
+        self.widget.mouse_enter_exit(has_mouse_over, ctx)
     }
 
     fn style(&self) -> taffy::Style {

@@ -1,19 +1,21 @@
-use std::{any::Any, cell::RefCell, collections::HashSet, rc::{Rc, Weak}};
+use std::{any::Any, cell::RefCell, collections::{HashSet, VecDeque}, rc::Rc};
 use slotmap::{SlotMap, SecondaryMap};
-use super::{memo::{Memo, MemoState}, SignalContext};
+use crate::{view::{Widget, WidgetContext, WidgetNode}, window::Window, App, IdPath};
+
+use super::{binding::BindingState, memo::{Memo, MemoState}, ref_count_map::RefCountMap, Accessor, Binding, SignalContext};
 use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
 
-enum Task {
+/*enum Task<EffectCtx> {
     RunEffect {
         id: NodeId,
-        f: Weak<Box<dyn Fn(&mut ReactiveGraph)>>
+        f: Weak<Box<dyn Fn(&mut EffectCtx)>>
     }
 }
 
-impl Task {
-    fn run(&self, cx: &mut ReactiveGraph) {
+impl<EffectCtx> Task<EffectCtx> {
+    fn run(&self, cx: &mut EffectCtx) {
         match self {
             Task::RunEffect { id, f } => {
                 cx.with_scope(Scope::Effect(*id), |cx| {
@@ -24,14 +26,14 @@ impl Task {
             },
         }
     }
-}
+}*/
 
 pub struct Node {
     node_type: NodeType,
     state: NodeState
 }
 
-impl Node {
+/*impl Node {
     fn get_value_as<T: Any>(&self) -> Option<&T> {
         match &self.node_type {
             NodeType::Signal(signal) => signal.value.downcast_ref(),
@@ -39,7 +41,7 @@ impl Node {
             NodeType::Effect(_) => None,
         }
     }
-}
+}*/
 
 enum NodeState {
     /// Reactive value is valid, no need to recompute
@@ -53,43 +55,8 @@ enum NodeState {
 pub enum NodeType {
     Signal(SignalState),
     Memo(MemoState),
-    Effect(EffectState)
-}
-
-pub(super) struct RefCountMap {
-    refs: SecondaryMap<NodeId, usize>,
-    nodes_to_remove: Vec<NodeId>,
-}
-
-pub(super) type WeakRefCountMap = Weak<RefCell<RefCountMap>>;
-
-impl RefCountMap {
-    fn new() -> Self {
-        Self { 
-            refs: SecondaryMap::new(),
-            nodes_to_remove: Vec::new()
-        }
-    }
-
-    pub(super) fn increment_ref_count(this: &WeakRefCountMap, key: NodeId) {
-        if let Some(this) = this.upgrade() {
-            let mut this = this.borrow_mut();
-            let ref_count = this.refs.get_mut(key).expect("Could not increment ref count, node is deleted");
-            *ref_count += 1;
-        }
-    }
-
-    pub(super) fn decrement_ref_count(this: &WeakRefCountMap, key: NodeId) { 
-        if let Some(this) = this.upgrade() {
-            let mut this = this.borrow_mut();
-            let ref_count = this.refs.get_mut(key).expect("Could not decrement ref count, node is deleted");
-            *ref_count -= 1;
-            if *ref_count == 0 {
-                this.nodes_to_remove.push(key);
-
-            }
-        }
-    }
+    Effect(EffectState),
+    Binding(BindingState)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -99,16 +66,17 @@ enum Scope {
     Effect(NodeId)
 }
 
-pub struct ReactiveGraph {
+pub struct AppState {
     scope: Scope,
-    pending_tasks: Vec<Task>,
+    pending_tasks: VecDeque<NodeId>,
     nodes: SlotMap<NodeId, Node>,
     subscriptions: SecondaryMap<NodeId, HashSet<NodeId>>,
     dependencies: SecondaryMap<NodeId, HashSet<NodeId>>,
-    node_ref_counts: Rc<RefCell<RefCountMap>>
+    node_ref_counts: Rc<RefCell<RefCountMap>>,
+    window: Option<Window>
 }
 
-impl ReactiveGraph {
+impl AppState {
     pub fn new() -> Self {
         Self {
             scope: Scope::Root,
@@ -116,7 +84,8 @@ impl ReactiveGraph {
             nodes: Default::default(),
             subscriptions: Default::default(),
             dependencies: Default::default(),
-            node_ref_counts: Rc::new(RefCell::new(RefCountMap::new()))
+            node_ref_counts: Rc::new(RefCell::new(RefCountMap::new())),
+            window: None
         }
     }
 
@@ -126,20 +95,30 @@ impl ReactiveGraph {
         Signal::new(id, Rc::downgrade(&self.node_ref_counts))
     }
 
-    pub fn create_memo<T: PartialEq + 'static>(&mut self, f: impl Fn(&mut dyn SignalContext) -> T + 'static) -> Memo<T> {
+    pub fn create_memo<T: PartialEq + 'static>(&mut self, f: impl Fn(&mut Self) -> T + 'static) -> Memo<T> {
         let state = MemoState::new(move |cx| Box::new(f(cx)));
         let id = self.create_node(NodeType::Memo(state), NodeState::Check);
         Memo::new(id, Rc::downgrade(&self.node_ref_counts))
     }
 
-    pub fn create_effect(&mut self, f: impl Fn(&mut dyn SignalContext) + 'static) {
-		let state = EffectState::new(f);
-        let id = self.create_node(NodeType::Effect(state), NodeState::Clean);
-        self.notify(&id);
+    pub fn create_binding<T: 'static>(&mut self, accessor: Accessor<T>, widget_id: IdPath, f: impl Fn(&T, &mut WidgetNode) + 'static) -> Option<Binding> {
+        if let Some(source_id) = accessor.get_source_id() {
+            let state = BindingState::new(widget_id, move |value: &dyn Any, node| {
+                let value = value.downcast_ref().expect("Bound value has wrong type");
+                f(value, node);
+            });
+            let id = self.create_node(NodeType::Binding(state), NodeState::Clean);
+            self.add_subscription(source_id, id);
+            let binding = Binding::new(id, Rc::downgrade(&self.node_ref_counts));
+            Some(binding)
+        } else {
+            None
+        }
     }
 
-    fn run_effect(&mut self, node_id: &NodeId, effect: &EffectState) {
-        
+    pub fn create_effect(&mut self, f: impl Fn(&mut App) + 'static) {
+        let id = self.create_node(NodeType::Effect(EffectState::new(f)), NodeState::Clean);
+        self.notify(&id);
     }
 
     fn with_scope<R>(&mut self, scope: Scope, f: impl FnOnce(&mut Self) -> R) -> R {
@@ -158,7 +137,7 @@ impl ReactiveGraph {
         id
     }
 
-    fn remove_node(&mut self, id: NodeId) -> Node{
+    fn remove_node(&mut self, id: NodeId) -> Node {
         // Remove the node's subscriptions to other nodes
         let node_dependencies = self.dependencies.remove(id).expect("Missing dependencies for node");
         for node_id in node_dependencies {
@@ -188,6 +167,7 @@ impl ReactiveGraph {
                 },
                 _ => unreachable!()
             }
+            signal.state = NodeState::Dirty;
         }
 
         // Take all the current subscribers, the effects will resubscribe when evaluated
@@ -235,11 +215,29 @@ impl ReactiveGraph {
                     self.flush_effects();
                 }*/
             },
+            NodeType::Binding(binding) => {
+
+            },
             NodeType::Memo(memo) => todo!(),
             NodeType::Signal(_) => unreachable!(),
         }
     }
 
+    fn get_memo_value_ref_untracked<'a, T: Any>(&'a self, memo: &Memo<T>) -> &'a T {
+        todo!()
+    }
+
+    fn get_memo_value_ref<'a, T: Any>(&'a mut self, memo: &Memo<T>) -> &'a T {
+        self.track(memo.id);
+        self.get_memo_value_ref_untracked(memo)
+    }
+
+    /*pub fn create_stateful_effect<S>(&mut self, f_init: impl FnOnce() -> S, f: impl Fn(S) -> S) {
+
+    }*/
+}
+
+impl SignalContext for AppState {
     fn get_signal_value_ref_untracked<'a, T: Any>(&'a self, signal: &Signal<T>) -> &'a T {
         let node = self.nodes.get(signal.id).expect("No Signal found");
         match &node.node_type {
@@ -252,25 +250,6 @@ impl ReactiveGraph {
         self.track(signal.id);
         self.get_signal_value_ref_untracked(signal)
     }
-
-    fn get_memo_value_ref_untracked<'a, T: Any>(&'a self, memo: &Memo<T>) -> &'a T {
-        todo!()
-    }
-
-    fn get_memo_value_ref<'a, T: Any>(&'a mut self, memo: &Memo<T>) -> &'a T {
-        self.track(memo.id);
-        self.get_memo_value_ref_untracked(memo)
-    }
-
-    fn flush_effects(&mut self) {
-        while let Some(task) = self.pending_tasks.pop() {
-            task.run(self);
-        }
-    }
-
-    /*pub fn create_stateful_effect<S>(&mut self, f_init: impl FnOnce() -> S, f: impl Fn(S) -> S) {
-
-    }*/
 }
 
 /*#[cfg(test)]

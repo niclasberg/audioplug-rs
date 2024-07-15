@@ -1,45 +1,69 @@
+use std::any::Any;
+use std::borrow::BorrowMut;
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use raw_window_handle::RawWindowHandle;
 
 use crate::core::{Point, Rectangle};
 use crate::event::KeyEvent;
-use crate::platform::WindowEvent;
-use crate::view::{BuildContext, EventContext, EventStatus, LayoutNodeRef, RenderContext, View, ViewFlags, ViewMessage, ViewMessageBody, Widget, WidgetData, WidgetNode};
-use crate::{platform, IdPath, MouseEvent};
-
-pub trait WindowHandler {
-	fn init(&mut self, handle: platform::HandleRef);
-    fn event(&mut self, event: WindowEvent, handle: platform::HandleRef);
-    fn render(&mut self, bounds: Rectangle, renderer: platform::RendererRef);
-}
-
-pub struct Window(platform::Window);
+use crate::keyboard::Key;
+use crate::platform::{WindowEvent, WindowHandler};
+use crate::app::{AppState, Signal};
+use crate::view::{BuildContext, EventContext, EventStatus, LayoutNodeRef, RenderContext, View, ViewFlags, ViewMessage, Widget, WidgetData, WidgetNode};
+use crate::{platform, App, Cursor, IdPath, MouseEvent};
 
 pub struct WindowState {
     pub(crate) mouse_capture_view: Option<IdPath>,
-    pub(crate) focus_view: Option<IdPath>
+    pub(crate) focus_view: Option<IdPath>,
+    pub(crate) cursor: Cursor
 }
 
 struct MyHandler {
     widget_node: WidgetNode,
-    window_state: WindowState
+    state: WindowState,
+    app_state: Rc<RefCell<AppState>>
 }
 
 impl MyHandler {
-    pub fn new<V: View>(view: V) -> Self {
+    pub fn new<F, V>(app_state: Rc<RefCell<AppState>>, view_factory: F) -> Self 
+    where 
+        F: FnOnce(&mut AppContext) -> V,
+        V: View
+    {
         let mut data = WidgetData::new(IdPath::root());
-        let mut build_context = BuildContext::root(&mut data);
-        let widget: Box<dyn Widget> = Box::new(view.build(&mut build_context));
+        let mut window_state = WindowState {
+            mouse_capture_view: None,
+            focus_view: None,
+            cursor: Cursor::Arrow
+        };
+
+        let view = {
+            let mut app_state = RefCell::borrow_mut(&app_state);
+            let mut app_context = AppContext {
+                window_state: &mut window_state,
+                app_state: &mut app_state
+            };
+            view_factory(&mut app_context)
+        };
+
+        let widget: Box<dyn Widget> = {
+            let mut app_state = RefCell::borrow_mut(&app_state);
+            let mut build_context = BuildContext::root(&mut data, &mut app_state);
+            Box::new(view.build(&mut build_context))
+        };
+
         let data = data.with_style(|style| *style = widget.style());
         let widget_node = WidgetNode { 
             widget,
             data
         };
-        let window_state = WindowState {
-            mouse_capture_view: None,
-            focus_view: None
-        };
         
-        Self { widget_node, window_state }
+        Self { 
+            widget_node, 
+            state: window_state,
+            app_state
+        }
     }
 
     fn do_layout(&mut self, handle: &mut platform::HandleRef) {
@@ -53,21 +77,38 @@ impl MyHandler {
             taffy::compute_root_layout(&mut ctx, taffy::NodeId::from(usize::MAX), available_space);
         }
         self.widget_node.set_origin(Point::ZERO);
-        //self.view_node.clear_flag_recursive(ViewFlags::NEEDS_LAYOUT);
     }
 
-    fn default_handle_key_event(&mut self, event: KeyEvent) {
-
+    fn default_handle_key_event(&mut self, event: KeyEvent, handle: &mut platform::HandleRef) {
+        match event {
+            KeyEvent::KeyDown { key, modifiers, .. } => {
+                match key {
+                    Key::Escape if modifiers.is_empty() => {
+                        self.set_focus_view(None, handle)
+                    },
+                    _ => {}
+                }
+            },
+            _ => {}
+        }
     }
 
-	fn publish_focus_message(&mut self, focus_view: IdPath, is_focused: bool, handle: &mut platform::HandleRef) {
-		let mut ctx = EventContext::new(&mut self.widget_node.data, &mut self.window_state, handle);
-		let mut msg = ViewMessage {
-			destination: focus_view,
-			body: ViewMessageBody::FocusChanged(is_focused),
-		};
-		msg.handle(&mut self.widget_node.widget, &mut ctx)
-	}
+    fn set_focus_view(&mut self, new_focus_view: Option<IdPath>, handle: &mut platform::HandleRef) {
+        if new_focus_view != self.state.focus_view {
+            println!("Focus change {:?}, {:?}", self.state.focus_view, new_focus_view);
+            if let Some(focus_lost_view) = self.state.focus_view.as_ref() {
+                let message = ViewMessage::FocusChanged(false);
+                self.widget_node.handle_message(&focus_lost_view.clone(), message, &mut self.state, handle);
+            }
+
+            self.state.focus_view = new_focus_view.clone();
+
+            if let Some(focus_gained_view) = new_focus_view {
+                let message = ViewMessage::FocusChanged(true);
+                self.widget_node.handle_message(&focus_gained_view, message, &mut self.state, handle)
+            }
+        }
+    }
 }
 
 impl WindowHandler for MyHandler {
@@ -81,56 +122,42 @@ impl WindowHandler for MyHandler {
 				match mouse_event {
 					MouseEvent::Down { position, .. } => {
 						let new_focus_view = find_focus_view_at(position, &self.widget_node);
-						if new_focus_view != self.window_state.focus_view {
-							println!("Focus change {:?}, {:?}", self.window_state.focus_view, new_focus_view);
-							if let Some(focus_lost_view) = self.window_state.focus_view.as_ref() {
-								self.publish_focus_message(focus_lost_view.clone(), false, &mut handle);
-							}
-
-							self.window_state.focus_view = new_focus_view.clone();
-
-							if let Some(focus_gained_view) = new_focus_view {
-								self.publish_focus_message(focus_gained_view, true, &mut handle);
-							}
-						}
+						self.set_focus_view(new_focus_view, &mut handle);
 					},
 					_ => {}
 				};
 
-                if let Some(capture_view) = self.window_state.mouse_capture_view.clone() {
-                    let mut ctx = EventContext::new(&mut self.widget_node.data, &mut self.window_state, &mut handle);
-                    let mut msg = ViewMessage {
-                        destination: capture_view,
-                        body: ViewMessageBody::Mouse(mouse_event)
-                    };
-                    msg.handle(&mut self.widget_node.widget, &mut ctx);
+                if let Some(mut capture_view) = self.state.mouse_capture_view.clone() {
+                    let message = ViewMessage::Mouse(mouse_event);
+                    self.widget_node.handle_message(&mut capture_view, message, &mut self.state, &mut handle);
 
                     match mouse_event {
                         MouseEvent::Up { .. } => {
-                            self.window_state.mouse_capture_view = None
+                            self.state.mouse_capture_view = None
                         },
                         _ => {}
                     }
                 } else {
-                    let mut ctx = EventContext::new(&mut self.widget_node.data, &mut self.window_state, &mut handle);
+                    let mut ctx = EventContext::new(&mut self.widget_node.data, &mut self.state, &mut handle);
                     self.widget_node.widget.mouse_event(mouse_event, &mut ctx);
                 }
             },
             WindowEvent::Key(key_event) => {
 				let mut event_status = EventStatus::Ignored;
-                if let Some(mut focus_view) = self.window_state.focus_view.clone() {
-                    let mut ctx = EventContext::new(&mut self.widget_node.data, &mut self.window_state, &mut handle);
+                if let Some(mut focus_view) = self.state.focus_view.clone() {
+                    let mut ctx = EventContext::new(&mut self.widget_node.data, &mut self.state, &mut handle);
                     focus_view.pop_root();
                     event_status = handle_key_event(&mut focus_view, key_event.clone(), &mut self.widget_node.widget, &mut ctx);
                 }
 
 				if event_status == EventStatus::Ignored {
-					self.default_handle_key_event(key_event);
+					self.default_handle_key_event(key_event, &mut handle);
 				}
             },
             WindowEvent::Unfocused => {
-                if let Some(focus_view) = self.window_state.focus_view.take() {
-                    self.publish_focus_message(focus_view, false, &mut handle);
+                if let Some(mut focus_view) = self.state.focus_view.take() {
+                    let message = ViewMessage::FocusChanged(false);
+					self.widget_node.handle_message(&mut focus_view, message, &mut self.state, &mut handle)
                 }
             },
 			_ => {}
@@ -143,13 +170,27 @@ impl WindowHandler for MyHandler {
 
     fn render(&mut self, _: Rectangle, mut renderer: platform::RendererRef<'_>) {
         {
-            let mut ctx = RenderContext::new(&mut self.widget_node.data, &mut renderer, &mut self.window_state);
+            let mut ctx = RenderContext::new(&mut self.widget_node.data, &mut renderer, &mut self.state);
             self.widget_node.widget.render(&mut ctx);
         }
     }
 
     fn init(&mut self, mut handle: platform::HandleRef) {
         self.do_layout(&mut handle);
+    }
+    
+    fn get_cursor(&self, point: Point) -> Option<Cursor> {
+        let mut cursor = None;
+        self.widget_node.for_each_view_at(point, &mut |widget_node| {
+            if let Some(c) = widget_node.widget.cursor() {
+                cursor = Some(c);
+                false
+            } else {
+                true
+            }
+        });
+
+        cursor
     }
 }
 
@@ -178,7 +219,6 @@ fn handle_key_event(id_path: &mut IdPath, event: KeyEvent, widget: &mut dyn Widg
             let child = widget.get_child_mut(child_id.0);
             ctx.with_child(&mut child.data, |ctx| {
                 status = handle_key_event(id_path, event.clone(), &mut child.widget, ctx);
-                ctx.view_flags()
             });
         }
     } 
@@ -190,14 +230,39 @@ fn handle_key_event(id_path: &mut IdPath, event: KeyEvent, widget: &mut dyn Widg
     }
 }
 
+pub struct AppContext<'a> {
+    window_state: &'a mut WindowState,
+    app_state: &'a mut AppState
+}
+
+impl<'a> AppContext<'a> {
+    pub fn create_signal<T: Any>(&mut self, value: T) -> Signal<T> {
+        self.app_state.create_signal(value)
+    }
+
+    pub fn create_effect(&mut self) {
+
+    }
+}
+
+pub struct Window(platform::Window);
+
 impl Window {
-    pub fn open(view: impl View + 'static) -> Self {
-        let handler = MyHandler::new(view);
+    pub fn open<F, V>(app: &mut App, view_factory: F) -> Self 
+    where 
+        F: FnOnce(&mut AppContext) -> V,
+        V: View
+    {
+        let handler = MyHandler::new(app.state.clone(), view_factory);
         Self(platform::Window::open(handler).unwrap())
     }
 
-    pub fn attach(handle: RawWindowHandle, view: impl View + 'static) -> Self {
-        let handler = MyHandler::new(view);
+    pub fn attach<F, V>(app_state: Rc<RefCell<AppState>>, handle: RawWindowHandle, view_factory: F) -> Self 
+    where 
+        F: FnOnce(&mut AppContext) -> V,
+        V: View
+    {
+        let handler = MyHandler::new(app_state, view_factory);
         let window: Result<platform::Window, platform::Error> = match handle {
             #[cfg(target_os = "windows")]
             RawWindowHandle::Win32(handle) => {

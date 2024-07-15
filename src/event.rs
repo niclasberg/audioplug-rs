@@ -21,8 +21,6 @@ pub enum MouseEvent {
         button: MouseButton,
         position: Point
     },
-    Enter,
-    Exit,
     Moved {
         position: Point
     }
@@ -34,19 +32,16 @@ impl MouseEvent {
             MouseEvent::Down { button, position } => MouseEvent::Down { button: *button, position: *position - offset },
             MouseEvent::Up { button, position } => MouseEvent::Up { button: *button, position: *position - offset },
             MouseEvent::DoubleClick { button, position } => MouseEvent::DoubleClick { button: *button, position: *position - offset },
-            MouseEvent::Moved { position } => MouseEvent::Moved { position: *position - offset },
-            other => *other
+            MouseEvent::Moved { position } => MouseEvent::Moved { position: *position - offset }
         }
     }
 
-    pub fn position(&self) -> Option<Point> {
+    pub fn position(&self) -> Point {
         match self {
-            MouseEvent::Down { position, .. } => Some(*position),
-            MouseEvent::Up { position, .. } => Some(*position),
-            MouseEvent::DoubleClick { position, .. } => Some(*position),
-            MouseEvent::Enter => None,
-            MouseEvent::Exit => None,
-            MouseEvent::Moved { position } => Some(*position),
+            MouseEvent::Down { position, .. } => *position,
+            MouseEvent::Up { position, .. } => *position,
+            MouseEvent::DoubleClick { position, .. } => *position,
+            MouseEvent::Moved { position } => *position,
         }
     }
 }
@@ -67,9 +62,4 @@ pub enum KeyEvent {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct AnimationFrame { 
     pub timestamp: f64 
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Event {
-    
 }

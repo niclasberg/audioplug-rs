@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{reactive_graph::{RefCountMap, WeakRefCountMap}, NodeId, SignalContext, SignalGet};
+use super::{RefCountMap, WeakRefCountMap, NodeId, AppState, SignalContext, SignalGet};
 
 
 pub struct Memo<T> {
@@ -39,26 +39,26 @@ impl<T> Drop for Memo<T> {
 impl<T: 'static> SignalGet for Memo<T> {
     type Value = T;
 
-    fn with_ref<R>(&self, ctx: &mut dyn SignalContext, f: impl Fn(&Self::Value) -> R) -> R {
+    fn with_ref<R>(&self, ctx: &mut impl SignalContext, f: impl Fn(&Self::Value) -> R) -> R {
         //f(ctx.get_memo_value_ref(self))
         todo!()
     }
 
-    fn with_ref_untracked<R>(&self, ctx: &dyn SignalContext, f: impl Fn(&Self::Value) -> R) -> R {
+    fn with_ref_untracked<R>(&self, ctx: &impl SignalContext, f: impl Fn(&Self::Value) -> R) -> R {
         //f(ctx.get_memo_value_ref_untracked(self))
         todo!()
     }
 }
 
 pub(super) struct MemoState {
-	f: Box<dyn Fn(&mut dyn SignalContext) -> Box<dyn Any>>,
+	f: Box<dyn Fn(&mut AppState) -> Box<dyn Any>>,
 	pub(super) value: Option<Box<dyn Any>>,
 }
 
 impl MemoState {
     pub fn new<F>(f: F) -> Self
     where
-        F: Fn(&mut dyn SignalContext) -> Box<dyn Any> + 'static
+        F: Fn(&mut AppState) -> Box<dyn Any> + 'static
     {
         Self {
             f: Box::new(f),

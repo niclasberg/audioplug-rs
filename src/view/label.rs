@@ -1,6 +1,6 @@
 use crate::{core::{Color, Size}, text::TextLayout};
 
-use super::{BuildContext, EventContext, LayoutContext, RenderContext, View, Widget};
+use super::{BuildContext, LayoutContext, RenderContext, View, Widget};
 
 pub struct Label {
     pub text: String,

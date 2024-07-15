@@ -1,4 +1,4 @@
-use crate::{core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, Event, MouseEvent};
+use crate::{core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, KeyEvent, MouseEvent};
 
 use super::{BuildContext, EventContext, EventStatus, LayoutContext, RenderContext, View, Widget};
 
@@ -36,7 +36,8 @@ impl Slider {
 impl View for Slider {
     type Element = SliderWidget;
 
-    fn build(self, _ctx: &mut BuildContext) -> Self::Element {
+    fn build(self, ctx: &mut BuildContext) -> Self::Element {
+        ctx.set_focusable(true);
         SliderWidget {
             position_normalized: 0.4,
             state: State::Idle,
@@ -77,6 +78,16 @@ impl SliderWidget {
     fn knob_shape(&self, bounds: Rectangle) -> Shape {
         Shape::circle(self.slider_position(bounds), 5.0)
     }
+
+    fn set_position(&mut self, normalized_position: f64, ctx: &mut EventContext) {
+        if normalized_position != self.position_normalized {
+            self.position_normalized = normalized_position;
+            ctx.request_render();
+            if let Some(f) = self.on_value_changed.as_ref() {
+                f(self.min + (self.max - self.min) * self.position_normalized);
+            }
+        }
+    }
 }
 
 impl Widget for SliderWidget {
@@ -85,6 +96,7 @@ impl Widget for SliderWidget {
             MouseEvent::Down { button, position } => {
                 if self.knob_shape(ctx.bounds()).hit_test(position) {
                     if button == MouseButton::LEFT && self.state != State::Dragging {
+                        ctx.capture_mouse();
                         ctx.request_render();
                         if let Some(f) = self.on_drag_start.as_ref() {
                             f();
@@ -110,14 +122,7 @@ impl Widget for SliderWidget {
                     },
                     State::Dragging => {
                         let normalized_position = ((position.x - ctx.bounds().left()) / ctx.bounds().width()).clamp(0.0, 1.0);
-                        println!("{}", normalized_position);
-                        if normalized_position != self.position_normalized {
-                            self.position_normalized = normalized_position;
-                            ctx.request_render();
-                            if let Some(f) = self.on_value_changed.as_ref() {
-                                f(self.min + (self.max - self.min) * self.position_normalized);
-                            }
-                        }
+                        self.set_position(normalized_position, ctx);
                     },
                 }
                 EventStatus::Handled
@@ -142,6 +147,27 @@ impl Widget for SliderWidget {
         }
     }
 
+    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
+        match event {
+            crate::KeyEvent::KeyDown { key, .. } => {
+                match key {
+                    Key::Left => {
+                        let new_position = (self.position_normalized - 0.1).clamp(0.0, 1.0);
+                        self.set_position(new_position, ctx);
+                        EventStatus::Handled
+                    },
+                    Key::Right => {
+                        let new_position = (self.position_normalized + 0.1).clamp(0.0, 1.0);
+                        self.set_position(new_position, ctx);
+                        EventStatus::Handled
+                    },
+                    _ => EventStatus::Ignored
+                }
+            },
+            _ => EventStatus::Ignored
+        }
+    }
+
     fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
         ctx.compute_leaf_layout(inputs, |known_size, available_space| {
             known_size.unwrap_or(available_space.map(|x| match x {
@@ -150,6 +176,10 @@ impl Widget for SliderWidget {
                 taffy::AvailableSpace::MaxContent => 100.0,
             }))
         })
+    }
+
+    fn focus_changed(&mut self, _has_focus: bool, ctx: &mut EventContext) {
+        ctx.request_render()
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {
@@ -162,6 +192,10 @@ impl Widget for SliderWidget {
             State::Dragging => Color::from_rgb(0.75, 0.75, 0.75),
         };
 
+        if ctx.has_focus() {
+            ctx.stroke(bounds, Color::RED, 1.0);
+        }
+        
         ctx.fill(Rectangle::from_center(center, Size::new(width, 2.0)), Color::BLACK);
         ctx.fill(self.knob_shape(bounds), knob_color);
     }

@@ -1,4 +1,6 @@
-use crate::{core::{Point, Rectangle, Size}, event::KeyEvent, IdPath, MouseEvent};
+use std::{any::Any, rc::Rc};
+
+use crate::{app::Binding, core::{Point, Rectangle, Size}, event::KeyEvent, platform, window::WindowState, IdPath, MouseEvent};
 use bitflags::bitflags;
 
 use super::{EventContext, EventStatus, LayoutContext, RenderContext, Widget};
@@ -16,6 +18,16 @@ bitflags!(
     }
 );
 
+pub(crate) enum ViewMessage<'a> {
+    Mouse(MouseEvent),
+    MouseEnterExit(bool),
+    FocusChanged(bool),
+    BoundVariableChanged {
+        f: Rc<Box<dyn Fn(&dyn Any, &mut WidgetNode)>>,
+        value: &'a dyn Any
+    }
+}
+
 
 pub struct WidgetData {
     id: IdPath,
@@ -23,7 +35,8 @@ pub struct WidgetData {
     pub(super) cache: taffy::Cache,
     pub(super) layout: taffy::Layout,
     pub(super) flags: ViewFlags,
-    pub(super) origin: Point
+    pub(super) origin: Point,
+    pub(super) bindings: Vec<Binding>
 }
 
 impl WidgetData {
@@ -34,7 +47,8 @@ impl WidgetData {
             cache: Default::default(),
             layout: Default::default(),
             flags: ViewFlags::EMPTY,
-            origin: Point::ZERO
+            origin: Point::ZERO,
+            bindings: Default::default()
         }
     }
 
@@ -105,45 +119,11 @@ impl WidgetNode {
     pub fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) -> EventStatus {
         let bounds = self.data.global_bounds();
         let mut status = EventStatus::Ignored;
-        match event {
-            MouseEvent::Moved { position } if bounds.contains(position) => {
-                if !self.data.flag_is_set(ViewFlags::UNDER_MOUSE_CURSOR) {
-                    self.data.set_flag(ViewFlags::UNDER_MOUSE_CURSOR);
-                    ctx.with_child(&mut self.data, |ctx| {
-                        self.widget.mouse_event(MouseEvent::Enter, ctx);
-                        ctx.view_flags()
-                    });
-                }
-
-                ctx.with_child(&mut self.data, |ctx| {
-                    status = self.widget.mouse_event(event, ctx);
-                    ctx.view_flags()
-                });
-            },
-            // Mouse exited the child's parent, or the mouse moved
-            // and the mouse is not over the child
-            MouseEvent::Moved { .. } | MouseEvent::Exit => {
-                if self.data.flag_is_set(ViewFlags::UNDER_MOUSE_CURSOR) {
-                    self.data.clear_flag(ViewFlags::UNDER_MOUSE_CURSOR);
-                    ctx.with_child(&mut self.data, |ctx| {
-                        self.widget.mouse_event(MouseEvent::Exit, ctx);
-                        ctx.view_flags()
-                    });
-                }
-                ctx.with_child(&mut self.data, |ctx| {
-                    status = self.widget.mouse_event(event, ctx);
-                    ctx.view_flags()
-                });
-            },
-            // Filter these out
-            MouseEvent::Enter => {},
-            _ => {
-                ctx.with_child(&mut self.data, |ctx| {
-                    status = self.widget.mouse_event(event, ctx);
-                    ctx.view_flags()
-                });
-            }
-        };
+        if bounds.contains(event.position()) {
+            ctx.with_child(&mut self.data, |ctx| {
+                status = self.widget.mouse_event(event, ctx);
+            });
+        }
         status
     }
 
@@ -151,9 +131,59 @@ impl WidgetNode {
         let mut status = EventStatus::Ignored;
         ctx.with_child(&mut self.data, |ctx| {
             status = self.widget.key_event(event, ctx);
-            ctx.view_flags()
         });
         status
+    }
+
+    pub(crate) fn handle_message(&mut self, destination: &IdPath, message: ViewMessage, window_state: &mut WindowState, handle: &mut platform::HandleRef) {
+        let mut destination = destination.clone();
+        destination.pop_root();
+        self.handle_message_impl(&mut destination, message, window_state, handle);
+    }
+
+    fn handle_message_impl(&mut self, destination: &mut IdPath, message: ViewMessage, window_state: &mut WindowState, handle: &mut platform::HandleRef) {
+        //println!("Current: {:?}, destination: {:?}", self.data.id_path(), destination);
+        if let Some(child_id) = destination.pop_root() {
+			let flags = {
+                let child = self.widget.get_child_mut(child_id.0);
+			    child.handle_message_impl(destination, message, window_state, handle);
+                child.data.flags
+            };
+            self.data.flags |= flags & (ViewFlags::NEEDS_LAYOUT | ViewFlags::NEEDS_RENDER);
+        } else {
+            match message {
+                ViewMessage::Mouse(mouse_event) => {
+                    let mut ctx = EventContext::new(&mut self.data, window_state, handle);
+                    self.widget.mouse_event(mouse_event, &mut ctx);
+                },
+                ViewMessage::FocusChanged(has_focus) => {
+                    let mut ctx = EventContext::new(&mut self.data, window_state, handle);
+                    self.widget.focus_changed(has_focus, &mut ctx)
+                },
+                ViewMessage::MouseEnterExit(has_mouse_over) => {
+                    let mut ctx = EventContext::new(&mut self.data, window_state, handle);
+                    self.widget.mouse_enter_exit(has_mouse_over, &mut ctx);
+                },
+                ViewMessage::BoundVariableChanged { f, value } => {
+                    f(value, self);
+                }
+            };
+        }
+    }
+
+    // Traverse all views at a point 
+    pub fn for_each_view_at(&self, point: Point, f: &mut impl FnMut(&Self) -> bool) -> bool {
+        if !self.data.global_bounds().contains(point) {
+            return true;
+        }
+
+        for i in (0..self.widget.child_count()).rev() {
+            if !self.widget.get_child(i).for_each_view_at(point, f) {
+                return false;
+            }
+        };
+
+        f(self)
     }
 
     pub(crate) fn set_origin(&mut self, parent_offset: Point) {
