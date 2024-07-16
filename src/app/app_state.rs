@@ -11,7 +11,11 @@ enum Task {
     RunEffect {
         id: NodeId,
         f: Weak<Box<dyn Fn(&mut AppState)>>
-    }
+    },
+	UpdateBinding {
+		widget_id: IdPath,
+    	f: Weak<Box<dyn Fn(&dyn Any, &mut WidgetNode)>>,
+	}
 }
 
 impl Task {
@@ -68,7 +72,7 @@ enum Scope {
 
 pub struct AppState {
     scope: Scope,
-    pending_tasks: VecDeque<NodeId>,
+    pending_tasks: VecDeque<Task>,
     nodes: SlotMap<NodeId, Node>,
     subscriptions: SecondaryMap<NodeId, HashSet<NodeId>>,
     dependencies: SecondaryMap<NodeId, HashSet<NodeId>>,
@@ -151,6 +155,8 @@ impl AppState {
         self.nodes.remove(id).expect("Missing node")
     }
 
+	
+
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
         self.update_signal_value(signal, move |x| { *x = value });
     }
@@ -205,16 +211,14 @@ impl AppState {
                     id: *node_id, 
                     f: Rc::downgrade(&effect.f)
                 };
-
-                /*if self.pending_tasks.is_empty() {
-                    task.run(self);
-                } else {
-                    self.pending_tasks.push_back(task);
-                    self.flush_effects();
-                }*/
+				self.pending_tasks.push_back(task);
             },
             NodeType::Binding(binding) => {
-
+				let task = Task::RunEffect { 
+                    id: *node_id, 
+                    f: Rc::downgrade(&effect.f)
+                };
+				self.pending_tasks.push_back(task);
             },
             NodeType::Memo(memo) => todo!(),
             NodeType::Signal(_) => unreachable!(),
