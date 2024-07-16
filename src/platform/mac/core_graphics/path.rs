@@ -1,4 +1,4 @@
-use icrate::Foundation::CGRect;
+use objc2_foundation::CGRect;
 use objc2::{Encode, RefEncode};
 
 use crate::platform::{mac::{IRefCounted, IRef}, IMut};

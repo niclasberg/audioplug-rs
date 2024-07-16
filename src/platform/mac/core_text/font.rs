@@ -1,4 +1,4 @@
-use icrate::Foundation::CGFloat;
+use objc2_foundation::CGFloat;
 
 use crate::platform::{mac::{core_foundation::{CFString, CFTyped, CFTypeID}, core_graphics::CGAffineTransform}, IRef};
 

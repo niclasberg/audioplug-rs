@@ -1,6 +1,6 @@
 use std::mem::MaybeUninit;
 
-use icrate::Foundation::CGSize;
+use objc2_foundation::CGSize;
 use objc2::{Encode, RefEncode};
 
 use crate::platform::mac::{IRef, core_foundation::{CFRange, CFTyped, CFDictionary, CFAttributedString, CFTypeID}, core_graphics::CGPath};

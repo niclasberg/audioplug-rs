@@ -206,12 +206,12 @@ impl AppState {
                     f: Rc::downgrade(&effect.f)
                 };
 
-                if self.pending_tasks.is_empty() {
+                /*if self.pending_tasks.is_empty() {
                     task.run(self);
                 } else {
                     self.pending_tasks.push_back(task);
                     self.flush_effects();
-                }
+                }*/
             },
             NodeType::Binding(binding) => {
 

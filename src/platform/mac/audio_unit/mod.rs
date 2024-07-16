@@ -1,4 +1,4 @@
-use icrate::Foundation::NSError;
+use objc2_foundation::NSError;
 use objc2::{extern_class, mutability, ClassType, runtime::{NSObject, NSObjectProtocol}, extern_methods, rc::{Id, Allocated}};
 
 mod audio_component;

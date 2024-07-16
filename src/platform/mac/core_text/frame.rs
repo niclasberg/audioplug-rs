@@ -1,4 +1,4 @@
-use icrate::Foundation::CGPoint;
+use objc2_foundation::CGPoint;
 use objc2::{Encode, RefEncode};
 
 use crate::platform::mac::{core_graphics::{CGContext, CGPath}, IRef, core_foundation::{CFTypeID, CFArray, CFIndex}};

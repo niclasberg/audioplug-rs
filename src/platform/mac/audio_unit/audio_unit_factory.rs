@@ -1,5 +1,6 @@
 use block2::Block;
-use icrate::{Foundation::NSError, AppKit::NSViewController};
+use objc2_foundation::NSError;
+use objc2_app_kit::NSViewController;
 use objc2::{extern_protocol, rc::Id, ProtocolType};
 
 use super::{AudioComponentDescription, AUAudioUnit};
@@ -11,8 +12,8 @@ extern_protocol!(
 		#[method_id(createAudioUnitWithComponentDescription:error:)]
 		fn createAudioUnitWithComponentDescription_error(&self, desc: AudioComponentDescription, error: *mut NSError) -> Id<AUAudioUnit>;
 
-		#[method(requestViewControllerWithCompletionHandler:)]
-		fn requestViewControllerWithCompletionHandler(&self, completionHandler: &Block<(*mut AUViewControllerBase, ), ()>);
+		//#[method(requestViewControllerWithCompletionHandler:)]
+		//fn requestViewControllerWithCompletionHandler(&self, completionHandler: &Block<(*mut AUViewControllerBase, ), ()>);
 	}
 
 	unsafe impl ProtocolType for dyn AUAudioUnitFactory {}

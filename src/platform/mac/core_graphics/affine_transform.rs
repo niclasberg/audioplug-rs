@@ -1,4 +1,4 @@
-use icrate::Foundation::CGFloat;
+use objc2_foundation::CGFloat;
 
 use crate::core::Transform;
 

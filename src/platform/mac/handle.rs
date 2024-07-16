@@ -1,4 +1,5 @@
-use icrate::{AppKit::{NSPasteboard, NSPasteboardTypeString}, Foundation::NSString};
+use objc2_app_kit::{NSPasteboard, NSPasteboardTypeString};
+use objc2_foundation::NSString;
 
 use crate::core::Rectangle;
 use super::{view::View, Error};

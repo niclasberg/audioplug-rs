@@ -1,4 +1,4 @@
-use icrate::Foundation::NSString;
+use objc2_foundation::NSString;
 use c_enum::c_enum;
 use objc2::runtime::Bool;
 use crate::platform::IRef;

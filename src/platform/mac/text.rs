@@ -1,4 +1,4 @@
-use icrate::Foundation::{CGSize, CGPoint};
+use objc2_foundation::{CGSize, CGPoint};
 
 use crate::{text::FontWeight, core::{Color, Size, Point, Rectangle}};
 use super::{core_text::{CTFrameSetter, CTFrame, AttributedStringBuilder, CTLine}, IRef, core_foundation::{CFRange, CFString, CFAttributedString, CFTyped, CFIndex}, IMut, core_graphics::{CGColor, CGPath}};

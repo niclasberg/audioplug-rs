@@ -1,6 +1,6 @@
 use std::ffi::c_ushort;
 
-use icrate::AppKit::{NSEventModifierFlags, NSEventModifierFlagShift, NSEventModifierFlagControl, NSEventModifierFlagCommand};
+use objc2_app_kit::NSEventModifierFlags;
 
 use crate::keyboard::{Key, Modifiers};
 
@@ -133,15 +133,15 @@ pub fn key_from_code(key_code: c_ushort) -> Key {
 
 pub fn get_modifiers(flags: NSEventModifierFlags) -> Modifiers {
 	let mut modifiers = Modifiers::empty();
-	if flags & NSEventModifierFlagShift != 0 {
+	if flags.contains(NSEventModifierFlags::NSEventModifierFlagShift) {
 		modifiers |= Modifiers::SHIFT;
 	}
 
-	if flags & NSEventModifierFlagControl != 0 {
+	if flags.contains(NSEventModifierFlags::NSEventModifierFlagControl) {
 		modifiers |= Modifiers::ALT;
 	}
 
-	if flags & NSEventModifierFlagCommand != 0 {
+	if flags.contains(NSEventModifierFlags::NSEventModifierFlagCommand) {
 		modifiers |= Modifiers::CONTROL;
 	}
 

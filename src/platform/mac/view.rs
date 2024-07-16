@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
-use icrate::AppKit::{NSView, NSEvent, NSTrackingArea, NSTrackingActiveAlways, NSTrackingMouseEnteredAndExited, NSTrackingMouseMoved, NSResponder};
-use icrate::Foundation::{NSRect, CGRect, MainThreadMarker};
+use objc2_app_kit::{NSView, NSEvent, NSTrackingArea, NSTrackingAreaOptions, NSResponder};
+use objc2_foundation::{NSRect, CGRect, MainThreadMarker};
 use objc2::rc::Id;
 use objc2::runtime::{NSObject, NSObjectProtocol};
 use objc2::{declare_class, DeclaredClass, mutability, ClassType, msg_send_id};
@@ -11,7 +11,7 @@ use crate::event::{MouseButton, KeyEvent, MouseEvent};
 use crate::platform::mac::keyboard::{key_from_code, get_modifiers};
 use crate::platform::WindowEvent;
 use super::{RendererRef, HandleRef};
-use crate::window::WindowHandler;
+use crate::platform::WindowHandler;
 
 use super::appkit::NSGraphicsContext;
 use super::core_graphics::CGColor;
@@ -149,7 +149,7 @@ impl View {
 				let tracking_area = NSTrackingArea::alloc();
 				NSTrackingArea::initWithRect_options_owner_userInfo(tracking_area, 
 					rect, 
-					NSTrackingActiveAlways | NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved, 
+					NSTrackingAreaOptions::NSTrackingActiveAlways | NSTrackingAreaOptions::NSTrackingMouseEnteredAndExited | NSTrackingAreaOptions::NSTrackingMouseMoved, 
 					Some(self), 
 					None)
 			};

@@ -1,6 +1,6 @@
 use block2::Block;
-use icrate::AppKit::NSViewController;
-use icrate::Foundation::NSError;
+use objc2_app_kit::NSViewController;
+use objc2_foundation::NSError;
 use objc2::mutability::MainThreadOnly;
 use objc2::rc::Id;
 use objc2::{declare_class, ClassType, DeclaredClass};
@@ -27,10 +27,10 @@ declare_class!(
 			todo!()
 		}
 
-		#[method(requestViewControllerWithCompletionHandler:)]
-		fn requestViewControllerWithCompletionHandler(&self, completionHandler: &Block<(*mut AUViewControllerBase, ), ()>) {
+		//#[method(requestViewControllerWithCompletionHandler:)]
+		//fn requestViewControllerWithCompletionHandler(&self, completionHandler: &Block<(*mut AUViewControllerBase, ), ()>) {
 			// unsafe { completionHandler.call(self) }
-		}
+		//}
 	}
 
 	unsafe impl NSObjectProtocol for AUFactory {}

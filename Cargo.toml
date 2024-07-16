@@ -45,26 +45,8 @@ features = [
 c-enum = "0.2.2"
 block2 = "0.5.1"
 objc2 = "0.5.0"
-
-[target.'cfg(target_os = "macos")'.dependencies.icrate]
-version = "0.1.0"
-features = [
-	"block",
-	"Foundation",
-	"AppKit",
-	"AppKit_NSApplication",
-	"AppKit_NSEvent",
-	"AppKit_NSPasteboard",
-	"AppKit_NSTrackingArea",
-	"AppKit_NSView",
-	"AppKit_NSViewController",
-	"AppKit_NSWindow",
-	"Foundation_NSAttributedString",
-	"Foundation_NSMutableAttributedString",
-	"Foundation_NSDictionary",
-	"Foundation_NSString",
-	"Foundation_NSThread"
-]
+objc2-foundation = { version = "0.2.2", features = ["NSAttributedString", "NSDictionary", "NSString", "NSThread"]}
+objc2-app-kit = { version = "0.2.2", features = ["NSApplication", "NSRunningApplication", "NSGraphics", "NSEvent", "NSPasteboard", "NSResponder", "NSTrackingArea", "NSView", "NSViewController", "NSWindow"]}
 
 [[example]]
 name = "vst3-test"

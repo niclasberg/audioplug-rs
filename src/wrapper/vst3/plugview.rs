@@ -1,4 +1,4 @@
-use raw_window_handle::{RawWindowHandle, Win32WindowHandle};
+use raw_window_handle::{AppKitWindowHandle, RawWindowHandle, Win32WindowHandle};
 use vst3_sys::{VST3, VstPtr};
 use vst3_sys::vst::IComponentHandler;
 use vst3_sys::base::*;
@@ -6,6 +6,7 @@ use vst3_sys::gui::{IPlugView, ViewRect};
 use std::cell::RefCell;
 use std::ffi::{CStr, c_void};
 use std::num::NonZeroIsize;
+use std::ptr::NonNull;
 use std::rc::Rc;
 
 use crate::app::AppState;
@@ -60,8 +61,8 @@ impl IPlugView for PlugView {
                 }, 
 				#[cfg(target_os = "macos")]
 				Ok(type_) if type_ == VST3_PLATFORM_NSVIEW => {
-					let h = Win32WindowHandle::empty();
-					RawWindowHandle::Win32(h)
+					let h = AppKitWindowHandle::new(NonNull::new(parent).unwrap());
+					RawWindowHandle::AppKit(h)
 				},
                 _ => {
                     return kInvalidArgument;

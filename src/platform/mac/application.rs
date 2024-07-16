@@ -1,5 +1,5 @@
-use icrate::Foundation::{NSObject, MainThreadMarker};
-use icrate::AppKit::{NSApplication, NSApplicationDelegate, NSApplicationActivationPolicyRegular};
+use objc2_foundation::{NSObject, MainThreadMarker};
+use objc2_app_kit::{NSApplication, NSApplicationDelegate, NSApplicationActivationPolicy};
 use objc2::rc::Id;
 use objc2::runtime::{NSObjectProtocol, ProtocolObject, AnyObject};
 use objc2::{declare_class, DeclaredClass, mutability, ClassType, msg_send_id};
@@ -46,7 +46,7 @@ impl Application {
 	pub fn new() -> Self {
 		let mtm = MainThreadMarker::new().unwrap();
 		let app: Id<NSApplication> = NSApplication::sharedApplication(mtm);
-		app.setActivationPolicy(NSApplicationActivationPolicyRegular);
+		app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
 
 		let delegate: Id<MyApplicationDelegate> = MyApplicationDelegate::new(mtm);
 

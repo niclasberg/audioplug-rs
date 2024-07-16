@@ -4,7 +4,7 @@ mod path;
 mod affine_transform;
 pub use color::CGColor;
 pub use context::CGContext;
-pub use icrate::Foundation::{CGPoint, CGRect, CGSize, CGFloat};
+pub use objc2_foundation::{CGPoint, CGRect, CGSize, CGFloat};
 pub use path::CGPath;
 pub use affine_transform::CGAffineTransform;
 

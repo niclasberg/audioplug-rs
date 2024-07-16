@@ -1,4 +1,4 @@
-use icrate::Foundation::{CGRect, CGFloat};
+use objc2_foundation::{CGRect, CGFloat};
 
 use crate::core::{Rectangle, Color, Point, Size, Vector, Transform};
 

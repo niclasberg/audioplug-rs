@@ -1,4 +1,4 @@
-use icrate::Foundation::{CGPoint, CGFloat};
+use objc2_foundation::{CGPoint, CGFloat};
 
 use crate::platform::mac::core_foundation::{CFTyped, CFTypeID, CFIndex, CFRange};
 
