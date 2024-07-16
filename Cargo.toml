@@ -9,13 +9,13 @@ edition = "2021"
 num = {version = "0.4.1"}
 bitflags = "2.4.0"
 vst3-sys = { git = "https://github.com/RustAudio/vst3-sys.git" }
-raw-window-handle = "0.5.2"
+raw-window-handle = "0.6.2"
 unicode-segmentation = "1.10.1"
 slotmap = "1.0.7"
-taffy = "0.4.1"
+taffy = "0.5.2"
 
 [target.'cfg(windows)'.dependencies.windows]
-version = "0.52"
+version = "0.58.0"
 features = [
 	"Win32_Foundation", 
 	"Win32_Graphics_Gdi", 
@@ -43,7 +43,7 @@ features = [
 
 [target.'cfg(target_os = "macos")'.dependencies]
 c-enum = "0.2.2"
-block2 = "0.4.0"
+block2 = "0.5.1"
 objc2 = "0.5.0"
 
 [target.'cfg(target_os = "macos")'.dependencies.icrate]

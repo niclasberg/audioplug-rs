@@ -1,4 +1,4 @@
-use std::ffi::{CString, c_char, CStr};
+use std::ffi::{CString, CStr};
 use std::mem::size_of;
 
 use windows::Win32::System::DataExchange::CloseClipboard;
@@ -10,7 +10,7 @@ use windows::Win32::System::{DataExchange, Memory};
 use windows::Win32::Graphics::Gdi::InvalidateRect;
 use crate::core::Rectangle;
 
-use super::util::{get_client_rect, utf16_ptr_to_string};
+use super::util::get_client_rect;
 
 pub type HandleRef<'a> = &'a mut Handle;
 
@@ -59,7 +59,7 @@ impl Handle {
                 let mem_loc = Memory::GlobalLock(hmem);
                 std::ptr::copy_nonoverlapping(chars.as_ptr(), mem_loc as *mut u8, chars.len());
                 let _ = Memory::GlobalUnlock(hmem);
-                DataExchange::SetClipboardData(CF_TEXT.0.into(), HANDLE(hmem.0 as isize))?;
+                DataExchange::SetClipboardData(CF_TEXT.0.into(), HANDLE(hmem.0))?;
             };
         }
 

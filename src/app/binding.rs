@@ -27,7 +27,7 @@ impl Drop for Binding {
 
 pub(super) struct BindingState {
     pub widget_id: IdPath,
-    pub f: Rc<Box<dyn Fn(&dyn Any, &mut WidgetNode)>>,   
+    pub f: Rc<Box<dyn Fn(&dyn Any, &mut WidgetNode)>>,
 }
 
 impl BindingState {

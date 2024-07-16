@@ -5,6 +5,7 @@ use vst3_sys::base::*;
 use vst3_sys::gui::{IPlugView, ViewRect};
 use std::cell::RefCell;
 use std::ffi::{CStr, c_void};
+use std::num::NonZeroIsize;
 use std::rc::Rc;
 
 use crate::app::AppState;
@@ -54,8 +55,7 @@ impl IPlugView for PlugView {
             let handle = match type_.to_str() {
                 #[cfg(target_os = "windows")]
                 Ok(type_) if type_ == VST3_PLATFORM_HWND => {
-                    let mut h = Win32WindowHandle::empty();
-                    h.hwnd = parent;
+                    let h = Win32WindowHandle::new(NonZeroIsize::new(parent as isize).unwrap());
                     RawWindowHandle::Win32(h)
                 }, 
 				#[cfg(target_os = "macos")]

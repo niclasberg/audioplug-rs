@@ -1,4 +1,4 @@
-use std::{any::Any, cell::RefCell, collections::{HashSet, VecDeque}, rc::Rc};
+use std::{any::Any, cell::RefCell, collections::{HashSet, VecDeque}, rc::{Rc, Weak}};
 use slotmap::{SlotMap, SecondaryMap};
 use crate::{view::{Widget, WidgetContext, WidgetNode}, window::Window, App, IdPath};
 
@@ -7,15 +7,15 @@ use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
 
-/*enum Task<EffectCtx> {
+enum Task {
     RunEffect {
         id: NodeId,
-        f: Weak<Box<dyn Fn(&mut EffectCtx)>>
+        f: Weak<Box<dyn Fn(&mut AppState)>>
     }
 }
 
-impl<EffectCtx> Task<EffectCtx> {
-    fn run(&self, cx: &mut EffectCtx) {
+impl Task {
+    fn run(&self, cx: &mut AppState) {
         match self {
             Task::RunEffect { id, f } => {
                 cx.with_scope(Scope::Effect(*id), |cx| {
@@ -26,7 +26,7 @@ impl<EffectCtx> Task<EffectCtx> {
             },
         }
     }
-}*/
+}
 
 pub struct Node {
     node_type: NodeType,
@@ -72,8 +72,7 @@ pub struct AppState {
     nodes: SlotMap<NodeId, Node>,
     subscriptions: SecondaryMap<NodeId, HashSet<NodeId>>,
     dependencies: SecondaryMap<NodeId, HashSet<NodeId>>,
-    node_ref_counts: Rc<RefCell<RefCountMap>>,
-    window: Option<Window>
+    node_ref_counts: Rc<RefCell<RefCountMap>>
 }
 
 impl AppState {
@@ -84,8 +83,7 @@ impl AppState {
             nodes: Default::default(),
             subscriptions: Default::default(),
             dependencies: Default::default(),
-            node_ref_counts: Rc::new(RefCell::new(RefCountMap::new())),
-            window: None
+            node_ref_counts: Rc::new(RefCell::new(RefCountMap::new()))
         }
     }
 
@@ -116,7 +114,7 @@ impl AppState {
         }
     }
 
-    pub fn create_effect(&mut self, f: impl Fn(&mut App) + 'static) {
+    pub fn create_effect(&mut self, f: impl Fn(&mut AppState) + 'static) {
         let id = self.create_node(NodeType::Effect(EffectState::new(f)), NodeState::Clean);
         self.notify(&id);
     }
@@ -203,17 +201,17 @@ impl AppState {
         let node = self.nodes.get_mut(*node_id).expect("Node has been removed");
         match &mut node.node_type {
             NodeType::Effect(effect) => {
-                /*let task = Task::RunEffect { 
+                let task = Task::RunEffect { 
                     id: *node_id, 
                     f: Rc::downgrade(&effect.f)
                 };
-        
+
                 if self.pending_tasks.is_empty() {
                     task.run(self);
                 } else {
-                    self.pending_tasks.push(task);
+                    self.pending_tasks.push_back(task);
                     self.flush_effects();
-                }*/
+                }
             },
             NodeType::Binding(binding) => {
 

@@ -266,7 +266,8 @@ impl Window {
         let window: Result<platform::Window, platform::Error> = match handle {
             #[cfg(target_os = "windows")]
             RawWindowHandle::Win32(handle) => {
-                platform::Window::attach(windows::Win32::Foundation::HWND(handle.hwnd as isize), handler)
+                let hwnd = handle.hwnd.get() as *mut std::ffi::c_void;
+                platform::Window::attach(windows::Win32::Foundation::HWND(hwnd), handler)
             },
 			#[cfg(target_os = "macos")]
 			RawWindowHandle::AppKit(handle) => {

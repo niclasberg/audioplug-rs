@@ -17,17 +17,6 @@ pub trait CheckOk {
     fn ok(self) -> Result<Self::Output>;
 }
 
-impl CheckOk for HWND {
-    type Output = Self;
-    fn ok(self) -> Result<Self::Output> {
-        if self.0 == 0 {
-            Err(Error::from_win32())
-        } else {
-            Ok(self)
-        }
-    }
-}
-
 impl CheckOk for BOOL {
     type Output = ();
     fn ok(self) -> Result<Self::Output> {
@@ -314,7 +303,7 @@ impl Window {
         REGISTER_WINDOW_CLASS.call_once(|| {
             let class = WNDCLASSW {
                 lpszClassName: WINDOW_CLASS,
-                hCursor: unsafe { LoadCursorW(None, IDC_ARROW).ok().unwrap() },
+                hCursor: unsafe { LoadCursorW(None, IDC_ARROW).unwrap() },
                 hInstance: instance.into(),
                 lpfnWndProc: Some(wndproc),
                 style: CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS,
@@ -349,10 +338,10 @@ impl Window {
                 CW_USEDEFAULT, 
                 CW_USEDEFAULT, 
                 CW_USEDEFAULT, 
-                parent.unwrap_or(HWND(0)), 
+                parent.unwrap_or_default(), 
                 None, 
                 instance, 
-                Some(Rc::into_raw(window_state) as _)).ok()?
+                Some(Rc::into_raw(window_state) as _))?
         };
 
         let result = Window {
