@@ -1,43 +1,17 @@
 use std::{fmt::Display, marker::PhantomData};
 
+mod float;
+mod int;
+
+pub use float::{FloatParameter, FloatRange};
+pub use int::{IntParameter, IntRange};
+
 #[derive(Clone, Debug)]
 pub struct ParseError;
 
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Unable to parse parameter value from string")
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum IntRange {
-    Linear { min: i64, max: i64 }
-}
-
-impl IntRange {
-    pub fn normalize(&self, value: f64) -> f64 {
-        match self {
-            IntRange::Linear { min, max } => (value - *min as f64) / (*max as f64),
-        }
-    }
-
-    pub fn steps(&self) -> usize {
-        match self {
-            IntRange::Linear { min, max } => (max - min + 1) as usize,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum FloatRange {
-    Linear { min: f64, max: f64 }
-}
-
-impl FloatRange {
-    pub fn normalize(&self, value: f64) -> f64 {
-        match self {
-            Self::Linear { min, max } => (value - min.clamp(*min, *max)) / max
-        }
     }
 }
 
@@ -51,7 +25,7 @@ pub enum Unit {
 
 /// Normalized parameter value, in range 0.0 to 1.0
 #[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
-pub struct NormalizedValue(f64);
+pub struct NormalizedValue(pub(super) f64);
 
 impl NormalizedValue {
     #[inline]
@@ -113,22 +87,21 @@ impl Parameter {
     pub fn name(&self) -> &'static str {
         match self {
             Self::ByPass => "Bypass",
-            Self::Float(p) => p.name,
-            Self::Int(p) => p.name,
+            Self::Float(p) => p.name(),
+            Self::Int(p) => p.name(),
             Self::StringList(StringListParameter{ name, .. }) => name,
             Self::Bool(p) => p.name,
         }
     }
 
     pub fn default(&self) -> PlainValue {
-        let value = match self {
-            Parameter::Float(p) => p.default,
-            Parameter::Int(p) => p.default as f64,
-            Parameter::StringList(p) => p.default_index as f64,
-            Parameter::ByPass => 0.0,
-            Parameter::Bool(p) => if p.default { 1.0 } else { 0.0 }
-        };
-        PlainValue(value)
+        match self {
+            Parameter::Float(p) => p.default_value(),
+            Parameter::Int(p) => p.default_value(),
+            Parameter::StringList(p) => PlainValue(p.default_index as f64),
+            Parameter::ByPass => PlainValue(0.0),
+            Parameter::Bool(p) => PlainValue(if p.default { 1.0 } else { 0.0 })
+        }
     }
 
     pub fn default_normalized(&self) -> NormalizedValue {
@@ -136,61 +109,33 @@ impl Parameter {
     }
 
     pub fn normalize(&self, value: PlainValue) -> NormalizedValue {
-        let value = value.0;
-        let normalized_value = match self {
-            Parameter::Float(p) => p.range.normalize(value),
-            Parameter::Int(p) => p.range.normalize(value),
-            Parameter::StringList(p) => value.clamp(0.0, p.string_count() as f64) / (p.string_count() as f64),
-            Parameter::ByPass | Parameter::Bool(_) => value,
-        };
-        NormalizedValue(normalized_value)  
+        match self {
+            Parameter::Float(p) => p.range().normalize(value),
+            Parameter::Int(p) => p.range().normalize(value),
+            Parameter::StringList(p) => NormalizedValue(value.0.clamp(0.0, p.string_count() as f64) / (p.string_count() as f64)),
+            Parameter::ByPass | Parameter::Bool(_) => NormalizedValue(value.0),
+        }
     }
 
     pub fn denormalize(&self, value: NormalizedValue) -> PlainValue {
-        let value = value.0;
-        let plain_value = match self {
+        match self {
             Parameter::Float(p) => todo!(),
-            Parameter::Int(_) => todo!(),
-            Parameter::StringList(p) => value * (p.string_count() as f64),
-            Parameter::ByPass | Parameter::Bool(_) => value,
-        };
-        PlainValue(plain_value)
+            Parameter::Int(p) => p.range().denormalize(value),
+            Parameter::StringList(p) => PlainValue(value.0 * (p.string_count() as f64)),
+            Parameter::ByPass | Parameter::Bool(_) => PlainValue(value.0),
+        }
     }
 
     pub fn step_count(&self) -> usize {
         match self {
             Self::ByPass | Self::Bool(_) => 1,
-            Self::Int(p) => p.range.steps(),
+            Self::Int(p) => p.range().steps(),
             Self::Float(FloatParameter {.. }) => 0,
             Self::StringList(string_list) => string_list.step_count()
         }
     }
 }
 
-pub struct FloatParameter {
-    name: &'static str,
-    range: FloatRange,
-    default: f64
-}
-
-impl FloatParameter {
-    pub fn new(name: &'static str) -> Self {
-        Self {
-            name,
-            range: FloatRange::Linear { min: 0.0, max: 1.0 },
-            default: 0.0
-        }
-    }
-
-    pub fn with_range(mut self, range: FloatRange) -> Self {
-        self.range = range;
-        self
-    }
-
-    pub fn range(&self) -> FloatRange {
-        self.range
-    }
-}
 
 impl From<FloatParameter> for Parameter {
     fn from(value: FloatParameter) -> Self {
@@ -198,25 +143,7 @@ impl From<FloatParameter> for Parameter {
     }
 }
 
-pub struct IntParameter {
-    name: &'static str,
-    range: IntRange,
-    default: i64
-}
 
-impl IntParameter {
-    pub fn new(name: &'static str) -> Self {
-        Self { 
-            name, 
-            range: IntRange::Linear { min: 0, max: 1 }, 
-            default: 0
-        }
-    }
-
-    pub fn range(&self) -> IntRange {
-        self.range
-    }
-}
 
 pub struct StringListParameter {
     name: &'static str,

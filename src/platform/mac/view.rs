@@ -78,6 +78,15 @@ declare_class!(
 			}
         }
 
+		#[method(mouseDragged:)]
+		fn mouse_dragged(&self, event: &NSEvent) {
+			if let Some(position) = self.mouse_position(event) {
+				self.dispatch_event(WindowEvent::Mouse(
+					MouseEvent::Moved { position }
+				))
+			}
+		}
+
 		#[method(acceptsFirstResponder)]
         fn accepts_first_responder(&self) -> bool {
             true

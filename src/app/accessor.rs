@@ -1,8 +1,16 @@
+use std::any::Any;
+
 use super::{Memo, NodeId, Signal, SignalGet};
 
 pub enum Accessor<T> {
     Signal(Signal<T>),
     Memo(Memo<T>),
+	AnyGetter {
+		state: Box<dyn Any>,
+		source_id: NodeId,
+		with_ref: fn(&Box<dyn Any>) -> &T,
+		with_ref_untracked: fn(&Box<dyn Any>) -> &T,
+	},
     Const(T)
 }
 
@@ -11,6 +19,7 @@ impl<T> Accessor<T> {
         match self {
             Accessor::Signal(signal) => Some(signal.id),
             Accessor::Memo(memo) => Some(memo.id),
+			Accessor::AnyGetter { source_id, ..} => Some(*source_id),
             Accessor::Const(_) => None,
         }
     }
@@ -48,6 +57,8 @@ impl<T: 'static> SignalGet for Accessor<T> {
             Accessor::Signal(signal) => signal.with_ref(cx, f),
             Accessor::Memo(memo) => memo.with_ref(cx, f),
             Accessor::Const(value) => f(value),
+			Accessor::AnyGetter { state, with_ref, .. } => f(with_ref(state)),
+			
         }
     }
 
@@ -56,6 +67,7 @@ impl<T: 'static> SignalGet for Accessor<T> {
             Accessor::Signal(signal) => signal.with_ref_untracked(cx, f),
             Accessor::Memo(memo) => memo.with_ref_untracked(cx, f),
             Accessor::Const(value) => f(value),
+			Accessor::AnyGetter { state, with_ref_untracked, .. } => f(with_ref_untracked(state)),
         }
     }
 }

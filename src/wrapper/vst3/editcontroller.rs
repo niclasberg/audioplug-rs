@@ -112,13 +112,20 @@ impl IEditController for EditController {
     }
 
     unsafe fn get_param_normalized(&self, id: u32) -> f64 {
-        let a = self.parameter_values.borrow();
-        todo!()
+        let values = self.parameter_values.borrow();
+		self.parameters
+            .get(id as usize)
+            .map_or(0.0, |param| param.denormalize(*values.get_unchecked(id as usize)).into())
     }
 
     unsafe fn set_param_normalized(&self, id: u32, value: f64) -> tresult {
-        let value = NormalizedValue::from_f64_unchecked(value);
-        kNotImplemented
+		let mut parameter_values = self.parameter_values.borrow_mut();
+		if let Some(value_ref) = parameter_values.get_mut(id as usize) {
+			*value_ref = NormalizedValue::from_f64_unchecked(value);
+			kResultOk
+		} else {
+			kInvalidArgument
+		}
     }
 
     unsafe fn set_component_handler(&self, handler: SharedVstPtr<dyn IComponentHandler>) -> tresult {

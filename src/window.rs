@@ -228,8 +228,8 @@ fn handle_key_event(id_path: &mut IdPath, event: KeyEvent, widget: &mut dyn Widg
     if let Some(child_id) = id_path.pop_root() {
         if child_id.0 < widget.child_count() {
             let child = widget.get_child_mut(child_id.0);
-            ctx.with_child(&mut child.data, |ctx| {
-                status = handle_key_event(id_path, event.clone(), &mut child.widget, ctx);
+            status = ctx.with_child(&mut child.data, |ctx| {
+                handle_key_event(id_path, event.clone(), &mut child.widget, ctx)
             });
         }
     } 

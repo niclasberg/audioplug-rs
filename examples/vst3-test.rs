@@ -82,3 +82,18 @@ pub extern "system" fn InitDll() -> bool {
 pub extern "system" fn ExitDll() -> bool {
     true
 }
+
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+#[allow(non_snake_case)]
+pub extern "system" fn bundleEntry() -> bool {
+    true
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+#[allow(non_snake_case)]
+pub extern "system" fn bundleExit() -> bool {
+    true
+}

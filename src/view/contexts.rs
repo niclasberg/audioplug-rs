@@ -285,19 +285,20 @@ impl<'a, 'b, 'c> EventContext<'a, 'b, 'c> {
         &mut self.app_state
     }
 
-    pub(crate) fn with_child<'d>(&mut self, widget_data: &'d mut WidgetData, f: impl FnOnce(&mut EventContext<'d, '_, '_>)) {
-        let flags = {
+    pub(crate) fn with_child<'d, T>(&mut self, widget_data: &'d mut WidgetData, f: impl FnOnce(&mut EventContext<'d, '_, '_>) -> T) -> T {
+        let (value, flags) = {
             let mut ctx = EventContext { 
                 widget_data,
                 window_state: self.window_state,
                 handle: self.handle,
                 app_state: self.app_state
             };
-            f(&mut ctx);
-            ctx.view_flags()
+            let value = f(&mut ctx);
+            (value, ctx.view_flags())
         };
 
         self.widget_data.flags |= flags & (ViewFlags::NEEDS_LAYOUT | ViewFlags::NEEDS_RENDER);
+		value
     }
 
     pub fn capture_mouse(&mut self) {

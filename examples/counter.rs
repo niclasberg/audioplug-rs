@@ -1,6 +1,4 @@
-use audioplug::{app::SignalGet, view::{Column, Label}, window::Window, App};
-
-
+use audioplug::{app::{SignalGet, SignalSet}, view::{Button, Column, Label}, window::Window, App};
 
 fn main() {
     let mut app = App::new();
@@ -8,7 +6,24 @@ fn main() {
         let count = ctx.create_signal(0);
         let text = count.clone().map(|cnt| format!("Count is {}", cnt));
         Column::new((
-            Label::new("hello"),
+            Label::new("hi"),
+			Button::new(Label::new("Increase"))
+				.on_click({
+					let count = count.clone();
+					move |ctx| {
+						let old_value = count.get(ctx);		
+						count.set(ctx, old_value + 1);
+					}
+				}),
+			Button::new(Label::new("Decrease"))
+				.on_click({
+					let count = count.clone();
+					move |ctx| {
+						let old_value = count.get(ctx);		
+						count.set(ctx, old_value - 1);
+					}
+				}),
         ))
     });
+	app.run();
 }

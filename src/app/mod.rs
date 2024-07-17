@@ -46,8 +46,6 @@ pub trait SignalContext {
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T);
 }
 
-
-
 pub trait UntrackedSignalContext {
    
 }
