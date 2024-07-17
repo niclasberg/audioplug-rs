@@ -1,9 +1,9 @@
-use crate::{core::{Color, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, Id, MouseEvent};
+use crate::{app::AppState, core::{Color, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, Id, MouseEvent};
 use super::{BuildContext, EventContext, EventStatus, LayoutContext, RenderContext, View, Widget, WidgetNode};
 
 pub struct Button<V> {
     child: V,
-    click_fn: Option<Box<dyn Fn()>>
+    click_fn: Option<Box<dyn Fn(&mut AppState)>>
 }
 
 impl<V: View> Button<V> {
@@ -11,7 +11,7 @@ impl<V: View> Button<V> {
         Self { child, click_fn: None }
     }
 
-    pub fn on_click(mut self, f: impl Fn() + 'static) -> Self {
+    pub fn on_click(mut self, f: impl Fn(&mut AppState) + 'static) -> Self {
         self.click_fn = Some(Box::new(f));
         self
     }
@@ -35,7 +35,7 @@ pub struct ButtonWidget {
     child: WidgetNode,
     is_hot: bool,
     mouse_down: bool,
-    click_fn: Option<Box<dyn Fn()>>
+    click_fn: Option<Box<dyn Fn(&mut AppState)>>
 }
 
 impl Widget for ButtonWidget {
@@ -56,7 +56,7 @@ impl Widget for ButtonWidget {
                     if ctx.bounds().contains(position) {
                         ctx.request_render();
                         if let Some(f) = self.click_fn.as_ref() {
-                            f();
+                            f(ctx.app_state_mut());
                         }
                     }
                 }
@@ -72,11 +72,11 @@ impl Widget for ButtonWidget {
         EventStatus::Handled
     }
 
-	fn key_event(&mut self, event: KeyEvent, _ctx: &mut EventContext) -> EventStatus {
+	fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
 		match event {
 			KeyEvent::KeyDown { key, ..} if key == Key::Enter => {
 				if let Some(f) = self.click_fn.as_ref() {
-					f();
+					f(ctx.app_state_mut());
 				} 
 				EventStatus::Handled
 			},

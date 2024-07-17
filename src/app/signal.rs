@@ -45,8 +45,7 @@ impl<T: Any> SignalSet for Signal<T> {
     type Value = T;
 
     fn set_with(&self, cx: &mut impl SignalContext, f: impl FnOnce() -> Self::Value) {
-        //cx.set_signal_value(self, f())
-        todo!()
+        cx.set_signal_value(self, f())
     }
 }
 

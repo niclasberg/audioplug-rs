@@ -2,7 +2,7 @@ use std::{any::Any, rc::Rc};
 
 use crate::{view::WidgetNode, IdPath};
 
-use super::{NodeId, RefCountMap, WeakRefCountMap};
+use super::{AppState, NodeId, RefCountMap, WeakRefCountMap};
 
 pub struct Binding {
     pub(super) id: NodeId,
@@ -27,11 +27,11 @@ impl Drop for Binding {
 
 pub(super) struct BindingState {
     pub widget_id: IdPath,
-    pub f: Rc<Box<dyn Fn(&dyn Any, &mut WidgetNode)>>,
+    pub f: Rc<Box<dyn Fn(&mut AppState, &mut WidgetNode)>>,
 }
 
 impl BindingState {
-    pub(super) fn new(widget_id: IdPath, f: impl Fn(&dyn Any, &mut WidgetNode) + 'static) -> Self {
+    pub(super) fn new(widget_id: IdPath, f: impl Fn(&mut AppState, &mut WidgetNode) + 'static) -> Self {
         Self {
             widget_id,
             f: Rc::new(Box::new(f))

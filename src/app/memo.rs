@@ -39,12 +39,12 @@ impl<T> Drop for Memo<T> {
 impl<T: 'static> SignalGet for Memo<T> {
     type Value = T;
 
-    fn with_ref<R>(&self, ctx: &mut impl SignalContext, f: impl Fn(&Self::Value) -> R) -> R {
+    fn with_ref<R>(&self, ctx: &mut impl SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         //f(ctx.get_memo_value_ref(self))
         todo!()
     }
 
-    fn with_ref_untracked<R>(&self, ctx: &impl SignalContext, f: impl Fn(&Self::Value) -> R) -> R {
+    fn with_ref_untracked<R>(&self, ctx: &impl SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         //f(ctx.get_memo_value_ref_untracked(self))
         todo!()
     }

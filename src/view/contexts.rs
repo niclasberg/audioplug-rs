@@ -68,6 +68,16 @@ pub struct WidgetContext<'a> {
     widget_data: &'a mut WidgetData
 }
 
+impl<'a> WidgetContext<'a> {
+    pub fn request_layout(&mut self) {
+        self.widget_data.set_flag(ViewFlags::NEEDS_LAYOUT);
+    }
+
+    pub fn request_render(&mut self) {
+        self.widget_data.set_flag(ViewFlags::NEEDS_RENDER);
+    }
+}
+
 pub struct LayoutContext<'a, 'b, 'c> {
     widget_data: &'a mut WidgetData,
 	handle: &'b platform::HandleRef<'c>
@@ -254,16 +264,25 @@ impl<'a, 'b, 'c, 'd> RenderContext<'a, 'b, 'c, 'd> {
 pub struct EventContext<'a, 'b, 'c> {
     widget_data: &'a mut WidgetData,
     window_state: &'b mut WindowState,
-	handle: &'b platform::HandleRef<'c>
+	handle: &'b platform::HandleRef<'c>,
+    app_state: &'b mut AppState
 }
 
 impl<'a, 'b, 'c> EventContext<'a, 'b, 'c> {
-    pub fn new(widget_data: &'a mut WidgetData, window_state: &'b mut WindowState, handle: &'b platform::HandleRef<'c>) -> Self{
-        Self { widget_data, window_state, handle }
+    pub fn new(widget_data: &'a mut WidgetData, window_state: &'b mut WindowState, handle: &'b platform::HandleRef<'c>, app_state: &'b mut AppState) -> Self{
+        Self { widget_data, window_state, handle, app_state }
     }
 
     pub fn bounds(&self) -> Rectangle {
         self.widget_data.global_bounds()
+    }
+
+    pub fn app_state(&self) -> &AppState {
+        &self.app_state
+    }
+
+    pub fn app_state_mut(&mut self) -> &mut AppState {
+        &mut self.app_state
     }
 
     pub(crate) fn with_child<'d>(&mut self, widget_data: &'d mut WidgetData, f: impl FnOnce(&mut EventContext<'d, '_, '_>)) {
@@ -271,7 +290,8 @@ impl<'a, 'b, 'c> EventContext<'a, 'b, 'c> {
             let mut ctx = EventContext { 
                 widget_data,
                 window_state: self.window_state,
-                handle: self.handle
+                handle: self.handle,
+                app_state: self.app_state
             };
             f(&mut ctx);
             ctx.view_flags()

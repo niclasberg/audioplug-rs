@@ -9,7 +9,7 @@ use crate::core::{Point, Rectangle};
 use crate::event::KeyEvent;
 use crate::keyboard::Key;
 use crate::platform::{WindowEvent, WindowHandler};
-use crate::app::{AppState, Signal};
+use crate::app::{self, AppState, Signal, SignalContext};
 use crate::view::{BuildContext, EventContext, EventStatus, LayoutNodeRef, RenderContext, View, ViewFlags, ViewMessage, Widget, WidgetData, WidgetNode};
 use crate::{platform, App, Cursor, IdPath, MouseEvent};
 
@@ -98,14 +98,16 @@ impl MyHandler {
             println!("Focus change {:?}, {:?}", self.state.focus_view, new_focus_view);
             if let Some(focus_lost_view) = self.state.focus_view.as_ref() {
                 let message = ViewMessage::FocusChanged(false);
-                self.widget_node.handle_message(&focus_lost_view.clone(), message, &mut self.state, handle);
+                let mut app_state = RefCell::borrow_mut(&self.app_state);
+                self.widget_node.handle_message(&focus_lost_view.clone(), message, &mut self.state, handle, &mut app_state);
             }
 
             self.state.focus_view = new_focus_view.clone();
 
             if let Some(focus_gained_view) = new_focus_view {
                 let message = ViewMessage::FocusChanged(true);
-                self.widget_node.handle_message(&focus_gained_view, message, &mut self.state, handle)
+                let mut app_state = RefCell::borrow_mut(&self.app_state);
+                self.widget_node.handle_message(&focus_gained_view, message, &mut self.state, handle, &mut app_state)
             }
         }
     }
@@ -129,7 +131,8 @@ impl WindowHandler for MyHandler {
 
                 if let Some(mut capture_view) = self.state.mouse_capture_view.clone() {
                     let message = ViewMessage::Mouse(mouse_event);
-                    self.widget_node.handle_message(&mut capture_view, message, &mut self.state, &mut handle);
+                    let mut app_state = RefCell::borrow_mut(&self.app_state);
+                    self.widget_node.handle_message(&mut capture_view, message, &mut self.state, &mut handle, &mut app_state);
 
                     match mouse_event {
                         MouseEvent::Up { .. } => {
@@ -138,14 +141,16 @@ impl WindowHandler for MyHandler {
                         _ => {}
                     }
                 } else {
-                    let mut ctx = EventContext::new(&mut self.widget_node.data, &mut self.state, &mut handle);
+                    let mut app_state = RefCell::borrow_mut(&self.app_state);
+                    let mut ctx = EventContext::new(&mut self.widget_node.data, &mut self.state, &mut handle, &mut app_state);
                     self.widget_node.widget.mouse_event(mouse_event, &mut ctx);
                 }
             },
             WindowEvent::Key(key_event) => {
 				let mut event_status = EventStatus::Ignored;
                 if let Some(mut focus_view) = self.state.focus_view.clone() {
-                    let mut ctx = EventContext::new(&mut self.widget_node.data, &mut self.state, &mut handle);
+                    let mut app_state = RefCell::borrow_mut(&self.app_state);
+                    let mut ctx = EventContext::new(&mut self.widget_node.data, &mut self.state, &mut handle, &mut app_state);
                     focus_view.pop_root();
                     event_status = handle_key_event(&mut focus_view, key_event.clone(), &mut self.widget_node.widget, &mut ctx);
                 }
@@ -157,12 +162,18 @@ impl WindowHandler for MyHandler {
             WindowEvent::Unfocused => {
                 if let Some(mut focus_view) = self.state.focus_view.take() {
                     let message = ViewMessage::FocusChanged(false);
-					self.widget_node.handle_message(&mut focus_view, message, &mut self.state, &mut handle)
+                    let mut app_state = RefCell::borrow_mut(&self.app_state);
+					self.widget_node.handle_message(&mut focus_view, message, &mut self.state, &mut handle, &mut app_state)
                 }
             },
 			_ => {}
 		};
 
+        {
+            let mut app_state = RefCell::borrow_mut(&self.app_state);
+            app_state.run_effects(&mut self.widget_node, &mut self.state, &mut handle)
+        }
+        
         if self.widget_node.layout_requested() {
             self.do_layout(&mut handle);
         }
@@ -240,8 +251,22 @@ impl<'a> AppContext<'a> {
         self.app_state.create_signal(value)
     }
 
-    pub fn create_effect(&mut self) {
+    pub fn create_effect(&mut self, f: impl Fn(&mut AppState) + 'static) {
+        self.app_state.create_effect(f)
+    }
+}
 
+impl<'b> SignalContext for AppContext<'b> {
+    fn get_signal_value_ref_untracked<'a, T: Any>(&'a self, signal: &Signal<T>) -> &'a T {
+        self.app_state.get_signal_value_ref_untracked(signal)
+    }
+
+    fn get_signal_value_ref<'a, T: Any>(&'a mut self, signal: &Signal<T>) -> &'a T {
+        self.app_state.get_signal_value_ref(signal)
+    }
+    
+    fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
+        self.app_state.set_signal_value(signal, value)
     }
 }
 

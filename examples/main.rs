@@ -1,3 +1,4 @@
+use audioplug::app::SignalSet;
 use audioplug::core::{Color, Size, Alignment, Shape, Rectangle, Point};
 use audioplug::view::{Button, Checkbox, Column, Fill, Label, Row, Scroll, Slider, TextBox, View};
 use audioplug::{window::*, App};
@@ -8,7 +9,7 @@ fn main() {
 
     let mut app = App::new();
     let _ = Window::open(&mut app, |ctx| {  
-        let checkbox_enabled = ctx.create_signal(true);
+        let checkbox_enabled = ctx.create_signal(false);
 
         Column::new((
             Rectangle::new(Point::ZERO, Size::new(50.0, 10.0)).fill(Color::BLUE),
@@ -21,13 +22,14 @@ fn main() {
 			)).with_spacing(5.0),
             Row::new((
 				Label::new("Checkbox"),
-				Checkbox::new(checkbox_enabled)
+				Checkbox::new(checkbox_enabled.clone())
 			)).with_spacing(5.0),
             Row::new((
-                Label::new("Button").with_style(|style| {
-                    style.size = taffy::Size::from_lengths(300.0, 40.0);
-                }),
-                Button::new(Label::new("Filled")).on_click(|| println!("Clicked"))
+                Label::new("Button"),
+                Button::new(Label::new("Filled")).on_click(move |ctx| {
+                    println!("Clicked!");
+                    checkbox_enabled.set(ctx, true)
+                })
             )).with_spacing(5.0),
             Row::new((
                 Label::new("Text input").with_color(Color::BLUE),

@@ -37,6 +37,14 @@ impl TextLayout {
         //self.0.as_str()
     }
 
+    pub fn color(&self) -> &Color {
+        todo!()
+    }
+
+    pub fn set_color(&mut self, color: Color) {
+        
+    }
+
     pub fn set_max_size(&mut self, size: Size) {
         self.0.set_max_size(size)
     }

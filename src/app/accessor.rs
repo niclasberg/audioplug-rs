@@ -34,10 +34,16 @@ impl<T> From<T> for Accessor<T> {
     }
 }
 
+impl From<&str> for Accessor<String> {
+    fn from(value: &str) -> Self {
+        Self::Const(value.to_string())
+    }
+}
+
 impl<T: 'static> SignalGet for Accessor<T> {
     type Value = T;
 
-    fn with_ref<R>(&self, cx: &mut impl super::SignalContext, f: impl Fn(&Self::Value) -> R) -> R {
+    fn with_ref<R>(&self, cx: &mut impl super::SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         match self {
             Accessor::Signal(signal) => signal.with_ref(cx, f),
             Accessor::Memo(memo) => memo.with_ref(cx, f),
@@ -45,7 +51,7 @@ impl<T: 'static> SignalGet for Accessor<T> {
         }
     }
 
-    fn with_ref_untracked<R>(&self, cx: &impl super::SignalContext, f: impl Fn(&Self::Value) -> R) -> R {
+    fn with_ref_untracked<R>(&self, cx: &impl super::SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         match self {
             Accessor::Signal(signal) => signal.with_ref_untracked(cx, f),
             Accessor::Memo(memo) => memo.with_ref_untracked(cx, f),

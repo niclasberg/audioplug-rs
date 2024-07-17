@@ -1,8 +1,8 @@
 use std::{any::Any, cell::RefCell, collections::{HashSet, VecDeque}, rc::{Rc, Weak}};
 use slotmap::{SlotMap, SecondaryMap};
-use crate::{view::{Widget, WidgetContext, WidgetNode}, window::Window, App, IdPath};
+use crate::{platform::HandleRef, view::{ViewMessage, Widget, WidgetContext, WidgetNode}, window::{Window, WindowState}, App, IdPath};
 
-use super::{binding::BindingState, memo::{Memo, MemoState}, ref_count_map::RefCountMap, Accessor, Binding, SignalContext};
+use super::{binding::BindingState, memo::{Memo, MemoState}, ref_count_map::RefCountMap, Accessor, Binding, SignalContext, SignalGet};
 use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
@@ -14,12 +14,12 @@ enum Task {
     },
 	UpdateBinding {
 		widget_id: IdPath,
-    	f: Weak<Box<dyn Fn(&dyn Any, &mut WidgetNode)>>,
+    	f: Weak<Box<dyn Fn(&mut AppState, &mut WidgetNode)>>,
 	}
 }
 
 impl Task {
-    fn run(&self, cx: &mut AppState) {
+    fn run(&self, cx: &mut AppState, root_widget: &mut WidgetNode, window_state: &mut WindowState, handle: &mut HandleRef) {
         match self {
             Task::RunEffect { id, f } => {
                 cx.with_scope(Scope::Effect(*id), |cx| {
@@ -28,6 +28,13 @@ impl Task {
                     }
                 })
             },
+            Task::UpdateBinding { widget_id, f } => {
+                if let Some(f) = f.upgrade() {
+                    root_widget.with_child(widget_id, |node| {
+                        f(cx, node)
+                    });
+                }
+            }
         }
     }
 }
@@ -105,9 +112,10 @@ impl AppState {
 
     pub fn create_binding<T: 'static>(&mut self, accessor: Accessor<T>, widget_id: IdPath, f: impl Fn(&T, &mut WidgetNode) + 'static) -> Option<Binding> {
         if let Some(source_id) = accessor.get_source_id() {
-            let state = BindingState::new(widget_id, move |value: &dyn Any, node| {
-                let value = value.downcast_ref().expect("Bound value has wrong type");
-                f(value, node);
+            let state = BindingState::new(widget_id, move |app_state, node| {
+                accessor.with_ref(app_state, |value| {
+                    f(value, node);
+                });
             });
             let id = self.create_node(NodeType::Binding(state), NodeState::Clean);
             self.add_subscription(source_id, id);
@@ -155,12 +163,6 @@ impl AppState {
         self.nodes.remove(id).expect("Missing node")
     }
 
-	
-
-    fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
-        self.update_signal_value(signal, move |x| { *x = value });
-    }
-
     fn update_signal_value<T: Any>(&mut self, signal: &Signal<T>, f: impl FnOnce(&mut T)) {
         {
             let signal = self.nodes.get_mut(signal.id).expect("No signal found");
@@ -174,12 +176,11 @@ impl AppState {
             signal.state = NodeState::Dirty;
         }
 
-        // Take all the current subscribers, the effects will resubscribe when evaluated
-        let subscribers = std::mem::take(&mut self.subscriptions[signal.id]);
+        let mut subscribers = std::mem::take(&mut self.subscriptions[signal.id]);
         subscribers.iter().for_each(|subscriber| {
             self.notify(subscriber);
         });
-        //std::mem::swap(&mut subscribers, &mut self.signal_subscriptions[signal.id]);
+        std::mem::swap(&mut subscribers, &mut self.subscriptions[signal.id]);
     }
 
     fn track(&mut self, source_id: NodeId) {
@@ -213,14 +214,14 @@ impl AppState {
                 };
 				self.pending_tasks.push_back(task);
             },
-            NodeType::Binding(binding) => {
-				let task = Task::RunEffect { 
-                    id: *node_id, 
-                    f: Rc::downgrade(&effect.f)
+            NodeType::Binding(BindingState { widget_id, f }) => {
+				let task = Task::UpdateBinding { 
+                    widget_id: widget_id.clone(),
+                    f: Rc::downgrade(&f)
                 };
 				self.pending_tasks.push_back(task);
             },
-            NodeType::Memo(memo) => todo!(),
+            NodeType::Memo(_) => todo!(),
             NodeType::Signal(_) => unreachable!(),
         }
     }
@@ -237,6 +238,16 @@ impl AppState {
     /*pub fn create_stateful_effect<S>(&mut self, f_init: impl FnOnce() -> S, f: impl Fn(S) -> S) {
 
     }*/
+
+    pub fn run_effects(&mut self, root_widget: &mut WidgetNode, window_state: &mut WindowState, handle: &mut HandleRef) {
+        loop {
+            if let Some(task) = self.pending_tasks.pop_front() {
+                task.run(self, root_widget, window_state, handle)
+            } else {
+                break;
+            }
+        }
+    }
 }
 
 impl SignalContext for AppState {
@@ -251,6 +262,10 @@ impl SignalContext for AppState {
     fn get_signal_value_ref<'a, T: Any>(&'a mut self, signal: &Signal<T>) -> &'a T {
         self.track(signal.id);
         self.get_signal_value_ref_untracked(signal)
+    }
+
+    fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
+        self.update_signal_value(signal, move |x| { *x = value });
     }
 }
 

@@ -1,19 +1,19 @@
-use crate::{core::{Color, Size}, text::TextLayout};
+use crate::{app::Accessor, core::{Color, Size}, text::TextLayout};
 
 use super::{BuildContext, LayoutContext, RenderContext, View, Widget};
 
 pub struct Label {
-    pub text: String,
-	color: Color
+    pub text: Accessor<String>,
+	color: Accessor<Color>
 }
 
 impl Label {
-    pub fn new(str: impl Into<String>) -> Self {
-        Self { text: str.into(), color: Color::BLACK }
+    pub fn new(str: impl Into<Accessor<String>>) -> Self {
+        Self { text: str.into(), color: Accessor::Const(Color::BLACK ) }
     }
 
-	pub fn with_color(mut self, color: Color) -> Self {
-		self.color = color;
+	pub fn with_color(mut self, color: impl Into<Accessor<Color>>) -> Self {
+		self.color = color.into();
 		self
 	}
 }
@@ -21,8 +21,18 @@ impl Label {
 impl View for Label {
     type Element = TextWidget;
 
-    fn build(self, _ctx: &mut BuildContext) -> Self::Element {
-        let text_layout = TextLayout::new(self.text.as_str(), self.color, Size::INFINITY);
+    fn build(self, ctx: &mut BuildContext) -> Self::Element {
+        let text = ctx.get_and_track(self.text, |value, ctx, widget: &mut Self::Element| {
+            let text_layout = TextLayout::new(value.as_str(), *widget.text_layout.color(), Size::INFINITY);
+            widget.text_layout = text_layout;
+            ctx.request_layout();
+        });
+        let color = ctx.get_and_track(self.color, |value, ctx, widget: &mut Self::Element| {
+            widget.text_layout.set_color(*value);
+            ctx.request_render();
+        });
+
+        let text_layout = TextLayout::new(text.as_str(), color, Size::INFINITY);
         TextWidget { text_layout }
     }
 }
