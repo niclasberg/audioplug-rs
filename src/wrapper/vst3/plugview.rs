@@ -41,6 +41,8 @@ impl IPlugView for PlugView {
         match type_.to_str() {
             #[cfg(target_os = "windows")]
             Ok(type_) if type_ == VST3_PLATFORM_HWND => kResultOk,
+			#[cfg(target_os = "macos")]
+            Ok(type_) if type_ == VST3_PLATFORM_NSVIEW => kResultOk,
             _ => kResultFalse,
         }
     }

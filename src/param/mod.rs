@@ -2,9 +2,11 @@ use std::{fmt::Display, marker::PhantomData};
 
 mod float;
 mod int;
+mod string_list;
 
 pub use float::{FloatParameter, FloatRange};
 pub use int::{IntParameter, IntRange};
+pub use string_list::StringListParameter;
 
 #[derive(Clone, Debug)]
 pub struct ParseError;
@@ -84,12 +86,12 @@ pub enum Parameter {
 }
 
 impl Parameter {
-    pub fn name(&self) -> &'static str {
+    pub fn name(&self) -> &str {
         match self {
             Self::ByPass => "Bypass",
             Self::Float(p) => p.name(),
             Self::Int(p) => p.name(),
-            Self::StringList(StringListParameter{ name, .. }) => name,
+            Self::StringList(p) => p.name(),
             Self::Bool(p) => p.name,
         }
     }
@@ -98,7 +100,7 @@ impl Parameter {
         match self {
             Parameter::Float(p) => p.default_value(),
             Parameter::Int(p) => p.default_value(),
-            Parameter::StringList(p) => PlainValue(p.default_index as f64),
+            Parameter::StringList(p) => p.default_value(),
             Parameter::ByPass => PlainValue(0.0),
             Parameter::Bool(p) => PlainValue(if p.default { 1.0 } else { 0.0 })
         }
@@ -119,7 +121,7 @@ impl Parameter {
 
     pub fn denormalize(&self, value: NormalizedValue) -> PlainValue {
         match self {
-            Parameter::Float(p) => todo!(),
+            Parameter::Float(p) => p.range().denormalize(value),
             Parameter::Int(p) => p.range().denormalize(value),
             Parameter::StringList(p) => PlainValue(value.0 * (p.string_count() as f64)),
             Parameter::ByPass | Parameter::Bool(_) => PlainValue(value.0),
@@ -144,38 +146,6 @@ impl From<FloatParameter> for Parameter {
 }
 
 
-
-pub struct StringListParameter {
-    name: &'static str,
-    strings: Vec<String>,
-    default_index: usize,
-}
-
-impl StringListParameter {
-    pub fn new(name: &'static str, strings: impl Into<Vec<String>>, default_index: usize) -> Self {
-        Self {
-            name, 
-            strings: strings.into(),
-            default_index
-        }
-    }
-
-    pub fn string_count(&self) -> usize {
-        self.strings.len()
-    }
-
-    pub fn step_count(&self) -> usize {
-        if self.strings.is_empty() {
-            0
-        } else {
-            self.strings.len() - 1
-        }
-    }
-
-    pub fn index_of(&self, key: &str) -> Option<usize> {
-        self.strings.iter().position(|x| x == key)
-    }
-}
 
 pub struct BoolParameter {
     name: &'static str,

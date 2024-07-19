@@ -58,7 +58,7 @@ impl AudioBuffer {
 
     pub fn channels_iter_mut<'a>(&'a mut self) -> ChannelsIterMut<'a> {
         ChannelsIterMut { 
-            current_channel_samples: self.channel_samples as *const _, 
+            current_channel_samples: self.channel_samples, 
             end_channel_samples: unsafe { self.channel_samples.offset(self.num_channels as isize) as *const _ }, 
             num_samples: self.num_samples, 
             _phantom: PhantomData 
@@ -93,7 +93,9 @@ impl<'a> Iterator for ChannelsIter<'a> {
             None
         } else {
             let channel_samples = unsafe { 
-                let samples = *self.current_channel_samples;
+				// Weird, tried to derefence but ableton gave us an unaligned pointer which caused 
+				// panic. Use read_unaligned instead
+                let samples = self.current_channel_samples.read_unaligned();
                 ChannelSamples { samples, num_samples: self.num_samples, _phantom: PhantomData }
             };
             self.current_channel_samples = unsafe { self.current_channel_samples.offset(1) };
@@ -117,7 +119,9 @@ impl<'a> Iterator for ChannelsIterMut<'a> {
             None
         } else {
             let channel_samples = unsafe { 
-                let samples = *self.current_channel_samples;
+				// Weird, tried to derefence but ableton gave us an unaligned pointer which caused 
+				// panic. Use read_unaligned instead
+                let samples = self.current_channel_samples.read_unaligned();
                 ChannelSamplesMut { samples, num_samples: self.num_samples, _phantom: PhantomData }
             };
             self.current_channel_samples = unsafe { self.current_channel_samples.offset(1) };

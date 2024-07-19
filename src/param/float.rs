@@ -40,7 +40,16 @@ pub enum FloatRange {
 
 impl FloatRange {
     pub fn normalize(&self, value: PlainValue) -> NormalizedValue {
-        let Self::Linear { min, max } = self;
-		NormalizedValue((value.0 - min.clamp(*min, *max)) / max)
+		let value = match self {
+			Self::Linear { min, max } => (value.0 - *min) / (*max - *min)
+		};
+		NormalizedValue(value)
     }
+
+	pub fn denormalize(&self, value: NormalizedValue) -> PlainValue {
+		let value = match self {
+			Self::Linear { min, max } => *min + value.0 * (*max - *min)
+		};
+		PlainValue(value)
+	}
 }

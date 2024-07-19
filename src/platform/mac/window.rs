@@ -1,7 +1,7 @@
 use objc2_foundation::{NSPoint, NSRect, NSSize, MainThreadMarker};
 use objc2_app_kit::{NSWindow, NSBackingStoreType, NSWindowStyleMask};
-use objc2::rc::Id;
-use objc2::ClassType;
+use objc2::rc::Retained;
+use raw_window_handle::HasWindowHandle;
 use crate::core::Rectangle;
 use crate::platform::WindowHandler;
 
@@ -9,8 +9,8 @@ use super::Error;
 use super::view::View;
 
 pub struct Window {
-	window: Id<NSWindow>,
-	view: Id<View>
+	window: Retained<NSWindow>,
+	view: Retained<View>
 }
 
 impl Window {
@@ -42,6 +42,12 @@ impl Window {
 	}
 
 	pub fn set_size(&self, size: Rectangle<i32>) -> Result<(), Error> {
+		todo!()
+	}
+}
+
+impl HasWindowHandle for Window {
+	fn window_handle(&self) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError> {
 		todo!()
 	}
 }
