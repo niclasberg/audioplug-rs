@@ -5,12 +5,14 @@ use vst3_sys::base::*;
 use vst3_sys::gui::{IPlugView, ViewRect};
 use std::cell::RefCell;
 use std::ffi::{CStr, c_void};
+use std::marker::PhantomData;
 use std::num::NonZeroIsize;
 use std::ptr::NonNull;
 use std::rc::Rc;
 
 use crate::app::AppState;
 use crate::core::{Color, Rectangle, Size, Shape, Point};
+use crate::param::Params;
 use crate::view::Fill;
 use crate::window::Window;
 
@@ -19,15 +21,16 @@ const VST3_PLATFORM_NSVIEW: &str = "NSView";
 
 use vst3_sys as vst3_com;
 #[VST3(implements(IPlugView))]
-pub struct PlugView {
+pub struct PlugView<P: Params> {
     window: RefCell<Option<Window>>,
     component_handler: Option<VstPtr<dyn IComponentHandler>>,
     app_state: Rc<RefCell<AppState>>,
+    _phantom: PhantomData<P>
 }
 
-impl PlugView {
+impl<P: Params> PlugView<P> {
     pub fn new(component_handler: Option<VstPtr<dyn IComponentHandler>>, app_state: Rc<RefCell<AppState>>) -> Box<Self> {
-        Self::allocate(RefCell::new(None), component_handler, app_state)
+        Self::allocate(RefCell::new(None), component_handler, app_state, PhantomData)
     }
 
     pub fn create_instance(component_handler: Option<VstPtr<dyn IComponentHandler>>, app_state: Rc<RefCell<AppState>>) -> *mut c_void {
@@ -35,7 +38,7 @@ impl PlugView {
     }
 }
 
-impl IPlugView for PlugView {
+impl<P: Params> IPlugView for PlugView<P> {
     unsafe fn is_platform_type_supported(&self, type_: FIDString) -> tresult {
         let type_ = CStr::from_ptr(type_);
         match type_.to_str() {

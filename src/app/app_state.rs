@@ -1,6 +1,6 @@
 use std::{any::Any, cell::RefCell, collections::{HashSet, VecDeque}, rc::{Rc, Weak}};
 use slotmap::{SlotMap, SecondaryMap};
-use crate::{platform::HandleRef, view::{ViewMessage, Widget, WidgetContext, WidgetNode}, window::{Window, WindowState}, App, IdPath};
+use crate::{param::Params, platform::HandleRef, view::{ViewMessage, Widget, WidgetContext, WidgetNode}, window::{Window, WindowState}, App, IdPath};
 
 use super::{binding::BindingState, memo::{Memo, MemoState}, ref_count_map::RefCountMap, Accessor, Binding, SignalContext, SignalGet};
 use super::NodeId;
@@ -83,19 +83,29 @@ pub struct AppState {
     nodes: SlotMap<NodeId, Node>,
     subscriptions: SecondaryMap<NodeId, HashSet<NodeId>>,
     dependencies: SecondaryMap<NodeId, HashSet<NodeId>>,
-    node_ref_counts: Rc<RefCell<RefCountMap>>
+    node_ref_counts: Rc<RefCell<RefCountMap>>,
+    parameters: Box<dyn Any>,
 }
 
 impl AppState {
-    pub fn new() -> Self {
+    pub fn new(parameters: impl Params + Any) -> Self {
         Self {
             scope: Scope::Root,
             pending_tasks: Default::default(),
             nodes: Default::default(),
             subscriptions: Default::default(),
             dependencies: Default::default(),
-            node_ref_counts: Rc::new(RefCell::new(RefCountMap::new()))
+            node_ref_counts: Rc::new(RefCell::new(RefCountMap::new())),
+            parameters: Box::new(parameters)
         }
+    }
+
+    pub(crate) fn parameters_as<P: Params>(&self) -> Option<&P> {
+        self.parameters.downcast_ref()
+    }
+
+    pub(crate) fn parameters_as_mut<P: Params>(&mut self) -> Option<&mut P> {
+        self.parameters.downcast_mut()
     }
 
     pub fn create_signal<T: Any>(&mut self, value: T) -> Signal<T> {

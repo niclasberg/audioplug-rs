@@ -2,7 +2,7 @@ use vst3_com::vst::{IComponent, SymbolicSampleSizes, MediaTypes, BusDirections, 
 use vst3_sys::{VST3, IID};
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
-use vst3_sys::vst::{IAudioProcessor, SpeakerArrangement, BusDirection, ProcessSetup, ProcessData, MediaType, RoutingInfo, BusInfo, IoMode};
+use vst3_sys::vst::{BusDirection, BusInfo, IAudioProcessor, IParameterChanges, IoMode, MediaType, ProcessData, ProcessSetup, RoutingInfo, SpeakerArrangement};
 use std::cell::RefCell;
 use std::ffi::c_void;
 
@@ -15,13 +15,14 @@ use super::util::strcpyw;
 #[VST3(implements(IComponent, IAudioProcessor))]
 pub struct Vst3Plugin<P: Plugin> {
     plugin: RefCell<P>,
+    parameters: P::Parameters
 }
 
 impl<P: Plugin> Vst3Plugin<P> {
     pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] };
 
     pub fn new() -> Box<Self> {
-        Self::allocate(RefCell::new(P::new()))
+        Self::allocate(RefCell::new(P::new()), P::Parameters::default())
     }
 
     pub fn create_instance() -> *mut c_void {
@@ -90,10 +91,10 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
             return kResultOk;
         }
 
-        /*if let Some(input_param_changes) = data.input_param_changes.upgrade() {
-            let d = input_param_changes.get_parameter_data(0);
+        if let Some(input_param_changes) = data.input_param_changes.upgrade() {
+            let parameter_change_count = input_param_changes.get_parameter_count();
             
-        }*/
+        }
 
         let input = AudioBuffer::from_ptr((*data.inputs).buffers as *const *mut _, (*data.inputs).num_channels as usize, data.num_samples as usize);
         let mut output = AudioBuffer::from_ptr((*data.outputs).buffers as *const *mut _, (*data.outputs).num_channels as usize, data.num_samples as usize);
@@ -103,7 +104,7 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
             output: &mut output,
         };
 
-        self.plugin.borrow_mut().process(context);
+        self.plugin.borrow_mut().process(context, &self.parameters);
 
         /*if let Some(output_param_changes) = data.output_param_changes.upgrade() {
             output_param_changes.add_parameter_data(id, index)
@@ -129,7 +130,7 @@ impl<P: Plugin> IPluginBase for Vst3Plugin<P> {
 
 impl<P: Plugin> IComponent for Vst3Plugin<P> {
     unsafe fn get_controller_class_id(&self, tuid: *mut IID) -> tresult {
-        *tuid = EditController::CID;
+        *tuid = EditController::<P::Parameters>::CID;
         kResultOk
     }
 

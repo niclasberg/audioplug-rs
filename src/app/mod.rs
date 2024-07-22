@@ -31,7 +31,7 @@ impl App {
     pub fn new() -> Self {
         Self {
             native: platform::Application::new(),
-            state: Rc::new(RefCell::new(AppState::new())),
+            state: Rc::new(RefCell::new(AppState::new(()))),
         }
     }
 

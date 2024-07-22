@@ -1,13 +1,50 @@
-use super::{NormalizedValue, PlainValue};
+use super::{NormalizedValue, ParamRef, PlainValue};
 
 pub struct IntParameter {
+    info: IntParameterInfo,
+    value: i64
+}
+
+impl IntParameter {
+    pub fn new(name: &'static str) -> Self {
+        let info = IntParameterInfo::new(name);
+        let value = info.default;
+        Self {
+            info,
+            value
+        }
+    }
+
+    pub fn info(&self) -> &IntParameterInfo {
+        &self.info
+    }
+
+    pub fn value(&self) -> i64 {
+        self.value
+    }
+
+    pub fn set_value(&mut self, value: i64) {
+        self.value = value;
+    }
+
+    pub fn with_range(mut self, range: IntRange) -> Self {
+        self.info.range = range;
+        self
+    }
+
+    pub fn as_param_ref(&mut self) -> ParamRef {
+        ParamRef::Int(self)
+    }
+}
+
+pub struct IntParameterInfo {
     name: &'static str,
     range: IntRange,
     default: i64
 }
 
-impl IntParameter {
-    pub fn new(name: &'static str) -> Self {
+impl IntParameterInfo {
+    fn new(name: &'static str) -> Self {
         Self { 
             name, 
             range: IntRange::Linear { min: 0, max: 1 }, 

@@ -1,4 +1,6 @@
-use std::cell::RefCell;
+use std::cell::{RefCell, Cell};
+use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::rc::Rc;
 
 use vst3_com::VstPtr;
@@ -11,34 +13,32 @@ use vst3_sys::vst::{IEditController, ParameterInfo, IComponentHandler};
 use vst3_sys as vst3_com;
 
 use crate::app::AppState;
-use crate::param::{Parameter, FloatParameter, FloatRange, NormalizedValue, PlainValue};
+use crate::param::{FloatParameter, FloatRange, NormalizedValue, Params, PlainValue};
 
 use super::plugview::PlugView;
 use super::util::strcpyw;
 
 
 #[VST3(implements(IEditController))]
-pub struct EditController {
-    component_handler: RefCell<Option<VstPtr<dyn IComponentHandler>>>,
-    parameters: Vec<Parameter>,
-    parameter_values: RefCell<Vec<NormalizedValue>>,
-    app_state: Rc<RefCell<AppState>>
+pub struct EditController<P: Params> {
+    component_handler: Cell<Option<VstPtr<dyn IComponentHandler>>>,
+    parameters: HashMap<ParameterId, ParameterGetter<P>>,
+    app_state: Rc<RefCell<AppState>>,
+    _phantom: PhantomData<P>
 }
 
-impl EditController {
+impl<P: Params> EditController<P> {
     pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 14] };
 
     pub fn new() -> Box<Self> {
-        let parameters: Vec<Parameter> = vec![
-            FloatParameter::new("param")
-                .with_range(FloatRange::Linear { min: 0.0, max: 2.0 }).into(),
-            FloatParameter::new("test").into()
-        ];
-        let parameter_values: Vec<NormalizedValue> = parameters.iter().map(|param| {
-            param.default_normalized()
-        }).collect();
-
-        Self::allocate(RefCell::new(None), parameters, RefCell::new(parameter_values), Rc::new(RefCell::new(AppState::new())))
+        let mut app_state = AppState::new(P::default());
+        let parameters: HashMap<ParameterId, ParameterGetter<P>> = {
+            let mut parameters = app_state.parameters_as_mut::<P>().unwrap();
+            P::PARAMS.iter()
+                .map(|getter| (getter(&mut parameters).id(), getter))
+                .collect()
+        };
+        Self::allocate(Cell::new(None), parameters, Rc::new(RefCell::new(app_state)), PhantomData)
     }
 
     pub fn create_instance() -> *mut c_void {
@@ -46,7 +46,7 @@ impl EditController {
     }
 }
 
-impl IEditController for EditController {
+impl<P: Params> IEditController for EditController<P> {
     unsafe fn set_component_state(&self, _state: SharedVstPtr<dyn IBStream>) -> tresult {
         kResultOk
     }
@@ -62,7 +62,7 @@ impl IEditController for EditController {
     }
 
     unsafe fn get_parameter_count(&self) -> i32 {
-        self.parameters.len() as i32
+        P::PARAMS.len() as i32
     }
 
     unsafe fn get_parameter_info(&self, param_index: i32, info: *mut ParameterInfo) -> tresult {
@@ -112,16 +112,13 @@ impl IEditController for EditController {
     }
 
     unsafe fn get_param_normalized(&self, id: u32) -> f64 {
-        let values = self.parameter_values.borrow();
 		self.parameters
             .get(id as usize)
-            .map_or(0.0, |param| param.denormalize(*values.get_unchecked(id as usize)).into())
+            .map_or(0.0, |param| param.get_normalized().into())
     }
 
     unsafe fn set_param_normalized(&self, id: u32, value: f64) -> tresult {
-		let mut parameter_values = self.parameter_values.borrow_mut();
-		if let Some(value_ref) = parameter_values.get_mut(id as usize) {
-			*value_ref = NormalizedValue::from_f64_unchecked(value);
+		if let Some(param) = self.parameters.get(id as usize) {
 			kResultOk
 		} else {
 			kInvalidArgument
@@ -129,16 +126,19 @@ impl IEditController for EditController {
     }
 
     unsafe fn set_component_handler(&self, handler: SharedVstPtr<dyn IComponentHandler>) -> tresult {
-        *self.component_handler.borrow_mut() = handler.upgrade();
+        self.component_handler.replace(handler.upgrade());
         kResultOk
     }
 
     unsafe fn create_view(&self, _name: FIDString) -> *mut c_void {
-        PlugView::create_instance((*self.component_handler.borrow()).clone(), self.app_state.clone())
+        // Take, clone and put back. Maybe we should just use a RefCell instead?
+        let component_handler = self.component_handler.take();
+        self.component_handler.set(component_handler.clone());
+        PlugView::<P>::create_instance(component_handler, self.app_state.clone())
     }
 }
 
-impl IPluginBase for EditController {
+impl<P: Params> IPluginBase for EditController<P> {
     unsafe fn initialize(&self, _context: *mut c_void) -> tresult {
         kResultOk
     }

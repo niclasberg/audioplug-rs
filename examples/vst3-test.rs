@@ -1,5 +1,6 @@
 use std::ffi::c_void;
 use audioplug::core::Color;
+use audioplug::param::{BoolParameter, FloatParameter, FloatRange, ParamRef, Params};
 use audioplug::view::Label;
 use audioplug::{Plugin, AudioLayout, Bus, ChannelType, ProcessContext, Editor};
 use audioplug::wrapper::vst3::Factory;
@@ -18,17 +19,25 @@ impl Editor for MyEditor {
     }
 }
 
-struct OscillatorParams {
-    enabled: bool,
-    detune: f64,
-    pos_x: f64,
-    pos_y: f64,
-    // waveform choice
-    amplitude: f64
+struct MyPluginParams {
+    enabled: BoolParameter,
+    gain: FloatParameter
 }
 
-struct MyPluginParams {
-    oscillators: [OscillatorParams; 4],   
+impl Params for MyPluginParams {
+    const PARAMS: &'static [fn(&mut Self) -> ParamRef] = &[
+        |this| this.enabled.as_param(),
+        |this| ParamRef::Float(&this.gain)
+    ];
+}
+
+impl Default for MyPluginParams {
+    fn default() -> Self {
+        Self {
+            enabled: BoolParameter::new("Enabled", true),
+            gain: FloatParameter::new("Gain").with_range(FloatRange::Linear { min: 0.0, max: 1.0 })
+        }
+    }
 }
 
 impl Plugin for MyPlugin {
@@ -41,6 +50,7 @@ impl Plugin for MyPlugin {
         main_output: Some(Bus { name: "Stereo Output", channel: ChannelType::Stereo })
     }];
     type Editor = MyEditor;
+    type Parameters = MyPluginParams;
 
     fn new() -> Self {
         Self {}
@@ -54,7 +64,8 @@ impl Plugin for MyPlugin {
         MyEditor {}
     }
 
-    fn process(&mut self, ctx: ProcessContext) {
+    fn process(&mut self, ctx: ProcessContext, parameters: &MyPluginParams) {
+        let gain = parameters.gain;
         for (in_channel, mut out_channel) in ctx.input.channels_iter().zip(ctx.output.channels_iter_mut()) {
             for (in_sample, out_sample) in in_channel.iter().zip(out_channel.iter_mut()) {
                 *out_sample = in_sample * 0.5;

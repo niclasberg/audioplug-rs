@@ -1,3 +1,4 @@
+use crate::param::Params;
 use crate::{AudioLayout, AudioBuffer};
 use crate::editor::Editor;
 
@@ -31,10 +32,11 @@ pub trait Plugin {
     const EMAIL: &'static str;
     const AUDIO_LAYOUT: &'static [AudioLayout];
     type Editor: Editor;
+    type Parameters: Params;
 
     fn new() -> Self;
     fn reset(&mut self, sample_rate: f64);
     fn editor(&self) -> Self::Editor;
 
-    fn process(&mut self, context: ProcessContext);
+    fn process(&mut self, context: ProcessContext, parameters: &Self::Parameters);
 }

@@ -12,6 +12,7 @@ impl Plugin for TestPlugin {
     const EMAIL: &'static str = "test@test.com";
     const AUDIO_LAYOUT: &'static [audioplug::AudioLayout] = &[];
     type Editor = GenericEditor;
+    type Parameters = ();
 
     fn new() -> Self {
         Self {}
@@ -25,9 +26,10 @@ impl Plugin for TestPlugin {
         todo!()
     }
 
-    fn process(&mut self, context: audioplug::ProcessContext) {
+    fn process(&mut self, context: audioplug::ProcessContext, _parameters: ()) {
         todo!()
     }
+    
 }
 
 fn main() {
