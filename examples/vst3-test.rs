@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 use audioplug::core::Color;
-use audioplug::param::{BoolParameter, FloatParameter, FloatRange, ParamRef, Params};
+use audioplug::param::{BoolParameter, FloatParameter, FloatRange, ParamRef, ParameterId, Params};
 use audioplug::view::Label;
 use audioplug::{Plugin, AudioLayout, Bus, ChannelType, ProcessContext, Editor};
 use audioplug::wrapper::vst3::Factory;
@@ -25,9 +25,9 @@ struct MyPluginParams {
 }
 
 impl Params for MyPluginParams {
-    const PARAMS: &'static [fn(&mut Self) -> ParamRef] = &[
-        |this| this.enabled.as_param(),
-        |this| ParamRef::Float(&this.gain)
+    const PARAMS: &'static [fn(&Self) -> ParamRef] = &[
+        |this| this.enabled.as_param_ref(),
+        |this| this.gain.as_param_ref()
     ];
 }
 
@@ -35,7 +35,7 @@ impl Default for MyPluginParams {
     fn default() -> Self {
         Self {
             enabled: BoolParameter::new("Enabled", true),
-            gain: FloatParameter::new("Gain").with_range(FloatRange::Linear { min: 0.0, max: 1.0 })
+            gain: FloatParameter::new(ParameterId::new(1), "Gain").with_range(FloatRange::Linear { min: 0.0, max: 1.0 })
         }
     }
 }

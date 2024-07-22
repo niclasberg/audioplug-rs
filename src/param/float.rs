@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-use super::{NormalizedValue, ParamRef, PlainValue};
+use super::{NormalizedValue, ParamRef, ParameterId, ParameterInfo, PlainValue};
 
 pub struct FloatParameter {
     info: FloatParameterInfo,
@@ -8,8 +8,8 @@ pub struct FloatParameter {
 }
 
 impl FloatParameter {
-    pub fn new(name: &'static str) -> Self {
-        let info = FloatParameterInfo::new(name);
+    pub fn new(id: ParameterId, name: &'static str) -> Self {
+        let info = FloatParameterInfo::new(id, name);
         let value = info.default.into();
         Self {
             info,
@@ -54,14 +54,16 @@ impl FloatParameter {
 }
 
 pub struct FloatParameterInfo {
+	id: ParameterId,
     name: &'static str,
     range: FloatRange,
     default: f64
 }
 
 impl FloatParameterInfo {
-    pub fn new(name: &'static str) -> Self {
+    pub fn new(id: ParameterId, name: &'static str) -> Self {
         Self {
+			id, 
             name,
             range: FloatRange::Linear { min: 0.0, max: 1.0 },
             default: 0.0
@@ -71,13 +73,31 @@ impl FloatParameterInfo {
     pub fn range(&self) -> FloatRange {
         self.range
     }
+}
 
-	pub fn name(&self) -> &'static str {
+impl ParameterInfo for FloatParameterInfo {
+	fn id(&self) -> super::ParameterId {
+		self.id
+	}
+
+	fn name(&self) -> &str {
 		&self.name
 	}
 
-	pub fn default_value(&self) -> PlainValue {
+	fn default_value(&self) -> PlainValue {
 		PlainValue::new(self.default)
+	}
+	
+	fn normalize(&self, value: PlainValue) -> NormalizedValue {
+		self.range.normalize(value)
+	}
+	
+	fn denormalize(&self, value: NormalizedValue) -> PlainValue {
+		self.range.denormalize(value)
+	}
+	
+	fn step_count(&self) -> usize {
+		0
 	}
 }
 

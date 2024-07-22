@@ -13,7 +13,7 @@ use vst3_sys::vst::{IEditController, ParameterInfo, IComponentHandler};
 use vst3_sys as vst3_com;
 
 use crate::app::AppState;
-use crate::param::{FloatParameter, FloatRange, NormalizedValue, Params, PlainValue};
+use crate::param::{FloatParameter, FloatRange, NormalizedValue, ParamRef, ParameterGetter, ParameterId, Params, PlainValue};
 
 use super::plugview::PlugView;
 use super::util::strcpyw;
@@ -31,15 +31,19 @@ impl<P: Params> EditController<P> {
     pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 14] };
 
     pub fn new() -> Box<Self> {
-        let mut app_state = AppState::new(P::default());
+        let params = P::default();
         let parameters: HashMap<ParameterId, ParameterGetter<P>> = {
-            let mut parameters = app_state.parameters_as_mut::<P>().unwrap();
             P::PARAMS.iter()
-                .map(|getter| (getter(&mut parameters).id(), getter))
+                .map(|getter| (getter(&params).id(), *getter))
                 .collect()
         };
-        Self::allocate(Cell::new(None), parameters, Rc::new(RefCell::new(app_state)), PhantomData)
+        Self::allocate(Cell::new(None), parameters, Rc::new(RefCell::new(AppState::new(params))), PhantomData)
     }
+
+	fn get_param_ref<'a>(&'a self, id: ParameterId) -> Option<ParamRef<'a>> {
+		self.parameters.get(&id)
+			.map()
+	}
 
     pub fn create_instance() -> *mut c_void {
         Box::into_raw(Self::new()) as *mut c_void
@@ -68,10 +72,11 @@ impl<P: Params> IEditController for EditController<P> {
     unsafe fn get_parameter_info(&self, param_index: i32, info: *mut ParameterInfo) -> tresult {
         if let Some(parameter) = self.parameters.get(param_index as usize) {
             let info = &mut *info;
+			let param = 
 
             info.id = param_index as u32;
             info.flags = match parameter {
-                Parameter::ByPass => ParameterFlags::kCanAutomate as i32 | ParameterFlags::kIsBypass as i32,
+                ParamRef::ByPass => ParameterFlags::kCanAutomate as i32 | ParameterFlags::kIsBypass as i32,
                 Parameter::Int(_) => ParameterFlags::kCanAutomate as i32,
                 Parameter::Float(_) => ParameterFlags::kCanAutomate as i32,
                 Parameter::StringList(_) => ParameterFlags::kCanAutomate as i32 | ParameterFlags::kIsList as i32,

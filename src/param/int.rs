@@ -1,4 +1,4 @@
-use super::{NormalizedValue, ParamRef, PlainValue};
+use super::{NormalizedValue, ParamRef, ParameterId, ParameterInfo, PlainValue};
 
 pub struct IntParameter {
     info: IntParameterInfo,
@@ -6,8 +6,8 @@ pub struct IntParameter {
 }
 
 impl IntParameter {
-    pub fn new(name: &'static str) -> Self {
-        let info = IntParameterInfo::new(name);
+    pub fn new(id: ParameterId, name: &'static str) -> Self {
+        let info = IntParameterInfo::new(id, name);
         let value = info.default;
         Self {
             info,
@@ -38,14 +38,16 @@ impl IntParameter {
 }
 
 pub struct IntParameterInfo {
+	id: ParameterId,
     name: &'static str,
     range: IntRange,
     default: i64
 }
 
 impl IntParameterInfo {
-    fn new(name: &'static str) -> Self {
+    fn new(id: ParameterId, name: &'static str) -> Self {
         Self { 
+			id,
             name, 
             range: IntRange::Linear { min: 0, max: 1 }, 
             default: 0
@@ -55,13 +57,31 @@ impl IntParameterInfo {
     pub fn range(&self) -> IntRange {
         self.range
     }
+}
 
-	pub fn name(&self) -> &'static str {
+impl ParameterInfo for IntParameterInfo {
+	fn id(&self) -> ParameterId {
+		self.id
+	}
+
+	fn name(&self) -> &str {
 		&self.name
 	}
 
-	pub fn default_value(&self) -> PlainValue {
+	fn default_value(&self) -> PlainValue {
 		PlainValue::new(self.default as f64)
+	}
+	
+	fn normalize(&self, value: PlainValue) -> NormalizedValue {
+		self.range.normalize(value)
+	}
+	
+	fn denormalize(&self, value: NormalizedValue) -> PlainValue {
+		self.range.denormalize(value)
+	}
+	
+	fn step_count(&self) -> usize {
+		self.range.steps()
 	}
 }
 

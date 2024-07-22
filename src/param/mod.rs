@@ -5,6 +5,7 @@ mod float;
 mod int;
 mod string_list;
 
+use bool::BoolParameter;
 pub use float::{FloatParameter, FloatParameterInfo, FloatRange};
 pub use int::{IntParameter, IntParameterInfo, IntRange};
 pub use string_list::StringListParameter;
@@ -26,7 +27,7 @@ pub enum Unit {
     Custom(&'static str)
 }
 
-#[derive(Debug, PartialEq, PartialOrd, Clone, Copy, Hash)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Clone, Copy, Hash)]
 pub struct ParameterId(u32);
 
 impl ParameterId {
@@ -85,15 +86,19 @@ pub trait Parameter {
     fn info(&self) -> &Self::Info;
     fn get_plain_value(&self) -> PlainValue;
     fn get_normalized_value(&self) -> NormalizedValue;
+	fn as_param_ref(&self) -> ParamRef;
 }
 
 pub trait ParameterInfo {
     fn id(&self) -> ParameterId;
     fn name(&self) -> &str;
     fn default_value(&self) -> PlainValue;
+	fn normalize(&self, value: PlainValue) -> NormalizedValue;
+	fn denormalize(&self, value: NormalizedValue) -> PlainValue;
+	fn step_count(&self) -> usize;
 }
 
-impl ParameterInfo for Parameter {
+impl<T: Parameter> ParameterInfo for T {
     fn id(&self) -> ParameterId {
         self.info().id()
     }
@@ -105,24 +110,36 @@ impl ParameterInfo for Parameter {
     fn default_value(&self) -> PlainValue {
         self.info().default_value()
     }
+	
+	fn normalize(&self, value: PlainValue) -> NormalizedValue {
+		self.info().normalize(value)
+	}
+	
+	fn denormalize(&self, value: NormalizedValue) -> PlainValue {
+		self.info().denormalize(value)
+	}
+	
+	fn step_count(&self) -> usize {
+		self.info().step_count()
+	}
 }
 
 pub enum ParamRef<'a> {
-    Float(&'a mut FloatParameter),
-    Int(&'a mut IntParameter),
-    StringList(&'a mut StringListParameter),
+    Float(&'a FloatParameter),
+    Int(&'a IntParameter),
+    StringList(&'a StringListParameter),
     ByPass,
-    Bool(&'a mut BoolParameter)
+    Bool(&'a BoolParameter)
 }
 
 impl<'a> ParamRef<'a> {
     pub fn info(&self) -> &dyn ParameterInfo {
         match self {
-            Self::ByPass => ParameterId(0),
-            Self::Float(p) => p.info().name(),
-            Self::Int(p) => p.info().name(),
-            Self::StringList(p) => p.name(),
-            Self::Bool(p) => p.name,
+            Self::ByPass => todo!(),
+            Self::Float(p) => p.info(),
+            Self::Int(p) => p.info(),
+            Self::StringList(p) => p.info(),
+            Self::Bool(p) => p.info(),
         }
     }
 
@@ -139,7 +156,7 @@ impl<'a> ParamRef<'a> {
     }
 
     pub fn default_normalized(&self) -> NormalizedValue {
-        self.normalize(self.default())
+        self.normalize(self.default_value())
     }
 
     pub fn get_plain(&self) -> PlainValue {
@@ -163,39 +180,24 @@ impl<'a> ParamRef<'a> {
     }
 
     pub fn normalize(&self, value: PlainValue) -> NormalizedValue {
-        match self {
-            Self::Float(p) => p.info().range().normalize(value),
-            Self::Int(p) => p.info().range().normalize(value),
-            Self::StringList(p) => NormalizedValue(value.0.clamp(0.0, p.string_count() as f64) / (p.string_count() as f64)),
-            Self::ByPass | Self::Bool(_) => NormalizedValue(value.0),
-        }
+        self.info().normalize(value)
     }
 
     pub fn denormalize(&self, value: NormalizedValue) -> PlainValue {
-        match self {
-            Self::Float(p) => p.info().range().denormalize(value),
-            Self::Int(p) => p.info().range().denormalize(value),
-            Self::StringList(p) => PlainValue(value.0 * (p.string_count() as f64)),
-            Self::ByPass | Self::Bool(_) => PlainValue(value.0),
-        }
+        self.info().denormalize(value)
     }
 
     pub fn step_count(&self) -> usize {
-        match self {
-            Self::ByPass | Self::Bool(_) => 1,
-            Self::Int(p) => p.info().range().steps(),
-            Self::Float(FloatParameter {.. }) => 0,
-            Self::StringList(string_list) => string_list.step_count()
-        }
+        self.info().step_count()
     }
 }
 
-type ParameterGetter<P: Params> = fn(&mut P) -> ParamRef;
+pub type ParameterGetter<P: Params> = fn(&P) -> ParamRef;
 
 pub trait Params: Default + 'static {
     const PARAMS: &'static [ParameterGetter<Self>];
 }
 
 impl Params for () {
-    const PARAMS: &'static [fn(&Self) -> ParamRef] = &[];
+    const PARAMS: &'static [ParameterGetter<Self>] = &[];
 }
