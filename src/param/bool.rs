@@ -5,24 +5,28 @@ pub struct BoolParameter {
     value: bool
 }
 
-impl Parameter for BoolParameter {
+impl Parameter<bool> for BoolParameter {
     type Info = BoolParameterInfo;
 
     fn info(&self) -> &Self::Info {
         &self.info
     }
 
-    fn get_plain_value(&self) -> super::PlainValue {
-        todo!()
+    fn plain_value(&self) -> PlainValue {
+        if self.value { 1.0 } else { 0.0 }
     }
 
-    fn get_normalized_value(&self) -> super::NormalizedValue {
-        todo!()
+    fn normalized_value(&self) -> NormalizedValue {
+        self.plain_value()
     }
 	
 	fn as_param_ref(&self) -> ParamRef {
 		ParamRef::Bool(&self)
 	}
+    
+    fn set_value_normalized(&self, value: NormalizedValue) {
+        todo!()
+    }
 }
 
 

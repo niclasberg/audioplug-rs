@@ -81,11 +81,14 @@ impl Into<f64> for PlainValue {
     }
 }
 
-pub trait Parameter {
+pub trait Parameter<T> {
     type Info: ParameterInfo;
     fn info(&self) -> &Self::Info;
-    fn get_plain_value(&self) -> PlainValue;
-    fn get_normalized_value(&self) -> NormalizedValue;
+    fn plain_value(&self) -> PlainValue;
+    fn normalized_value(&self) -> NormalizedValue {
+        self.info().normalize(self.plain_value())
+    }
+    fn set_value_normalized(&self, value: NormalizedValue);
 	fn as_param_ref(&self) -> ParamRef;
 }
 
@@ -159,13 +162,23 @@ impl<'a> ParamRef<'a> {
         self.normalize(self.default_value())
     }
 
+    pub(crate) fn internal_set_value_normalized(&self, value: NormalizedValue) {
+        match self {
+            Self::Float(p) => p.plain_value(),
+            Self::Int(p) => p.plain_value(),
+            Self::StringList(_) => p.plain_value(),
+            Self::ByPass => p.plain_value(),
+            Self::Bool(_) => p.plain_value(),
+        }
+    }
+
     pub fn get_plain(&self) -> PlainValue {
         match self {
             Self::Float(p) => p.plain_value(),
-            Self::Int(_) => todo!(),
-            Self::StringList(_) => todo!(),
-            Self::ByPass => todo!(),
-            Self::Bool(_) => todo!(),
+            Self::Int(p) => p.plain_value(),
+            Self::StringList(_) => p.plain_value(),
+            Self::ByPass => p.plain_value(),
+            Self::Bool(_) => p.plain_value(),
         }
     }
 

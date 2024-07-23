@@ -40,9 +40,13 @@ impl<P: Params> EditController<P> {
         Self::allocate(Cell::new(None), parameters, Rc::new(RefCell::new(AppState::new(params))), PhantomData)
     }
 
-	fn get_param_ref<'a>(&'a self, id: ParameterId) -> Option<ParamRef<'a>> {
+	fn with_param_ref<'a, T>(&'a self, id: ParameterId, f: impl FnMut(Option<ParamRef<'a>>) -> T) -> T {
 		self.parameters.get(&id)
-			.map()
+			.map(|getter| {
+                let app_state = self.app_state.borrow();
+                let params: P = app_state.parameters_as();
+                f(Some(getter(&params)))
+            }).unwrap_or_else(|| f(None))
 	}
 
     pub fn create_instance() -> *mut c_void {
@@ -70,28 +74,29 @@ impl<P: Params> IEditController for EditController<P> {
     }
 
     unsafe fn get_parameter_info(&self, param_index: i32, info: *mut ParameterInfo) -> tresult {
-        if let Some(parameter) = self.parameters.get(param_index as usize) {
-            let info = &mut *info;
-			let param = 
+        self.with_param_ref(ParameterId::new(param_index as u32), |param_ref| {
+            if let Some(param_ref) = param_ref {
+                let info = &mut *info;
 
-            info.id = param_index as u32;
-            info.flags = match parameter {
-                ParamRef::ByPass => ParameterFlags::kCanAutomate as i32 | ParameterFlags::kIsBypass as i32,
-                Parameter::Int(_) => ParameterFlags::kCanAutomate as i32,
-                Parameter::Float(_) => ParameterFlags::kCanAutomate as i32,
-                Parameter::StringList(_) => ParameterFlags::kCanAutomate as i32 | ParameterFlags::kIsList as i32,
-                Parameter::Bool(_) => ParameterFlags::kCanAutomate as i32,
-            };
-            info.default_normalized_value = parameter.default_normalized().into();
-            strcpyw(parameter.name(), &mut info.short_title);
-            strcpyw(parameter.name(), &mut info.title);
-            info.step_count = parameter.step_count() as i32;
-            info.unit_id = kRootUnitId;
-            strcpyw("unit", &mut info.units);
-            kResultOk
-        } else {
-            kInvalidArgument
-        }
+                info.id = param_index as u32;
+                info.flags = match param_ref {
+                    ParamRef::ByPass => ParameterFlags::kCanAutomate as i32 | ParameterFlags::kIsBypass as i32,
+                    ParamRef::Int(_) => ParameterFlags::kCanAutomate as i32,
+                    ParamRef::Float(_) => ParameterFlags::kCanAutomate as i32,
+                    ParamRef::StringList(_) => ParameterFlags::kCanAutomate as i32 | ParameterFlags::kIsList as i32,
+                    ParamRef::Bool(_) => ParameterFlags::kCanAutomate as i32,
+                };
+                info.default_normalized_value = param_ref.default_normalized().into();
+                strcpyw(param_ref.name(), &mut info.short_title);
+                strcpyw(param_ref.name(), &mut info.title);
+                info.step_count = param_ref.step_count() as i32;
+                info.unit_id = kRootUnitId;
+                strcpyw("unit", &mut param_ref.units);
+                kResultOk
+            } else {
+                kInvalidArgument
+            }
+        })
     }
 
     unsafe fn get_param_string_by_value(&self, id: u32, value_normalized: f64, string: *mut tchar) -> tresult {
@@ -103,23 +108,22 @@ impl<P: Params> IEditController for EditController<P> {
     }
 
     unsafe fn normalized_param_to_plain(&self, id: u32, value_normalized: f64) -> f64 {
-        let value_normalized = NormalizedValue::from_f64_unchecked(value_normalized);
-        self.parameters
-            .get(id as usize)
-            .map_or(0.0, |param| param.denormalize(value_normalized).into())
+        self.with_param_ref(ParameterId::new(id), |param_ref| {
+            let value_normalized = NormalizedValue::from_f64_unchecked(value_normalized);
+            param_ref.map_or(0.0, |param| param.denormalize(value_normalized).into())
+        })
     }
 
     unsafe fn plain_param_to_normalized(&self, id: u32, plain_value: f64) -> f64 {
-        let plain_value = PlainValue::new(plain_value);
-        self.parameters
-            .get(id as usize)
-            .map_or(0.0, |param| param.normalize(plain_value).into())
+        self.with_param_ref(ParameterId::new(id), |param_ref| {
+            param_ref.map_or(0.0, |param| param.denormalize(PlainValue::new(plain_value)).into())
+        })
     }
 
     unsafe fn get_param_normalized(&self, id: u32) -> f64 {
-		self.parameters
-            .get(id as usize)
-            .map_or(0.0, |param| param.get_normalized().into())
+        self.with_param_ref(ParameterId::new(id), |param_ref| {
+            param_ref.map_or(0.0, |p| p.get_normalized().into())
+        })
     }
 
     unsafe fn set_param_normalized(&self, id: u32, value: f64) -> tresult {
