@@ -1,5 +1,3 @@
-use objc2_foundation::NSAttributedStringKey;
-
 use crate::platform::{mac::{core_foundation::{CFString, CFAttributedString, CFRange}, core_graphics::CGColor}, IMut};
 
 use super::CTFont;

@@ -14,6 +14,7 @@ pub use string::*;
 pub use cf_type::*;
 pub use array::CFArray;
 
+pub type OSStatus = i32;
 pub type Boolean = u8;
 pub type CFIndex = isize;
 pub type CFTypeID = usize;

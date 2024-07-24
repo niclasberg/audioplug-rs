@@ -4,8 +4,11 @@ mod bool;
 mod float;
 mod int;
 mod string_list;
+mod bypass;
+mod macros;
 
-use bool::BoolParameter;
+pub use bool::{BoolParameter, BoolParameterInfo};
+pub use bypass::ByPassParameter;
 pub use float::{FloatParameter, FloatParameterInfo, FloatRange};
 pub use int::{IntParameter, IntParameterInfo, IntRange};
 pub use string_list::StringListParameter;
@@ -52,6 +55,11 @@ impl NormalizedValue {
         Self(value)
     }
 
+	#[inline]
+	fn from_bool(value: bool) -> Self {
+		Self(if value { 1.0 } else { 0.0 })
+	}
+
     #[inline]
     pub fn value(&self) -> f64 {
         self.0
@@ -64,6 +72,12 @@ impl Into<f64> for NormalizedValue {
     }
 }
 
+impl Into<bool> for NormalizedValue {
+	fn into(self) -> bool {
+		self.0 > 0.5
+	}
+}
+
 /// Plain parameter value
 #[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
 pub struct PlainValue(f64);
@@ -73,6 +87,11 @@ impl PlainValue {
     pub fn new(value: f64) -> Self {
         Self(value)
     }
+
+	#[inline]
+	fn from_bool(value: bool) -> Self {
+		Self(if value { 1.0 } else { 0.0 })
+	}
 }
 
 impl Into<f64> for PlainValue {
@@ -81,14 +100,22 @@ impl Into<f64> for PlainValue {
     }
 }
 
+pub trait ParameterBase {
+	
+}
+
 pub trait Parameter<T> {
     type Info: ParameterInfo;
     fn info(&self) -> &Self::Info;
+	fn value(&self) -> T;
     fn plain_value(&self) -> PlainValue;
-    fn normalized_value(&self) -> NormalizedValue {
-        self.info().normalize(self.plain_value())
-    }
+	fn normalized_value(&self) -> NormalizedValue {
+		self.info().normalize(self.plain_value())
+	}
+
+	fn set_value(&self, value: T);
     fn set_value_normalized(&self, value: NormalizedValue);
+	
 	fn as_param_ref(&self) -> ParamRef;
 }
 
@@ -101,44 +128,18 @@ pub trait ParameterInfo {
 	fn step_count(&self) -> usize;
 }
 
-impl<T: Parameter> ParameterInfo for T {
-    fn id(&self) -> ParameterId {
-        self.info().id()
-    }
-
-    fn name(&self) -> &str {
-        self.info().name()
-    }
-
-    fn default_value(&self) -> PlainValue {
-        self.info().default_value()
-    }
-	
-	fn normalize(&self, value: PlainValue) -> NormalizedValue {
-		self.info().normalize(value)
-	}
-	
-	fn denormalize(&self, value: NormalizedValue) -> PlainValue {
-		self.info().denormalize(value)
-	}
-	
-	fn step_count(&self) -> usize {
-		self.info().step_count()
-	}
-}
-
 pub enum ParamRef<'a> {
     Float(&'a FloatParameter),
     Int(&'a IntParameter),
     StringList(&'a StringListParameter),
-    ByPass,
-    Bool(&'a BoolParameter)
+    ByPass(&'a ByPassParameter),
+    Bool(&'a BoolParameter),
 }
 
 impl<'a> ParamRef<'a> {
     pub fn info(&self) -> &dyn ParameterInfo {
         match self {
-            Self::ByPass => todo!(),
+            Self::ByPass(p) => p.info(),
             Self::Float(p) => p.info(),
             Self::Int(p) => p.info(),
             Self::StringList(p) => p.info(),
@@ -164,31 +165,31 @@ impl<'a> ParamRef<'a> {
 
     pub(crate) fn internal_set_value_normalized(&self, value: NormalizedValue) {
         match self {
-            Self::Float(p) => p.plain_value(),
-            Self::Int(p) => p.plain_value(),
-            Self::StringList(_) => p.plain_value(),
-            Self::ByPass => p.plain_value(),
-            Self::Bool(_) => p.plain_value(),
+            Self::Float(p) => p.set_value_normalized(value),
+            Self::Int(p) => p.set_value_normalized(value),
+            Self::StringList(p) => p.set_value_normalized(value),
+            Self::ByPass(p) => p.set_value_normalized(value),
+            Self::Bool(p) => p.set_value_normalized(value),
         }
     }
 
-    pub fn get_plain(&self) -> PlainValue {
+    pub fn plain_value(&self) -> PlainValue {
         match self {
             Self::Float(p) => p.plain_value(),
             Self::Int(p) => p.plain_value(),
-            Self::StringList(_) => p.plain_value(),
-            Self::ByPass => p.plain_value(),
-            Self::Bool(_) => p.plain_value(),
+            Self::StringList(p) => p.plain_value(),
+            Self::ByPass(p) => p.plain_value(),
+            Self::Bool(p) => p.plain_value(),
         }
     }
 
     pub fn get_normalized(&self) -> NormalizedValue {
         match self {
-            Self::Float(p) => p.info().range().normalize(p.plain_value()),
-            Self::Int(_) => todo!(),
-            Self::StringList(_) => todo!(),
-            Self::ByPass => todo!(),
-            Self::Bool(_) => todo!(),
+            Self::Float(p) => p.normalized_value(),
+            Self::Int(p) => p.normalized_value(),
+            Self::StringList(p) => p.normalized_value(),
+            Self::ByPass(p) => p.normalized_value(),
+            Self::Bool(p) => p.normalized_value(),
         }
     }
 

@@ -1,8 +1,7 @@
 mod appkit;
 mod application;
-pub (crate) mod audio_unit;
 mod audio;
-mod core_audio;
+pub(crate) mod core_audio;
 mod core_foundation;
 mod core_graphics;
 mod core_text;

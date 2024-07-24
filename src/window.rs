@@ -9,7 +9,7 @@ use crate::core::{Point, Rectangle};
 use crate::event::KeyEvent;
 use crate::keyboard::Key;
 use crate::platform::{WindowEvent, WindowHandler};
-use crate::app::{self, AppState, Signal, SignalContext};
+use crate::app::{AppState, Signal, SignalContext};
 use crate::view::{BuildContext, EventContext, EventStatus, LayoutNodeRef, RenderContext, View, ViewFlags, ViewMessage, Widget, WidgetData, WidgetNode};
 use crate::{platform, App, Cursor, IdPath, MouseEvent};
 
@@ -296,7 +296,7 @@ impl Window {
             },
 			#[cfg(target_os = "macos")]
 			RawWindowHandle::AppKit(handle) => {
-				todo!()
+				platform::Window::attach(handle, handler)
 			}
             _ => panic!("Unsupported window type"),
         };

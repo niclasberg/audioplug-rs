@@ -1,4 +1,4 @@
-use raw_window_handle::{AppKitWindowHandle, RawWindowHandle, Win32WindowHandle};
+use raw_window_handle::RawWindowHandle;
 use vst3_sys::{VST3, VstPtr};
 use vst3_sys::vst::IComponentHandler;
 use vst3_sys::base::*;
@@ -6,34 +6,44 @@ use vst3_sys::gui::{IPlugView, ViewRect};
 use std::cell::RefCell;
 use std::ffi::{CStr, c_void};
 use std::marker::PhantomData;
-use std::num::NonZeroIsize;
 use std::ptr::NonNull;
 use std::rc::Rc;
 
 use crate::app::AppState;
-use crate::core::{Color, Rectangle, Size, Shape, Point};
+use crate::core::{Color, Rectangle, Size, Point};
 use crate::param::Params;
 use crate::view::Fill;
 use crate::window::Window;
 
+#[cfg(target_os = "windows")]
+use {
+	raw_window_handle::Win32WindowHandle,
+	std::num::NonZeroIsize
+};
+
+#[cfg(target_os = "macos")]
+use raw_window_handle::AppKitWindowHandle;
+
+#[cfg(target_os = "windows")]
 const VST3_PLATFORM_HWND: &str = "HWND";
+#[cfg(target_os = "macos")]
 const VST3_PLATFORM_NSVIEW: &str = "NSView";
 
 use vst3_sys as vst3_com;
 #[VST3(implements(IPlugView))]
 pub struct PlugView<P: Params> {
     window: RefCell<Option<Window>>,
-    component_handler: Option<VstPtr<dyn IComponentHandler>>,
+    component_handler: VstPtr<dyn IComponentHandler>,
     app_state: Rc<RefCell<AppState>>,
     _phantom: PhantomData<P>
 }
 
 impl<P: Params> PlugView<P> {
-    pub fn new(component_handler: Option<VstPtr<dyn IComponentHandler>>, app_state: Rc<RefCell<AppState>>) -> Box<Self> {
+    pub fn new(component_handler: VstPtr<dyn IComponentHandler>, app_state: Rc<RefCell<AppState>>) -> Box<Self> {
         Self::allocate(RefCell::new(None), component_handler, app_state, PhantomData)
     }
 
-    pub fn create_instance(component_handler: Option<VstPtr<dyn IComponentHandler>>, app_state: Rc<RefCell<AppState>>) -> *mut c_void {
+    pub fn create_instance(component_handler: VstPtr<dyn IComponentHandler>, app_state: Rc<RefCell<AppState>>) -> *mut c_void {
         Box::into_raw(Self::new(component_handler, app_state)) as *mut c_void
     }
 }

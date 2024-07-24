@@ -2,7 +2,7 @@
 mod win;
 
 #[cfg(target_os = "macos")]
-mod mac;
+pub(crate) mod mac;
 
 #[cfg(target_os = "windows")]
 pub use win::*;

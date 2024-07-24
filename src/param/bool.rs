@@ -1,8 +1,20 @@
+use std::cell::Cell;
+
 use super::{NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue};
 
 pub struct BoolParameter {
     info: BoolParameterInfo,
-    value: bool
+    value: Cell<bool>,
+}
+
+impl BoolParameter {
+	pub fn new(id: ParameterId, name: &'static str, default: bool) -> Self {
+		let info = BoolParameterInfo::new(id, name, default);
+		Self {
+			info,
+			value: Cell::new(default)
+		}
+	}
 }
 
 impl Parameter<bool> for BoolParameter {
@@ -13,11 +25,11 @@ impl Parameter<bool> for BoolParameter {
     }
 
     fn plain_value(&self) -> PlainValue {
-        if self.value { 1.0 } else { 0.0 }
+        PlainValue::from_bool(self.value.get())
     }
 
     fn normalized_value(&self) -> NormalizedValue {
-        self.plain_value()
+        NormalizedValue::from_bool(self.value.get())
     }
 	
 	fn as_param_ref(&self) -> ParamRef {
@@ -25,8 +37,16 @@ impl Parameter<bool> for BoolParameter {
 	}
     
     fn set_value_normalized(&self, value: NormalizedValue) {
-        todo!()
+        self.value.replace(value.into());
     }
+	
+	fn value(&self) -> bool {
+		self.value.get()
+	}
+	
+	fn set_value(&self, value: bool) {
+		self.value.replace(value);
+	}
 }
 
 

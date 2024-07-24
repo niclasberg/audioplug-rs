@@ -5,6 +5,7 @@ mod app_state;
 mod ref_count_map;
 mod signal;
 mod binding;
+mod param_signal;
 
 use std::{any::Any, cell::RefCell, rc::Rc};
 

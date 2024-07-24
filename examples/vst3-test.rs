@@ -1,8 +1,8 @@
 use std::ffi::c_void;
 use audioplug::core::Color;
-use audioplug::param::{BoolParameter, FloatParameter, FloatRange, ParamRef, ParameterId, Params};
+use audioplug::param::{BoolParameter, FloatParameter, FloatRange, Parameter, ParameterId};
 use audioplug::view::Label;
-use audioplug::{Plugin, AudioLayout, Bus, ChannelType, ProcessContext, Editor};
+use audioplug::{params, AudioLayout, Bus, ChannelType, Editor, Plugin, ProcessContext};
 use audioplug::wrapper::vst3::Factory;
 
 struct MyPlugin {
@@ -13,29 +13,26 @@ struct MyEditor {
 
 }
 
-impl Editor for MyEditor {
-    fn view(&self) -> impl audioplug::view::View {
+impl Editor<MyPluginParams> for MyEditor {
+    fn view(&self, _parameters: &MyPluginParams) -> impl audioplug::view::View {
         Label::new("Text input").with_color(Color::BLUE)
     }
 }
 
-struct MyPluginParams {
-    enabled: BoolParameter,
-    gain: FloatParameter
-}
-
-impl Params for MyPluginParams {
-    const PARAMS: &'static [fn(&Self) -> ParamRef] = &[
-        |this| this.enabled.as_param_ref(),
-        |this| this.gain.as_param_ref()
-    ];
-}
+params!(
+	struct MyPluginParams {
+		enabled: BoolParameter,
+		gain: FloatParameter
+	}
+);
 
 impl Default for MyPluginParams {
     fn default() -> Self {
         Self {
-            enabled: BoolParameter::new("Enabled", true),
-            gain: FloatParameter::new(ParameterId::new(1), "Gain").with_range(FloatRange::Linear { min: 0.0, max: 1.0 })
+            enabled: BoolParameter::new(ParameterId::new(1), "Enabled", true),
+            gain: FloatParameter::new(ParameterId::new(2), "Gain")
+				.with_range(FloatRange::Linear { min: 0.0, max: 1.0 })
+				.with_default(0.5)
         }
     }
 }
@@ -45,10 +42,12 @@ impl Plugin for MyPlugin {
     const VENDOR: &'static str = "Some vendor";
     const URL: &'static str = "www.example.com";
     const EMAIL: &'static str = "niclasbrg@gmail.com";
-    const AUDIO_LAYOUT: &'static [AudioLayout] = &[AudioLayout {
-        main_input: Some(Bus { name: "Stereo Input", channel: ChannelType::Stereo }),
-        main_output: Some(Bus { name: "Stereo Output", channel: ChannelType::Stereo })
-    }];
+    const AUDIO_LAYOUT: &'static [AudioLayout] = &[
+		AudioLayout {
+			main_input: Some(Bus { name: "Stereo Input", channel: ChannelType::Stereo }),
+			main_output: Some(Bus { name: "Stereo Output", channel: ChannelType::Stereo })
+		}
+	];
     type Editor = MyEditor;
     type Parameters = MyPluginParams;
 
@@ -65,10 +64,10 @@ impl Plugin for MyPlugin {
     }
 
     fn process(&mut self, ctx: ProcessContext, parameters: &MyPluginParams) {
-        let gain = parameters.gain;
+        let gain = parameters.gain.value() as f32;
         for (in_channel, mut out_channel) in ctx.input.channels_iter().zip(ctx.output.channels_iter_mut()) {
             for (in_sample, out_sample) in in_channel.iter().zip(out_channel.iter_mut()) {
-                *out_sample = in_sample * 0.5;
+                *out_sample = in_sample * gain;
             }
         }
     }

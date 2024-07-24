@@ -1,7 +1,9 @@
+use std::cell::Cell;
+
 use super::{NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue};
 
 pub struct StringListParameter {
-	index: usize,
+	index: Cell<usize>,
 	info: StringListParameterInfo
 }
 
@@ -9,21 +11,29 @@ impl StringListParameter {
 
 }
 
-impl Parameter for StringListParameter {
+impl Parameter<usize> for StringListParameter {
 	type Info = StringListParameterInfo; 
 
 	fn info(&self) -> &Self::Info {
-		todo!()
+		&self.info
 	}
 
-	fn get_plain_value(&self) -> PlainValue {
-		todo!()
+	fn value(&self) -> usize {
+		self.index.get()
 	}
 
-	fn get_normalized_value(&self) -> super::NormalizedValue {
+	fn plain_value(&self) -> PlainValue {
+		PlainValue(self.index.get() as f64)
+	}
+	
+	fn set_value_normalized(&self, value: NormalizedValue) {
 		todo!()
 	}
 	
+	fn set_value(&self, value: usize) {
+		self.index.replace(value);
+	}
+
 	fn as_param_ref(&self) -> ParamRef {
 		ParamRef::StringList(&self)
 	}

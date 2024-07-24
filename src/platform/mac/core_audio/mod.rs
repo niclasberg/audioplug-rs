@@ -9,6 +9,8 @@ mod audio_stream;
 mod audio_system_object;
 mod audio_object;
 mod error;
+mod audio_buffer;
+pub use audio_buffer::*;
 
 pub type OSStatus = i32;
 

@@ -1,16 +1,19 @@
-use objc2_foundation::{NSPoint, NSRect, NSSize, MainThreadMarker};
-use objc2_app_kit::{NSWindow, NSBackingStoreType, NSWindowStyleMask};
+use std::os::raw::c_void;
+use std::ptr::NonNull;
+
+use objc2_foundation::{CGSize, MainThreadMarker, NSPoint, NSRect, NSSize};
+use objc2_app_kit::{NSBackingStoreType, NSView, NSWindow, NSWindowStyleMask};
 use objc2::rc::Retained;
-use raw_window_handle::HasWindowHandle;
-use crate::core::Rectangle;
+use raw_window_handle::{AppKitWindowHandle, HasWindowHandle};
+use crate::core::{Rectangle, Size};
 use crate::platform::WindowHandler;
 
 use super::Error;
 use super::view::View;
 
-pub struct Window {
-	window: Retained<NSWindow>,
-	view: Retained<View>
+pub enum Window {
+	OSWindow(Retained<NSWindow>, Retained<View>),
+	AttachedToView(Retained<View>)
 }
 
 impl Window {
@@ -38,11 +41,36 @@ impl Window {
 		window.makeKeyAndOrderFront(None);
 		window.setContentView(Some(&*view));
 
-		Ok(Self { window, view })
+		Ok(Self::OSWindow(window, view))
+	}
+
+	pub fn attach(handle: AppKitWindowHandle, widget: impl WindowHandler + 'static) -> Result<Self, Error> {
+		let mtm = MainThreadMarker::new().unwrap();
+		let parent = unsafe { &*(handle.ns_view.as_ptr() as *mut NSView) };
+		let view = View::new(mtm, widget);
+		unsafe { parent.addSubview(&view) };
+		
+		Ok(Self::AttachedToView(view))
+	}
+
+	pub fn get_size(&self) -> Size {
+		let view = match self {
+			Window::OSWindow(_, view) => view,
+			Window::AttachedToView(view) => view,
+		};
+		let size = view.frame().size;
+		size.into()
 	}
 
 	pub fn set_size(&self, size: Rectangle<i32>) -> Result<(), Error> {
-		todo!()
+		let size = CGSize::new(size.width() as f64, size.height() as f64);
+		match self {
+			Window::OSWindow(_, _) => {},
+			Window::AttachedToView(view) => {
+				unsafe { view.setFrameSize(size) };
+			},
+		}
+		Ok(())
 	}
 }
 

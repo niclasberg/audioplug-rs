@@ -1,38 +1,52 @@
-use super::{NormalizedValue, ParamRef, ParameterId, ParameterInfo, PlainValue};
+use std::cell::Cell;
+
+use super::{NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue};
 
 pub struct IntParameter {
     info: IntParameterInfo,
-    value: i64
+    value: Cell<i64>
 }
 
 impl IntParameter {
     pub fn new(id: ParameterId, name: &'static str) -> Self {
         let info = IntParameterInfo::new(id, name);
-        let value = info.default;
+        let value = Cell::new(info.default);
         Self {
             info,
             value
         }
     }
 
-    pub fn info(&self) -> &IntParameterInfo {
-        &self.info
-    }
-
-    pub fn value(&self) -> i64 {
-        self.value
-    }
-
-    pub fn set_value(&mut self, value: i64) {
-        self.value = value;
-    }
-
     pub fn with_range(mut self, range: IntRange) -> Self {
         self.info.range = range;
         self
     }
+}
 
-    pub fn as_param_ref(&mut self) -> ParamRef {
+impl Parameter<i64> for IntParameter {
+	type Info = IntParameterInfo;
+
+	fn info(&self) -> &Self::Info {
+		&self.info 
+	}
+
+	fn value(&self) -> i64 {
+        self.value.get()
+    }
+
+	fn plain_value(&self) -> PlainValue {
+		todo!()
+	}
+	
+	fn set_value(&self, value: i64) {
+        self.value.replace(value);
+    }
+
+	fn set_value_normalized(&self, value: NormalizedValue) {
+		todo!()
+	}
+	
+	fn as_param_ref(&self) -> ParamRef {
         ParamRef::Int(self)
     }
 }

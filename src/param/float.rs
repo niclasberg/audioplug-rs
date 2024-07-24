@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-use super::{NormalizedValue, ParamRef, ParameterId, ParameterInfo, PlainValue};
+use super::{NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue};
 
 pub struct FloatParameter {
     info: FloatParameterInfo,
@@ -15,18 +15,6 @@ impl FloatParameter {
             info,
             value
         }
-    }
-
-    pub fn info(&self) -> &FloatParameterInfo {
-        &self.info
-    }
-
-    pub fn value(&self) -> f64 {
-        self.value.get()
-    }
-
-    pub fn plain_value(&self) -> PlainValue {
-        PlainValue(self.value())
     }
 
     pub fn set_value(&mut self, value: f64) {
@@ -47,8 +35,32 @@ impl FloatParameter {
         self.value.set(default_value);
         self
     }
+}
 
-    pub fn as_param_ref(&mut self) -> ParamRef {
+impl Parameter<f64> for FloatParameter {
+	type Info = FloatParameterInfo;
+
+	fn info(&self) -> &Self::Info {
+		&self.info
+	}
+
+	fn value(&self) -> f64 {
+        self.value.get()
+    }
+
+	fn plain_value(&self) -> PlainValue {
+        PlainValue(self.value())
+    }
+
+	fn set_value(&self, value: f64) {
+		self.value.replace(value);
+	}
+
+	fn set_value_normalized(&self, value: NormalizedValue) {
+		self.value.replace(self.info.denormalize(value).0);
+	}
+
+	fn as_param_ref(&self) -> ParamRef {
         ParamRef::Float(self)
     }
 }

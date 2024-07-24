@@ -2,12 +2,14 @@ use vst3_com::vst::{IComponent, SymbolicSampleSizes, MediaTypes, BusDirections, 
 use vst3_sys::{VST3, IID};
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
-use vst3_sys::vst::{BusDirection, BusInfo, IAudioProcessor, IParameterChanges, IoMode, MediaType, ProcessData, ProcessSetup, RoutingInfo, SpeakerArrangement};
+use vst3_sys::vst::{BusDirection, BusInfo, IAudioProcessor, IParamValueQueue, IParameterChanges, IoMode, MediaType, ProcessData, ProcessSetup, RoutingInfo, SpeakerArrangement};
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::ffi::c_void;
 
 use vst3_sys as vst3_com;
 
+use crate::param::{NormalizedValue, ParameterGetter, ParameterId, Params};
 use crate::{Plugin, AudioBuffer, ProcessContext};
 use super::editcontroller::EditController;
 use super::util::strcpyw;
@@ -15,14 +17,19 @@ use super::util::strcpyw;
 #[VST3(implements(IComponent, IAudioProcessor))]
 pub struct Vst3Plugin<P: Plugin> {
     plugin: RefCell<P>,
-    parameters: P::Parameters
+    parameters: P::Parameters,
+	parameter_getters: HashMap<ParameterId, ParameterGetter<P::Parameters>>,
 }
 
 impl<P: Plugin> Vst3Plugin<P> {
     pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] };
 
     pub fn new() -> Box<Self> {
-        Self::allocate(RefCell::new(P::new()), P::Parameters::default())
+		let parameters = P::Parameters::default();
+		let parameter_getters = P::Parameters::PARAMS.iter()
+			.map(|getter| (getter(&parameters).id(), *getter))
+			.collect();
+        Self::allocate(RefCell::new(P::new()), parameters, parameter_getters)
     }
 
     pub fn create_instance() -> *mut c_void {
@@ -93,7 +100,24 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
 
         if let Some(input_param_changes) = data.input_param_changes.upgrade() {
             let parameter_change_count = input_param_changes.get_parameter_count();
-            
+            for i in 0..parameter_change_count {
+				if let Some(data) = input_param_changes.get_parameter_data(i).upgrade() {
+					let param_idx = ParameterId::new(data.get_parameter_id());
+					let point_count = data.get_point_count();
+					if point_count <= 0 {
+						continue;
+					}
+
+					if let Some(getter) = self.parameter_getters.get(&param_idx) {
+						let param_ref = getter(&self.parameters);
+						let mut value = 0.0;
+						let mut sample_offset = 0;
+						if data.get_point(point_count - 1, &mut sample_offset as *mut _, &mut value as *mut _) == kResultOk {
+							param_ref.internal_set_value_normalized(NormalizedValue::from_f64_unchecked(value));
+						}
+					}
+				}
+			}
         }
 
         let input = AudioBuffer::from_ptr((*data.inputs).buffers as *const *mut _, (*data.inputs).num_channels as usize, data.num_samples as usize);

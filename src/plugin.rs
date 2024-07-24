@@ -31,7 +31,7 @@ pub trait Plugin {
     const URL: &'static str;
     const EMAIL: &'static str;
     const AUDIO_LAYOUT: &'static [AudioLayout];
-    type Editor: Editor;
+    type Editor: Editor<Self::Parameters>;
     type Parameters: Params;
 
     fn new() -> Self;

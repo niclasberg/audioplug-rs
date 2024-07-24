@@ -1,15 +1,20 @@
-use crate::{view::View, Plugin, core::{Rectangle, Color, Point, Size}, view::Fill};
+use std::marker::PhantomData;
 
-pub trait Editor {
-    fn view(&self) -> impl View;
+use crate::{core::{Color, Point, Rectangle, Size}, param::Params, view::{Fill, View}};
+
+pub trait Editor<P: Params> {
+    fn view(&self, parameters: &P) -> impl View;
+	fn min_size() -> Option<Size> { None }
+	fn max_size() -> Option<Size> { None }
+	fn prefered_size() -> Option<Size> { None }
 }
 
-pub struct GenericEditor {
-
+pub struct GenericEditor<P> {
+	_phantom: PhantomData<P>
 }
 
-impl Editor for GenericEditor {
-    fn view(&self) -> impl View {
+impl<P: Params> Editor<P> for GenericEditor<P> {
+    fn view(&self, _parameters: &P) -> impl View {
         Rectangle::new(Point::ZERO, Size::new(200.0, 200.0)).fill(Color::RED)
     }
 }

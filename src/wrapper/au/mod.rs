@@ -6,7 +6,8 @@ use objc2::rc::Id;
 use objc2::{declare_class, ClassType, DeclaredClass};
 use objc2::runtime::NSObjectProtocol;
 
-use crate::platform::audio_unit::{AUAudioUnit, AUAudioUnitFactory, AudioComponentDescription, AUViewControllerBase};
+mod audio_toolbox;
+use audio_toolbox::{AUAudioUnit, AUAudioUnitFactory, AudioComponentDescription, AUViewControllerBase};
 
 declare_class!(
 	pub struct AUFactory;
@@ -27,10 +28,10 @@ declare_class!(
 			todo!()
 		}
 
-		//#[method(requestViewControllerWithCompletionHandler:)]
-		//fn requestViewControllerWithCompletionHandler(&self, completionHandler: &Block<(*mut AUViewControllerBase, ), ()>) {
-			// unsafe { completionHandler.call(self) }
-		//}
+		#[method(requestViewControllerWithCompletionHandler:)]
+		fn requestViewControllerWithCompletionHandler(&self, completionHandler: &Block<dyn Fn(*mut AUViewControllerBase)>) {
+			//unsafe { completionHandler.call(&self) }
+		}
 	}
 
 	unsafe impl NSObjectProtocol for AUFactory {}
