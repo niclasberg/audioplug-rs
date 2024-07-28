@@ -1,4 +1,5 @@
 use c_enum::c_enum;
+use objc2::{Encode, RefEncode};
 
 c_enum!(
 	#[repr(transparent)]
@@ -67,4 +68,12 @@ pub struct AudioTimeStamp {
     mSMPTETime: SMPTETime,
     mFlags: AudioTimeStampFlags,
     mReserved: u32,
+}
+
+unsafe impl Encode for AudioTimeStamp {
+    const ENCODING: objc2::Encoding = objc2::Encoding::Struct("AudioTimeStamp", &[]);
+}
+
+unsafe impl RefEncode for AudioTimeStamp {
+	const ENCODING_REF: objc2::Encoding = objc2::Encoding::Pointer(&Self::ENCODING);
 }

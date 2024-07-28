@@ -2,6 +2,7 @@ mod appkit;
 mod application;
 mod audio;
 pub(crate) mod core_audio;
+pub(crate) mod core_midi;
 mod core_foundation;
 mod core_graphics;
 mod core_text;

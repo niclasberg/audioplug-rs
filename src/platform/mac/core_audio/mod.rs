@@ -52,21 +52,6 @@ pub struct AudioObjectPropertyAddress {
 
 #[repr(C)]
 #[allow(non_snake_case)]
-pub struct AudioBuffer {
-	mNumberChannels: u32,
-	mDataByteSize: u32,
-	mData: *mut c_void
-}
-
-#[repr(C)]
-#[allow(non_snake_case)]
-pub struct AudioBufferList {
-	mNumberBuffers: u32,
-	mBuffers: *mut AudioBuffer
-}
-
-#[repr(C)]
-#[allow(non_snake_case)]
 struct AudioValueRange {
     mMinimum: f64,
     mMaximum: f64
