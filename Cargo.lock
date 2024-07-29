@@ -55,6 +55,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8883dee7de1e38357323d49767550c9fd64fa5c60ae22f6b01ab2c5edcd1bf9e"
 
 [[package]]
+name = "gain"
+version = "0.1.0"
+dependencies = [
+ "audioplug",
+]
+
+[[package]]
 name = "grid"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

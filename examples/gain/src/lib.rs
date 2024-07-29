@@ -38,7 +38,7 @@ impl Default for MyPluginParams {
 }
 
 impl Plugin for MyPlugin {
-    const NAME: &'static str = "My Plugin";
+    const NAME: &'static str = "My Gain Plugin";
     const VENDOR: &'static str = "Some vendor";
     const URL: &'static str = "www.example.com";
     const EMAIL: &'static str = "niclasbrg@gmail.com";

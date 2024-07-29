@@ -58,7 +58,7 @@ impl Shape {
     pub fn hit_test(&self, pos: Point) -> bool {
         match self {
             Shape::Rect(rect) => rect.contains(pos),
-            Shape::RoundedRect { rect, corner_radius } => {
+            Shape::RoundedRect { rect, .. } => {
                 if !rect.contains(pos) {
                     false
                 } else {

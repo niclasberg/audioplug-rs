@@ -168,9 +168,9 @@ impl From<Rectangle<i32>> for Rectangle<f64> {
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    /*use super::*;
 
-    /*#[test]
+    #[test]
     fn from_points() {
         let p0 = Point::new(1.0, 4.0);
         let p1 = Point::new(3.0, 2.0);

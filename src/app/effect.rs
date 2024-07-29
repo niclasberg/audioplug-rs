@@ -1,6 +1,5 @@
 use std::rc::Rc;
-
-use super::{App, AppState};
+use super::AppState;
 
 pub(super) struct EffectState {
     pub(super) f: Rc<Box<dyn Fn(&mut AppState)>>,

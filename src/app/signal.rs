@@ -52,7 +52,7 @@ impl<T: Any> SignalSet for Signal<T> {
 impl<T: Any> SignalUpdate for Signal<T> {
     type Value = T;
 
-    fn update(&self, cx: &mut impl SignalContext, f: impl FnOnce(&mut Self::Value)) {
+    fn update(&self, _cx: &mut impl SignalContext, _f: impl FnOnce(&mut Self::Value)) {
         //cx.update_signal_value(self, f)
         todo!()
     }

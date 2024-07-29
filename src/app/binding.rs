@@ -1,4 +1,4 @@
-use std::{any::Any, rc::Rc};
+use std::rc::Rc;
 
 use crate::{view::WidgetNode, IdPath};
 
