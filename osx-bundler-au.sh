@@ -14,10 +14,9 @@ else
 	mkdir -p "target/debug/tmp"
 	cp $2 "target/debug/tmp/libaudioplug.a"
 	clang++ -o "./target/debug/rusttest.app/Contents/PlugIns/$1.appex/Contents/MacOS/$1" -Wl,-no_adhoc_codesign -fobjc-arc -fobjc-link-runtime -fapplication-extension -e _NSExtensionMain -fmodules -framework Foundation -framework AudioToolbox -framework AppKit -framework CoreGraphics -framework CoreText -framework CoreAudioKit -L "./target/debug/tmp" objc/view_controller.mm -laudioplug
-	codesign --force --sign - --timestamp=none "./target/debug/rusttest.app/Contents/PlugIns/$1.appex"
 
     # Create the PkgInfo
-    echo "BNDL????" > "target/debug/$1.appex/Contents/PkgInfo"
+    # echo "BNDL????" > "target/debug/$1.appex/Contents/PkgInfo"
 
     #build the Info.Plist
     echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
@@ -42,8 +41,6 @@ else
 	<string>XPC!</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.6</string>
-	<key>CFBundleSignature</key>
-	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>NSExtension</key>
@@ -56,13 +53,15 @@ else
 					<key>description</key>
 					<string>AUV3InstrumentDemo</string>
 					<key>manufacturer</key>
-					<string>nibe</string>
+					<string>Nibe</string>
 					<key>name</key>
 					<string>RUST TEST</string>
+					<key>factory</key>
+					<string>MyViewController</string>
 					<key>sandboxSafe</key>
 					<true/>
 					<key>subtype</key>
-					<string>tmpl</string>
+					<string>demo</string>
 					<key>tags</key>
 					<array>
 						<string>Effect</string>
@@ -77,11 +76,12 @@ else
 		<key>NSExtensionPointIdentifier</key>
 		<string>com.apple.AudioUnit</string>
 		<key>NSExtensionPrincipalClass</key>
-		<string>ViewController</string>
+		<string>MyViewController</string>
 	</dict>
 </dict>
 </plist>" > "./target/debug/rusttest.app/Contents/PlugIns/$1.appex/Contents/Info.plist"
+	codesign --force --sign - -o runtime --entitlements ./examples/gain/AU/entitlements.plist --timestamp=none "./target/debug/rusttest.app/Contents/PlugIns/$1.appex"
 
-
+	codesign --force --sign - --timestamp=none "./target/debug/rusttest.app"
     echo "Created bundle target/debug/$1.appex"
 fi

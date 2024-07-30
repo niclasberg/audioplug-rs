@@ -1,10 +1,10 @@
 use bitflags::bitflags;
 use block2::Block;
-use objc2_foundation::{NSError, NSInteger, NSUInteger};
-use objc2::{extern_class, extern_methods, mutability, rc::{Allocated, Id}, runtime::{NSObject, NSObjectProtocol}, ClassType, Encode, Encoding, RefEncode};
+use objc2_foundation::{NSError, NSInteger, NSString, NSUInteger};
+use objc2::{extern_class, extern_methods, mutability, rc::{Allocated, Id, Retained}, runtime::{AnyClass, NSObject, NSObjectProtocol}, ClassType, Encode, Encoding, RefEncode};
 
 use crate::platform::mac::core_audio::{AudioBufferList, AudioTimeStamp};
-use super::{AURenderEvent, AudioComponentDescription};
+use super::{AUAudioUnitBusArray, AURenderEvent, AudioComponentDescription};
 
 pub type AUAudioUnitStatus = i32;
 pub type AUAudioFrameCount = u32;
@@ -75,16 +75,41 @@ extern_class!(
 
 extern_methods!(
 	unsafe impl AUAudioUnit {
-		#[method_id(initWithComponentDescription:error:)]
+		#[method(registerSubclass:asComponentDescription:name:version:)]
 		#[allow(non_snake_case)]
-		pub unsafe fn initWithComponentDescription_error(
+		pub fn registerSubclass(
+			cls: &AnyClass, 
+			componentDescription: AudioComponentDescription,
+			name: &NSString,
+			version: u32
+		);
+
+		#[method_id(initWithComponentDescription:error:_)]
+		#[allow(non_snake_case)]
+		pub fn initWithComponentDescription(
+			this: Allocated<Self>,
+			componentDescription: AudioComponentDescription
+		) -> Result<Retained<Self>, Retained<NSError>>;
+
+		#[method_id(initWithComponentDescription:options:error:)]
+		#[allow(non_snake_case)]
+		pub fn initWithComponentDescription_options_error(
 			this: Allocated<Self>,
 			componentDescription: AudioComponentDescription, 
+			options: AudioComponentInstantiationOptions,
 			outError: *mut *mut NSError
 		) -> Id<Self>;
 
 		#[method(internalRenderBlock)]
 		#[allow(non_snake_case)]
-		pub unsafe fn internalRenderBlock(&self) -> *mut AUInternalRenderBlock;
+		pub fn internalRenderBlock(&self) -> *mut AUInternalRenderBlock;
+
+		#[method_id(inputBusses)]
+		#[allow(non_snake_case)]
+		pub fn inputBusses(&self) -> Option<Retained<AUAudioUnitBusArray>>;
+
+		#[method_id(outputBusses)]
+		#[allow(non_snake_case)]
+		pub fn outputBusses(&self) -> Option<Retained<AUAudioUnitBusArray>>;
 	}
 );

@@ -15,10 +15,10 @@ struct Deleter {
 	}
 };
 
-@interface ViewController : AUViewController<AUAudioUnitFactory>
+@interface MyViewController : AUViewController<AUAudioUnitFactory>
 @end
 
-@implementation ViewController
+@implementation MyViewController
 {
     std::unique_ptr<view_controller_t, Deleter> viewController;
 }

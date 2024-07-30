@@ -10,9 +10,11 @@ pub type AUViewControllerBase = NSViewController;
 extern_protocol!(
 	pub unsafe trait AUAudioUnitFactory {
 		#[method_id(createAudioUnitWithComponentDescription:error:)]
+		#[allow(non_snake_case)]
 		unsafe fn createAudioUnitWithComponentDescription_error(&self, desc: AudioComponentDescription, error: *mut *mut NSError) -> Id<AUAudioUnit>;
 
 		#[method(requestViewControllerWithCompletionHandler:)]
+		#[allow(non_snake_case)]
 		unsafe fn requestViewControllerWithCompletionHandler(&self, completionHandler: &Block<dyn Fn(*mut AUViewControllerBase)>);
 	}
 
