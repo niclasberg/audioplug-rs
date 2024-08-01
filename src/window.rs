@@ -19,7 +19,7 @@ pub struct WindowState {
     pub(crate) cursor: Cursor
 }
 
-struct MyHandler {
+pub(crate) struct MyHandler {
     widget_node: WidgetNode,
     state: WindowState,
     app_state: Rc<RefCell<AppState>>

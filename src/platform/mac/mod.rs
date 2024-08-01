@@ -13,7 +13,7 @@ mod iref;
 mod renderer;
 mod text;
 mod util;
-mod view;
+pub(crate) mod view;
 mod window;
 mod window_state;
 
@@ -25,3 +25,4 @@ pub(crate) use renderer::RendererRef;
 pub use error::Error;
 pub(crate) use text::TextLayout;
 pub(crate) use iref::*;
+pub(crate) use util::*;

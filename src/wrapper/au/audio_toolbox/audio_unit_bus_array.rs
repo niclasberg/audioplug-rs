@@ -1,10 +1,10 @@
 use c_enum::c_enum;
 use objc2::{extern_class, extern_methods, rc::{Allocated, Retained}, ClassType, Encode, Encoding, RefEncode};
-use objc2_foundation::{NSArray, NSError, NSInteger, NSObject};
+use objc2_foundation::{NSArray, NSError, NSInteger, NSObject, NSUInteger};
+
+use crate::wrapper::au::av_foundation::AVAudioFormat;
 
 use super::AUAudioUnit;
-
-pub type AVAudioChannelCount = u32;
 
 c_enum!(
 	pub enum AUAudioUnitBusType: NSInteger {
@@ -47,13 +47,11 @@ extern_methods!(
 			this: Allocated<Self>,
 			owner: *mut AUAudioUnit,
 			bus_type: AUAudioUnitBusType) -> Retained<Self>;
+
+		#[method(count)]
+		pub fn count(&self) -> NSUInteger;
 	}
 );
-
-//	@method		initWithAudioUnit:busType:
-//	@brief		Initializes an empty bus array.
-//- (instancetype)initWithAudioUnit:(AUAudioUnit *)owner busType:(AUAudioUnitBusType)busType;
-//@property (NS_NONATOMIC_IOSONLY, readonly) NSUInteger count;
 
 extern_class!(
 	pub struct AUAudioUnitBus;
@@ -66,31 +64,11 @@ extern_class!(
 
 extern_methods!(
 	unsafe impl AUAudioUnitBus {
-		#[method_id(initWithFormat:error:)]
+		#[method_id(initWithFormat:error:_)]
 		#[allow(non_snake_case)]
 		pub unsafe fn initWithFormat_error(
 			this: Allocated<Self>,
-			format: &AVAudioFormat,
-			error: *mut *mut NSError) -> Retained<Self>;
+			format: &AVAudioFormat) -> Result<Retained<Self>, Retained<NSError>>;
 	}
 );
 
-extern_class!(
-	pub struct AVAudioFormat;
-
-	unsafe impl ClassType for AVAudioFormat {
-		type Super = NSObject;
-		type Mutability = objc2::mutability::InteriorMutable;
-	}
-);
-
-extern_methods!(
-	unsafe impl AVAudioFormat {
-		#[method_id(initStandardFormatWithSampleRate:channels:)]
-		#[allow(non_snake_case)]
-		pub unsafe fn initStandardFormatWithSampleRate_channels(
-			this: Allocated<Self>,
-			sampleRate: f64,
-			channels: AVAudioChannelCount) -> Retained<Self>;
-	}
-);

@@ -7,6 +7,7 @@ typedef struct view_controller view_controller_t;
 
 extern "C" view_controller_t* create_view_controller();
 extern "C" void destroy_view_controller(view_controller_t*);
+extern "C" NSView* create_view(view_controller_t*);
 extern "C" AUAudioUnit* create_audio_unit(view_controller_t*, AudioComponentDescription desc, NSError ** error);
 
 struct Deleter {
@@ -30,9 +31,10 @@ struct Deleter {
 	return self; 
 }
 - (void) loadView { 
-	//cpp->loadView(); 
+	self.view = create_view(viewController.get());
 }
 - (AUAudioUnit *) createAudioUnitWithComponentDescription: (AudioComponentDescription) desc error: (NSError **) error { 
+	NSLog(@"Creating audio unit");
 	return create_audio_unit(viewController.get(), desc, error); 
 }
 //- (CGSize) preferredContentSize  { 
