@@ -1,6 +1,5 @@
-use std::sync::atomic::AtomicBool;
-
-static IS_DONE: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "macos")] 
+static IS_DONE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 #[cfg(target_os = "macos")]
 fn main() {

@@ -1,6 +1,6 @@
-use std::ops::{Deref, DerefMut};
+use std::{any::Any, ops::{Deref, DerefMut}};
 
-use crate::{core::Color, Cursor, KeyEvent, MouseEvent}; 
+use crate::{app::{BuildContext, EventContext, LayoutContext, RenderContext}, core::{Color, Cursor}, KeyEvent, MouseEvent}; 
 
 mod view_node;
 mod view_sequence;
@@ -18,7 +18,6 @@ mod filled;
 mod contexts;
 mod styled;
 mod scroll;
-mod widget_id;
 mod view;
 mod checkbox;
 
@@ -32,7 +31,6 @@ pub use filled::*;
 pub use contexts::*;
 pub use styled::*;
 pub use scroll::*;
-pub use widget_id::WidgetId;
 pub use view::*;
 pub use checkbox::Checkbox;
 
@@ -44,7 +42,7 @@ pub enum EventStatus {
     Ignored
 }
 
-pub trait Widget {
+pub trait Widget: Any {
     fn mouse_event(&mut self, _event: MouseEvent, _ctx: &mut EventContext) -> EventStatus {
         EventStatus::Ignored
     }
@@ -63,13 +61,17 @@ pub trait Widget {
         None
     }
 
-    fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput;
+    /// Measure the widget. This must be implemented for widgets that do not have any children
+    fn measure(&self, _style: &taffy::Style, _known_dimensions: taffy::Size<Option<f32>>, _available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
+        taffy::Size::ZERO
+    }
+
     fn style(&self) -> taffy::Style;
     fn render(&mut self, ctx: &mut RenderContext);
 
-    fn child_count(&self) -> usize { 0 }
-    fn get_child<'a>(&'a self, _i: usize) -> &'a WidgetNode { unreachable!() }
-    fn get_child_mut<'a>(&'a mut self, _i: usize) -> &'a mut WidgetNode { unreachable!() }
+    fn as_any(&self) -> &dyn Any {
+        &self
+    }
 }
 
 impl Widget for Box<dyn Widget> {
@@ -85,8 +87,8 @@ impl Widget for Box<dyn Widget> {
         self.deref_mut().focus_changed(has_focus, ctx)
     }
 
-    fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
-        self.deref_mut().layout(inputs, ctx)
+    fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
+        self.deref_mut().measure(style, known_dimensions, available_space)
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {
@@ -104,18 +106,6 @@ impl Widget for Box<dyn Widget> {
     fn style(&self) -> taffy::Style {
         self.deref().style()
     }
-
-    fn child_count(&self) -> usize { 
-        self.deref().child_count()
-    }
-
-    fn get_child<'a>(&'a self, i: usize) -> &'a WidgetNode { 
-        self.deref().get_child(i)
-    }
-
-    fn get_child_mut<'a>(&'a mut self, i: usize) -> &'a mut WidgetNode { 
-        self.deref_mut().get_child_mut(i)
-    }
 }
 
 pub struct Background<V: View> {
@@ -127,7 +117,8 @@ impl<V: View> View for Background<V> {
     type Element = BackgroundWidget<V::Element>;
 
     fn build(self, ctx: &mut BuildContext) -> Self::Element {
-        BackgroundWidget { widget: self.view.build(ctx), color: self.color }
+        let widget = self.view.build(ctx);
+        BackgroundWidget { widget, color: self.color }
     }
 }
 
@@ -149,8 +140,8 @@ impl<W: Widget> Widget for BackgroundWidget<W> {
         self.widget.focus_changed(has_focus, ctx)
     }
 
-    fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
-        self.widget.layout(inputs, ctx)
+    fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
+        self.widget.measure(style, known_dimensions, available_space)
     }
 
     fn cursor(&self) -> Option<Cursor> {
@@ -168,17 +159,5 @@ impl<W: Widget> Widget for BackgroundWidget<W> {
 
     fn style(&self) -> taffy::Style {
         self.widget.style()
-    }
-
-    fn child_count(&self) -> usize { 
-        self.widget.child_count()
-    }
-
-    fn get_child<'a>(&'a self, i: usize) -> &'a WidgetNode { 
-        self.widget.get_child(i)
-    }
-
-    fn get_child_mut<'a>(&'a mut self, i: usize) -> &'a mut WidgetNode { 
-        self.widget.get_child_mut(i)
     }
 } 

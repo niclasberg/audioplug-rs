@@ -1,6 +1,4 @@
-use std::{any::Any, rc::Rc};
-
-use crate::{app::{self, AppState, Binding}, core::{Point, Rectangle, Size}, event::KeyEvent, platform, window::WindowState, IdPath, MouseEvent};
+use crate::{app::{AppState, Binding}, core::{Point, Rectangle, Size}, event::KeyEvent, IdPath, MouseEvent};
 use bitflags::bitflags;
 
 use super::{EventContext, EventStatus, LayoutContext, RenderContext, Widget};
@@ -101,37 +99,29 @@ impl WidgetNode {
     }
 
     pub fn render(&mut self, ctx: &mut RenderContext) {
-        ctx.with_child(&mut self.data, |ctx| self.widget.render(ctx))
-    }
-
-    pub fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
-        if self.data.flag_is_set(ViewFlags::NEEDS_LAYOUT) {
-            self.data.cache.clear();
-            self.data.clear_flag(ViewFlags::NEEDS_LAYOUT);
-        }
-        self.widget.layout(inputs, ctx)
+        //ctx.with_child(&mut self.data, |ctx| self.widget.render(ctx))
     }
 
     pub fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) -> EventStatus {
         let bounds = self.data.global_bounds();
         let mut status = EventStatus::Ignored;
-        if bounds.contains(event.position()) {
+        /*if bounds.contains(event.position()) {
             ctx.with_child(&mut self.data, |ctx| {
                 status = self.widget.mouse_event(event, ctx);
             });
-        }
+        }*/
         status
     }
 
     pub fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
         let mut status = EventStatus::Ignored;
-        ctx.with_child(&mut self.data, |ctx| {
+        /*ctx.with_child(&mut self.data, |ctx| {
             status = self.widget.key_event(event, ctx);
-        });
+        });*/
         status
     }
 
-    pub(crate) fn with_child(&mut self, destination: &IdPath, mut f: impl FnMut(&mut WidgetNode)) {
+    /*pub(crate) fn with_child(&mut self, destination: &IdPath, mut f: impl FnMut(&mut WidgetNode)) {
         fn with_child_impl(this: &mut WidgetNode, destination: &mut IdPath, f: &mut dyn FnMut(&mut WidgetNode)) {
             if let Some(child_id) = destination.pop_root() {
                 let flags = {
@@ -189,7 +179,7 @@ impl WidgetNode {
             let child = self.widget.get_child_mut(i);
             child.set_origin(origin);
         }
-    }
+    }*/
 
     pub fn layout_requested(&self) -> bool {
         self.data.flag_is_set(ViewFlags::NEEDS_LAYOUT)

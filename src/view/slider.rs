@@ -168,14 +168,12 @@ impl Widget for SliderWidget {
         }
     }
 
-    fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
-        ctx.compute_leaf_layout(inputs, |known_size, available_space| {
-            known_size.unwrap_or(available_space.map(|x| match x {
-                taffy::AvailableSpace::Definite(x) => x,
-                taffy::AvailableSpace::MinContent => 5.0,
-                taffy::AvailableSpace::MaxContent => 100.0,
-            }))
-        })
+    fn measure(&self, _style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
+        known_dimensions.unwrap_or(available_space.map(|x| match x {
+            taffy::AvailableSpace::Definite(x) => x,
+            taffy::AvailableSpace::MinContent => 5.0,
+            taffy::AvailableSpace::MaxContent => 100.0,
+        }))
     }
 
     fn focus_changed(&mut self, _has_focus: bool, ctx: &mut EventContext) {

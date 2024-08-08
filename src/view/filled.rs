@@ -1,5 +1,5 @@
-use crate::core::{Color, Rectangle, Shape};
-use super::{BuildContext, EventContext, LayoutContext, RenderContext, View, Widget};
+use crate::{app::{BuildContext, LayoutContext, RenderContext}, core::{Color, Rectangle, Shape}};
+use super::{View, Widget};
 
 
 pub trait Fill {
@@ -32,9 +32,9 @@ impl View for Filled {
 }
 
 impl Widget for Filled {
-    fn layout(&mut self, _inputs: taffy::LayoutInput, _ctx: &mut LayoutContext) -> taffy::LayoutOutput {
+    fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
         let size = self.shape.bounds().size().map(|x| x as f32);
-        taffy::LayoutOutput::from_outer_size(size.into())
+        size.into()
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {

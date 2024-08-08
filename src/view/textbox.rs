@@ -1,5 +1,5 @@
 use std::ops::Range;
-use crate::{core::{Color, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, MouseEvent};
+use crate::{core::{Color, Cursor, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, MouseEvent};
 use unicode_segmentation::{UnicodeSegmentation, GraphemeCursor};
 
 use super::{BuildContext, EventContext, EventStatus, LayoutContext, RenderContext, View, Widget};
@@ -405,17 +405,15 @@ impl Widget for TextBoxWidget {
 		ctx.request_render();
 	}
     
-    fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
+    fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
         let size = self.text_layout.measure();
         let size = Size::new(self.width, size.height);
 
-        ctx.compute_leaf_layout(inputs, |_, _| {
-            size.map(|x| x as f32).into()
-        })
+        size.map(|x| x as f32).into()
     }
 
-    fn cursor(&self) -> Option<crate::Cursor> {
-        Some(crate::Cursor::IBeam)
+    fn cursor(&self) -> Option<Cursor> {
+        Some(Cursor::IBeam)
     }
 
     fn style(&self) -> taffy::Style {

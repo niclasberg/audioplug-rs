@@ -56,6 +56,10 @@ impl WindowState {
     fn handle_message(&self, hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         match message {
             WM_CREATE => {
+                {
+                    self.handler.borrow_mut().init(Handle::new(hwnd));
+                }
+
                 unsafe {
                     SetTimer(hwnd, ANIMATION_FRAME_TIMER, 1000 / 60, None);
                     Some(LRESULT(0))

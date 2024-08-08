@@ -29,8 +29,8 @@ pub struct ScrollWidget {
 }
 
 impl Widget for ScrollWidget {
-    fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut super::LayoutContext) -> taffy::LayoutOutput {
-        self.child.layout(inputs, ctx)
+    fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
+        self.child.measure(style, known_dimensions, available_space)
     }
 
     fn style(&self) -> taffy::Style {

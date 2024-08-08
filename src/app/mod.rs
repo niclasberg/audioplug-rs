@@ -1,27 +1,41 @@
-mod memo;
 mod accessor;
-mod effect;
 mod app_state;
-mod ref_count_map;
-mod signal;
 mod binding;
+mod contexts;
+mod effect;
+mod event_handling;
+mod layout;
+mod memo;
 mod param_signal;
+mod ref_count_map;
+mod render;
+mod signal;
+mod widget_node;
 
 use std::{any::Any, cell::RefCell, rc::Rc};
 
-pub use signal::Signal;
-pub use memo::Memo;
 pub use accessor::Accessor;
-pub use binding::Binding;
 pub(crate) use app_state::AppState;
+pub use contexts::BuildContext;
+pub use binding::Binding;
+pub use event_handling::{EventContext, handle_window_event};
+pub use layout::{LayoutContext, layout_window};
+pub use memo::Memo;
 pub(crate) use ref_count_map::{RefCountMap, WeakRefCountMap};
+pub use render::{RenderContext, render_window, invalidate_window};
+pub use signal::Signal;
 use slotmap::new_key_type;
+pub use widget_node::{WidgetData, WidgetRef, WidgetMut, WidgetId};
 
 use crate::platform;
 
-new_key_type! { 
+new_key_type! {
     pub struct NodeId;
-} 
+}
+
+new_key_type! {
+    pub struct WindowId;
+}
 
 pub struct App {
     native: platform::Application,
@@ -47,9 +61,7 @@ pub trait SignalContext {
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T);
 }
 
-pub trait UntrackedSignalContext {
-   
-}
+pub trait UntrackedSignalContext {}
 
 pub trait SignalGet {
     type Value;
@@ -58,41 +70,44 @@ pub trait SignalGet {
     fn with_ref<R>(&self, cx: &mut impl SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R;
 
     /// Get the current value and subscribe to changes
-    fn get(&self, cx: &mut impl SignalContext) -> Self::Value 
-        where Self::Value: Clone 
+    fn get(&self, cx: &mut impl SignalContext) -> Self::Value
+    where
+        Self::Value: Clone,
     {
         self.with_ref(cx, Self::Value::clone)
     }
 
-    fn with_ref_untracked<R>(&self, cx: &impl SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R;
+    fn with_ref_untracked<R>(
+        &self,
+        cx: &impl SignalContext,
+        f: impl FnOnce(&Self::Value) -> R,
+    ) -> R;
 
-    fn get_untracked(&self, cx: &impl SignalContext) -> Self::Value 
-        where Self::Value: Clone 
+    fn get_untracked(&self, cx: &impl SignalContext) -> Self::Value
+    where
+        Self::Value: Clone,
     {
         self.with_ref_untracked(cx, Self::Value::clone)
     }
 
     fn map<F, R>(self, f: F) -> Map<Self, F>
-    where 
+    where
         Self: Sized,
-        F: Fn(&Self::Value) -> R
+        F: Fn(&Self::Value) -> R,
     {
-        Map {
-            source: self,
-            f
-        }
+        Map { source: self, f }
     }
 }
 
 #[derive(Clone, Copy)]
 pub struct Map<S, F> {
     source: S,
-    f: F
+    f: F,
 }
 
-impl<B, S: SignalGet, F> SignalGet for Map<S, F> 
+impl<B, S: SignalGet, F> SignalGet for Map<S, F>
 where
-    F: Fn(&S::Value) -> B
+    F: Fn(&S::Value) -> B,
 {
     type Value = B;
 
@@ -100,7 +115,11 @@ where
         f(&self.source.with_ref(cx, |x| (self.f)(x)))
     }
 
-    fn with_ref_untracked<R>(&self, cx: &impl SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+    fn with_ref_untracked<R>(
+        &self,
+        cx: &impl SignalContext,
+        f: impl FnOnce(&Self::Value) -> R,
+    ) -> R {
         f(&self.source.with_ref_untracked(cx, |x| (self.f)(x)))
     }
 }
@@ -131,7 +150,11 @@ impl<T: AsRef<T>> SignalGet for T {
         f(&self)
     }
 
-    fn with_ref_untracked<R>(&self, _cx: &impl SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+    fn with_ref_untracked<R>(
+        &self,
+        _cx: &impl SignalContext,
+        f: impl FnOnce(&Self::Value) -> R,
+    ) -> R {
         f(&self)
     }
 }

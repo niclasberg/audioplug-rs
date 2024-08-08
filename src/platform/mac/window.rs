@@ -76,6 +76,11 @@ impl Window {
 
 impl HasWindowHandle for Window {
 	fn window_handle(&self) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError> {
-		todo!()
+		let view = match self {
+			Window::OSWindow(_, view) => view,
+			Window::AttachedToView(view) => view,
+		};
+
+		let handle = AppKitWindowHandle { };
 	}
 }

@@ -11,6 +11,7 @@ mod color_map;
 mod shape;
 mod axis;
 mod taffy_compat;
+mod cursor;
 
 pub use color::Color;
 pub use point::Point;
@@ -24,3 +25,4 @@ pub use range::Range;
 pub use color_map::*;
 pub use shape::*;
 pub use axis::Axis;
+pub use cursor::Cursor;

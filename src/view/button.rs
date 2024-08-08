@@ -1,5 +1,5 @@
-use crate::{app::AppState, core::{Color, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, Id, MouseEvent};
-use super::{BuildContext, EventContext, EventStatus, LayoutContext, RenderContext, View, Widget, WidgetNode};
+use crate::{app::{AppState, BuildContext, EventContext, LayoutContext, RenderContext}, core::{Color, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, MouseEvent};
+use super::{EventStatus, View, Widget};
 
 pub struct Button<V> {
     child: V,
@@ -22,17 +22,19 @@ impl<V: View> View for Button<V> {
 
     fn build(self, ctx: &mut BuildContext) -> Self::Element {
         ctx.set_focusable(true);
-        ButtonWidget {
-            child: ctx.build_child(Id(0), self.child),
+        ctx.add_child(self.child);
+
+        let widget = ButtonWidget {
             is_hot: false,
             mouse_down: false,
             click_fn: self.click_fn,
-        }
+        };
+
+        widget
     }
 }
 
 pub struct ButtonWidget {
-    child: WidgetNode,
     is_hot: bool,
     mouse_down: bool,
     click_fn: Option<Box<dyn Fn(&mut AppState)>>
@@ -84,10 +86,6 @@ impl Widget for ButtonWidget {
 		}
 	}
 
-    fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
-        ctx.compute_block_layout(self, inputs)
-    }
-
     fn render(&mut self, ctx: &mut RenderContext) {
         let color = if self.mouse_down {
             if self.is_hot { 
@@ -107,7 +105,7 @@ impl Widget for ButtonWidget {
         ctx.fill(shape, color);
         ctx.stroke(shape, Color::BLACK, 1.0);
         
-        self.child.render(ctx);
+        //self.child.render(ctx);
     }
     
     fn style(&self) -> taffy::Style {
@@ -117,16 +115,5 @@ impl Widget for ButtonWidget {
             justify_content: Some(taffy::JustifyContent::Center),
             ..Default::default()
         }
-    }
-    
-    fn child_count(&self) -> usize { 1 }
-    fn get_child<'a>(&'a self, i: usize) -> &'a WidgetNode { 
-        assert_eq!(i, 0); 
-        &self.child
-    }
-    
-    fn get_child_mut<'a>(&'a mut self, i: usize) -> &'a mut WidgetNode {    
-        assert_eq!(i, 0); 
-        &mut self.child
     }
 }

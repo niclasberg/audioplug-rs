@@ -1,4 +1,4 @@
-use crate::Cursor;
+use crate::core::Cursor;
 
 use super::{EventContext, EventStatus, LayoutContext, RenderContext, View, Widget, WidgetNode};
 
@@ -31,7 +31,7 @@ pub struct StyledWidget<W, F> {
 impl<W, F> Widget for StyledWidget<W, F> 
 where
     W: Widget,
-    F: Fn(&mut taffy::Style)
+    F: Fn(&mut taffy::Style) + 'static
 {
     fn mouse_event(&mut self, event: crate::MouseEvent, ctx: &mut EventContext) -> EventStatus {
         self.widget.mouse_event(event, ctx)
@@ -45,8 +45,8 @@ where
         self.widget.focus_changed(has_focus, ctx)
     }
 
-    fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
-        self.widget.layout(inputs, ctx)
+    fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
+        self.widget.measure(style, known_dimensions, available_space)
     }
 
     fn cursor(&self) -> Option<Cursor> {
@@ -65,17 +65,5 @@ where
 
     fn render(&mut self, ctx: &mut RenderContext) {
         self.widget.render(ctx)
-    }
-
-    fn child_count(&self) -> usize { 
-        self.widget.child_count()
-    }
-
-    fn get_child<'a>(&'a self, i: usize) -> &'a WidgetNode { 
-        self.widget.get_child(i)
-    }
-
-    fn get_child_mut<'a>(&'a mut self, i: usize) -> &'a mut WidgetNode { 
-        self.widget.get_child_mut(i)
     }
 }

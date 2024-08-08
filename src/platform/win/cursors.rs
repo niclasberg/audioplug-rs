@@ -1,7 +1,7 @@
 use windows::core::Result;
 use windows::Win32::UI::WindowsAndMessaging::{LoadCursorW, HCURSOR, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT};
 
-use crate::Cursor;
+use crate::core::Cursor;
 
 pub struct Cursors {
     arrow: HCURSOR,

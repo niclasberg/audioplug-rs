@@ -18,12 +18,12 @@ pub trait View: Sized {
         }
     }
 
-    fn as_any(self) -> Box<dyn AnyView> 
+    /*fn as_any(self) -> Box<dyn AnyView> 
     where 
         Self: 'static 
     {
         Box::new(self)
-    }
+    }*/
 }
 
 impl<W: Widget + 'static, F: FnOnce(&mut BuildContext) -> W> View for F {
@@ -34,7 +34,7 @@ impl<W: Widget + 'static, F: FnOnce(&mut BuildContext) -> W> View for F {
     }
 }
 
-pub trait AnyView {
+/*pub trait AnyView {
     fn dyn_build(self, ctx: &mut BuildContext) -> Box<dyn Widget>;
 }
 
@@ -50,4 +50,4 @@ impl View for Box<dyn AnyView> {
     fn build(self, ctx: &mut BuildContext) -> Self::Element {
         self.dyn_build(ctx)
     }
-}
+}*/

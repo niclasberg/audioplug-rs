@@ -1,6 +1,6 @@
-use crate::{core::{Color, Shape}, app::{Accessor, SignalGet}};
+use crate::{app::{Accessor, BuildContext, LayoutContext, RenderContext, SignalGet, WidgetMut}, core::{Color, Shape}};
 
-use super::{BuildContext, View, Widget};
+use super::{View, Widget};
 
 pub struct Checkbox {
     checked: Accessor<bool>
@@ -18,12 +18,10 @@ impl View for Checkbox {
     type Element = CheckboxWidget;
 
     fn build(self, ctx: &mut BuildContext) -> Self::Element {
-        let checked = ctx.get_and_track(self.checked, |value, _ctx, widget: &mut Self::Element| {
-            widget.checked = *value;
+        let checked = ctx.get_and_track(self.checked, |value, mut widget: WidgetMut<'_, Self::Element>| {
+            (*widget).checked = *value;
         });
-        CheckboxWidget {
-            checked
-        }
+        CheckboxWidget { checked }
     }
 }
 
@@ -33,14 +31,12 @@ pub struct CheckboxWidget {
 }
 
 impl Widget for CheckboxWidget {
-    fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut super::LayoutContext) -> taffy::LayoutOutput {
-        ctx.compute_leaf_layout(inputs, |known_dimensions, _available_space| {
-            if let taffy::Size { width: Some(width), height: Some(height) } = known_dimensions {
-                taffy::Size { width, height }
-            } else {
-                taffy::Size::zero()
-            }
-        })
+    fn measure(&self, _style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
+        if let taffy::Size { width: Some(width), height: Some(height) } = known_dimensions {
+            taffy::Size { width, height }
+        } else {
+            taffy::Size::zero()
+        }
     }
 
     fn style(&self) -> taffy::Style {
@@ -51,7 +47,7 @@ impl Widget for CheckboxWidget {
         
     }
 
-    fn render(&mut self, ctx: &mut super::RenderContext) {
+    fn render(&mut self, ctx: &mut RenderContext) {
         let color = if self.checked { Color::RED } else { Color::from_rgb(0.1, 0.1, 0.1) };
         ctx.fill(Shape::circle(ctx.global_bounds().center(), 5.0), color)
     }

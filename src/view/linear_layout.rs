@@ -1,10 +1,11 @@
 use taffy::style_helpers::FromLength;
 
+use crate::app::{BuildContext, EventContext, LayoutContext, RenderContext};
 use crate::MouseEvent;
-use crate::view::{ViewSequence, View, BuildContext, EventContext, LayoutContext};
+use crate::view::{ViewSequence, View};
 use crate::core::Alignment;
 
-use super::{EventStatus, RenderContext, Widget, WidgetNode};
+use super::{EventStatus, Widget};
 
 pub struct Column<VS: ViewSequence> {
     view_seq: VS,
@@ -36,8 +37,9 @@ impl<VS: ViewSequence> View for Column<VS> {
     type Element = LinearLayoutWidget;
 
     fn build(self, ctx: &mut BuildContext) -> Self::Element {
+        self.view_seq.build(ctx);
         LinearLayoutWidget {
-            widgets: self.view_seq.build(ctx),
+            //widgets: self.view_seq.build(ctx),
             alignment: self.alignment,
             spacing: self.spacing,
             axis: taffy::FlexDirection::Column
@@ -75,8 +77,9 @@ impl<VS: ViewSequence> View for Row<VS> {
     type Element = LinearLayoutWidget;
 
     fn build(self, ctx: &mut BuildContext) -> Self::Element {
+        self.view_seq.build(ctx);
         LinearLayoutWidget {
-            widgets: self.view_seq.build(ctx),
+            //widgets: self.view_seq.build(ctx),
             alignment: self.alignment,
             spacing: self.spacing,
             axis: taffy::FlexDirection::Row
@@ -85,7 +88,6 @@ impl<VS: ViewSequence> View for Row<VS> {
 }
 
 pub struct LinearLayoutWidget {
-    widgets: Vec<WidgetNode>,
     alignment: Alignment,
     spacing: f64,
     axis: taffy::FlexDirection,
@@ -94,42 +96,25 @@ pub struct LinearLayoutWidget {
 impl Widget for LinearLayoutWidget {
     fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) -> EventStatus {
         let mut status = EventStatus::Ignored;
-        for widget in self.widgets.iter_mut().rev() {
+        /*for widget in self.widgets.iter_mut().rev() {
             status = widget.mouse_event(event.clone(), ctx);
             if status == EventStatus::Handled {
                 break;
             }
-        }
+        }*/
         status
     }
 
-    fn layout(&mut self, inputs: taffy::LayoutInput, ctx: &mut LayoutContext) -> taffy::LayoutOutput {
-        ctx.compute_flexbox_layout(self, inputs)
-    }
-
     fn render(&mut self, ctx: &mut RenderContext) {
-        for widget in self.widgets.iter_mut() {
-            widget.render(ctx);
-        }
+        ctx.render_children();
     }
     
     fn style(&self) -> taffy::Style {
         taffy::Style {
             flex_direction: self.axis,
             gap: taffy::Size::from_length(self.spacing as f32),
+            display: taffy::Display::Flex,
             ..Default::default()
         }
-    }
-    
-    fn child_count(&self) -> usize { 
-        self.widgets.len() 
-    }
-
-    fn get_child<'a>(&'a self, i: usize) -> &'a WidgetNode { 
-        &self.widgets[i] 
-    }
-    
-    fn get_child_mut<'a>(&'a mut self, i: usize) -> &'a mut WidgetNode { 
-        &mut self.widgets[i] 
     }
 }
