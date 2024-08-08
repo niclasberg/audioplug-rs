@@ -13,6 +13,14 @@ pub struct GenericEditor<P> {
 	_phantom: PhantomData<P>
 }
 
+impl<P: Params> GenericEditor<P> {
+	pub fn new() -> Self {
+		Self {
+			_phantom: PhantomData
+		}
+	}
+}
+
 impl<P: Params> Editor<P> for GenericEditor<P> {
     fn view(&self, _parameters: &P) -> impl View {
         Rectangle::new(Point::ZERO, Size::new(200.0, 200.0)).fill(Color::RED)
