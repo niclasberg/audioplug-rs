@@ -8,8 +8,8 @@ use super::AUAudioUnit;
 
 c_enum!(
 	pub enum AUAudioUnitBusType: NSInteger {
-		AUAudioUnitBusTypeInput		= 1,
-		AUAudioUnitBusTypeOutput	= 2
+		Input		= 1,
+		Output	= 2
 	}
 );
 

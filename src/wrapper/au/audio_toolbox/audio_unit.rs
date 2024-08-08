@@ -1,5 +1,5 @@
 use bitflags::bitflags;
-use block2::Block;
+use block2::{Block, RcBlock};
 use objc2_foundation::{NSError, NSInteger, NSString, NSUInteger};
 use objc2::{extern_class, extern_methods, mutability, rc::{Allocated, Id, Retained}, runtime::{AnyClass, NSObject, NSObjectProtocol}, ClassType, Encode, Encoding, RefEncode};
 
@@ -62,6 +62,8 @@ unsafe impl RefEncode for AudioComponentInstantiationOptions {
 
 pub type AURenderPullInputBlock = Block<dyn Fn(*mut AudioUnitRenderActionFlags, *const AudioTimeStamp, AUAudioFrameCount, NSInteger, *mut AudioBufferList) -> AUAudioUnitStatus>;
 pub type AUInternalRenderBlock = Block<dyn Fn(*mut AudioUnitRenderActionFlags, *const AudioTimeStamp, AUAudioFrameCount, NSInteger, *mut AudioBufferList, *const AURenderEvent, *mut AURenderPullInputBlock) -> AUAudioUnitStatus>;
+pub type AUInternalRenderRcBlock = RcBlock<dyn Fn(*mut AudioUnitRenderActionFlags, *const AudioTimeStamp, AUAudioFrameCount, NSInteger, *mut AudioBufferList, *const AURenderEvent, *mut AURenderPullInputBlock) -> AUAudioUnitStatus>;
+pub type AURenderBlock = AUInternalRenderBlock;
 
 extern_class!(
 	#[derive(PartialEq, Eq, Hash)]
@@ -104,12 +106,24 @@ extern_methods!(
 		#[allow(non_snake_case)]
 		pub fn internalRenderBlock(&self) -> *mut AUInternalRenderBlock;
 
+		#[method(renderBlock)]
+		#[allow(non_snake_case)]
+		pub fn render_block(&self) -> *mut AURenderBlock;
+
 		#[method_id(inputBusses)]
 		#[allow(non_snake_case)]
-		pub fn inputBusses(&self) -> Option<Retained<AUAudioUnitBusArray>>;
+		pub fn input_busses(&self) -> Option<Retained<AUAudioUnitBusArray>>;
 
 		#[method_id(outputBusses)]
 		#[allow(non_snake_case)]
-		pub fn outputBusses(&self) -> Option<Retained<AUAudioUnitBusArray>>;
+		pub fn output_busses(&self) -> Option<Retained<AUAudioUnitBusArray>>;
+
+		#[method(allocateRenderResourcesAndReturnError:_)]
+		#[allow(non_snake_case)]
+		pub unsafe fn allocate_render_resources(&self) -> Result<(), Retained<NSError>>;
+
+		#[method(deallocateRenderResources)]
+		#[allow(non_snake_case)]
+		pub unsafe fn deallocateRenderResources(&self);
 	}
 );

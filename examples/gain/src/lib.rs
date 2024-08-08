@@ -107,3 +107,31 @@ pub extern "system" fn bundleEntry() -> bool {
 pub extern "system" fn bundleExit() -> bool {
     true
 }
+
+use audioplug::wrapper::au::ViewController;
+use audioplug::wrapper::au::NSError;
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub unsafe extern "C" fn create_view_controller() -> *mut c_void {
+	Box::into_raw(Box::new(ViewController::<MyPlugin>::new())) as *mut _
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub unsafe extern "C" fn destroy_view_controller(view_controller: *mut c_void) {
+    
+	drop(unsafe { Box::from_raw(view_controller as *mut ViewController::<MyPlugin>) });
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub unsafe extern "C" fn create_audio_unit(view_controller: *mut c_void, desc: audioplug::wrapper::au::audio_toolbox::AudioComponentDescription, error: *mut *mut NSError) -> *mut c_void {
+	(&mut *(view_controller as *mut ViewController::<MyPlugin>)).create_audio_unit(desc, error) as *mut _
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub unsafe extern "C" fn create_view(view_controller: *mut c_void) -> *mut c_void {
+	(&mut *(view_controller as *mut ViewController::<MyPlugin>)).create_view() as *mut _
+}
