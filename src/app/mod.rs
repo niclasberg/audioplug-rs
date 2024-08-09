@@ -18,7 +18,7 @@ pub use accessor::Accessor;
 pub(crate) use app_state::AppState;
 pub use contexts::BuildContext;
 pub use binding::Binding;
-pub use event_handling::{EventContext, handle_window_event};
+pub use event_handling::{EventContext, MouseEventContext, handle_window_event};
 pub use layout::{LayoutContext, layout_window};
 pub use memo::Memo;
 pub(crate) use ref_count_map::{RefCountMap, WeakRefCountMap};

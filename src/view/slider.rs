@@ -1,4 +1,4 @@
-use crate::{core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, KeyEvent, MouseEvent};
+use crate::{app::MouseEventContext, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, KeyEvent, MouseEvent};
 
 use super::{BuildContext, EventContext, EventStatus, LayoutContext, RenderContext, View, Widget};
 
@@ -91,7 +91,7 @@ impl SliderWidget {
 }
 
 impl Widget for SliderWidget {
-    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) -> EventStatus {
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         match event {
             MouseEvent::Down { button, position } => {
                 if self.knob_shape(ctx.bounds()).hit_test(position) {

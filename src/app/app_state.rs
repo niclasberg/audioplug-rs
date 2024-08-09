@@ -180,7 +180,7 @@ impl AppState {
                 WidgetData::new(id, id)
             })
         } else {
-            let root_id = self.widget_data.get(parent_id).expect("Parent not found").root_id;
+            let root_id = self.widget_data.get(parent_id).expect("Parent not found").window_id;
             self.widget_data.insert_with_key(|id| {
                 WidgetData::new(id, root_id)
             })
@@ -265,6 +265,10 @@ impl AppState {
 
     pub fn window(&self, id: WindowId) -> &Window {
         self.windows.get(id).expect("Window handle not found")
+    }
+
+    pub fn get_window_id_for_widget(&self, widget_id: WidgetId) -> WindowId {
+
     }
 
     pub fn mouse_event(&mut self, root_widget_id: WidgetId, event: MouseEvent) {

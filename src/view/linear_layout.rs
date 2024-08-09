@@ -1,6 +1,6 @@
 use taffy::style_helpers::FromLength;
 
-use crate::app::{BuildContext, EventContext, LayoutContext, RenderContext};
+use crate::app::{BuildContext, EventContext, LayoutContext, MouseEventContext, RenderContext};
 use crate::MouseEvent;
 use crate::view::{ViewSequence, View};
 use crate::core::Alignment;
@@ -94,7 +94,7 @@ pub struct LinearLayoutWidget {
 }
 
 impl Widget for LinearLayoutWidget {
-    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) -> EventStatus {
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         let mut status = EventStatus::Ignored;
         /*for widget in self.widgets.iter_mut().rev() {
             status = widget.mouse_event(event.clone(), ctx);

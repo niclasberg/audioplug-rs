@@ -5,7 +5,7 @@ use slotmap::{new_key_type, Key, KeyData};
 
 use crate::{core::{Point, Rectangle, Size}, view::Widget};
 
-use super::{contexts::BuildContext, AppState, RenderContext};
+use super::{contexts::BuildContext, AppState, RenderContext, WindowId};
 
 new_key_type! {
     pub struct WidgetId;
@@ -38,7 +38,7 @@ bitflags!(
 
 pub struct WidgetData {
     pub(super) id: WidgetId,
-    pub(super) root_id: WidgetId,
+    pub(super) window_id: WindowId,
     pub(super) parent_id: WidgetId,
     pub(super) children: Vec<WidgetId>,
     pub(super) style: taffy::Style,
@@ -49,10 +49,10 @@ pub struct WidgetData {
 }
 
 impl WidgetData {
-    pub fn new(root_id: WidgetId, id: WidgetId) -> Self {
+    pub fn new(window_id: WindowId, id: WidgetId) -> Self {
         Self {
             id,
-            root_id,
+            window_id,
             parent_id: WidgetId::null(),
             children: Vec::new(),
             style: Default::default(),

@@ -1,6 +1,6 @@
 use std::{any::Any, ops::{Deref, DerefMut}};
 
-use crate::{app::{BuildContext, EventContext, LayoutContext, RenderContext}, core::{Color, Cursor}, KeyEvent, MouseEvent}; 
+use crate::{app::{BuildContext, EventContext, LayoutContext, MouseEventContext, RenderContext}, core::{Color, Cursor}, KeyEvent, MouseEvent}; 
 
 mod view_node;
 mod view_sequence;
@@ -43,7 +43,7 @@ pub enum EventStatus {
 }
 
 pub trait Widget: Any {
-    fn mouse_event(&mut self, _event: MouseEvent, _ctx: &mut EventContext) -> EventStatus {
+    fn mouse_event(&mut self, _event: MouseEvent, _ctx: &mut MouseEventContext) -> EventStatus {
         EventStatus::Ignored
     }
 
@@ -75,7 +75,7 @@ pub trait Widget: Any {
 }
 
 impl Widget for Box<dyn Widget> {
-    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) -> EventStatus {
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         self.deref_mut().mouse_event(event, ctx)
     }
 
@@ -128,7 +128,7 @@ pub struct BackgroundWidget<W> {
 }
 
 impl<W: Widget> Widget for BackgroundWidget<W> {
-    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) -> EventStatus {
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         self.widget.mouse_event(event, ctx)
     }
 
