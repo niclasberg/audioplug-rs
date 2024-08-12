@@ -1,6 +1,6 @@
-use crate::{app::MouseEventContext, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, KeyEvent, MouseEvent};
+use crate::{app::{BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, KeyEvent, MouseEvent};
 
-use super::{BuildContext, EventContext, EventStatus, LayoutContext, RenderContext, StatusChange, View, Widget};
+use super::View;
 
 pub struct Slider {
     min: f64,
@@ -93,6 +93,10 @@ impl SliderWidget {
 }
 
 impl Widget for SliderWidget {
+	fn debug_label(&self) -> &'static str {
+		"Slider"
+	}
+
     fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         match event {
             MouseEvent::Down { button, position } => {

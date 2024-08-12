@@ -1,10 +1,10 @@
 use crate::{core::{Point, Rectangle, Size}, event::{AnimationFrame, KeyEvent}, core::Cursor, MouseEvent};
 
-use super::{Handle, HandleRef, RendererRef};
+use super::{Handle, RendererRef};
 
 pub trait WindowHandler {
 	fn init(&mut self, handle: Handle);
-    fn event(&mut self, event: WindowEvent, handle: HandleRef);
+    fn event(&mut self, event: WindowEvent);
     fn render(&mut self, bounds: Rectangle, renderer: RendererRef);
     fn get_cursor(&self, point: Point) -> Option<Cursor>;
 }

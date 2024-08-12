@@ -1,8 +1,8 @@
 use std::{any::Any, cell::RefCell, collections::{HashSet, VecDeque}, rc::{Rc, Weak}};
-use slotmap::{Key, SecondaryMap, SlotMap, SparseSecondaryMap};
-use crate::{core::Point, param::Params, platform::{self, HandleRef}, view::Widget, window::WindowState, IdPath, MouseEvent};
+use slotmap::{Key, SecondaryMap, SlotMap};
+use crate::{core::Point, param::Params, platform};
 
-use super::{binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, ref_count_map::RefCountMap, widget_node::{WidgetData, WidgetId, WidgetMut, WidgetNode, WidgetRef}, Accessor, Binding, RenderContext, SignalContext, SignalGet, WindowId};
+use super::{binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, ref_count_map::RefCountMap, widget_node::{WidgetData, WidgetId, WidgetMut, WidgetRef}, Accessor, SignalContext, SignalGet, Widget, WindowId};
 use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
@@ -13,13 +13,13 @@ enum Task {
         f: Weak<Box<dyn Fn(&mut AppState)>>
     },
 	UpdateBinding {
-		widget_id: IdPath,
-    	f: Weak<Box<dyn Fn(&mut AppState, &mut WidgetNode)>>,
+		widget_id: WidgetId,
+    	f: Weak<Box<dyn Fn(&mut AppState, WidgetMut<'_, dyn Widget>)>>,
 	}
 }
 
 impl Task {
-    fn run(&self, cx: &mut AppState, root_widget: &mut WidgetNode, window_state: &mut WindowState, handle: &mut HandleRef) {
+    fn run(&self, cx: &mut AppState) {
         match self {
             Task::RunEffect { id, f } => {
                 cx.with_scope(Scope::Effect(*id), |cx| {
@@ -75,11 +75,6 @@ enum Scope {
     Root,
     Memo(NodeId),
     Effect(NodeId)
-}
-
-pub enum WindowOrWidgetId {
-    WindowId(WindowId),
-    WidgetId(WidgetId)
 }
 
 pub(super) struct Window {
@@ -142,20 +137,18 @@ impl AppState {
         Memo::new(id, Rc::downgrade(&self.node_ref_counts))
     }
 
-    pub fn create_binding<T: 'static>(&mut self, accessor: Accessor<T>, widget_id: WidgetId, f: impl Fn(&T, &mut WidgetNode) + 'static) -> Option<Binding> {
+    pub fn create_binding<T: 'static>(&mut self, accessor: Accessor<T>, widget_id: WidgetId, f: impl Fn(&T, WidgetMut<'_, dyn Widget>) + 'static) -> bool {
         if let Some(source_id) = accessor.get_source_id() {
-            /*let state = BindingState::new(widget_id, move |app_state, node| {
+            let state = BindingState::new(widget_id, move |app_state, node| {
                 accessor.with_ref(app_state, |value| {
                     f(value, node);
                 });
             });
             let id = self.create_node(NodeType::Binding(state), NodeState::Clean);
             self.add_subscription(source_id, id);
-            let binding = Binding::new(id, Rc::downgrade(&self.node_ref_counts));
-            Some(binding)*/
-            todo!()
+            true
         } else {
-            None
+            false
         }
     }
 
@@ -164,14 +157,27 @@ impl AppState {
         self.notify(&id);
     }
 
-    pub fn add_window<W: Widget>(&mut self, handle: platform::Handle, f: impl FnOnce(&mut BuildContext) -> W) -> WindowId {
-        self.windows.insert_with_key(|window_id| {
-            let root_widget = self.add_widget(WindowOrWidgetId::WindowId(window_id), f);
+    pub fn add_window<W: Widget + 'static>(&mut self, handle: platform::Handle, f: impl FnOnce(&mut BuildContext) -> W) -> WindowId {
+		let window_id = self.windows.insert_with_key(|window_id| {
             Window {
                 handle,
-                root_widget
+                root_widget: WidgetId::null()
             }
-        })
+        });
+
+		let widget_id = self.widget_data.insert_with_key(|id| {
+			WidgetData::new(window_id, id)
+		});
+
+		self.windows[window_id].root_widget = widget_id;
+
+		{
+            let widget = f(&mut BuildContext { id: widget_id, app_state: self });
+			self.widget_data[widget_id].style = widget.style();
+            self.widgets.insert(widget_id, Box::new(widget));
+        }
+        
+		window_id
     }
 
     pub fn remove_window(&mut self, id: WindowId) {
@@ -180,32 +186,22 @@ impl AppState {
     }
 
     /// Add a new widget
-    pub fn add_widget<W: Widget + 'static>(&mut self, parent_id: WindowOrWidgetId, f: impl FnOnce(&mut BuildContext) -> W) -> WidgetId {
-        let id = match parent_id {
-            WindowOrWidgetId::WindowId(window_id) => 
-                self.widget_data.insert_with_key(|id| {
-                    WidgetData::new(window_id, id)
-                }),
-            WindowOrWidgetId::WidgetId(parent_id) => {
-                let window_id = self.widget_data.get(parent_id).expect("Parent not found").window_id;
-                self.widget_data.insert_with_key(|id| {
-                    WidgetData::new(window_id, id).with_parent(parent_id)
-                })
-            } 
-        };
+    pub fn add_widget<W: Widget + 'static>(&mut self, parent_id: WidgetId, f: impl FnOnce(&mut BuildContext) -> W) -> WidgetId {
+		let window_id = self.widget_data.get(parent_id).expect("Parent not found").window_id;
+        let id = self.widget_data.insert_with_key(|id| {
+			WidgetData::new(window_id, id).with_parent(parent_id)
+		});
         
-        {
+		{
             let widget = f(&mut BuildContext { id, app_state: self });
+			self.widget_data[id].style = widget.style();
             self.widgets.insert(id, Box::new(widget));
         }
 
-        match parent_id {
-            WindowOrWidgetId::WidgetId(parent_id) => {
-                let parent_widget_data = self.widget_data.get_mut(parent_id).expect("Parent does not exist");
-                parent_widget_data.children.push(id);
-            },
-            _ => {}
-        };
+        {
+			let parent_widget_data = self.widget_data.get_mut(parent_id).expect("Parent does not exist");
+			parent_widget_data.children.push(id);
+		}
 
         id
     }
@@ -224,7 +220,7 @@ impl AppState {
 
         let mut children_to_remove = std::mem::take(&mut widget_data.children);
         while let Some(id) = children_to_remove.pop() {
-            let mut widget_data = self.widget_data.remove(id).unwrap();
+            let widget_data = self.widget_data.remove(id).unwrap();
             self.widgets.remove(id).expect("Widget already removed");
 
             children_to_remove.extend(widget_data.children.into_iter());
@@ -270,11 +266,11 @@ impl AppState {
     }
 
     pub fn for_each_widget_at_rev(&self, id: WindowId, pos: Point, mut f: impl FnMut(&WidgetData) -> bool) {
-        let mut widget_id = self.windows[id].root_widget;
-        todo!()
+		// TODO: implement
+		self.for_each_widget_at(id, pos, f)
     }
 
-    pub fn window(&self, id: WindowId) -> &Window {
+    pub(super) fn window(&self, id: WindowId) -> &Window {
         self.windows.get(id).expect("Window handle not found")
     }
 
@@ -366,11 +362,11 @@ impl AppState {
 				self.pending_tasks.push_back(task);
             },
             NodeType::Binding(BindingState { widget_id, f }) => {
-				/*let task = Task::UpdateBinding { 
+				let task = Task::UpdateBinding { 
                     widget_id: widget_id.clone(),
                     f: Rc::downgrade(&f)
                 };
-				self.pending_tasks.push_back(task);*/
+				self.pending_tasks.push_back(task);
                 todo!()
             },
             NodeType::Memo(_) => todo!(),
@@ -391,10 +387,10 @@ impl AppState {
 
     }*/
 
-    pub fn run_effects(&mut self, root_widget: &mut WidgetNode, window_state: &mut WindowState, handle: &mut HandleRef) {
+    pub fn run_effects(&mut self) {
         loop {
             if let Some(task) = self.pending_tasks.pop_front() {
-                task.run(self, root_widget, window_state, handle)
+                task.run(self)
             } else {
                 break;
             }

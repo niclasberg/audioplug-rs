@@ -4,64 +4,65 @@ use std::rc::Rc;
 
 use raw_window_handle::RawWindowHandle;
 
-use crate::app::{handle_window_event, invalidate_window, layout_window, render_window, AppState, Signal, SignalContext, WindowId};
+use crate::app::{handle_window_event, layout_window, render_window, AppState, Signal, SignalContext, WindowId};
 use crate::core::{Cursor, Point, Rectangle};
 use crate::platform::{WindowEvent, WindowHandler};
 use crate::view::View;
 use crate::{platform, App};
 
-struct PreInit(Box<dyn FnOnce(&mut AppState, platform::Handle) -> Constructed>);
+struct PreInit<F>(F);
 struct Constructed(WindowId);
 
-pub enum WindowState {
-    PreInit(PreInit),
+pub enum WindowState<F> {
+    PreInit(PreInit<F>),
+	Initializing,
     Initialized(Constructed)
 }
 
-impl WindowState {
+impl<F, V> WindowState<F>
+where
+	F: FnOnce(&mut AppContext) -> V,
+	V: View,
+{
     fn window_id(&self) -> WindowId {
         match self {
-            WindowState::PreInit(_) => panic!("Root widget requested before window was initialized"),
+            WindowState::PreInit(_) | WindowState::Initializing => panic!("Root widget requested before window was initialized"),
             WindowState::Initialized(Constructed(root_widget)) => *root_widget,
         }
     }
 
     fn initialize(self, app_state: &mut AppState, handle: platform::Handle) -> Self {
         match self {
-            WindowState::PreInit(PreInit(initializer)) => {
-                Self::Initialized(initializer(app_state, handle))
+            WindowState::PreInit(PreInit(view_factory)) => {
+				let window_id = app_state.add_window(handle, move |mut build_ctx| {
+					let view = {
+						let mut app_context = AppContext {
+							app_state: &mut build_ctx.app_state,
+						};
+						view_factory(&mut app_context)
+					};
+		
+					view.build(&mut build_ctx)
+				});
+                Self::Initialized(Constructed(window_id))
             }
-            WindowState::Initialized(_) => panic!("Multiple calls to window initialize"),
+            WindowState::Initialized(_) | WindowState::Initializing => panic!("Multiple calls to window initialize"),
         }
     }
 }
 
-pub(crate) struct MyHandler {
-    state: WindowState,
+pub(crate) struct MyHandler<F> {
+    state: WindowState<F>,
     app_state: Rc<RefCell<AppState>>,
 }
 
-impl MyHandler {
-    pub fn new<F, V>(app_state: Rc<RefCell<AppState>>, view_factory: F) -> Self
-    where
-        F: FnOnce(&mut AppContext) -> V + 'static,
-        V: View,
-    {
-        let window_state = WindowState::PreInit(PreInit(Box::new(|app_state, handle| -> Constructed {
-            let window_id = {
-                app_state.add_window(handle, move |mut build_ctx| {
-                    let view = {
-                        let mut app_context = AppContext {
-                            app_state: &mut build_ctx.app_state,
-                        };
-                        view_factory(&mut app_context)
-                    };
-        
-                    view.build(&mut build_ctx)
-                })
-            };
-            Constructed(window_id)
-        })));
+impl<F, V> MyHandler<F>
+where 
+	F: FnOnce(&mut AppContext) -> V,
+	V: View,
+{
+    pub fn new(app_state: Rc<RefCell<AppState>>, view_factory: F) -> Self{
+        let window_state = WindowState::PreInit(PreInit(view_factory));
 
         Self {
             state: window_state,
@@ -80,14 +81,22 @@ impl MyHandler {
     }
 }
 
-impl WindowHandler for MyHandler {
+impl<F, V> WindowHandler for MyHandler<F>
+where 
+	F: FnOnce(&mut AppContext) -> V,
+	V: View,
+{
     fn init(&mut self, handle: platform::Handle) {
         let mut app_state = self.app_state.borrow_mut();
-        self.state = self.state.initialize(&mut app_state, handle);
+		
+		let state = std::mem::replace(&mut self.state, WindowState::Initializing);
+		let state = state.initialize(&mut app_state, handle);
+		std::mem::replace(&mut self.state, state);
+
         layout_window(&mut app_state, self.state.window_id());
     }
 
-    fn event(&mut self, event: WindowEvent, _handle: platform::HandleRef) {
+    fn event(&mut self, event: WindowEvent) {
         let mut app_state = self.app_state.borrow_mut();
         handle_window_event(&mut app_state, self.state.window_id(), event)
     }
@@ -97,7 +106,7 @@ impl WindowHandler for MyHandler {
         render_window(&mut app_state, self.state.window_id(), &mut renderer)
     }
 
-    fn get_cursor(&self, point: Point) -> Option<Cursor> {
+    fn get_cursor(&self, _point: Point) -> Option<Cursor> {
         let mut cursor = None;
         /*self.widget_node
             .for_each_view_at(point, &mut |widget_node| {
@@ -113,10 +122,10 @@ impl WindowHandler for MyHandler {
     }
 }
 
-impl Drop for MyHandler {
+impl<F> Drop for MyHandler<F> {
     fn drop(&mut self) {
         match self.state {
-            WindowState::PreInit(_) => {},
+            WindowState::PreInit(_) | WindowState::Initializing => {},
             WindowState::Initialized(Constructed(window_id)) => {
                 let mut app_state = self.app_state.borrow_mut();
                 app_state.remove_window(window_id);
@@ -158,7 +167,7 @@ pub struct Window(platform::Window);
 impl Window {
     pub fn open<F, V>(app: &mut App, view_factory: F) -> Self
     where
-        F: FnOnce(&mut AppContext) -> V,
+        F: FnOnce(&mut AppContext) -> V + 'static,
         V: View,
     {
         let handler = MyHandler::new(app.state.clone(), view_factory);
@@ -171,7 +180,7 @@ impl Window {
         view_factory: F,
     ) -> Self
     where
-        F: FnOnce(&mut AppContext) -> V,
+        F: FnOnce(&mut AppContext) -> V + 'static,
         V: View,
     {
         let handler = MyHandler::new(app_state, view_factory);

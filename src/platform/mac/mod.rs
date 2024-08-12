@@ -18,7 +18,7 @@ mod window;
 mod window_state;
 
 pub(crate) use audio::AudioHost;
-pub(crate) use handle::HandleRef;
+pub(crate) use handle::Handle;
 pub(crate) use application::Application;
 pub(crate) use window::Window;
 pub(crate) use renderer::RendererRef;

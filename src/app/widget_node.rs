@@ -3,9 +3,8 @@ use std::{marker::PhantomData, ops::{Deref, DerefMut}};
 use bitflags::bitflags;
 use slotmap::{new_key_type, Key, KeyData};
 
-use crate::{core::{Point, Rectangle, Size}, view::{DowncastWidget, Widget}};
-
-use super::{app_state::WindowOrWidgetId, contexts::BuildContext, AppState, RenderContext, WindowId};
+use crate::core::{Point, Rectangle, Size};
+use super::{contexts::BuildContext, AppState, DowncastWidget, Widget, WindowId};
 
 new_key_type! {
     pub struct WidgetId;
@@ -125,7 +124,7 @@ impl WidgetNode {
     }
 }
 
-pub struct WidgetRef<'a, W: 'a + Widget + ?Sized> {
+pub struct WidgetRef<'a: 'static, W: 'a + Widget + ?Sized> {
     pub(super) id: WidgetId,
     pub(super) app_state: &'a AppState,
     _phantom: PhantomData<&'a W>
@@ -157,7 +156,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
     }
 }
 
-pub struct WidgetMut<'a, W: 'a + Widget + ?Sized> {
+pub struct WidgetMut<'a: 'static, W: 'a + Widget + ?Sized> {
     pub(super) id: WidgetId,
     pub(super) app_state: &'a mut AppState,
     _phantom: PhantomData<&'a mut W>
@@ -196,8 +195,8 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         self.data().flag_is_set(WidgetFlags::NEEDS_LAYOUT)
     }
 
-    pub fn add_child<'s, W2: Widget + Sized>(&'s mut self, f: impl FnOnce(&mut BuildContext) -> W2) -> WidgetMut<'s, W2> {
-        let id = self.app_state.add_widget(WindowOrWidgetId::WidgetId(self.id), f);
+    pub fn add_child<'s, W2: Widget + 'static>(&'s mut self, f: impl FnOnce(&mut BuildContext) -> W2) -> WidgetMut<'s, W2> {
+        let id = self.app_state.add_widget(self.id, f);
         WidgetMut {
             id,
             app_state: self.app_state,

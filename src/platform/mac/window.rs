@@ -1,10 +1,10 @@
-use std::os::raw::c_void;
+use std::ffi::c_void;
 use std::ptr::NonNull;
 
 use objc2_foundation::{CGSize, MainThreadMarker, NSPoint, NSRect, NSSize};
 use objc2_app_kit::{NSBackingStoreType, NSView, NSWindow, NSWindowStyleMask};
 use objc2::rc::Retained;
-use raw_window_handle::{AppKitWindowHandle, HasWindowHandle};
+use raw_window_handle::{AppKitWindowHandle, HasWindowHandle, RawWindowHandle};
 use crate::core::{Rectangle, Size};
 use crate::platform::WindowHandler;
 
@@ -81,6 +81,9 @@ impl HasWindowHandle for Window {
 			Window::AttachedToView(view) => view,
 		};
 
-		let handle = AppKitWindowHandle { };
+		let view_ptr = unsafe { NonNull::new_unchecked(Retained::into_raw(view.clone()) as *mut c_void) };
+		let handle = AppKitWindowHandle::new(view_ptr);
+		let handle = RawWindowHandle::AppKit(handle);
+		Ok(unsafe { raw_window_handle::WindowHandle::borrow_raw(handle) })
 	}
 }

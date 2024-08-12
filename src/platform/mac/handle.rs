@@ -1,24 +1,27 @@
+use objc2::rc::Weak;
 use objc2_app_kit::{NSPasteboard, NSPasteboardTypeString};
 use objc2_foundation::NSString;
 
 use crate::core::Rectangle;
 use super::{view::View, Error};
 
-pub struct HandleRef<'a> {
-	view: &'a View
+pub struct Handle {
+	view: Weak<View>
 }
 
-impl<'a> HandleRef<'a> {
-	pub(crate) fn new(view: &'a View) -> Self {
+impl Handle {
+	pub(crate) fn new(view: Weak<View>) -> Self {
 		Self { view }
 	}
 
 	pub fn global_bounds(&self) -> Rectangle {
-		self.view.bounds().into()
+		self.view.load().map(|view| view.bounds().into()).unwrap_or_default()
 	}
 
 	pub fn invalidate(&self, rect: Rectangle) {
-		unsafe { self.view.setNeedsDisplayInRect(rect.into()) }
+		if let Some(view) = self.view.load() {
+			unsafe { view.setNeedsDisplayInRect(rect.into()) }
+		}
 	}
 
 	pub fn set_clipboard(&self, string: &str) -> Result<(), Error> {

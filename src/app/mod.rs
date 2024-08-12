@@ -10,6 +10,7 @@ mod param_signal;
 mod ref_count_map;
 mod render;
 mod signal;
+mod widget;
 mod widget_node;
 
 use std::{any::Any, cell::RefCell, rc::Rc};
@@ -17,7 +18,6 @@ use std::{any::Any, cell::RefCell, rc::Rc};
 pub use accessor::Accessor;
 pub(crate) use app_state::AppState;
 pub use contexts::BuildContext;
-pub use binding::Binding;
 pub use event_handling::{EventContext, MouseEventContext, handle_window_event};
 pub use layout::{LayoutContext, layout_window};
 pub use memo::Memo;
@@ -25,6 +25,7 @@ pub(crate) use ref_count_map::{RefCountMap, WeakRefCountMap};
 pub use render::{RenderContext, render_window, invalidate_window};
 pub use signal::Signal;
 use slotmap::new_key_type;
+pub use widget::{EventStatus, StatusChange, Widget, DowncastWidget};
 pub use widget_node::{WidgetData, WidgetRef, WidgetMut, WidgetId};
 
 use crate::platform;

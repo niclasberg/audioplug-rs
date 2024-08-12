@@ -1,6 +1,6 @@
-use crate::{app::MouseEventContext, core::Cursor};
+use crate::{app::{BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::Cursor};
 
-use super::{EventContext, EventStatus, LayoutContext, RenderContext, View, Widget, WidgetNode};
+use super::View;
 
 pub struct Styled<V, F> {
     pub(super) view: V,
@@ -14,7 +14,7 @@ where
 {
     type Element = StyledWidget<V::Element, F>;
 
-    fn build(self, ctx: &mut super::BuildContext) -> Self::Element {
+    fn build(self, ctx: &mut BuildContext) -> Self::Element {
         let widget = self.view.build(ctx);
         StyledWidget {
             widget,
@@ -33,6 +33,10 @@ where
     W: Widget,
     F: Fn(&mut taffy::Style) + 'static
 {
+	fn debug_label(&self) -> &'static str {
+		self.widget.debug_label()
+	}
+
     fn mouse_event(&mut self, event: crate::MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         self.widget.mouse_event(event, ctx)
     }
@@ -55,7 +59,7 @@ where
         style
     }
 
-    fn status_updated(&mut self, event: super::StatusChange, ctx: &mut EventContext) {
+    fn status_updated(&mut self, event: StatusChange, ctx: &mut EventContext) {
         self.widget.status_updated(event, ctx)
     }
 

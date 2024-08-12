@@ -1,11 +1,8 @@
 use taffy::style_helpers::FromLength;
 
-use crate::app::{BuildContext, EventContext, LayoutContext, MouseEventContext, RenderContext};
-use crate::MouseEvent;
+use crate::app::{BuildContext, RenderContext, Widget};
 use crate::view::{ViewSequence, View};
 use crate::core::Alignment;
-
-use super::{EventStatus, Widget};
 
 pub struct Column<VS: ViewSequence> {
     view_seq: VS,
@@ -39,7 +36,6 @@ impl<VS: ViewSequence> View for Column<VS> {
     fn build(self, ctx: &mut BuildContext) -> Self::Element {
         self.view_seq.build(ctx);
         LinearLayoutWidget {
-            //widgets: self.view_seq.build(ctx),
             alignment: self.alignment,
             spacing: self.spacing,
             axis: taffy::FlexDirection::Column
@@ -94,16 +90,9 @@ pub struct LinearLayoutWidget {
 }
 
 impl Widget for LinearLayoutWidget {
-    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
-        let mut status = EventStatus::Ignored;
-        /*for widget in self.widgets.iter_mut().rev() {
-            status = widget.mouse_event(event.clone(), ctx);
-            if status == EventStatus::Handled {
-                break;
-            }
-        }*/
-        status
-    }
+	fn debug_label(&self) -> &'static str {
+		"Flex"
+	}
 
     fn render(&mut self, ctx: &mut RenderContext) {
         ctx.render_children();

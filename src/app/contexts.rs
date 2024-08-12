@@ -1,6 +1,6 @@
-use crate::view::{View, Widget};
+use crate::view::View;
 
-use super::{app_state::WindowOrWidgetId, widget_node::{WidgetFlags, WidgetId, WidgetMut}, Accessor, AppState, SignalGet};
+use super::{widget_node::{WidgetFlags, WidgetId, WidgetMut}, Accessor, AppState, SignalGet, Widget};
 
 pub struct BuildContext<'a> {
     pub(crate) id: WidgetId,
@@ -35,7 +35,7 @@ impl<'a> BuildContext<'a> {
     }
 
     pub fn add_child(&mut self, view: impl View) {
-        self.app_state.add_widget(WindowOrWidgetId::WidgetId(self.id), |ctx| {
+        self.app_state.add_widget(self.id, move |ctx| {
             view.build(ctx)
         });
     }

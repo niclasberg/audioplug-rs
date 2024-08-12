@@ -88,3 +88,9 @@ impl Sub<Vector> for Point {
         Self { x: self.x - rhs.x, y: self.y - rhs.y }
     }
 }
+
+impl<T: Default> Default for Point<T> {
+	fn default() -> Self {
+		Self { x: Default::default(), y: Default::default() }
+	}
+}

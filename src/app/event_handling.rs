@@ -1,6 +1,6 @@
-use crate::{core::{Cursor, Rectangle}, keyboard::Key, platform::{self, WindowEvent}, view::{EventStatus, StatusChange}, KeyEvent, MouseEvent};
+use crate::{app::StatusChange, core::{Cursor, Rectangle}, keyboard::Key, platform::WindowEvent, KeyEvent, MouseEvent};
 
-use super::{invalidate_window, layout_window, render::invalidate_widget, widget_node::WidgetFlags, AppState, WidgetId, WindowId};
+use super::{invalidate_window, layout_window, render::invalidate_widget, widget_node::WidgetFlags, AppState, EventStatus, WidgetId, WindowId};
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
@@ -43,7 +43,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             let mut event_status = EventStatus::Ignored;
             if let Some(focus_widget) = app_state.focus_widget {
                 let mut ctx = EventContext::new(focus_widget, app_state);
-                event_status = ctx.dispatch_key_event(key_event);
+                event_status = ctx.dispatch_key_event(key_event.clone());
             }
 
             if event_status == EventStatus::Ignored {
@@ -61,6 +61,8 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         }
         _ => {}
     };
+
+	app_state.run_effects();
 
     /*if app_state.widget_data_ref(self.state.root_widget()).layout_requested() {
         self.do_layout(&mut handle);
@@ -153,13 +155,21 @@ impl<'a> MouseEventContext<'a> {
     }
 
     pub fn forward_to_children(&mut self, event: MouseEvent) -> EventStatus {
+		if !self.can_propagate {
+			return EventStatus::Ignored;
+		}
+
         let children = self.app_state.widget_data[self.id].children.clone();
         let old_id = self.id;
-        for child in children {
-            self.id = child;
-            let mut widget = self.app_state.widgets.remove(self.id).expect("Widget not found");
+        for &child in children.iter().rev() {
+			if !self.app_state.widget_data[child].global_bounds().contains(event.position()) {
+				continue;
+			}
+
+			self.id = child;
+            let mut widget = self.app_state.widgets.remove(child).expect("Widget not found");
             let status = widget.mouse_event(event, self);
-            self.app_state.widgets.insert(old_id, widget);
+            self.app_state.widgets.insert(child, widget);
             if status  == EventStatus::Handled {
                 self.id = old_id;
                 return EventStatus::Handled;
@@ -247,15 +257,16 @@ impl<'a> EventContext<'a> {
     }
 
     pub fn get_clipboard(&mut self) -> Option<String> {
-        None
-        //self.handle.get_clipboard().ok().flatten()
+        let window_id = self.app_state.get_window_id_for_widget(self.id);
+		self.app_state.window(window_id).handle.get_clipboard().ok().flatten()
     }
 
     pub fn set_clipboard(&mut self, string: &str) {
-        //self.handle.set_clipboard(string).unwrap();
+		let window_id = self.app_state.get_window_id_for_widget(self.id);
+		self.app_state.window(window_id).handle.set_clipboard(string).unwrap();
     }
 
-    pub fn set_cursor(&mut self, cursor: Cursor) {
+    pub fn set_cursor(&mut self, _cursor: Cursor) {
         //self.app_state.cursor = cursor;
     }
 }

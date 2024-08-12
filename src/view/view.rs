@@ -1,6 +1,6 @@
-use crate::core::Color;
+use crate::{app::{BuildContext, Widget}, core::Color};
 
-use super::{Background, BuildContext, Styled, Widget};
+use super::{Background, Styled};
 
 pub trait View: Sized {
     type Element: Widget + 'static;

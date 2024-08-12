@@ -1,5 +1,5 @@
-use crate::{app::{BuildContext, LayoutContext, RenderContext}, core::{Color, Rectangle, Shape}};
-use super::{View, Widget};
+use crate::{app::{BuildContext, RenderContext, Widget}, core::{Color, Rectangle, Shape}};
+use super::View;
 
 
 pub trait Fill {
@@ -32,7 +32,11 @@ impl View for Filled {
 }
 
 impl Widget for Filled {
-    fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
+	fn debug_label(&self) -> &'static str {
+		"Filled"
+	}
+
+    fn measure(&self, _style: &taffy::Style, _known_dimensions: taffy::Size<Option<f32>>, _available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
         let size = self.shape.bounds().size().map(|x| x as f32);
         size.into()
     }

@@ -126,6 +126,12 @@ impl Div<f64> for Size {
     }
 }
 
+impl<T: Default> Default for Size<T> {
+	fn default() -> Self {
+		Self { width: Default::default(), height: Default::default() }
+	}
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

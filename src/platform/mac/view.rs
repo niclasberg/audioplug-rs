@@ -1,16 +1,16 @@
 use std::cell::RefCell;
 
-use objc2_app_kit::{NSView, NSEvent, NSTrackingArea, NSTrackingAreaOptions, NSResponder};
-use objc2_foundation::{NSRect, CGRect, MainThreadMarker};
-use objc2::rc::Id;
+use objc2_app_kit::{NSEvent, NSResponder, NSTrackingArea, NSTrackingAreaOptions, NSView, NSViewFrameDidChangeNotification};
+use objc2_foundation::{CGRect, MainThreadMarker, NSNotificationCenter, NSRect};
+use objc2::rc::{Id, Weak};
 use objc2::runtime::{NSObject, NSObjectProtocol};
-use objc2::{declare_class, DeclaredClass, mutability, ClassType, msg_send_id};
+use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 
 use crate::core::Point;
 use crate::event::{MouseButton, KeyEvent, MouseEvent};
 use crate::platform::mac::keyboard::{key_from_code, get_modifiers};
 use crate::platform::WindowEvent;
-use super::{RendererRef, HandleRef};
+use super::{RendererRef, Handle};
 use crate::platform::WindowHandler;
 
 use super::appkit::NSGraphicsContext;
@@ -104,6 +104,13 @@ declare_class!(
 			self.set_tracking_area(visible_rect);
 		}
 
+		#[method(frameDidChange:)]
+		fn frame_did_change(&self, _event: &NSEvent) {
+			let visible_rect = self.visibleRect();
+			let new_size = visible_rect.size.into();
+			self.dispatch_event(WindowEvent::Resize { new_size });
+		}
+
 		#[method(acceptsFirstMouse:)]
         fn accepts_first_mouse(&self, _event: &NSEvent) -> bool {
             true
@@ -138,12 +145,24 @@ impl View {
 		let this = mtm.alloc();
 		let this = this.set_ivars(Ivars { handler, tracking_area });
 		let this: Id<Self> = unsafe { msg_send_id![super(this), init] };
-		this.ivars().handler.borrow_mut().init(HandleRef::new(this.as_ref()));
+
+		this.setPostsFrameChangedNotifications(true);
+		let notification_center = unsafe { NSNotificationCenter::defaultCenter() };
+		unsafe {
+            notification_center.addObserver_selector_name_object(
+                &this,
+                sel!(frameDidChange:),
+                Some(NSViewFrameDidChangeNotification),
+                Some(&this),
+            )
+        }
+
+		this.ivars().handler.borrow_mut().init(Handle::new(Weak::from_retained(&this)));
 		this
 	}
 
 	fn dispatch_event(&self, event: WindowEvent) {
-		self.ivars().handler.borrow_mut().event(event, HandleRef::new(&self) )
+		self.ivars().handler.borrow_mut().event(event)
 	}
 
 	fn set_tracking_area(&self, rect: CGRect) {

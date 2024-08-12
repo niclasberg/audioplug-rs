@@ -166,6 +166,12 @@ impl From<Rectangle<i32>> for Rectangle<f64> {
     }
 }
 
+impl<T: Default> Default for Rectangle<T> {
+	fn default() -> Self {
+		Self { x: Default::default(), y: Default::default(), width: Default::default(), height: Default::default() }
+	}
+}
+
 #[cfg(test)]
 mod test {
     /*use super::*;

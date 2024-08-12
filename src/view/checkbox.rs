@@ -1,6 +1,6 @@
-use crate::{app::{Accessor, BuildContext, LayoutContext, RenderContext, SignalGet, WidgetMut}, core::{Color, Shape}};
+use crate::{app::{Accessor, BuildContext, RenderContext, Widget, WidgetMut}, core::{Color, Shape}};
 
-use super::{View, Widget};
+use super::View;
 
 pub struct Checkbox {
     checked: Accessor<bool>
@@ -31,7 +31,11 @@ pub struct CheckboxWidget {
 }
 
 impl Widget for CheckboxWidget {
-    fn measure(&self, _style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
+	fn debug_label(&self) -> &'static str {
+		"Checkbox"
+	}
+
+    fn measure(&self, _style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, _available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
         if let taffy::Size { width: Some(width), height: Some(height) } = known_dimensions {
             taffy::Size { width, height }
         } else {

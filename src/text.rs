@@ -41,7 +41,7 @@ impl TextLayout {
         todo!()
     }
 
-    pub fn set_color(&mut self, color: Color) {
+    pub fn set_color(&mut self, _color: Color) {
         
     }
 

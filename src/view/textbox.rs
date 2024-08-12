@@ -1,8 +1,8 @@
 use std::ops::Range;
-use crate::{app::MouseEventContext, core::{Color, Cursor, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, MouseEvent};
+use crate::{app::{BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Cursor, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, MouseEvent};
 use unicode_segmentation::{UnicodeSegmentation, GraphemeCursor};
 
-use super::{BuildContext, EventContext, EventStatus, LayoutContext, RenderContext, StatusChange, View, Widget};
+use super::View;
 
 pub struct TextBox {
     width: f64
@@ -277,6 +277,10 @@ impl Editor {
 const CURSOR_DELAY_SECONDS: f64 = 0.5;
 
 impl Widget for TextBoxWidget {
+	fn debug_label(&self) -> &'static str {
+		"TextBox"
+	}
+
     fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
         let rebuild_text_layout = |this: &mut Self, ctx: &mut EventContext| {
             this.text_layout = TextLayout::new(&this.editor.value, Color::BLACK, Size::INFINITY);
@@ -410,7 +414,7 @@ impl Widget for TextBoxWidget {
         }
 	}
     
-    fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
+    fn measure(&self, _style: &taffy::Style, _known_dimensions: taffy::Size<Option<f32>>, _available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
         let size = self.text_layout.measure();
         let size = Size::new(self.width, size.height);
 

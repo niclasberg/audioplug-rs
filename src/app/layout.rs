@@ -1,4 +1,6 @@
-use taffy::{LayoutPartialTree, TraversePartialTree, TraverseTree};
+use taffy::{LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree};
+
+use crate::core::Point;
 
 use super::{widget_node::WidgetFlags, AppState, WidgetId, WindowId};
 
@@ -14,12 +16,27 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
             height: taffy::AvailableSpace::Definite(bounds.height as f32),
         };
         let mut ctx = LayoutContext { app_state };
-        taffy::compute_root_layout(&mut ctx, widget_id.into(), available_space);;
+        taffy::compute_root_layout(&mut ctx, widget_id.into(), available_space);
+		taffy::print_tree(&mut ctx, widget_id.into());
     }
-    
-    {
-        // Update origin for all nodes
-    }
+
+    update_node_origins(app_state, widget_id);
+}
+
+fn update_node_origins(app_state: &mut AppState, root_widget: WidgetId) {
+	let mut stack = vec![];
+	for child in app_state.widget_data[root_widget].children.iter() {
+		stack.push((*child, Point::zero()));
+	}
+
+	while let Some((widget_id, parent_origin)) = stack.pop() {
+		let data = &mut app_state.widget_data[widget_id];
+		let origin = data.offset() + parent_origin;
+		for child in data.children.iter() {
+			stack.push((*child, origin))
+		}
+		data.origin = origin;
+	}
 }
 
 pub struct LayoutChildIter<'a> {
@@ -56,6 +73,16 @@ impl<'a> taffy::TraversePartialTree for LayoutContext<'a> {
 }
 
 impl<'a> TraverseTree for LayoutContext<'a> {}
+
+impl<'a> PrintTree for LayoutContext<'a> {
+	fn get_debug_label(&self, node_id: taffy::NodeId) -> &'static str {
+		self.app_state.widgets[node_id.into()].debug_label()
+	}
+
+	fn get_final_layout(&self, node_id: taffy::NodeId) -> &taffy::Layout {
+		&self.app_state.widget_data[node_id.into()].layout
+	}
+}
 
 impl<'a> LayoutPartialTree for LayoutContext<'a> {
     fn get_style(&self, node_id: taffy::NodeId) -> &taffy::Style {

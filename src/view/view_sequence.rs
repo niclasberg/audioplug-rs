@@ -1,6 +1,6 @@
-use crate::Id;
+use crate::app::BuildContext;
 
-use super::{BuildContext, View, Widget, WidgetNode};
+use super::View;
 
 pub trait ViewSequence: Sized {
     fn len(&self) -> usize;

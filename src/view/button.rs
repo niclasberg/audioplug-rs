@@ -1,5 +1,6 @@
-use crate::{app::{AppState, BuildContext, EventContext, LayoutContext, MouseEventContext, RenderContext}, core::{Color, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, MouseEvent};
-use super::{EventStatus, StatusChange, View, Widget};
+use crate::{app::{AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, MouseEvent};
+
+use super::View;
 
 pub struct Button<V> {
     child: V,
@@ -41,6 +42,10 @@ pub struct ButtonWidget {
 }
 
 impl Widget for ButtonWidget {
+	fn debug_label(&self) -> &'static str {
+		"Button"
+	}
+
     fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         match event {
             MouseEvent::Down { button, position } if ctx.bounds().contains(position) => {
@@ -113,7 +118,7 @@ impl Widget for ButtonWidget {
         ctx.fill(shape, color);
         ctx.stroke(shape, Color::BLACK, 1.0);
         
-        //self.child.render(ctx);
+        ctx.render_children()
     }
     
     fn style(&self) -> taffy::Style {
@@ -121,6 +126,7 @@ impl Widget for ButtonWidget {
         taffy::Style {
             padding: taffy::Rect { left: padding, right: padding, top: padding, bottom: padding },
             justify_content: Some(taffy::JustifyContent::Center),
+			display: taffy::Display::Block,
             ..Default::default()
         }
     }
