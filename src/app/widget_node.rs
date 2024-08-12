@@ -3,9 +3,9 @@ use std::{marker::PhantomData, ops::{Deref, DerefMut}};
 use bitflags::bitflags;
 use slotmap::{new_key_type, Key, KeyData};
 
-use crate::{core::{Point, Rectangle, Size}, view::Widget};
+use crate::{core::{Point, Rectangle, Size}, view::{DowncastWidget, Widget}};
 
-use super::{contexts::BuildContext, AppState, RenderContext, WindowId};
+use super::{app_state::WindowOrWidgetId, contexts::BuildContext, AppState, RenderContext, WindowId};
 
 new_key_type! {
     pub struct WidgetId;
@@ -159,12 +159,12 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
 
 pub struct WidgetMut<'a, W: 'a + Widget + ?Sized> {
     pub(super) id: WidgetId,
-    pub(super) app_state: &'a AppState,
+    pub(super) app_state: &'a mut AppState,
     _phantom: PhantomData<&'a mut W>
 }
 
 impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
-    pub(super) fn new(id: WidgetId, app_state: &'a AppState) -> Self {
+    pub(super) fn new(id: WidgetId, app_state: &'a mut AppState) -> Self {
         Self {
             id,
             app_state,
@@ -176,7 +176,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         self.app_state.widget_data.get(self.id).unwrap()
     }
 
-    pub fn data_mut(&self) -> &mut WidgetData {
+    pub fn data_mut(&mut self) -> &mut WidgetData {
         self.app_state.widget_data.get_mut(self.id).unwrap()
     }
 
@@ -189,7 +189,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 
     pub fn request_layout(&mut self) {
-        self.data().set_flag(WidgetFlags::NEEDS_LAYOUT);
+        self.data_mut().set_flag(WidgetFlags::NEEDS_LAYOUT);
     }
 
     pub fn layout_requested(&self) -> bool {
@@ -197,7 +197,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 
     pub fn add_child<'s, W2: Widget + Sized>(&'s mut self, f: impl FnOnce(&mut BuildContext) -> W2) -> WidgetMut<'s, W2> {
-        let id = self.app_state.add_widget(self.id, f);
+        let id = self.app_state.add_widget(WindowOrWidgetId::WidgetId(self.id), f);
         WidgetMut {
             id,
             app_state: self.app_state,
@@ -206,7 +206,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 }
 
-impl<'a, W: 'a + Widget> Deref for WidgetMut<'a, W> {
+impl<'a, W: 'static + Widget> Deref for WidgetMut<'static, W> {
     type Target = W;
 
     fn deref(&self) -> &Self::Target {
@@ -214,8 +214,8 @@ impl<'a, W: 'a + Widget> Deref for WidgetMut<'a, W> {
     }
 }
 
-impl<'a, W: 'a + Widget> DerefMut for WidgetMut<'a, W> {    
+impl<'a, W: 'static + Widget> DerefMut for WidgetMut<'static, W> {    
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.app_state.widgets.get_mut(self.id).and_then(|x| x.as_any().downcast_mut()).unwrap()
+        self.app_state.widgets.get_mut(self.id).and_then(|x| x.as_any_mut().downcast_mut()).unwrap()
     }
 }

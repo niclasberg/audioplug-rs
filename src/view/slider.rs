@@ -1,6 +1,6 @@
 use crate::{app::MouseEventContext, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, KeyEvent, MouseEvent};
 
-use super::{BuildContext, EventContext, EventStatus, LayoutContext, RenderContext, View, Widget};
+use super::{BuildContext, EventContext, EventStatus, LayoutContext, RenderContext, StatusChange, View, Widget};
 
 pub struct Slider {
     min: f64,
@@ -79,13 +79,15 @@ impl SliderWidget {
         Shape::circle(self.slider_position(bounds), 5.0)
     }
 
-    fn set_position(&mut self, normalized_position: f64, ctx: &mut EventContext) {
+    fn set_position(&mut self, normalized_position: f64) -> bool {
         if normalized_position != self.position_normalized {
             self.position_normalized = normalized_position;
-            ctx.request_render();
             if let Some(f) = self.on_value_changed.as_ref() {
                 f(self.min + (self.max - self.min) * self.position_normalized);
             }
+            true
+        } else {
+            false
         }
     }
 }
@@ -122,7 +124,9 @@ impl Widget for SliderWidget {
                     },
                     State::Dragging => {
                         let normalized_position = ((position.x - ctx.bounds().left()) / ctx.bounds().width()).clamp(0.0, 1.0);
-                        self.set_position(normalized_position, ctx);
+                        if self.set_position(normalized_position) {
+                            ctx.request_render();
+                        }
                     },
                 }
                 EventStatus::Handled
@@ -153,12 +157,16 @@ impl Widget for SliderWidget {
                 match key {
                     Key::Left => {
                         let new_position = (self.position_normalized - 0.1).clamp(0.0, 1.0);
-                        self.set_position(new_position, ctx);
+                        if self.set_position(new_position) {
+                            ctx.request_render();
+                        }
                         EventStatus::Handled
                     },
                     Key::Right => {
                         let new_position = (self.position_normalized + 0.1).clamp(0.0, 1.0);
-                        self.set_position(new_position, ctx);
+                        if self.set_position(new_position) {
+                            ctx.request_render();
+                        }
                         EventStatus::Handled
                     },
                     _ => EventStatus::Ignored
@@ -176,8 +184,13 @@ impl Widget for SliderWidget {
         }))
     }
 
-    fn focus_changed(&mut self, _has_focus: bool, ctx: &mut EventContext) {
-        ctx.request_render()
+    fn status_updated(&mut self, event: StatusChange, ctx: &mut EventContext) {
+        match event {
+            StatusChange::FocusGained | StatusChange::FocusLost => {
+                ctx.request_render()
+            },
+            _ => {}
+        }
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {

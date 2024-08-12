@@ -77,6 +77,11 @@ enum Scope {
     Effect(NodeId)
 }
 
+pub enum WindowOrWidgetId {
+    WindowId(WindowId),
+    WidgetId(WidgetId)
+}
+
 pub(super) struct Window {
     pub(super) handle: platform::Handle,
     pub(super) root_widget: WidgetId,
@@ -160,12 +165,13 @@ impl AppState {
     }
 
     pub fn add_window<W: Widget>(&mut self, handle: platform::Handle, f: impl FnOnce(&mut BuildContext) -> W) -> WindowId {
-        let root_widget = self.add_widget(WidgetId::null(), f);
-        let window = Window {
-            handle,
-            root_widget
-        };
-        self.windows.insert(window)
+        self.windows.insert_with_key(|window_id| {
+            let root_widget = self.add_widget(WindowOrWidgetId::WindowId(window_id), f);
+            Window {
+                handle,
+                root_widget
+            }
+        })
     }
 
     pub fn remove_window(&mut self, id: WindowId) {
@@ -174,16 +180,18 @@ impl AppState {
     }
 
     /// Add a new widget
-    pub fn add_widget<W: Widget>(&mut self, parent_id: WidgetId, f: impl FnOnce(&mut BuildContext) -> W) -> WidgetId {
-        let id = if parent_id.is_null() {
-            self.widget_data.insert_with_key(|id| {
-                WidgetData::new(id, id)
-            })
-        } else {
-            let root_id = self.widget_data.get(parent_id).expect("Parent not found").window_id;
-            self.widget_data.insert_with_key(|id| {
-                WidgetData::new(id, root_id)
-            })
+    pub fn add_widget<W: Widget + 'static>(&mut self, parent_id: WindowOrWidgetId, f: impl FnOnce(&mut BuildContext) -> W) -> WidgetId {
+        let id = match parent_id {
+            WindowOrWidgetId::WindowId(window_id) => 
+                self.widget_data.insert_with_key(|id| {
+                    WidgetData::new(window_id, id)
+                }),
+            WindowOrWidgetId::WidgetId(parent_id) => {
+                let window_id = self.widget_data.get(parent_id).expect("Parent not found").window_id;
+                self.widget_data.insert_with_key(|id| {
+                    WidgetData::new(window_id, id).with_parent(parent_id)
+                })
+            } 
         };
         
         {
@@ -191,10 +199,13 @@ impl AppState {
             self.widgets.insert(id, Box::new(widget));
         }
 
-        if !parent_id.is_null() {
-            let parent_widget_data = self.widget_data.get_mut(parent_id).expect("Parent does not exist");
-            parent_widget_data.children.push(id);
-        }
+        match parent_id {
+            WindowOrWidgetId::WidgetId(parent_id) => {
+                let parent_widget_data = self.widget_data.get_mut(parent_id).expect("Parent does not exist");
+                parent_widget_data.children.push(id);
+            },
+            _ => {}
+        };
 
         id
     }
@@ -268,11 +279,7 @@ impl AppState {
     }
 
     pub fn get_window_id_for_widget(&self, widget_id: WidgetId) -> WindowId {
-
-    }
-
-    pub fn mouse_event(&mut self, root_widget_id: WidgetId, event: MouseEvent) {
-        
+        self.widget_data[widget_id].window_id
     }
 
     fn with_scope<R>(&mut self, scope: Scope, f: impl FnOnce(&mut Self) -> R) -> R {

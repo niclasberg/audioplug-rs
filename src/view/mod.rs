@@ -42,12 +42,26 @@ pub enum EventStatus {
     Ignored
 }
 
-pub trait Widget: Any {
-    fn mouse_event(&mut self, _event: MouseEvent, _ctx: &mut MouseEventContext) -> EventStatus {
-        EventStatus::Ignored
-    }
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum StatusChange {
+    FocusGained,
+    FocusLost,
+    MouseEntered,
+    MouseExited,
+    MouseCaptured,
+    MouseCaptureLost
+}
 
-    fn mouse_enter_exit(&mut self, _has_mouse_over: bool, _ctx: &mut EventContext) -> EventStatus { 
+pub trait DowncastWidget {
+    fn as_any(&self) -> &'_ dyn Any 
+        where Self : 'static;
+
+    fn as_any_mut(&mut self) -> &'_ mut dyn Any 
+        where Self : 'static;
+}
+
+pub trait Widget {
+    fn mouse_event(&mut self, _event: MouseEvent, _ctx: &mut MouseEventContext) -> EventStatus {
         EventStatus::Ignored
     }
 
@@ -55,7 +69,7 @@ pub trait Widget: Any {
         EventStatus::Ignored
     }
 
-    fn focus_changed(&mut self, _has_focus: bool, _ctx: &mut EventContext) {}
+    fn status_updated(&mut self, _event: StatusChange, _ctx: &mut EventContext) {}
     
     fn cursor(&self) -> Option<Cursor> {
         None
@@ -68,9 +82,19 @@ pub trait Widget: Any {
 
     fn style(&self) -> taffy::Style;
     fn render(&mut self, ctx: &mut RenderContext);
+}
 
-    fn as_any(&self) -> &dyn Any {
-        &self
+impl<W: Widget> DowncastWidget for W {
+    fn as_any(&self) -> &'_ dyn Any 
+        where Self : 'static 
+    {
+        self    
+    }
+    
+    fn as_any_mut(&mut self) -> &'_ mut dyn Any 
+        where Self : 'static 
+    {
+        self
     }
 }
 
@@ -83,20 +107,16 @@ impl Widget for Box<dyn Widget> {
         self.deref_mut().key_event(event, ctx)
     }
 
-    fn focus_changed(&mut self, has_focus: bool, ctx: &mut EventContext) {
-        self.deref_mut().focus_changed(has_focus, ctx)
+    fn status_updated(&mut self, event: StatusChange, ctx: &mut EventContext) {
+        self.deref_mut().status_updated(event, ctx)
     }
 
     fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
-        self.deref_mut().measure(style, known_dimensions, available_space)
+        self.deref().measure(style, known_dimensions, available_space)
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {
         self.deref_mut().render(ctx)
-    }
-
-    fn mouse_enter_exit(&mut self, has_mouse_over: bool, ctx: &mut EventContext) -> EventStatus { 
-        self.deref_mut().mouse_enter_exit(has_mouse_over, ctx)
     }
 
     fn cursor(&self) -> Option<Cursor> {
@@ -136,12 +156,8 @@ impl<W: Widget> Widget for BackgroundWidget<W> {
         self.widget.key_event(event, ctx)
     }
 
-    fn focus_changed(&mut self, has_focus: bool, ctx: &mut EventContext) {
-        self.widget.focus_changed(has_focus, ctx)
-    }
-
-    fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
-        self.widget.measure(style, known_dimensions, available_space)
+    fn status_updated(&mut self, event: StatusChange, ctx: &mut EventContext) {
+        self.widget.status_updated(event, ctx)
     }
 
     fn cursor(&self) -> Option<Cursor> {
@@ -153,11 +169,11 @@ impl<W: Widget> Widget for BackgroundWidget<W> {
         self.widget.render(ctx)
     }
 
-    fn mouse_enter_exit(&mut self, has_mouse_over: bool, ctx: &mut EventContext) -> EventStatus { 
-        self.widget.mouse_enter_exit(has_mouse_over, ctx)
-    }
-
     fn style(&self) -> taffy::Style {
         self.widget.style()
+    }
+
+    fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
+        self.widget.measure(style, known_dimensions, available_space)
     }
 } 

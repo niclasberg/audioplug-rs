@@ -55,7 +55,7 @@ impl Widget for TextWidget {
             taffy::AvailableSpace::Definite(height) => height,
         }) as f64; 
 
-        self.text_layout.set_max_size(Size::new(width_constraint, height_constraint));
+        //self.text_layout.set_max_size(Size::new(width_constraint, height_constraint));
         let measured_size: taffy::Size<f32> = self.text_layout.measure().map(|x| x as f32).into();
         
         known_dimensions.unwrap_or(measured_size)

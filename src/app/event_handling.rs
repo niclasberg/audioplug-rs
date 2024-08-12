@@ -1,6 +1,6 @@
-use crate::{core::{Cursor, Rectangle}, keyboard::Key, platform::{self, WindowEvent}, view::EventStatus, KeyEvent, MouseEvent};
+use crate::{core::{Cursor, Rectangle}, keyboard::Key, platform::{self, WindowEvent}, view::{EventStatus, StatusChange}, KeyEvent, MouseEvent};
 
-use super::{invalidate_window, layout_window, widget_node::WidgetFlags, AppState, WidgetId, WindowId};
+use super::{invalidate_window, layout_window, render::invalidate_widget, widget_node::WidgetFlags, AppState, WidgetId, WindowId};
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
@@ -11,8 +11,14 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         WindowEvent::Mouse(mouse_event) => {
             match mouse_event {
                 MouseEvent::Down { position, .. } => {
-                    let new_focus_view = app_state.find_map_widget_at(window_id, position, |data| {
-                        data.flag_is_set(WidgetFlags::FOCUSABLE).then(|| data.id)
+                    let mut new_focus_view = None;
+                    app_state.for_each_widget_at_rev(window_id, position, |data| {
+                        if data.flag_is_set(WidgetFlags::FOCUSABLE) {
+                            new_focus_view = Some(data.id);
+                            false
+                        } else {
+                            true
+                        }
                     });
                     set_focus_widget(app_state, new_focus_view);
                 }
@@ -20,35 +26,24 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             };
 
             if let Some(capture_view) = app_state.mouse_capture_widget {
-
-                let message = ViewMessage::Mouse(mouse_event);
-                self.widget_node.handle_message(
-                    &mut capture_view,
-                    message,
-                    &mut self.state,
-                    &mut handle,
-                    &mut app_state,
-                );
-
+                let mut ctx = MouseEventContext::new(capture_view, app_state, false);
+                ctx.dispatch(mouse_event);
+                
                 match mouse_event {
-                    MouseEvent::Up { .. } => self.state.mouse_capture_view = None,
+                    MouseEvent::Up { .. } => set_mouse_capture_widget(app_state, None),
                     _ => {}
                 }
             } else {
-                let mut ctx = EventContext::new(
-                    &mut self.widget_node.data,
-                    &mut self.state,
-                    &mut handle,
-                    &mut app_state,
-                );
-                self.widget_node.widget.mouse_event(mouse_event, &mut ctx);
+                let id = app_state.window(window_id).root_widget;
+                let mut ctx = MouseEventContext::new(id, app_state, true);
+                ctx.dispatch(mouse_event);
             }
         }
         WindowEvent::Key(key_event) => {
             let mut event_status = EventStatus::Ignored;
             if let Some(focus_widget) = app_state.focus_widget {
                 let mut ctx = EventContext::new(focus_widget, app_state);
-                event_status = app_state.widgets[focus_widget].key_event(key_event, &mut ctx);
+                event_status = ctx.dispatch_key_event(key_event);
             }
 
             if event_status == EventStatus::Ignored {
@@ -76,16 +71,32 @@ pub fn set_focus_widget(app_state: &mut AppState, new_focus_widget: Option<Widge
     if new_focus_widget != app_state.focus_widget {
         println!("Focus change {:?}, {:?}", app_state.focus_widget, new_focus_widget);
 
-        if let Some(focus_lost_widget) = app_state.focus_widget {
-            let mut ctx = EventContext::new(focus_lost_widget, app_state);
-            app_state.widgets[focus_lost_widget].focus_changed(false, &mut ctx);
+        if let Some(old_focus_widget) = app_state.focus_widget {
+            let mut ctx = EventContext::new(old_focus_widget, app_state);
+            ctx.dispatch_status_updated(StatusChange::FocusLost);
         }
 
-        app_state.focus_widget = new_focus_widget.clone();
+        app_state.focus_widget = new_focus_widget;
 
         if let Some(focus_gained_widget) = new_focus_widget {
             let mut ctx = EventContext::new(focus_gained_widget, app_state);
-            app_state.widgets[focus_gained_widget].focus_changed(true, &mut ctx);
+            ctx.dispatch_status_updated(StatusChange::FocusGained);
+        }
+    }
+}
+
+pub fn set_mouse_capture_widget(app_state: &mut AppState, new_capture_widget: Option<WidgetId>) {
+    if new_capture_widget != app_state.mouse_capture_widget {
+        if let Some(old_mouse_capture_widget) = app_state.mouse_capture_widget {
+            let mut ctx = EventContext::new(old_mouse_capture_widget, app_state);
+            ctx.dispatch_status_updated(StatusChange::MouseCaptureLost);
+        }
+
+        app_state.mouse_capture_widget = new_capture_widget;
+
+        if let Some(new_capture_widget) = new_capture_widget {
+            let mut ctx = EventContext::new(new_capture_widget, app_state);
+            ctx.dispatch_status_updated(StatusChange::MouseCaptured);
         }
     }
 }
@@ -112,9 +123,18 @@ pub fn set_focus_widget(app_state: &mut AppState, new_focus_widget: Option<Widge
 pub struct MouseEventContext<'a> {
     id: WidgetId, 
     app_state: &'a mut AppState,
+    can_propagate: bool,
 }
 
 impl<'a> MouseEventContext<'a> {
+    fn new(id: WidgetId, app_state: &'a mut AppState, can_propagate: bool) -> Self {
+        Self {
+            id, 
+            app_state,
+            can_propagate
+        }
+    }   
+
     fn dispatch(&mut self, event: MouseEvent) -> EventStatus {
         let mut widget = self.app_state.widgets.remove(self.id).expect("Widget not found");
         let old_id = self.id;
@@ -124,12 +144,41 @@ impl<'a> MouseEventContext<'a> {
         status
     }
 
+    pub fn app_state(&self) -> &AppState {
+        &self.app_state
+    }
+
+    pub fn app_state_mut(&mut self) -> &mut AppState {
+        &mut self.app_state
+    }
+
+    pub fn forward_to_children(&mut self, event: MouseEvent) -> EventStatus {
+        let children = self.app_state.widget_data[self.id].children.clone();
+        let old_id = self.id;
+        for child in children {
+            self.id = child;
+            let mut widget = self.app_state.widgets.remove(self.id).expect("Widget not found");
+            let status = widget.mouse_event(event, self);
+            self.app_state.widgets.insert(old_id, widget);
+            if status  == EventStatus::Handled {
+                self.id = old_id;
+                return EventStatus::Handled;
+            }
+        }
+        self.id = old_id;
+        EventStatus::Ignored
+    }
+
     pub fn capture_mouse(&mut self) {
         self.app_state.mouse_capture_widget = Some(self.id)
     }
 
     pub fn request_render(&mut self) {
-        invalidate_window(&mut self.app_state, self.app_state.get_window_id_for_widget(self.id));
+        invalidate_widget(&self.app_state, self.id);
+    }
+
+    pub fn bounds(&self) -> Rectangle {
+        self.app_state.widget_data_ref(self.id).global_bounds()
     }
 }
 
@@ -140,12 +189,33 @@ pub struct EventContext<'a> {
 }
 
 impl<'a> EventContext<'a> {
-    pub fn new(id: WidgetId, app_state: &'a mut AppState) -> Self{
+    fn new(id: WidgetId, app_state: &'a mut AppState) -> Self{
         Self { id, app_state }
+    }
+
+    fn dispatch_status_updated(&mut self, event: StatusChange) {
+        let mut widget = self.app_state.widgets.remove(self.id).unwrap();
+        widget.status_updated(event, self);
+        self.app_state.widgets.insert(self.id, widget);
+    }
+
+    fn dispatch_key_event(&mut self, event: KeyEvent) -> EventStatus {
+        let mut widget = self.app_state.widgets.remove(self.id).unwrap();
+        let status = widget.key_event(event, self);
+        self.app_state.widgets.insert(self.id, widget);
+        status
     }
 
     pub fn bounds(&self) -> Rectangle {
         self.app_state.widget_data_ref(self.id).global_bounds()
+    }
+
+    pub fn app_state(&self) -> &AppState {
+        &self.app_state
+    }
+
+    pub fn app_state_mut(&mut self) -> &mut AppState {
+        &mut self.app_state
     }
 
     /*pub(crate) fn with_child<'d, T>(&mut self, widget_data: &'d mut WidgetData, f: impl FnOnce(&mut EventContext<'d, '_, '_>) -> T) -> T {
@@ -173,7 +243,7 @@ impl<'a> EventContext<'a> {
     }
 
     pub fn request_render(&mut self) {
-        invalidate_window(&mut self.app_state, self.app_state.get_window_id_for_widget(self.id));
+        invalidate_widget(&self.app_state, self.id);
     }
 
     pub fn get_clipboard(&mut self) -> Option<String> {

@@ -1,5 +1,5 @@
-use crate::{app::{AppState, BuildContext, EventContext, LayoutContext, RenderContext}, core::{Color, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, MouseEvent};
-use super::{EventStatus, View, Widget};
+use crate::{app::{AppState, BuildContext, EventContext, LayoutContext, MouseEventContext, RenderContext}, core::{Color, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, MouseEvent};
+use super::{EventStatus, StatusChange, View, Widget};
 
 pub struct Button<V> {
     child: V,
@@ -41,7 +41,7 @@ pub struct ButtonWidget {
 }
 
 impl Widget for ButtonWidget {
-    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) -> EventStatus {
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         match event {
             MouseEvent::Down { button, position } if ctx.bounds().contains(position) => {
                 if button == MouseButton::LEFT {
@@ -64,16 +64,24 @@ impl Widget for ButtonWidget {
                 }
                 EventStatus::Handled
             },
-            _ => EventStatus::Ignored
+            _ => ctx.forward_to_children(event)
         }
     }
 
-    fn mouse_enter_exit(&mut self, has_mouse_over: bool, ctx: &mut EventContext)  -> EventStatus {
-        self.is_hot = has_mouse_over;
-        ctx.request_render();
-        EventStatus::Handled
+    fn status_updated(&mut self, event: StatusChange, ctx: &mut EventContext) {
+        match event {
+            StatusChange::FocusGained => {
+                self.is_hot = true;
+                ctx.request_render();
+            },
+            StatusChange::FocusLost => {
+                self.is_hot = false;
+                ctx.request_render();
+            },
+            _ => {}
+        }
     }
-
+      
 	fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
 		match event {
 			KeyEvent::KeyDown { key, ..} if key == Key::Enter => {

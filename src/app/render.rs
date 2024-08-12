@@ -12,9 +12,16 @@ pub fn render_window(app_state: &mut AppState, window_id: WindowId, renderer: &m
     ctx.render_current_widget();
 }
 
-pub fn invalidate_window(app_state: &mut AppState, window_id: WindowId) {
+pub fn invalidate_window(app_state: &AppState, window_id: WindowId) {
     let handle = &app_state.window(window_id).handle;
     handle.invalidate(handle.global_bounds())
+}
+
+pub fn invalidate_widget(app_state: &AppState, widget_id: WidgetId) {
+    let bounds = app_state.widget_data[widget_id].global_bounds();
+    let window_id = app_state.get_window_id_for_widget(widget_id);
+    let handle = &app_state.window(window_id).handle;
+    handle.invalidate(bounds);
 }
 
 pub struct RenderContext<'a, 'b, 'c> {
@@ -81,13 +88,14 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
     }
 
     pub(crate) fn render_current_widget(&mut self) {
-        let widget = self.app_state.widgets.get(self.id).unwrap();
+        let mut widget = self.app_state.widgets.remove(self.id).unwrap();
         widget.render(self);
+        self.app_state.widgets.insert(self.id, widget);
     }
 
     pub fn render_children(&mut self) {
         let old_id = self.id;
-        let ids = self.app_state.widget_data.get(self.id).expect("Could not find widget").children;
+        let ids = self.app_state.widget_data.get(self.id).expect("Could not find widget").children.clone();
         for id in ids {
             self.id = id;
             self.render_current_widget();

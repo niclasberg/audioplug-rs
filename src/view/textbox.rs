@@ -1,8 +1,8 @@
 use std::ops::Range;
-use crate::{core::{Color, Cursor, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, MouseEvent};
+use crate::{app::MouseEventContext, core::{Color, Cursor, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, MouseEvent};
 use unicode_segmentation::{UnicodeSegmentation, GraphemeCursor};
 
-use super::{BuildContext, EventContext, EventStatus, LayoutContext, RenderContext, View, Widget};
+use super::{BuildContext, EventContext, EventStatus, LayoutContext, RenderContext, StatusChange, View, Widget};
 
 pub struct TextBox {
     width: f64
@@ -364,7 +364,7 @@ impl Widget for TextBoxWidget {
         }
     }
 
-    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) -> EventStatus {
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         match event {
             MouseEvent::Down { button, position } if button == MouseButton::LEFT => {
                 ctx.capture_mouse();
@@ -401,8 +401,13 @@ impl Widget for TextBoxWidget {
         }*/
     }
 
-	fn focus_changed(&mut self, _has_focus: bool, ctx: &mut EventContext) {
-		ctx.request_render();
+	fn status_updated(&mut self, event: StatusChange, ctx: &mut EventContext) {
+        match event {
+            StatusChange::FocusGained | StatusChange::FocusLost => {
+                ctx.request_render();
+            },
+            _ => {}
+        }
 	}
     
     fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {

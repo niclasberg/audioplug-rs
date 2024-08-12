@@ -1,4 +1,4 @@
-use crate::core::Cursor;
+use crate::{app::MouseEventContext, core::Cursor};
 
 use super::{EventContext, EventStatus, LayoutContext, RenderContext, View, Widget, WidgetNode};
 
@@ -33,16 +33,12 @@ where
     W: Widget,
     F: Fn(&mut taffy::Style) + 'static
 {
-    fn mouse_event(&mut self, event: crate::MouseEvent, ctx: &mut EventContext) -> EventStatus {
+    fn mouse_event(&mut self, event: crate::MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         self.widget.mouse_event(event, ctx)
     }
 
     fn key_event(&mut self, event: crate::event::KeyEvent, ctx: &mut EventContext) -> EventStatus {
         self.widget.key_event(event, ctx)
-    }
-
-    fn focus_changed(&mut self, has_focus: bool, ctx: &mut EventContext) {
-        self.widget.focus_changed(has_focus, ctx)
     }
 
     fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
@@ -59,8 +55,8 @@ where
         style
     }
 
-    fn mouse_enter_exit(&mut self, has_mouse_over: bool, ctx: &mut EventContext) -> EventStatus {
-        self.widget.mouse_enter_exit(has_mouse_over, ctx)
+    fn status_updated(&mut self, event: super::StatusChange, ctx: &mut EventContext) {
+        self.widget.status_updated(event, ctx)
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {

@@ -78,7 +78,7 @@ impl<'a> LayoutPartialTree for LayoutContext<'a> {
         }
 
         {
-            let widget_data = &self.app_state.widget_data[node_id.into()];
+            let widget_data = &mut self.app_state.widget_data[node_id.into()];
             if widget_data.flag_is_set(WidgetFlags::NEEDS_LAYOUT) {
                 widget_data.cache.clear();
                 widget_data.clear_flag(WidgetFlags::NEEDS_LAYOUT);
