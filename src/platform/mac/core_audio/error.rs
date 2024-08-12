@@ -1,6 +1,9 @@
+use crate::platform::four_cc;
+
 use super::OSStatus;
 
 #[derive(Copy, Clone, Debug)]
+#[repr(i32)]
 pub enum AudioError {
 	Unimplemented = -4,
 	TooManyFilesOpen = -42,
@@ -9,18 +12,18 @@ pub enum AudioError {
 	FilePermission = -54,
 	MemFull = -108,
 	BadFilePath = 561017960,
-    NotRunning           = 1937010544, //'stop'
-    Unspecified          = 2003329396, //'what'
-    UnknownProperty      = 2003332927, //'who?'
-    BadPropertySize      = 561211770, //'!siz'
-    IllegalOperation     = 1852797029, //'nope'
-    BadObject            = 560947818, //'!obj'
-    BadDevice            = 560227702, //'!dev'
-    BadStream            = 561214578, //'!str'
-    UnsupportedOperation = 1970171760, //'unop',
-	NotReady             = 1852990585, //'nrdy'
-    UnsupportedDeviceFormat      = 560226676, //'!dat'
-    DevicePermissions            = 560492391, //'!hog'
+    NotRunning           = four_cc(b"stop"),
+    Unspecified          = four_cc(b"what"), 
+    UnknownProperty      = four_cc(b"who?"), 
+    BadPropertySize      = four_cc(b"!siz"), 
+    IllegalOperation     = four_cc(b"nope"), 
+    BadObject            = four_cc(b"!obj"),
+    BadDevice            = four_cc(b"!dev"), 
+    BadStream            = four_cc(b"!str"),
+    UnsupportedOperation = four_cc(b"unop"),
+	NotReady             = four_cc(b"nrdy"),
+    UnsupportedDeviceFormat      = four_cc(b"!dat"),
+    DevicePermissions            = four_cc(b"!hog"),
 	Unknown,
 }
 

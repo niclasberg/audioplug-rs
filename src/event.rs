@@ -1,4 +1,4 @@
-use crate::{core::{Point, Size, Vector}, keyboard::{Key, Modifiers}};
+use crate::{core::{Point, Vector}, keyboard::{Key, Modifiers}};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MouseButton {

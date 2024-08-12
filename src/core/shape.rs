@@ -1,4 +1,4 @@
-use super::{Color, Point, Rectangle, Size, Vector};
+use super::{Point, Rectangle, Size, Vector};
 
 pub enum PathEl {
     MoveTo(Point),
@@ -84,9 +84,4 @@ impl From<Rectangle> for Shape {
     fn from(value: Rectangle) -> Self {
         Self::Rect(value)
     }
-}
-
-fn rect_contains(size: Size, pos: Point) -> bool {
-    pos.x >= -size.width && pos.x <= size.width &&
-    pos.y >= -size.height && pos.y <= size.height
 }

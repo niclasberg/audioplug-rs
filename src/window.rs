@@ -13,7 +13,7 @@ use crate::{platform, App};
 struct PreInit<F>(F);
 struct Constructed(WindowId);
 
-pub enum WindowState<F> {
+enum WindowState<F> {
     PreInit(PreInit<F>),
 	Initializing,
     Initialized(Constructed)
@@ -69,16 +69,6 @@ where
             app_state,
         }
     }
-
-    fn with_app_state(&self, f: impl FnOnce(&AppState)) {
-        let app_state = self.app_state.borrow();
-        f(&app_state);
-    }
-
-    fn with_app_state_mut(&mut self, f: impl FnOnce(&mut AppState)) {
-        let mut app_state = self.app_state.borrow_mut();
-        f(&mut app_state);
-    }
 }
 
 impl<F, V> WindowHandler for MyHandler<F>
@@ -91,7 +81,7 @@ where
 		
 		let state = std::mem::replace(&mut self.state, WindowState::Initializing);
 		let state = state.initialize(&mut app_state, handle);
-		std::mem::replace(&mut self.state, state);
+		let _ = std::mem::replace(&mut self.state, state);
 
         layout_window(&mut app_state, self.state.window_id());
     }
@@ -107,7 +97,7 @@ where
     }
 
     fn get_cursor(&self, _point: Point) -> Option<Cursor> {
-        let mut cursor = None;
+        let cursor = None;
         /*self.widget_node
             .for_each_view_at(point, &mut |widget_node| {
                 if let Some(c) = widget_node.widget.cursor() {

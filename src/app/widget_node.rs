@@ -109,21 +109,6 @@ impl WidgetData {
     }
 }
 
-pub struct WidgetNode {
-    pub(crate) widget: Box<dyn Widget>,
-    pub(crate) data: WidgetData,
-}
-
-impl WidgetNode {
-    pub fn data(&self) -> &WidgetData {
-        &self.data
-    }
-
-    pub fn layout_requested(&self) -> bool {
-        self.data.flag_is_set(WidgetFlags::NEEDS_LAYOUT)
-    }
-}
-
 pub struct WidgetRef<'a: 'static, W: 'a + Widget + ?Sized> {
     pub(super) id: WidgetId,
     pub(super) app_state: &'a AppState,

@@ -189,8 +189,8 @@ impl View {
 
 	fn mouse_position(&self, event: &NSEvent) -> Option<Point> {
 		let pos = unsafe { event.locationInWindow() };
-		let frame = unsafe { self.frame() };
-		let pos = unsafe { self.convertPoint_fromView(pos, None) };
+		let frame = self.frame();
+		let pos = self.convertPoint_fromView(pos, None);
 
 		if pos.x.is_sign_negative() ||
 			pos.y.is_sign_negative() ||
