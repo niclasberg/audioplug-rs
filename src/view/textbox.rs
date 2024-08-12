@@ -440,7 +440,7 @@ impl Widget for TextBoxWidget {
         let bounds = ctx.global_bounds();
 
 		let stroke_color = if ctx.has_focus() { Color::RED } else { Color::from_rgb(0.3, 0.3, 0.3) };
-        ctx.stroke(bounds, stroke_color, 1.0);
+        ctx.stroke(bounds.shrink(1.0), stroke_color, 1.0);
 
         ctx.use_clip(bounds, |ctx| {
             if let Some(selection) = self.editor.selection() {

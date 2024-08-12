@@ -217,7 +217,7 @@ impl Widget for SliderWidget {
     
     fn style(&self) -> taffy::Style {
         taffy::Style {
-            size: taffy::Size { width: taffy::Dimension::Auto, height: taffy::Dimension::Length(5.0) },
+            size: taffy::Size { width: taffy::Dimension::Auto, height: taffy::Dimension::Length(10.0) },
             ..Default::default()
         }
     }

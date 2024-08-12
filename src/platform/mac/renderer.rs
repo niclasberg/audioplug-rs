@@ -39,7 +39,7 @@ impl<'a> RendererRef<'a> {
 
 	pub fn draw_rectangle(&mut self, rect: Rectangle, color: Color, line_width: f32) {
         let color = CGColor::from_color(color);
-		self.context.set_fill_color(&color);
+		self.context.set_stroke_color(&color);
 		self.context.stroke_rect(rect.into(), line_width.into());
     }
 
