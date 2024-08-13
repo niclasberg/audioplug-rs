@@ -7,9 +7,9 @@ use super::{app_state::Task, binding::BindingState, effect::EffectState, memo::M
 
 
 
-pub struct Node {
-    pub(super) node_type: NodeType,
-    pub(super) state: NodeState
+struct Node {
+    node_type: NodeType,
+    state: NodeState
 }
 
 /*impl Node {
@@ -22,7 +22,7 @@ pub struct Node {
     }
 }*/
 
-pub(super) enum NodeState {
+enum NodeState {
     /// Reactive value is valid, no need to recompute
     Clean,
     /// Reactive value might be stale, check parent nodes to decide whether to recompute
@@ -31,7 +31,7 @@ pub(super) enum NodeState {
     Dirty
 }
 
-pub enum NodeType {
+enum NodeType {
     Signal(SignalState),
     Memo(MemoState),
     Effect(EffectState),
@@ -48,7 +48,7 @@ pub(super) enum Scope {
 
 pub struct ReactiveContext {
     pub(super) scope: Scope,
-    pub(super) nodes: SlotMap<NodeId, Node>,
+    nodes: SlotMap<NodeId, Node>,
     pub(super) subscriptions: SecondaryMap<NodeId, HashSet<NodeId>>,
     pub(super) dependencies: SecondaryMap<NodeId, HashSet<NodeId>>,
     pub(super) pending_tasks: VecDeque<Task>,
@@ -75,19 +75,19 @@ impl ReactiveContext {
         value
     }
 
-    pub fn create_signal_node(&mut self, state: SignalState) -> NodeId {
+    pub(super) fn create_signal_node(&mut self, state: SignalState) -> NodeId {
         self.create_node(NodeType::Signal(state), NodeState::Clean)
     }
 
-    pub fn create_memo_node(&mut self, state: MemoState) -> NodeId {
+    pub(super) fn create_memo_node(&mut self, state: MemoState) -> NodeId {
         self.create_node(NodeType::Memo(state), NodeState::Check)
     }
 
-    pub fn create_effect_node(&mut self, state: EffectState) -> NodeId {
+    pub(super) fn create_effect_node(&mut self, state: EffectState) -> NodeId {
         self.create_node(NodeType::Effect(state), NodeState::Clean)
     }
 
-    pub fn create_binding_node(&mut self, source_id: NodeId, state: BindingState) -> NodeId {
+    pub(super) fn create_binding_node(&mut self, source_id: NodeId, state: BindingState) -> NodeId {
         let id = self.create_node(NodeType::Binding(state), NodeState::Clean);
         self.add_subscription(source_id, id);
         id

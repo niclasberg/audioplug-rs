@@ -2,7 +2,7 @@ use std::{any::Any, cell::RefCell, collections::VecDeque, ops::DerefMut, rc::{Rc
 use slotmap::{Key, SecondaryMap, SlotMap};
 use crate::{core::{Point, Rectangle}, param::Params, platform};
 
-use super::{binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, ref_count_map::RefCountMap, widget_node::{WidgetData, WidgetId, WidgetMut, WidgetRef}, Accessor, ReactiveContext, Scope, SignalContext, SignalGet, Widget, WindowId};
+use super::{binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, ref_count_map::RefCountMap, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, ReactiveContext, Scope, SignalContext, SignalGet, Widget, WindowId};
 use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
@@ -35,6 +35,7 @@ impl Task {
             Task::UpdateBinding { widget_id, f } => {
                 if let Some(f) = f.upgrade() {
                     f(&mut app_state.reactive_context, app_state.widgets[*widget_id].deref_mut(), &mut app_state.widget_data[*widget_id]);
+					app_state.merge_widget_flags(*widget_id);
                 }
             },
 			Task::InvalidateRect { window_id, rect } => {
@@ -235,8 +236,12 @@ impl AppState {
 
 	pub(super) fn merge_widget_flags(&mut self, source: WidgetId) {
 		let mut current = source;
+		let mut flags_to_apply = WidgetFlags::empty();
 		while !current.is_null() {
-			
+			let data = self.widget_data_mut(current);
+			data.flags = data.flags & flags_to_apply;
+			flags_to_apply = data.flags & (WidgetFlags::NEEDS_LAYOUT);
+			current = data.parent_id;
 		}
 	}
 
