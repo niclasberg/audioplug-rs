@@ -1,10 +1,10 @@
-use std::ops::{Deref, DerefMut};
+use std::{collections::VecDeque, ops::{Deref, DerefMut}};
 
 use bitflags::bitflags;
 use slotmap::{new_key_type, Key, KeyData};
 
 use crate::core::{Point, Rectangle, Size};
-use super::{Widget, WindowId};
+use super::{app_state::Task, Widget, WindowId};
 
 new_key_type! {
     pub struct WidgetId;
@@ -149,14 +149,16 @@ impl<'a, W: 'static + Widget> Deref for WidgetRef<'static, W> {
 
 pub struct WidgetMut<'a, W: 'a + Widget + ?Sized> {
     pub(super) widget: &'a mut W,
-    pub(super) data: &'a mut WidgetData
+    pub(super) data: &'a mut WidgetData,
+	pub(super) pending_tasks: &'a mut VecDeque<Task>
 }
 
 impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
-    pub(super) fn new(widget: &'a mut W, data: &'a mut WidgetData) -> Self {
+    pub(super) fn new(widget: &'a mut W, data: &'a mut WidgetData, pending_tasks: &'a mut VecDeque<Task>) -> Self {
         Self {
             widget,
-            data
+            data,
+			pending_tasks
         }
     }
 
@@ -178,6 +180,13 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
 
     pub fn request_layout(&mut self) {
         self.data_mut().set_flag(WidgetFlags::NEEDS_LAYOUT);
+    }
+
+	pub fn request_render(&mut self) {
+        self.pending_tasks.push_back(Task::InvalidateRect { 
+			window_id: self.data.window_id, 
+			rect: self.data.global_bounds()
+		})
     }
 
     pub fn layout_requested(&self) -> bool {

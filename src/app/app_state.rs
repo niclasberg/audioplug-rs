@@ -1,6 +1,6 @@
-use std::{any::Any, cell::RefCell, ops::DerefMut, rc::{Rc, Weak}};
+use std::{any::Any, cell::RefCell, collections::VecDeque, ops::DerefMut, rc::{Rc, Weak}};
 use slotmap::{Key, SecondaryMap, SlotMap};
-use crate::{core::Point, param::Params, platform};
+use crate::{core::{Point, Rectangle}, param::Params, platform};
 
 use super::{binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, ref_count_map::RefCountMap, widget_node::{WidgetData, WidgetId, WidgetMut, WidgetRef}, Accessor, ReactiveContext, Scope, SignalContext, SignalGet, Widget, WindowId};
 use super::NodeId;
@@ -14,7 +14,11 @@ pub(super) enum Task {
     },
 	UpdateBinding {
 		widget_id: WidgetId,
-    	f: Weak<Box<dyn Fn(&mut ReactiveContext, &mut Box<dyn Widget>, &mut WidgetData)>>,
+    	f: Weak<Box<dyn Fn(&mut ReactiveContext, &mut dyn Widget, &mut WidgetData)>>,
+	},
+	InvalidateRect {
+		window_id: WindowId,
+		rect: Rectangle
 	}
 }
 
@@ -30,9 +34,12 @@ impl Task {
             },
             Task::UpdateBinding { widget_id, f } => {
                 if let Some(f) = f.upgrade() {
-                    f(&mut app_state.reactive_context, &mut app_state.widgets[*widget_id], &mut app_state.widget_data[*widget_id]);
+                    f(&mut app_state.reactive_context, app_state.widgets[*widget_id].deref_mut(), &mut app_state.widget_data[*widget_id]);
                 }
-            }
+            },
+			Task::InvalidateRect { window_id, rect } => {
+				app_state.window(*window_id).handle.invalidate(*rect);
+			}
         }
     }
 }
@@ -92,11 +99,14 @@ impl AppState {
     pub fn create_binding<T: 'static, W: Widget + 'static>(&mut self, accessor: Accessor<T>, widget_id: WidgetId, f: impl Fn(&T, WidgetMut<'_, W>) + 'static) -> bool {
         if let Some(source_id) = accessor.get_source_id() {
             let state = BindingState::new(widget_id, move |ctx, widget, data| {
-                accessor.with_ref(ctx, |value| {
+                let tasks = accessor.with_ref(ctx, |value| {
+					let mut tasks = VecDeque::new();
                     let widget: &mut W = widget.downcast_mut().expect("Could not cast widget");
-                    let node = WidgetMut::new(widget, data);
+                    let node = WidgetMut::new(widget, data, &mut tasks);
                     f(value, node);
+					tasks
                 });
+				ctx.pending_tasks.extend(tasks.into_iter());
             });
             self.reactive_context.create_binding_node(source_id, state);
             true
@@ -185,7 +195,7 @@ impl AppState {
     }
 
     pub fn widget_mut(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
-        WidgetMut::new(&mut *self.widgets[id], &mut self.widget_data[id])
+        WidgetMut::new(&mut *self.widgets[id], &mut self.widget_data[id], &mut self.reactive_context.pending_tasks)
     }
 
     pub fn widget_has_focus(&self, id: WidgetId) -> bool {
@@ -218,10 +228,17 @@ impl AppState {
         }
     }
 
-    pub fn for_each_widget_at_rev(&self, id: WindowId, pos: Point, mut f: impl FnMut(&Self, WidgetId) -> bool) {
+    pub fn for_each_widget_at_rev(&self, id: WindowId, pos: Point, f: impl FnMut(&Self, WidgetId) -> bool) {
 		// TODO: implement
 		self.for_each_widget_at(id, pos, f)
     }
+
+	pub(super) fn merge_widget_flags(&mut self, source: WidgetId) {
+		let mut current = source;
+		while !current.is_null() {
+			
+		}
+	}
 
     pub(super) fn window(&self, id: WindowId) -> &Window {
         self.windows.get(id).expect("Window handle not found")

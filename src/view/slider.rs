@@ -179,6 +179,13 @@ impl Widget for SliderWidget {
             _ => EventStatus::Ignored
         }
     }
+    
+    fn style(&self) -> taffy::Style {
+        taffy::Style {
+            size: taffy::Size { width: taffy::Dimension::Auto, height: taffy::Dimension::Length(10.0) },
+            ..Default::default()
+        }
+    }
 
     fn measure(&self, _style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
         known_dimensions.unwrap_or(available_space.map(|x| match x {
@@ -213,13 +220,6 @@ impl Widget for SliderWidget {
         
         ctx.fill(Rectangle::from_center(center, Size::new(width, 2.0)), Color::BLACK);
         ctx.fill(self.knob_shape(bounds), knob_color);
-    }
-    
-    fn style(&self) -> taffy::Style {
-        taffy::Style {
-            size: taffy::Size { width: taffy::Dimension::Auto, height: taffy::Dimension::Length(10.0) },
-            ..Default::default()
-        }
     }
 }
 

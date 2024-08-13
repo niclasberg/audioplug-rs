@@ -56,7 +56,7 @@ impl dyn Widget + 'static {
     }
 
     pub fn downcast_mut<T: 'static>(&mut self) -> Option<&mut T> {
-        if self.type_id() == TypeId::of::<T>() {
+        if (&*self).type_id() == TypeId::of::<T>() {
             Some(unsafe { &mut *(self as *mut _ as *mut T) })
         } else {
             None
@@ -64,7 +64,7 @@ impl dyn Widget + 'static {
     }
 }
 
-/*impl Widget for Box<dyn Widget> {
+impl Widget for Box<dyn Widget> {
 	fn debug_label(&self) -> &'static str {
 		self.deref().debug_label()
 	}
@@ -96,4 +96,4 @@ impl dyn Widget + 'static {
     fn style(&self) -> taffy::Style {
         self.deref().style()
     }
-}*/
+}

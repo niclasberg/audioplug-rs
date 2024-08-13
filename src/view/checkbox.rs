@@ -20,6 +20,7 @@ impl View for Checkbox {
     fn build(self, ctx: &mut BuildContext) -> Self::Element {
         let checked = ctx.get_and_track(self.checked, |value, mut widget: WidgetMut<'_, Self::Element>| {
             (*widget).checked = *value;
+			widget.request_render();
         });
         CheckboxWidget { checked }
     }

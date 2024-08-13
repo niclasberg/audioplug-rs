@@ -51,7 +51,7 @@ pub struct ReactiveContext {
     pub(super) nodes: SlotMap<NodeId, Node>,
     pub(super) subscriptions: SecondaryMap<NodeId, HashSet<NodeId>>,
     pub(super) dependencies: SecondaryMap<NodeId, HashSet<NodeId>>,
-    pending_tasks: VecDeque<Task>,
+    pub(super) pending_tasks: VecDeque<Task>,
 }
 
 impl Default for ReactiveContext {
