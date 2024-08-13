@@ -108,8 +108,8 @@ pub extern "system" fn bundleExit() -> bool {
     true
 }
 
-use audioplug::wrapper::au::ViewController;
-use audioplug::wrapper::au::NSError;
+#[cfg(target_os = "macos")]
+use audioplug::wrapper::au::{ViewController, NSError};
 
 #[cfg(target_os = "macos")]
 #[no_mangle]

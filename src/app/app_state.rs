@@ -1,28 +1,28 @@
-use std::{any::Any, cell::RefCell, collections::{HashSet, VecDeque}, rc::{Rc, Weak}};
+use std::{any::Any, cell::RefCell, ops::DerefMut, rc::{Rc, Weak}};
 use slotmap::{Key, SecondaryMap, SlotMap};
 use crate::{core::Point, param::Params, platform};
 
-use super::{binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, ref_count_map::RefCountMap, widget_node::{WidgetData, WidgetId, WidgetMut, WidgetRef}, Accessor, SignalContext, SignalGet, Widget, WindowId};
+use super::{binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, ref_count_map::RefCountMap, widget_node::{WidgetData, WidgetId, WidgetMut, WidgetRef}, Accessor, ReactiveContext, Scope, SignalContext, SignalGet, Widget, WindowId};
 use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
 
-enum Task {
+pub(super) enum Task {
     RunEffect {
         id: NodeId,
-        f: Weak<Box<dyn Fn(&mut AppState)>>
+        f: Weak<Box<dyn Fn(&mut ReactiveContext)>>
     },
 	UpdateBinding {
 		widget_id: WidgetId,
-    	f: Weak<Box<dyn Fn(&mut AppState, WidgetMut<'_, dyn Widget>)>>,
+    	f: Weak<Box<dyn Fn(&mut ReactiveContext, &mut Box<dyn Widget>, &mut WidgetData)>>,
 	}
 }
 
 impl Task {
-    fn run(&self, cx: &mut AppState) {
+    pub(super) fn run(&self, app_state: &mut AppState) {
         match self {
             Task::RunEffect { id, f } => {
-                cx.with_scope(Scope::Effect(*id), |cx| {
+                app_state.reactive_context.with_scope(Scope::Effect(*id), |cx| {
                     if let Some(f) = f.upgrade() {
                         f(cx)
                     }
@@ -30,51 +30,11 @@ impl Task {
             },
             Task::UpdateBinding { widget_id, f } => {
                 if let Some(f) = f.upgrade() {
-                    /*root_widget.with_child(widget_id, |node| {
-                        f(cx, node)
-                    });*/
+                    f(&mut app_state.reactive_context, &mut app_state.widgets[*widget_id], &mut app_state.widget_data[*widget_id]);
                 }
             }
         }
     }
-}
-
-pub struct Node {
-    node_type: NodeType,
-    state: NodeState
-}
-
-/*impl Node {
-    fn get_value_as<T: Any>(&self) -> Option<&T> {
-        match &self.node_type {
-            NodeType::Signal(signal) => signal.value.downcast_ref(),
-            NodeType::Memo(memo) => memo.value.as_ref().and_then(|value| value.downcast_ref()),
-            NodeType::Effect(_) => None,
-        }
-    }
-}*/
-
-enum NodeState {
-    /// Reactive value is valid, no need to recompute
-    Clean,
-    /// Reactive value might be stale, check parent nodes to decide whether to recompute
-    Check,
-    /// Reactive value is invalid, parents have changed, value needs to be recomputed
-    Dirty
-}
-
-pub enum NodeType {
-    Signal(SignalState),
-    Memo(MemoState),
-    Effect(EffectState),
-    Binding(BindingState)
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Scope {
-    Root,
-    Memo(NodeId),
-    Effect(NodeId)
 }
 
 pub(super) struct Window {
@@ -83,29 +43,20 @@ pub(super) struct Window {
 }
 
 pub struct AppState {
-    scope: Scope,
-    pending_tasks: VecDeque<Task>,
-    nodes: SlotMap<NodeId, Node>,
-    subscriptions: SecondaryMap<NodeId, HashSet<NodeId>>,
-    dependencies: SecondaryMap<NodeId, HashSet<NodeId>>,
     node_ref_counts: Rc<RefCell<RefCountMap>>,
     parameters: Box<dyn Any>,
+    windows: SlotMap<WindowId, Window>,
     pub(super) widget_data: SlotMap<WidgetId, WidgetData>,
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
     widget_bindings: SecondaryMap<NodeId, WidgetId>,
-    windows: SlotMap<WindowId, Window>,
     pub(super) mouse_capture_widget: Option<WidgetId>,
-    pub(super) focus_widget: Option<WidgetId>
+    pub(super) focus_widget: Option<WidgetId>,
+    pub(super) reactive_context: ReactiveContext,
 }
 
 impl AppState {
     pub fn new(parameters: impl Params + Any) -> Self {
         Self {
-            scope: Scope::Root,
-            pending_tasks: Default::default(),
-            nodes: Default::default(),
-            subscriptions: Default::default(),
-            dependencies: Default::default(),
             node_ref_counts: Rc::new(RefCell::new(RefCountMap::new())),
             parameters: Box::new(parameters),
             widget_data: Default::default(),
@@ -113,7 +64,8 @@ impl AppState {
             widget_bindings: Default::default(),
             windows: Default::default(),
             mouse_capture_widget: None,
-            focus_widget: None
+            focus_widget: None,
+            reactive_context: Default::default()
         }
     }
 
@@ -127,34 +79,35 @@ impl AppState {
 
     pub fn create_signal<T: Any>(&mut self, value: T) -> Signal<T> {
         let state = SignalState::new(value);
-        let id = self.create_node(NodeType::Signal(state), NodeState::Clean);
+        let id = self.reactive_context.create_signal_node(state);
         Signal::new(id, Rc::downgrade(&self.node_ref_counts))
     }
 
     pub fn create_memo<T: PartialEq + 'static>(&mut self, f: impl Fn(&mut Self) -> T + 'static) -> Memo<T> {
         let state = MemoState::new(move |cx| Box::new(f(cx)));
-        let id = self.create_node(NodeType::Memo(state), NodeState::Check);
+        let id = self.reactive_context.create_memo_node(state);
         Memo::new(id, Rc::downgrade(&self.node_ref_counts))
     }
 
-    pub fn create_binding<T: 'static>(&mut self, accessor: Accessor<T>, widget_id: WidgetId, f: impl Fn(&T, WidgetMut<'_, dyn Widget>) + 'static) -> bool {
+    pub fn create_binding<T: 'static, W: Widget + 'static>(&mut self, accessor: Accessor<T>, widget_id: WidgetId, f: impl Fn(&T, WidgetMut<'_, W>) + 'static) -> bool {
         if let Some(source_id) = accessor.get_source_id() {
-            let state = BindingState::new(widget_id, move |app_state, node| {
-                accessor.with_ref(app_state, |value| {
+            let state = BindingState::new(widget_id, move |ctx, widget, data| {
+                accessor.with_ref(ctx, |value| {
+                    let widget: &mut W = widget.downcast_mut().expect("Could not cast widget");
+                    let node = WidgetMut::new(widget, data);
                     f(value, node);
                 });
             });
-            let id = self.create_node(NodeType::Binding(state), NodeState::Clean);
-            self.add_subscription(source_id, id);
+            self.reactive_context.create_binding_node(source_id, state);
             true
         } else {
             false
         }
     }
 
-    pub fn create_effect(&mut self, f: impl Fn(&mut AppState) + 'static) {
-        let id = self.create_node(NodeType::Effect(EffectState::new(f)), NodeState::Clean);
-        self.notify(&id);
+    pub fn create_effect(&mut self, f: impl Fn(&mut ReactiveContext) + 'static) {
+        let id = self.reactive_context.create_effect_node(EffectState::new(f));
+        self.reactive_context.notify(&id);
     }
 
     pub fn add_window<W: Widget + 'static>(&mut self, handle: platform::Handle, f: impl FnOnce(&mut BuildContext) -> W) -> WindowId {
@@ -228,11 +181,11 @@ impl AppState {
     }
 
     pub fn widget_ref(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget> {
-        WidgetRef::new(id, self)
+        WidgetRef::new(&*self.widgets[id], &self.widget_data[id])
     }
 
     pub fn widget_mut(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
-        WidgetMut::new(id, self)
+        WidgetMut::new(&mut *self.widgets[id], &mut self.widget_data[id])
     }
 
     pub fn widget_has_focus(&self, id: WidgetId) -> bool {
@@ -249,14 +202,14 @@ impl AppState {
     }
 
     /// Calls `f` for each widget that conatains `pos`. The order is from the root and down the tree (depth first order)
-    pub fn for_each_widget_at(&self, id: WindowId, pos: Point, mut f: impl FnMut(&WidgetData) -> bool) {
+    pub fn for_each_widget_at(&self, id: WindowId, pos: Point, mut f: impl FnMut(&Self, WidgetId) -> bool) {
         let mut stack = vec![self.windows[id].root_widget];
         while let Some(current) = stack.pop() {
-            let data = &self.widget_data[current];
-            if !f(data) {
+            if !f(&self, current) {
                 return;
             }
 
+            let data = &self.widget_data[current];
             for child in self.widget_data[current].children.iter().rev() {
                 if data.global_bounds().contains(pos) {
                     stack.push(*child)
@@ -265,7 +218,7 @@ impl AppState {
         }
     }
 
-    pub fn for_each_widget_at_rev(&self, id: WindowId, pos: Point, mut f: impl FnMut(&WidgetData) -> bool) {
+    pub fn for_each_widget_at_rev(&self, id: WindowId, pos: Point, mut f: impl FnMut(&Self, WidgetId) -> bool) {
 		// TODO: implement
 		self.for_each_widget_at(id, pos, f)
     }
@@ -278,119 +231,12 @@ impl AppState {
         self.widget_data[widget_id].window_id
     }
 
-    fn with_scope<R>(&mut self, scope: Scope, f: impl FnOnce(&mut Self) -> R) -> R {
-        let old_scope = self.scope;
-        self.scope = scope;
-        let value = f(self);
-        self.scope = old_scope;
-        value
-    }
-
-    fn create_node(&mut self, node_type: NodeType, state: NodeState) -> NodeId {
-        let node = Node { node_type, state };
-        let id = self.nodes.insert(node);
-        self.subscriptions.insert(id, HashSet::new());
-        self.dependencies.insert(id, HashSet::new());
-        id
-    }
-
-    fn remove_node(&mut self, id: NodeId) -> Node {
-        // Remove the node's subscriptions to other nodes
-        let node_dependencies = self.dependencies.remove(id).expect("Missing dependencies for node");
-        for node_id in node_dependencies {
-            self.subscriptions[node_id].remove(&id);
-        }
-
-        // Remove other nodes' subscriptions to this node
-        let node_subscriptions = self.subscriptions.remove(id).expect("Missing subscriptions for node");
-        for node_id in node_subscriptions {
-            self.dependencies[node_id].remove(&id);
-        }
-
-        self.nodes.remove(id).expect("Missing node")
-    }
-
-    fn update_signal_value<T: Any>(&mut self, signal: &Signal<T>, f: impl FnOnce(&mut T)) {
-        {
-            let signal = self.nodes.get_mut(signal.id).expect("No signal found");
-            match &mut signal.node_type {
-                NodeType::Signal(signal) => {
-                    let mut value = signal.value.downcast_mut().expect("Invalid signal value type");
-                    f(&mut value);
-                },
-                _ => unreachable!()
-            }
-            signal.state = NodeState::Dirty;
-        }
-
-        let mut subscribers = std::mem::take(&mut self.subscriptions[signal.id]);
-        subscribers.iter().for_each(|subscriber| {
-            self.notify(subscriber);
-        });
-        std::mem::swap(&mut subscribers, &mut self.subscriptions[signal.id]);
-    }
-
-    fn track(&mut self, source_id: NodeId) {
-        match self.scope {
-            Scope::Root => { 
-                // Not in an effect/memo, nothing to track
-            },
-            Scope::Memo(node_id) | Scope::Effect(node_id) => {
-                self.add_subscription(source_id, node_id);
-            },
-        }
-    }
-
-	fn add_subscription(&mut self, source_id: NodeId, observer_id: NodeId) {
-        self.subscriptions[source_id].insert(observer_id);
-        self.dependencies[observer_id].insert(source_id);
-	}
-
-    fn remove_subscription(&mut self, source_id: NodeId, observer_id: NodeId) {
-        self.subscriptions[source_id].remove(&observer_id);
-        self.dependencies[observer_id].remove(&source_id);
-    }
-
-    fn notify(&mut self, node_id: &NodeId) {
-        let node = self.nodes.get_mut(*node_id).expect("Node has been removed");
-        match &mut node.node_type {
-            NodeType::Effect(effect) => {
-                let task = Task::RunEffect { 
-                    id: *node_id, 
-                    f: Rc::downgrade(&effect.f)
-                };
-				self.pending_tasks.push_back(task);
-            },
-            NodeType::Binding(BindingState { widget_id, f }) => {
-				let task = Task::UpdateBinding { 
-                    widget_id: widget_id.clone(),
-                    f: Rc::downgrade(&f)
-                };
-				self.pending_tasks.push_back(task);
-                todo!()
-            },
-            NodeType::Memo(_) => todo!(),
-            NodeType::Signal(_) => unreachable!(),
-        }
-    }
-
-    fn get_memo_value_ref_untracked<'a, T: Any>(&'a self, memo: &Memo<T>) -> &'a T {
-        todo!()
-    }
-
-    fn get_memo_value_ref<'a, T: Any>(&'a mut self, memo: &Memo<T>) -> &'a T {
-        self.track(memo.id);
-        self.get_memo_value_ref_untracked(memo)
-    }
-
-    /*pub fn create_stateful_effect<S>(&mut self, f_init: impl FnOnce() -> S, f: impl Fn(S) -> S) {
-
-    }*/
-
     pub fn run_effects(&mut self) {
+        let mut tasks = self.reactive_context.take_tasks();
         loop {
-            if let Some(task) = self.pending_tasks.pop_front() {
-                task.run(self)
+            if let Some(task) = tasks.pop_front() {
+                task.run(self);
+                tasks.extend(self.reactive_context.take_tasks().into_iter());
             } else {
                 break;
             }
@@ -400,20 +246,15 @@ impl AppState {
 
 impl SignalContext for AppState {
     fn get_signal_value_ref_untracked<'a, T: Any>(&'a self, signal: &Signal<T>) -> &'a T {
-        let node = self.nodes.get(signal.id).expect("No Signal found");
-        match &node.node_type {
-            NodeType::Signal(signal) => signal.value.downcast_ref().expect("Node had wrong value type"),
-            _ => unreachable!()
-        }
+        self.reactive_context.get_signal_value_ref_untracked(signal)
     }
 
     fn get_signal_value_ref<'a, T: Any>(&'a mut self, signal: &Signal<T>) -> &'a T {
-        self.track(signal.id);
-        self.get_signal_value_ref_untracked(signal)
+        self.reactive_context.get_signal_value_ref(signal)
     }
 
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
-        self.update_signal_value(signal, move |x| { *x = value });
+        self.reactive_context.set_signal_value(signal, value)
     }
 }
 

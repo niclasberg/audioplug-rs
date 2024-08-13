@@ -49,8 +49,7 @@ struct WindowState {
 
 impl WindowState {
     fn publish_event(&self, hwnd: HWND, event: WindowEvent) {
-        let mut handle = Handle::new(hwnd);
-        self.handler.borrow_mut().event(event.into(), &mut handle);
+        self.handler.borrow_mut().event(event.into());
     }
 
     fn handle_message(&self, hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {

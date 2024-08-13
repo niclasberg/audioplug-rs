@@ -1,4 +1,4 @@
-use std::{any::Any, ops::{Deref, DerefMut}};
+use std::{any::{Any, TypeId}, ops::{Deref, DerefMut}};
 
 use crate::{core::Cursor, KeyEvent, MouseEvent};
 
@@ -20,15 +20,7 @@ pub enum StatusChange {
     MouseCaptureLost
 }
 
-pub trait DowncastWidget {
-    fn as_any(&self) -> &'_ dyn Any 
-        where Self : 'static;
-
-    fn as_any_mut(&mut self) -> &'_ mut dyn Any 
-        where Self : 'static;
-}
-
-pub trait Widget {
+pub trait Widget: Any {
     fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         ctx.forward_to_children(event)
     }
@@ -54,21 +46,25 @@ pub trait Widget {
     fn render(&mut self, ctx: &mut RenderContext);
 }
 
-impl<W: Widget> DowncastWidget for W {
-    fn as_any(&self) -> &'_ dyn Any 
-        where Self : 'static 
-    {
-        self    
+impl dyn Widget + 'static {
+    pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
+        if self.type_id() == TypeId::of::<T>() {
+            Some(unsafe { &*(self as *const _ as *const T) })
+        } else {
+            None
+        }
     }
-    
-    fn as_any_mut(&mut self) -> &'_ mut dyn Any 
-        where Self : 'static 
-    {
-        self
+
+    pub fn downcast_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        if self.type_id() == TypeId::of::<T>() {
+            Some(unsafe { &mut *(self as *mut _ as *mut T) })
+        } else {
+            None
+        }
     }
 }
 
-impl Widget for Box<dyn Widget> {
+/*impl Widget for Box<dyn Widget> {
 	fn debug_label(&self) -> &'static str {
 		self.deref().debug_label()
 	}
@@ -100,4 +96,4 @@ impl Widget for Box<dyn Widget> {
     fn style(&self) -> taffy::Style {
         self.deref().style()
     }
-}
+}*/

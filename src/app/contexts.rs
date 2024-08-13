@@ -8,17 +8,9 @@ pub struct BuildContext<'a> {
 }
 
 impl<'a> BuildContext<'a> {
-    pub fn get_and_track<W: Widget, T: Clone + 'static>(&mut self, accessor: Accessor<T>, f: impl Fn(&T, WidgetMut<'_, W>) + 'static) -> T {
+    pub fn get_and_track<W: Widget + 'static, T: Clone + 'static>(&mut self, accessor: Accessor<T>, f: impl Fn(&T, WidgetMut<'_, W>) + 'static) -> T {
         let value = accessor.get_untracked(self.app_state);
-        let binding = self.app_state.create_binding(accessor, self.id, move |value, widget_node| {
-            /*let mut ctx = WidgetContext {
-                widget_data: &mut widget_node.data,
-            };
-            // SAFETY: The window class guarantees that the message is dispatched to *this* widget
-            let widget = unsafe { &mut *(widget_node.widget.as_mut() as *mut dyn Widget as *mut W) };
-            f(value, &mut ctx, widget)*/
-            todo!()
-        });
+        self.app_state.create_binding(accessor, self.id, f);
         value
     }
 

@@ -1,6 +1,6 @@
 use audioplug::app::SignalSet;
-use audioplug::core::{Color, Size, Alignment, Shape, Rectangle, Point};
-use audioplug::view::{Button, Checkbox, Column, Fill, Label, Row, Scroll, Slider, TextBox, View};
+use audioplug::core::{Color, Size, Alignment, Rectangle, Point};
+use audioplug::view::{Button, Checkbox, Column, Fill, Label, Row, Slider, TextBox, View};
 use audioplug::{window::*, App};
 
 fn main() {

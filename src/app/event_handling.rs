@@ -12,9 +12,9 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             match mouse_event {
                 MouseEvent::Down { position, .. } => {
                     let mut new_focus_view = None;
-                    app_state.for_each_widget_at_rev(window_id, position, |data| {
-                        if data.flag_is_set(WidgetFlags::FOCUSABLE) {
-                            new_focus_view = Some(data.id);
+                    app_state.for_each_widget_at_rev(window_id, position, |app_state, id| {
+                        if app_state.widget_data[id].flag_is_set(WidgetFlags::FOCUSABLE) {
+                            new_focus_view = Some(id);
                             false
                         } else {
                             true

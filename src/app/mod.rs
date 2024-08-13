@@ -10,6 +10,7 @@ mod param_signal;
 mod ref_count_map;
 mod render;
 mod signal;
+mod reactive_context;
 mod widget;
 mod widget_node;
 
@@ -23,9 +24,10 @@ pub use layout::{LayoutContext, layout_window};
 pub use memo::Memo;
 pub(crate) use ref_count_map::{RefCountMap, WeakRefCountMap};
 pub use render::{RenderContext, render_window, invalidate_window};
+pub use reactive_context::*;
 pub use signal::Signal;
 use slotmap::new_key_type;
-pub use widget::{EventStatus, StatusChange, Widget, DowncastWidget};
+pub use widget::{EventStatus, StatusChange, Widget};
 pub use widget_node::{WidgetData, WidgetRef, WidgetMut, WidgetId};
 
 use crate::platform;
