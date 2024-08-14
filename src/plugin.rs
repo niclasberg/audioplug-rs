@@ -36,7 +36,6 @@ pub trait Plugin {
 
     fn new() -> Self;
     fn reset(&mut self, sample_rate: f64);
-    fn editor(&self) -> Self::Editor;
 
     fn process(&mut self, context: ProcessContext, parameters: &Self::Parameters);
 }

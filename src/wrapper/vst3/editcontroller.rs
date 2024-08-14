@@ -14,20 +14,22 @@ use vst3_sys as vst3_com;
 
 use crate::app::AppState;
 use crate::param::{NormalizedValue, ParamRef, ParameterGetter, ParameterId, Params, PlainValue};
+use crate::Editor;
 
 use super::plugview::PlugView;
 use super::util::strcpyw;
 
 
 #[VST3(implements(IEditController))]
-pub struct EditController<P: Params> {
+pub struct EditController<P: Params, E: Editor<P>> {
     component_handler: Cell<Option<VstPtr<dyn IComponentHandler>>>,
     parameters: HashMap<ParameterId, ParameterGetter<P>>,
     app_state: Rc<RefCell<AppState>>,
+	editor: Rc<RefCell<E>>,
     _phantom: PhantomData<P>
 }
 
-impl<P: Params> EditController<P> {
+impl<P: Params, E: Editor<P>> EditController<P, E> {
     pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 14] };
 
     pub fn new() -> Box<Self> {
@@ -35,7 +37,9 @@ impl<P: Params> EditController<P> {
         let parameters: HashMap<ParameterId, ParameterGetter<P>> = P::PARAMS.iter()
 			.map(|getter| (getter(&params).id(), *getter))
 			.collect();
-        Self::allocate(Cell::new(None), parameters, Rc::new(RefCell::new(AppState::new(params))), PhantomData)
+		let app_state = Rc::new(RefCell::new(AppState::new(params)));
+		let editor = Rc::new(RefCell::new(E::new()));
+        Self::allocate(Cell::new(None), parameters, app_state, editor, PhantomData)
     }
 
 	fn with_param_ref<T>(&self, id: ParameterId, f: impl FnOnce(Option<ParamRef<'_>>) -> T) -> T {
@@ -53,7 +57,7 @@ impl<P: Params> EditController<P> {
     }
 }
 
-impl<P: Params> IEditController for EditController<P> {
+impl<P: Params, E: Editor<P>> IEditController for EditController<P, E> {
     unsafe fn set_component_state(&self, _state: SharedVstPtr<dyn IBStream>) -> tresult {
         kResultOk
     }
@@ -149,12 +153,11 @@ impl<P: Params> IEditController for EditController<P> {
 		self.component_handler.set(component_handler.clone());
 		
 		component_handler.map_or(std::ptr::null_mut(), |component_handler|
-			PlugView::<P>::create_instance(component_handler, self.app_state.clone()))
-        
+			PlugView::create_instance(component_handler, self.app_state.clone(), self.editor.clone()))
     }
 }
 
-impl<P: Params> IPluginBase for EditController<P> {
+impl<P: Params, E: Editor<P>> IPluginBase for EditController<P, E> {
     unsafe fn initialize(&self, _context: *mut c_void) -> tresult {
         kResultOk
     }

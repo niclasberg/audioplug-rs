@@ -136,6 +136,10 @@ impl<'a> AppContext<'a> {
     pub fn create_effect(&mut self, f: impl Fn(&mut ReactiveContext) + 'static) {
         self.app_state.create_effect(f)
     }
+
+	pub fn app_state(&self) -> &AppState {
+		&self.app_state
+	}
 }
 
 impl<'b> SignalContext for AppContext<'b> {

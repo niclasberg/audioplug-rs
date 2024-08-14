@@ -49,7 +49,8 @@ impl Window {
 		let parent = unsafe { &*(handle.ns_view.as_ptr() as *mut NSView) };
 		let view = View::new(mtm, widget);
 		unsafe { parent.addSubview(&view) };
-		
+		unsafe { view.setFrame(parent.frame()) };
+
 		Ok(Self::AttachedToView(view))
 	}
 

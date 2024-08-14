@@ -22,10 +22,6 @@ impl Plugin for TestPlugin {
         
     }
 
-    fn editor(&self) -> Self::Editor {
-        todo!()
-    }
-
     fn process(&mut self, context: audioplug::ProcessContext, _parameters: &()) {
         todo!()
     }

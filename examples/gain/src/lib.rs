@@ -1,7 +1,8 @@
 use std::ffi::c_void;
-use audioplug::core::Color;
+use audioplug::core::{Color, Size};
 use audioplug::param::{BoolParameter, FloatParameter, FloatRange, Parameter, ParameterId};
-use audioplug::view::Label;
+use audioplug::view::{AnyView, Label, View};
+use audioplug::window::AppContext;
 use audioplug::{params, AudioLayout, Bus, ChannelType, Editor, Plugin, ProcessContext};
 use audioplug::wrapper::vst3::Factory;
 
@@ -14,8 +15,16 @@ struct MyEditor {
 }
 
 impl Editor<MyPluginParams> for MyEditor {
-    fn view(&self, _parameters: &MyPluginParams) -> impl audioplug::view::View {
-        Label::new("Text input").with_color(Color::BLUE)
+	fn new() -> Self {
+		Self {}
+	}
+
+	fn prefered_size(&self) -> Option<Size> {
+		Some(Size::new(540.0, 480.0))
+	}
+
+    fn view(&self, _ctx: &mut AppContext, _parameters: &MyPluginParams) -> AnyView {
+        Label::new("Text input").with_color(Color::BLUE).as_any()
     }
 }
 
@@ -57,10 +66,6 @@ impl Plugin for MyPlugin {
 
     fn reset(&mut self, _sample_rate: f64) {
         
-    }
-
-    fn editor(&self) -> Self::Editor {
-        MyEditor {}
     }
 
     fn process(&mut self, ctx: ProcessContext, parameters: &MyPluginParams) {

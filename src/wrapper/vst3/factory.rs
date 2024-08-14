@@ -54,7 +54,7 @@ impl<P: Plugin> IPluginFactory for Factory<P> {
                 kResultOk
             },
             1 => {
-                info.cid = EditController::<P::Parameters>::CID;
+                info.cid = EditController::<P::Parameters, P::Editor>::CID;
                 strcpy((P::NAME.to_owned() + " edit controller").as_str(), &mut info.name);
                 strcpy("Component Controller Class", &mut info.category);
                 info.cardinality = ClassCardinality::kManyInstances as i32;
@@ -75,8 +75,8 @@ impl<P: Plugin> IPluginFactory for Factory<P> {
                 *obj = Vst3Plugin::<P>::create_instance();
                 kResultOk
             },
-            EditController::<P::Parameters>::CID => {
-                *obj = EditController::<P::Parameters>::create_instance();
+            EditController::<P::Parameters, P::Editor>::CID => {
+                *obj = EditController::<P::Parameters, P::Editor>::create_instance();
                 kResultOk
             }
             _ => kResultFalse,

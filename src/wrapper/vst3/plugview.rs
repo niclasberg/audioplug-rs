@@ -12,8 +12,8 @@ use std::rc::Rc;
 use crate::app::AppState;
 use crate::core::{Color, Rectangle, Size, Point};
 use crate::param::Params;
-use crate::view::Fill;
 use crate::window::Window;
+use crate::Editor;
 
 #[cfg(target_os = "windows")]
 use {
@@ -31,24 +31,25 @@ const VST3_PLATFORM_NSVIEW: &str = "NSView";
 
 use vst3_sys as vst3_com;
 #[VST3(implements(IPlugView))]
-pub struct PlugView<P: Params> {
+pub struct PlugView<P: Params, E: Editor<P>> {
     window: RefCell<Option<Window>>,
     component_handler: VstPtr<dyn IComponentHandler>,
     app_state: Rc<RefCell<AppState>>,
+	editor: Rc<RefCell<E>>,
     _phantom: PhantomData<P>
 }
 
-impl<P: Params> PlugView<P> {
-    pub fn new(component_handler: VstPtr<dyn IComponentHandler>, app_state: Rc<RefCell<AppState>>) -> Box<Self> {
-        Self::allocate(RefCell::new(None), component_handler, app_state, PhantomData)
+impl<P: Params, E: Editor<P>> PlugView<P, E> {
+    pub fn new(component_handler: VstPtr<dyn IComponentHandler>, app_state: Rc<RefCell<AppState>>, editor: Rc<RefCell<E>>) -> Box<Self> {
+        Self::allocate(RefCell::new(None), component_handler, app_state, editor, PhantomData)
     }
 
-    pub fn create_instance(component_handler: VstPtr<dyn IComponentHandler>, app_state: Rc<RefCell<AppState>>) -> *mut c_void {
-        Box::into_raw(Self::new(component_handler, app_state)) as *mut c_void
+    pub fn create_instance(component_handler: VstPtr<dyn IComponentHandler>, app_state: Rc<RefCell<AppState>>, editor: Rc<RefCell<E>>) -> *mut c_void {
+        Box::into_raw(Self::new(component_handler, app_state, editor)) as *mut c_void
     }
 }
 
-impl<P: Params> IPlugView for PlugView<P> {
+impl<P: Params, E: Editor<P>> IPlugView for PlugView<P, E> {
     unsafe fn is_platform_type_supported(&self, type_: FIDString) -> tresult {
         let type_ = CStr::from_ptr(type_);
         match type_.to_str() {
@@ -84,7 +85,12 @@ impl<P: Params> IPlugView for PlugView<P> {
                 }
             };
 
-            *window = Some(Window::attach(self.app_state.clone(), handle, |_| Rectangle::new(Point::ZERO, Size::new(20.0, 20.0)).fill(Color::BLACK)));
+			let _editor = self.editor.clone();
+            *window = Some(Window::attach(self.app_state.clone(), handle, move |ctx| {
+				let editor = RefCell::borrow(&_editor);
+				let params = P::default();
+				editor.view(ctx, &params)
+			}));
 
             kResultOk
         } else {
@@ -110,7 +116,24 @@ impl<P: Params> IPlugView for PlugView<P> {
         kResultOk
     }
 
-    unsafe fn get_size(&self, _size: *mut ViewRect) -> tresult {
+    unsafe fn get_size(&self, size: *mut ViewRect) -> tresult {
+		if size.is_null() {
+            return kInvalidArgument;
+        }
+		if let Some(window) = self.window.borrow().as_ref() {
+			let new_size = &mut *size;
+			new_size.left = 0;
+			new_size.right = 500;
+			new_size.top = 0;
+			new_size.bottom = 500;
+		} else if let Some(pref_size) = self.editor.borrow().prefered_size() {
+			let new_size = &mut *size;
+			new_size.left = 0;
+			new_size.right = pref_size.width as i32;
+			new_size.top = 0;
+			new_size.bottom = pref_size.height as i32;
+		}
+
         kResultOk
     }
 
@@ -138,6 +161,7 @@ impl<P: Params> IPlugView for PlugView<P> {
     }
 
     unsafe fn set_frame(&self, _frame: *mut c_void) -> tresult {
+		// The void pointer is a IPlugFrame which can be used to resize the window
         kResultOk
     }
 
@@ -145,7 +169,13 @@ impl<P: Params> IPlugView for PlugView<P> {
         kResultTrue
     }
 
-    unsafe fn check_size_constraint(&self, _rect: *mut ViewRect) -> tresult {
+    unsafe fn check_size_constraint(&self, rect: *mut ViewRect) -> tresult {
+		if rect.is_null() {
+            return kInvalidArgument;
+        }
+        let rect = &mut *rect;
+
+
         kResultOk
     }
 }

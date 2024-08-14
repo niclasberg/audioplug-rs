@@ -24,10 +24,6 @@ impl Plugin for TestPlugin {
         
     }
 
-    fn editor(&self) -> Self::Editor {
-        GenericEditor::new()
-    }
-
     fn process(&mut self, context: audioplug::ProcessContext, _parameters: &()) {
         
     }

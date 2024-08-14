@@ -154,7 +154,7 @@ impl<P: Plugin> IPluginBase for Vst3Plugin<P> {
 
 impl<P: Plugin> IComponent for Vst3Plugin<P> {
     unsafe fn get_controller_class_id(&self, tuid: *mut IID) -> tresult {
-        *tuid = EditController::<P::Parameters>::CID;
+        *tuid = EditController::<P::Parameters, P::Editor>::CID;
         kResultOk
     }
 
