@@ -2,7 +2,7 @@ use std::{any::Any, cell::RefCell, collections::VecDeque, ops::DerefMut, rc::{Rc
 use slotmap::{Key, SecondaryMap, SlotMap};
 use crate::{core::{Point, Rectangle}, param::Params, platform};
 
-use super::{binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, ref_count_map::RefCountMap, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, ReactiveContext, Scope, SignalContext, SignalGet, Widget, WindowId};
+use super::{binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, ReactiveContext, Scope, SignalContext, SignalGet, Widget, WindowId};
 use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
@@ -51,7 +51,6 @@ pub(super) struct Window {
 }
 
 pub struct AppState {
-    node_ref_counts: Rc<RefCell<RefCountMap>>,
     parameters: Box<dyn Any>,
     windows: SlotMap<WindowId, Window>,
     pub(super) widget_data: SlotMap<WidgetId, WidgetData>,
@@ -65,7 +64,6 @@ pub struct AppState {
 impl AppState {
     pub fn new(parameters: impl Params + Any) -> Self {
         Self {
-            node_ref_counts: Rc::new(RefCell::new(RefCountMap::new())),
             parameters: Box::new(parameters),
             widget_data: Default::default(),
             widgets: Default::default(),
@@ -88,13 +86,13 @@ impl AppState {
     pub fn create_signal<T: Any>(&mut self, value: T) -> Signal<T> {
         let state = SignalState::new(value);
         let id = self.reactive_context.create_signal_node(state);
-        Signal::new(id, Rc::downgrade(&self.node_ref_counts))
+        Signal::new(id)
     }
 
     pub fn create_memo<T: PartialEq + 'static>(&mut self, f: impl Fn(&mut Self) -> T + 'static) -> Memo<T> {
         let state = MemoState::new(move |cx| Box::new(f(cx)));
         let id = self.reactive_context.create_memo_node(state);
-        Memo::new(id, Rc::downgrade(&self.node_ref_counts))
+        Memo::new(id)
     }
 
     pub fn create_binding<T: 'static, W: Widget + 'static>(&mut self, accessor: Accessor<T>, widget_id: WidgetId, f: impl Fn(&T, WidgetMut<'_, W>) + 'static) -> bool {

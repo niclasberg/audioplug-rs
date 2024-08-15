@@ -29,6 +29,7 @@ impl_view_seq_tuple!(3; V1, V2, V3; 0, 1, 2);
 impl_view_seq_tuple!(4; V1, V2, V3, V4; 0, 1, 2, 3);
 impl_view_seq_tuple!(5; V1, V2, V3, V4, V5; 0, 1, 2, 3, 4);
 impl_view_seq_tuple!(6; V1, V2, V3, V4, V5, V6; 0, 1, 2, 3, 4, 5);
+impl_view_seq_tuple!(7; V1, V2, V3, V4, V5, V6, V7; 0, 1, 2, 3, 4, 5, 6);
 
 impl<V: View> ViewSequence for Vec<V> {
     fn build(self, ctx: &mut BuildContext) {

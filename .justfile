@@ -12,7 +12,7 @@ _build target="gain":
 _bundle_vst name target_dir: (_build name)
     md {{target_dir}}/{{name}}.vst3/Contents/Resources -Force
     md {{target_dir}}/{{name}}.vst3/Contents/x86_64-win -Force
-    cp target/debug/lib{{name}}.dll {{target_dir}}/{{name}}.vst3/Contents/x86_64-win/{{name}}.vst3
+    cp target/debug/{{name}}.dll {{target_dir}}/{{name}}.vst3/Contents/x86_64-win/{{name}}.vst3
 
 [macos]
 _bundle_vst name target_dir: (_build name)
@@ -29,3 +29,6 @@ _bundle_au name target_dir: (_build name)
     cp examples/{{name}}/AU/Info.plist {{target_dir}}
     codesign --force --sign - -o runtime --entitlements ./examples/{{name}}/AU/entitlements.plist --timestamp=none "./target/debug/rusttest.app/Contents/PlugIns/rusttest.appex"
     codesign --force --sign - --timestamp=none "./target/debug/rusttest.app"
+
+[windows]
+_bundle_au name target_dir:

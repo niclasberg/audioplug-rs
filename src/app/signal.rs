@@ -1,19 +1,17 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{RefCountMap, WeakRefCountMap, NodeId, SignalContext, SignalGet, SignalSet, SignalUpdate};
+use super::{NodeId, SignalContext, SignalGet, SignalSet, SignalUpdate};
 
+#[derive(Clone, Copy)]
 pub struct Signal<T> {
     pub(super) id: NodeId,
-    ref_count_map: WeakRefCountMap,
     _marker: PhantomData<T>
 }
 
 impl<T: Any> Signal<T> {
-    pub(super) fn new(id: NodeId, ref_count_map: WeakRefCountMap) -> Self {
-        RefCountMap::insert(&ref_count_map, id);
+    pub(super) fn new(id: NodeId) -> Self {
         Self {
             id,
-            ref_count_map,
             _marker: PhantomData
         }
     }
@@ -21,23 +19,6 @@ impl<T: Any> Signal<T> {
     pub fn update(&self, cx: &mut impl SignalContext, f: impl Fn(&T) -> T) {
         let new_value = self.with_ref_untracked(cx, f);
         self.set(cx, new_value);
-    }
-}
-
-impl<T> Clone for Signal<T> {
-    fn clone(&self) -> Self {
-        RefCountMap::increment_ref_count(&self.ref_count_map, self.id);
-        Self { 
-            id: self.id, 
-            ref_count_map: self.ref_count_map.clone(), 
-            _marker: PhantomData 
-        }
-    }
-}
-
-impl<T> Drop for Signal<T> {
-    fn drop(&mut self) {
-        RefCountMap::decrement_ref_count(&self.ref_count_map, self.id);
     }
 }
 

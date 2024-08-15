@@ -110,6 +110,10 @@ impl TextLayout {
         }
     }
 
+    pub fn color(&self) -> Color {
+        self.color
+    }
+
     pub fn measure(&self) -> Size {
         let mut textmetrics = DirectWrite::DWRITE_TEXT_METRICS::default();
         unsafe { self.text_layout.GetMetrics(&mut textmetrics as _).unwrap(); }

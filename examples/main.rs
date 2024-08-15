@@ -10,10 +10,12 @@ fn main() {
     let mut app = App::new();
     let _ = Window::open(&mut app, |ctx| {  
         let checkbox_enabled = ctx.create_signal(false);
+        let text = ctx.create_signal("".to_ascii_lowercase().to_string());
 
         Column::new((
             Rectangle::new(Point::ZERO, Size::new(50.0, 10.0)).fill(Color::BLUE),
             Rectangle::new(Point::ZERO, Size::new(50.0, 10.0)).fill(Color::RED),
+            Label::new(text.clone()),
 			Row::new((
 				Label::new("Slider"),
 				Slider::new().with_range(1.0, 10.0).with_style(|style| {
@@ -33,7 +35,7 @@ fn main() {
             )).with_spacing(5.0),
             Row::new((
                 Label::new("Text input").with_color(Color::BLUE),
-                TextBox::new()
+                TextBox::new().on_input(move |cx, str| text.set(cx, str.to_string()))
             )).with_spacing(5.0)
         )).with_alignment(Alignment::Leading)
         .with_spacing(5.0)

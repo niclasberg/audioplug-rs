@@ -1,38 +1,20 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{RefCountMap, WeakRefCountMap, NodeId, AppState, SignalContext, SignalGet};
+use super::{NodeId, AppState, SignalContext, SignalGet};
 
 
+#[derive(Clone, Copy)]
 pub struct Memo<T> {
     pub(super) id: NodeId,
-    ref_count_map: WeakRefCountMap,
     _marker: PhantomData<T>
 }
 
 impl<T> Memo<T> {
-    pub fn new(id: NodeId, ref_count_map: WeakRefCountMap) -> Self {
+    pub fn new(id: NodeId) -> Self {
         Self {
             id,
-            ref_count_map,
             _marker: PhantomData
         }
-    }
-}
-
-impl<T> Clone for Memo<T> {
-    fn clone(&self) -> Self {
-        RefCountMap::increment_ref_count(&self.ref_count_map, self.id);
-        Self { 
-            id: self.id, 
-            ref_count_map: self.ref_count_map.clone(), 
-            _marker: PhantomData 
-        }
-    }
-}
-
-impl<T> Drop for Memo<T> {
-    fn drop(&mut self) {
-        RefCountMap::decrement_ref_count(&self.ref_count_map, self.id);
     }
 }
 

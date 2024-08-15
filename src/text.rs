@@ -33,12 +33,11 @@ impl TextLayout {
     }
 
     pub fn as_str(&self) -> &str {
-		todo!()
-        //self.0.as_str()
+        self.0.as_str()
     }
 
-    pub fn color(&self) -> &Color {
-        todo!()
+    pub fn color(&self) -> Color {
+        self.0.color()
     }
 
     pub fn set_color(&mut self, _color: Color) {

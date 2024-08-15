@@ -1,18 +1,25 @@
 use std::ops::Range;
-use crate::{app::{BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Cursor, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, MouseEvent};
+use crate::{app::{AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Cursor, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, MouseEvent};
 use unicode_segmentation::{UnicodeSegmentation, GraphemeCursor};
 
 use super::View;
 
 pub struct TextBox {
-    width: f64
+    width: f64,
+    input_changed_fn: Option<Box<dyn Fn(&mut AppState, &str)>>
 }
 
 impl TextBox {
     pub fn new() -> Self {
         Self {
-            width: 100.0
+            width: 100.0,
+            input_changed_fn: None
         }
+    }
+
+    pub fn on_input(mut self, f: impl Fn(&mut AppState, &str) + 'static) -> Self {
+        self.input_changed_fn = Some(Box::new(f));
+        self
     }
 }
 
@@ -27,7 +34,8 @@ impl View for TextBox {
             text_layout: TextLayout::new("", Color::BLACK, Size::ZERO), 
             cursor_on: true, 
             last_cursor_timestamp: 0.0,
-            is_mouse_selecting: false
+            is_mouse_selecting: false,
+            input_changed_fn: self.input_changed_fn
         }
     }
 }
@@ -39,6 +47,7 @@ pub struct TextBoxWidget {
     cursor_on: bool,
     last_cursor_timestamp: f64,
     is_mouse_selecting: bool,
+    input_changed_fn: Option<Box<dyn Fn(&mut AppState, &str)>>
 }
 
 struct Editor {
@@ -285,6 +294,9 @@ impl Widget for TextBoxWidget {
         let rebuild_text_layout = |this: &mut Self, ctx: &mut EventContext| {
             this.text_layout = TextLayout::new(&this.editor.value, Color::BLACK, Size::INFINITY);
             ctx.request_render();
+            if let Some(f) = &this.input_changed_fn {
+                f(ctx.app_state_mut(), &this.editor.value);
+            }
         };
 
         match event {
