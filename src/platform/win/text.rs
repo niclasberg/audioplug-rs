@@ -78,7 +78,12 @@ impl TextLayout {
 
             if result.is_ok() {
                 let metric = metric.assume_init();
-                Some(metric.textPosition as usize)
+                let utf16_text_position = if istrailinghit.as_bool() {
+                    metric.textPosition + metric.length
+                } else {
+                   metric.textPosition
+                };
+                util::count_until_utf16(&self.string, utf16_text_position as usize).or(Some(self.string.len()))
             } else {
                 None
             }
@@ -91,13 +96,13 @@ impl TextLayout {
             assert!(self.string.is_char_boundary(index));
             let index = util::count_utf16(&self.string[..index]);
 
+            let is_trailing_hit: BOOL = false.into();
             let mut metric = std::mem::MaybeUninit::uninit();
-            let istrailinghit: BOOL = false.into();
             let mut pointx = std::mem::MaybeUninit::uninit();
             let mut pointy = std::mem::MaybeUninit::uninit();
             self.text_layout.HitTestTextPosition(
                 index as u32, 
-                istrailinghit, 
+                is_trailing_hit, 
                 pointx.as_mut_ptr(), 
                 pointy.as_mut_ptr(), 
                 metric.as_mut_ptr()

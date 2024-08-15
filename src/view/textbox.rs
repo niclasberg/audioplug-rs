@@ -454,20 +454,21 @@ impl Widget for TextBoxWidget {
 		let stroke_color = if ctx.has_focus() { Color::RED } else { Color::from_rgb(0.3, 0.3, 0.3) };
         ctx.stroke(bounds.shrink(1.0), stroke_color, 1.0);
 
-        ctx.use_clip(bounds, |ctx| {
+        let text_bounds = ctx.content_bounds();
+        ctx.use_clip(text_bounds, |ctx| {
             if let Some(selection) = self.editor.selection() {
                 let left = self.text_layout.point_at_text_index(selection.start);
                 let right = self.text_layout.point_at_text_index(selection.end);
-                let rect = Rectangle::from_points(bounds.top_left() + left, bounds.bottom_left() + right);
+                let rect = Rectangle::from_points(text_bounds.top_left() + left, text_bounds.bottom_left() + right);
                 ctx.fill(rect, Color::from_rgb8(68, 85, 90));
             }
 
-            ctx.draw_text(&self.text_layout, bounds.position());
+            ctx.draw_text(&self.text_layout, text_bounds.position());
             
             if ctx.has_focus() && self.cursor_on {
                 let cursor_point = self.text_layout.point_at_text_index(self.editor.position);
-                let p0 = bounds.bottom_left() + cursor_point; 
-                let p1 = bounds.top_left() + cursor_point;
+                let p0 = text_bounds.bottom_left() + cursor_point; 
+                let p1 = text_bounds.top_left() + cursor_point;
                 ctx.fill(Shape::line(p0, p1), Color::BLACK);
             }
         });

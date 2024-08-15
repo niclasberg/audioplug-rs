@@ -39,6 +39,10 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
         self.app_state.widget_data_ref(self.id).global_bounds()
     }
 
+    pub fn content_bounds(&self) -> Rectangle {
+        self.app_state.widget_data_ref(self.id).content_bounds()
+    }
+
     pub fn has_focus(&self) -> bool {
         self.app_state.widget_has_focus(self.id)
     }

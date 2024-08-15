@@ -30,10 +30,10 @@ impl View for Label {
 			});
             widget.request_layout();
         });
-        let color = ctx.get_and_track(self.color, |value, widget: WidgetMut<'_, Self::Element>| {
+        let color = ctx.get_and_track(self.color, |value, mut widget: WidgetMut<'_, Self::Element>| {
+            widget.request_render();
             let mut text_layout = widget.text_layout.borrow_mut();
 			text_layout.set_color(*value);
-            //widget.request_render();
         });
 
         let text_layout = RefCell::new(TextLayout::new(text.as_str(), color, Size::INFINITY));

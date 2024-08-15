@@ -4,7 +4,7 @@ fn main() {
     let mut app = App::new();
     let _ = Window::open(&mut app, |ctx| {  
         let count = ctx.create_signal(0);
-        let text = count.clone().map(|cnt| format!("Count is {}", cnt));
+        let text = count.map(|cnt| format!("Count is {}", cnt));
         Column::new((
             Label::new("hi"),
 			Button::new(Label::new("Increase"))

@@ -71,12 +71,43 @@ impl WidgetData {
         self.id
     }
 
+    /// Local bounds of the widget, relative to its parent 
     pub fn local_bounds(&self) -> Rectangle {
         Rectangle::new(self.offset(), self.size())
     }
 
+    /// Bounds of the widget, in global coords, including borders and padding
     pub fn global_bounds(&self) -> Rectangle {
         Rectangle::new(self.origin(), self.size())
+    }
+
+    fn subtract_padding_and_border(&self, rect: Rectangle) -> Rectangle {
+        Rectangle::from_ltrb(
+            rect.left() + (self.layout.border.left + self.layout.padding.left) as f64, 
+            rect.top() + (self.layout.border.top + self.layout.padding.top) as f64, 
+            rect.right() - (self.layout.border.right + self.layout.padding.right) as f64, 
+            rect.bottom() - (self.layout.border.bottom + self.layout.padding.bottom) as f64)
+    }
+
+    /// Bounds of the widget, in global coords, excluding borders and padding
+    pub fn content_bounds(&self) -> Rectangle {
+        self.subtract_padding_and_border(self.global_bounds())
+    }
+
+    pub fn border(&self) -> Rectangle {
+        Rectangle::from_ltrb(
+            self.layout.border.left as f64, 
+            self.layout.border.top as f64, 
+            self.layout.border.right as f64, 
+            self.layout.border.bottom as f64)
+    }
+
+    pub fn padding(&self) -> Rectangle {
+        Rectangle::from_ltrb(
+            self.layout.padding.left as f64, 
+            self.layout.padding.top as f64, 
+            self.layout.padding.right as f64, 
+            self.layout.padding.bottom as f64)
     }
 
     pub fn set_flag(&mut self, flag: WidgetFlags) {
