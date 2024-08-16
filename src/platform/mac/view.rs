@@ -120,13 +120,8 @@ declare_class!(
 		fn draw_rect(&self, rect: NSRect) {
 			let graphics_context = NSGraphicsContext::current().unwrap();
 			let context = graphics_context.cg_context();
-
-			let color = CGColor::from_rgba(1.0, 0.0, 1.0, 1.0);
-			context.set_fill_color(&color);
-			context.fill_rect(rect);
-			
 			let renderer = RendererRef::new(context);
-
+			
 			self.ivars().handler.borrow_mut().render(
 				rect.into(),
 				renderer

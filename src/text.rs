@@ -36,10 +36,6 @@ impl TextLayout {
         self.0.as_str()
     }
 
-    pub fn color(&self) -> Color {
-        self.0.color()
-    }
-
     pub fn set_color(&mut self, _color: Color) {
         
     }
