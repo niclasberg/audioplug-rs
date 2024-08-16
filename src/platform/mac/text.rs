@@ -1,13 +1,14 @@
 use objc2_foundation::{CGSize, CGPoint};
 
 use crate::{text::FontWeight, core::{Color, Size, Point, Rectangle}};
-use super::{core_text::{CTFrameSetter, CTFrame, AttributedStringBuilder, CTLine}, IRef, core_foundation::{CFRange, CFString, CFAttributedString, CFTyped, CFIndex}, IMut, core_graphics::{CGColor, CGPath}};
+use super::{core_text::{CTFrameSetter, CTFrame, AttributedStringBuilder, CTLine}, IRef, core_foundation::{CFRange, CFString, CFAttributedString, CFIndex}, IMut, core_graphics::{CGColor, CGPath}};
 
 pub struct TextLayout{
     pub(super) attributed_string: IMut<CFAttributedString>,
 	pub(super) frame_setter: IRef<CTFrameSetter>,
 	text_frame: TextFrame,
-	max_size: CGSize
+	max_size: CGSize,
+	text: String
 }
 
 struct TextLine {
@@ -47,12 +48,13 @@ impl TextFrame {
 impl TextLayout {
     pub fn new(
         string: &str, 
-        font_family: &str, 
-        font_weight: FontWeight,
-        font_size: f32,
+        _font_family: &str, 
+        _font_weight: FontWeight,
+        _font_size: f32,
         max_size: Size,
 		color: Color
     ) -> Self {
+		let text = string.to_string();
 		let string = CFString::new(string);
 		let mut builder = AttributedStringBuilder::new(&string);
 		let color = CGColor::from_color(color);
@@ -67,7 +69,8 @@ impl TextLayout {
 			attributed_string,
 			frame_setter,
 			text_frame,
-			max_size: max_size.into()
+			max_size: max_size.into(),
+			text
 		}
     }
 
@@ -85,7 +88,19 @@ impl TextLayout {
 	}
 
 	pub fn text_index_at_point(&self, point: Point) -> Option<usize> {
-        None
+        self.text_frame.lines.iter()
+			.find_map(|TextLine { line, origin, char_range }| {
+				let origin: Point = (*origin).into();
+				let point: Point = point + origin;
+				let point = (origin + point).into();
+				let index = line.string_index_for_position(point);
+				if index < 0 {
+					None
+				} else {
+					let absolute_index = index + char_range.location;
+					Some(absolute_index as usize)
+				}
+			})
     }
 
     pub fn point_at_text_index(&self, index: usize) -> Point {
@@ -102,11 +117,10 @@ impl TextLayout {
 	}
 
 	pub fn frame(&self) -> IRef<CTFrame> {
-		/*let (string_range, size) = self.suggested_range_and_size();
-		let size = size.into();
-		let rect = Rectangle::new(Point::ZERO, size).into();
-		let path = CGPath::create_with_rect(rect, None);
-		self.frame_setter.create_frame(string_range, &path, None)*/
 		self.text_frame.frame.clone()
+	}
+
+	pub fn as_str(&self) -> &str {
+		&self.text
 	}
 }

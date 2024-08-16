@@ -26,7 +26,7 @@ impl View for Label {
     fn build(self, ctx: &mut BuildContext) -> Self::Element {
         let text = ctx.get_and_track(self.text, |value, mut widget: WidgetMut<'_, Self::Element>| {
             widget.text_layout.replace_with(|text_layout| {
-				TextLayout::new(value.as_str(), text_layout.color(), Size::INFINITY)
+				TextLayout::new(value.as_str(), widget.color, Size::INFINITY)
 			});
             widget.request_layout();
         });
@@ -37,12 +37,13 @@ impl View for Label {
         });
 
         let text_layout = RefCell::new(TextLayout::new(text.as_str(), color, Size::INFINITY));
-        TextWidget { text_layout }
+        TextWidget { text_layout, color }
     }
 }
 
 pub struct TextWidget {
-    text_layout: RefCell<TextLayout>
+    text_layout: RefCell<TextLayout>,
+	color: Color
 }
 
 impl Widget for TextWidget {

@@ -20,6 +20,8 @@ pub type CFIndex = isize;
 pub type CFTypeID = usize;
 pub type CFTypeRef = *const c_void;
 
+pub const CF_NOT_FOUND: CFIndex = -1;
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CFRange {
