@@ -1,9 +1,8 @@
-use windows::{core::Result, 
-    Win32::{Graphics::Direct2D, Foundation::{HWND, RECT}, UI::WindowsAndMessaging::GetClientRect}, Foundation::Numerics::Matrix3x2};
+use windows::{core::Result, Foundation::Numerics::Matrix3x2, Win32::{Foundation::{HWND, RECT}, Graphics::Direct2D, UI::WindowsAndMessaging::GetClientRect}};
 
 use crate::core::{Rectangle, Color, Size, Transform, Point};
 use std::mem::MaybeUninit;
-use super::{com::direct2d_factory, TextLayout};
+use super::{com::direct2d_factory, ImageSource, TextLayout};
 
 impl Into<Direct2D::Common::D2D1_COLOR_F> for Color {
     fn into(self) -> Direct2D::Common::D2D1_COLOR_F {
@@ -62,6 +61,9 @@ impl From<Matrix3x2> for Transform {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct RendererGeneration(usize);
+
 pub type RendererRef<'a> = &'a mut Renderer;
 
 enum SavedAction {
@@ -77,7 +79,8 @@ struct SavedState {
 pub struct Renderer {
     render_target: Direct2D::ID2D1HwndRenderTarget,
     brush: Direct2D::ID2D1SolidColorBrush,
-    saved_states: Vec<SavedState>
+    saved_states: Vec<SavedState>,
+    generation: RendererGeneration
 }
 
 impl Renderer {
@@ -109,7 +112,8 @@ impl Renderer {
         Ok(Renderer {
             render_target,
             brush,
-            saved_states: Vec::new()
+            saved_states: Vec::new(),
+            generation: RendererGeneration(0)
         })
     }
 
@@ -264,5 +268,9 @@ impl Renderer {
                 &self.brush, 
                 Direct2D::D2D1_DRAW_TEXT_OPTIONS_NONE)
         }
+    }
+
+    pub fn draw_bitmap(&mut self, source: &ImageSource, rect: Rectangle) {
+        source.draw(&self.render_target, self.generation, rect.into())
     }
 }

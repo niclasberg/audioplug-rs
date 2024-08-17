@@ -2,7 +2,7 @@ use taffy::{LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree};
 
 use crate::core::Point;
 
-use super::{widget_node::WidgetFlags, AppState, WidgetId, WindowId};
+use super::{invalidate_window, widget_node::WidgetFlags, AppState, WidgetId, WindowId};
 
 pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
     let (bounds, widget_id) = {
@@ -21,6 +21,7 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
     }
 
     update_node_origins(app_state, widget_id);
+    invalidate_window(app_state, window_id);
 }
 
 fn update_node_origins(app_state: &mut AppState, root_widget: WidgetId) {

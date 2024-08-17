@@ -76,6 +76,10 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
         }
     }
 
+    pub fn draw_bitmap(&mut self, source: &platform::ImageSource, rect: impl Into<Rectangle>) {
+        self.renderer.draw_bitmap(source, rect.into())
+    }
+
     pub fn draw_text(&mut self, text_layout: &TextLayout, position: Point) {
         self.renderer.draw_text(&text_layout.0, position)
     }

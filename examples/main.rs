@@ -1,6 +1,8 @@
-use audioplug::app::SignalSet;
+use std::path::Path;
+
+use audioplug::app::{SignalGet, SignalSet};
 use audioplug::core::{Color, Size, Alignment, Rectangle, Point};
-use audioplug::view::{Button, Checkbox, Column, Fill, Label, Row, Slider, TextBox, View};
+use audioplug::view::{Button, Checkbox, Column, Fill, Image, Label, Row, Slider, TextBox, View};
 use audioplug::{window::*, App};
 
 fn main() {
@@ -31,8 +33,18 @@ fn main() {
             Row::new((
                 Label::new("Button"),
                 Button::new(Label::new("Filled"))
-                    .on_click(move |ctx| checkbox_enabled.set(ctx, true))
+                    .on_click(move |ctx| {
+                        let current = checkbox_enabled.get_untracked(ctx);
+                        checkbox_enabled.set(ctx, !current)
+                    })
             )).with_spacing(5.0),
+            Row::new((
+                Label::new("Image"),
+                Image::from_file(Path::new("C:/Users/nicla/Downloads/tortilla.png"))
+                    .with_style(|style| {
+                        style.max_size.width = taffy::Dimension::Length(200.0)
+                    })
+            )),
             Row::new((
                 Label::new("Text input").with_color(Color::BLUE),
                 TextBox::new()
