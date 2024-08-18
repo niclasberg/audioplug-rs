@@ -33,19 +33,18 @@ use vst3_sys as vst3_com;
 #[VST3(implements(IPlugView))]
 pub struct PlugView<P: Params, E: Editor<P>> {
     window: RefCell<Option<Window>>,
-    component_handler: VstPtr<dyn IComponentHandler>,
     app_state: Rc<RefCell<AppState>>,
 	editor: Rc<RefCell<E>>,
     _phantom: PhantomData<P>
 }
 
 impl<P: Params, E: Editor<P>> PlugView<P, E> {
-    pub fn new(component_handler: VstPtr<dyn IComponentHandler>, app_state: Rc<RefCell<AppState>>, editor: Rc<RefCell<E>>) -> Box<Self> {
-        Self::allocate(RefCell::new(None), component_handler, app_state, editor, PhantomData)
+    pub fn new(app_state: Rc<RefCell<AppState>>, editor: Rc<RefCell<E>>) -> Box<Self> {
+        Self::allocate(RefCell::new(None), app_state, editor, PhantomData)
     }
 
-    pub fn create_instance(component_handler: VstPtr<dyn IComponentHandler>, app_state: Rc<RefCell<AppState>>, editor: Rc<RefCell<E>>) -> *mut c_void {
-        Box::into_raw(Self::new(component_handler, app_state, editor)) as *mut c_void
+    pub fn create_instance(app_state: Rc<RefCell<AppState>>, editor: Rc<RefCell<E>>) -> *mut c_void {
+        Box::into_raw(Self::new(app_state, editor)) as *mut c_void
     }
 }
 

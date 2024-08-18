@@ -4,12 +4,13 @@ mod binding;
 mod contexts;
 mod effect;
 mod event_handling;
+mod host_handle;
 mod layout;
 mod memo;
 mod param_signal;
 mod render;
 mod signal;
-mod reactive_context;
+mod runtime;
 mod widget;
 mod widget_node;
 
@@ -19,10 +20,11 @@ pub use accessor::Accessor;
 pub(crate) use app_state::AppState;
 pub use contexts::BuildContext;
 pub use event_handling::{EventContext, MouseEventContext, handle_window_event};
+pub use host_handle::HostHandle;
 pub use layout::{LayoutContext, layout_window};
 pub use memo::Memo;
 pub use render::{RenderContext, render_window, invalidate_window};
-pub use reactive_context::*;
+pub use runtime::*;
 pub use signal::Signal;
 use slotmap::new_key_type;
 pub use widget::{EventStatus, StatusChange, Widget};
@@ -43,11 +45,18 @@ pub struct App {
     pub(crate) state: Rc<RefCell<AppState>>,
 }
 
+struct NullHostHandle;
+impl HostHandle for NullHostHandle {
+    fn begin_edit(&self, _id: crate::param::ParameterId) {}
+    fn end_edit(&self, _id: crate::param::ParameterId) {}
+    fn perform_edit(&self, _id: crate::param::ParameterId, _value: crate::param::NormalizedValue) {}
+}
+
 impl App {
     pub fn new() -> Self {
         Self {
             native: platform::Application::new(),
-            state: Rc::new(RefCell::new(AppState::new(()))),
+            state: Rc::new(RefCell::new(AppState::new((), NullHostHandle))),
         }
     }
 
@@ -142,20 +151,4 @@ pub trait SignalUpdate {
 
     /// Set the current value, notifies subscribers
     fn update(&self, cx: &mut impl SignalContext, f: impl FnOnce(&mut Self::Value));
-}
-
-impl<T: AsRef<T>> SignalGet for T {
-    type Value = T;
-
-    fn with_ref<R>(&self, _cx: &mut impl SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-        f(&self)
-    }
-
-    fn with_ref_untracked<R>(
-        &self,
-        _cx: &impl SignalContext,
-        f: impl FnOnce(&Self::Value) -> R,
-    ) -> R {
-        f(&self)
-    }
 }

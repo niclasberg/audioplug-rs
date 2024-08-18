@@ -50,6 +50,14 @@ impl From<ParameterId> for u32 {
 pub struct NormalizedValue(pub(super) f64);
 
 impl NormalizedValue {
+    pub fn from_f64(value: f64) -> Option<Self> {
+        if value >= 0.0 && value <= 1.0 {
+            Some(Self(value))
+        } else {
+            None
+        }
+    }
+
     #[inline]
     pub unsafe fn from_f64_unchecked(value: f64) -> Self {
         Self(value)

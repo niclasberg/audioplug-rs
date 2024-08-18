@@ -1,4 +1,4 @@
-use crate::{app::{BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, KeyEvent, MouseEvent};
+use crate::{app::{AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, KeyEvent, MouseEvent};
 
 use super::View;
 
@@ -7,7 +7,7 @@ pub struct Slider {
     max: f64,
     on_drag_start: Option<Box<dyn Fn()>>, 
     on_drag_end: Option<Box<dyn Fn()>>, 
-    on_value_changed: Option<Box<dyn Fn(f64)>>
+    on_value_changed: Option<Box<dyn Fn(&mut AppState, f64)>>
 }
 
 impl Slider {
@@ -21,7 +21,7 @@ impl Slider {
         }
     }
 
-    pub fn on_value_changed(mut self, f: impl Fn(f64) + 'static) -> Self {
+    pub fn on_value_changed(mut self, f: impl Fn(&mut AppState, f64) + 'static) -> Self {
         self.on_value_changed = Some(Box::new(f));
         self
     }
@@ -58,7 +58,7 @@ pub struct SliderWidget {
     max: f64,
     on_drag_start: Option<Box<dyn Fn()>>, 
     on_drag_end: Option<Box<dyn Fn()>>, 
-    on_value_changed: Option<Box<dyn Fn(f64)>>
+    on_value_changed: Option<Box<dyn Fn(&mut AppState, f64)>>
 }
 
 #[derive(Debug, PartialEq)]
@@ -79,11 +79,11 @@ impl SliderWidget {
         Shape::circle(self.slider_position(bounds), 5.0)
     }
 
-    fn set_position(&mut self, normalized_position: f64) -> bool {
+    fn set_position(&mut self, app_state: &mut AppState, normalized_position: f64) -> bool {
         if normalized_position != self.position_normalized {
             self.position_normalized = normalized_position;
             if let Some(f) = self.on_value_changed.as_ref() {
-                f(self.min + (self.max - self.min) * self.position_normalized);
+                f(app_state, self.min + (self.max - self.min) * self.position_normalized);
             }
             true
         } else {
@@ -128,7 +128,7 @@ impl Widget for SliderWidget {
                     },
                     State::Dragging => {
                         let normalized_position = ((position.x - ctx.bounds().left()) / ctx.bounds().width()).clamp(0.0, 1.0);
-                        if self.set_position(normalized_position) {
+                        if self.set_position(ctx.app_state_mut(), normalized_position) {
                             ctx.request_render();
                         }
                     },
@@ -161,14 +161,14 @@ impl Widget for SliderWidget {
                 match key {
                     Key::Left => {
                         let new_position = (self.position_normalized - 0.1).clamp(0.0, 1.0);
-                        if self.set_position(new_position) {
+                        if self.set_position(ctx.app_state_mut(), new_position) {
                             ctx.request_render();
                         }
                         EventStatus::Handled
                     },
                     Key::Right => {
                         let new_position = (self.position_normalized + 0.1).clamp(0.0, 1.0);
-                        if self.set_position(new_position) {
+                        if self.set_position(ctx.app_state_mut(), new_position) {
                             ctx.request_render();
                         }
                         EventStatus::Handled

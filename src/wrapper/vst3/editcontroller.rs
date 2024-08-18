@@ -1,4 +1,4 @@
-use std::cell::{RefCell, Cell};
+use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
@@ -12,37 +12,58 @@ use vst3_sys::vst::{IEditController, ParameterInfo, IComponentHandler};
 
 use vst3_sys as vst3_com;
 
-use crate::app::AppState;
+use crate::app::{AppState, HostHandle};
 use crate::param::{NormalizedValue, ParamRef, ParameterGetter, ParameterId, Params, PlainValue};
 use crate::Editor;
 
 use super::plugview::PlugView;
 use super::util::strcpyw;
 
+struct VST3HostHandle {
+    component_handler: VstPtr<dyn IComponentHandler>,
+}
 
-#[VST3(implements(IEditController))]
-pub struct EditController<P: Params, E: Editor<P>> {
-    component_handler: Cell<Option<VstPtr<dyn IComponentHandler>>>,
+impl HostHandle for VST3HostHandle {
+    fn begin_edit(&self, id: ParameterId) {
+        unsafe { self.component_handler.begin_edit(id.into()) };
+    }
+
+    fn end_edit(&self, id: ParameterId) {
+        unsafe { self.component_handler.end_edit(id.into()) };
+    }
+
+    fn perform_edit(&self, id: ParameterId, value: NormalizedValue) {
+        unsafe { self.component_handler.perform_edit(id.into(), value.into()) };
+    }
+}
+
+// We can't fully construct the app_state until we have the ComponentHandler.
+// So, store the whole state in its own struct
+struct Inner<P: Params, E: Editor<P>> {
     parameters: HashMap<ParameterId, ParameterGetter<P>>,
     app_state: Rc<RefCell<AppState>>,
-	editor: Rc<RefCell<E>>,
+    editor: Rc<RefCell<E>>,
     _phantom: PhantomData<P>
 }
 
-impl<P: Params, E: Editor<P>> EditController<P, E> {
-    pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 14] };
-
-    pub fn new() -> Box<Self> {
+impl<P: Params, E: Editor<P>> Inner<P, E> {
+    fn new(component_handler: VstPtr<dyn IComponentHandler>) -> Self {
         let params = P::default();
         let parameters: HashMap<ParameterId, ParameterGetter<P>> = P::PARAMS.iter()
 			.map(|getter| (getter(&params).id(), *getter))
 			.collect();
-		let app_state = Rc::new(RefCell::new(AppState::new(params)));
+        let host_handle = VST3HostHandle { component_handler };
+		let app_state = Rc::new(RefCell::new(AppState::new(params, host_handle)));
 		let editor = Rc::new(RefCell::new(E::new()));
-        Self::allocate(Cell::new(None), parameters, app_state, editor, PhantomData)
+        Self {
+            parameters,
+            app_state,
+            editor,
+            _phantom: PhantomData
+        }
     }
 
-	fn with_param_ref<T>(&self, id: ParameterId, f: impl FnOnce(Option<ParamRef<'_>>) -> T) -> T {
+    fn with_param_ref<T>(&self, id: ParameterId, f: impl FnOnce(Option<ParamRef<'_>>) -> T) -> T {
 		if let Some(getter) = self.parameters.get(&id) {
 			let app_state = RefCell::borrow(&self.app_state);
 			let params: &P = app_state.parameters_as().unwrap();
@@ -51,6 +72,75 @@ impl<P: Params, E: Editor<P>> EditController<P, E> {
 			f(None)
 		}
 	}
+
+    fn get_parameter_info(&self, param_index: i32, info: &mut ParameterInfo) -> tresult {
+		if param_index < 0 || param_index >= P::PARAMS.len() as i32 {
+			return kInvalidArgument;
+		}
+
+		let app_state = RefCell::borrow(&self.app_state);
+		let params: &P = app_state.parameters_as().unwrap();
+		let param_ref = (P::PARAMS[param_index as usize])(params);
+
+		info.id = param_ref.id().into();
+		info.flags = match param_ref {
+			ParamRef::ByPass(_) => ParameterFlags::kCanAutomate as i32 | ParameterFlags::kIsBypass as i32,
+			ParamRef::Int(_) => ParameterFlags::kCanAutomate as i32,
+			ParamRef::Float(_) => ParameterFlags::kCanAutomate as i32,
+			ParamRef::StringList(_) => ParameterFlags::kCanAutomate as i32 | ParameterFlags::kIsList as i32,
+			ParamRef::Bool(_) => ParameterFlags::kCanAutomate as i32,
+		};
+		info.default_normalized_value = param_ref.default_normalized().into();
+		strcpyw(param_ref.name(), &mut info.short_title);
+		strcpyw(param_ref.name(), &mut info.title);
+		info.step_count = param_ref.step_count() as i32;
+		info.unit_id = kRootUnitId;
+		strcpyw("unit", &mut info.units);
+		kResultOk
+    }
+
+    fn set_param_normalized(&self, id: u32, value: f64) -> tresult {
+		self.with_param_ref(ParameterId::new(id), |param_ref| {
+			if let Some(param_ref) = param_ref {
+				param_ref.internal_set_value_normalized(unsafe { NormalizedValue::from_f64_unchecked(value) });
+				kResultOk
+			} else {
+				kInvalidArgument
+			}
+        })
+    }
+
+    fn normalized_param_to_plain(&self, id: u32, value_normalized: f64) -> f64 {
+        self.with_param_ref(ParameterId::new(id), |param_ref| {
+            let value_normalized = unsafe { NormalizedValue::from_f64_unchecked(value_normalized) };
+            param_ref.map_or(0.0, |param| param.denormalize(value_normalized).into())
+        })
+    }
+
+    fn plain_param_to_normalized(&self, id: u32, plain_value: f64) -> f64 {
+        self.with_param_ref(ParameterId::new(id), |param_ref| {
+            param_ref.map_or(0.0, |param| param.normalize(PlainValue::new(plain_value)).into())
+        })
+    }
+
+    fn get_param_normalized(&self, id: u32) -> f64 {
+        self.with_param_ref(ParameterId::new(id), |param_ref| {
+            param_ref.map_or(0.0, |p| p.get_normalized().into())
+        })
+    }
+}
+
+#[VST3(implements(IEditController))]
+pub struct EditController<P: Params, E: Editor<P>> {
+    inner: OnceCell<Inner<P, E>>
+}
+
+impl<P: Params, E: Editor<P>> EditController<P, E> {
+    pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 14] };
+
+    pub fn new() -> Box<Self> {
+        Self::allocate(OnceCell::new())
+    }
 
     pub fn create_instance() -> *mut c_void {
         Box::into_raw(Self::new()) as *mut c_void
@@ -77,83 +167,58 @@ impl<P: Params, E: Editor<P>> IEditController for EditController<P, E> {
     }
 
     unsafe fn get_parameter_info(&self, param_index: i32, info: *mut ParameterInfo) -> tresult {
-		if param_index < 0 || param_index >= P::PARAMS.len() as i32 {
-			return kInvalidArgument;
-		}
-
-		let app_state = RefCell::borrow(&self.app_state);
-		let params: &P = app_state.parameters_as().unwrap();
-		let param_ref = (P::PARAMS[param_index as usize])(params);
-
-		let info = &mut *info;
-
-		info.id = param_ref.id().into();
-		info.flags = match param_ref {
-			ParamRef::ByPass(_) => ParameterFlags::kCanAutomate as i32 | ParameterFlags::kIsBypass as i32,
-			ParamRef::Int(_) => ParameterFlags::kCanAutomate as i32,
-			ParamRef::Float(_) => ParameterFlags::kCanAutomate as i32,
-			ParamRef::StringList(_) => ParameterFlags::kCanAutomate as i32 | ParameterFlags::kIsList as i32,
-			ParamRef::Bool(_) => ParameterFlags::kCanAutomate as i32,
-		};
-		info.default_normalized_value = param_ref.default_normalized().into();
-		strcpyw(param_ref.name(), &mut info.short_title);
-		strcpyw(param_ref.name(), &mut info.title);
-		info.step_count = param_ref.step_count() as i32;
-		info.unit_id = kRootUnitId;
-		strcpyw("unit", &mut info.units);
-		kResultOk
+        self.inner.get()
+            .map(|inner| {
+                let info = unsafe { &mut *info };
+                inner.get_parameter_info(param_index, info)
+            })
+            .unwrap_or(kResultFalse)
     }
 
-    unsafe fn get_param_string_by_value(&self, id: u32, value_normalized: f64, string: *mut tchar) -> tresult {
+    unsafe fn get_param_string_by_value(&self, _id: u32, _value_normalized: f64, _string: *mut tchar) -> tresult {
         kNotImplemented
     }
 
-    unsafe fn get_param_value_by_string(&self, id: u32, string: *const tchar, value_normalized: *mut f64) -> tresult {
+    unsafe fn get_param_value_by_string(&self, _id: u32, _string: *const tchar, _value_normalized: *mut f64) -> tresult {
         kNotImplemented
     }
 
     unsafe fn normalized_param_to_plain(&self, id: u32, value_normalized: f64) -> f64 {
-        self.with_param_ref(ParameterId::new(id), |param_ref| {
-            let value_normalized = NormalizedValue::from_f64_unchecked(value_normalized);
-            param_ref.map_or(0.0, |param| param.denormalize(value_normalized).into())
-        })
+        self.inner.get()
+            .map(|inner| inner.normalized_param_to_plain(id, value_normalized))
+            .unwrap_or(0.0)
     }
 
     unsafe fn plain_param_to_normalized(&self, id: u32, plain_value: f64) -> f64 {
-        self.with_param_ref(ParameterId::new(id), |param_ref| {
-            param_ref.map_or(0.0, |param| param.normalize(PlainValue::new(plain_value)).into())
-        })
+        self.inner.get()
+            .map(|inner| inner.plain_param_to_normalized(id, plain_value))
+            .unwrap_or(0.0)
     }
 
     unsafe fn get_param_normalized(&self, id: u32) -> f64 {
-        self.with_param_ref(ParameterId::new(id), |param_ref| {
-            param_ref.map_or(0.0, |p| p.get_normalized().into())
-        })
+        self.inner.get()
+            .map(|inner| inner.get_param_normalized(id))
+            .unwrap_or(0.0)
     }
 
     unsafe fn set_param_normalized(&self, id: u32, value: f64) -> tresult {
-		self.with_param_ref(ParameterId::new(id), |param_ref| {
-			if let Some(param_ref) = param_ref {
-				param_ref.internal_set_value_normalized(NormalizedValue::from_f64_unchecked(value));
-				kResultOk
-			} else {
-				kInvalidArgument
-			}
-        })
+        self.inner.get()
+            .map(|inner| inner.set_param_normalized(id, value))
+            .unwrap_or(kResultFalse)
     }
 
     unsafe fn set_component_handler(&self, handler: SharedVstPtr<dyn IComponentHandler>) -> tresult {
-        self.component_handler.replace(handler.upgrade());
-        kResultOk
+        if let Some(handler) = handler.upgrade() {
+            self.inner.set(Inner::new(handler)).map_or(kResultFalse, |_| kResultOk)
+        } else {
+            kInvalidArgument
+        }
     }
 
     unsafe fn create_view(&self, _name: FIDString) -> *mut c_void {
-        // Take, clone and put back. Maybe we should just use a RefCell instead?
-        let component_handler = self.component_handler.take();
-		self.component_handler.set(component_handler.clone());
-		
-		component_handler.map_or(std::ptr::null_mut(), |component_handler|
-			PlugView::create_instance(component_handler, self.app_state.clone(), self.editor.clone()))
+        self.inner.get()
+            .map(|inner| PlugView::create_instance(inner.app_state.clone(), inner.editor.clone()))
+            .unwrap_or(std::ptr::null_mut())
     }
 }
 

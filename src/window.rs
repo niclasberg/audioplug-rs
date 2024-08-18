@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use raw_window_handle::RawWindowHandle;
 
-use crate::app::{handle_window_event, layout_window, render_window, AppState, ReactiveContext, Signal, SignalContext, WindowId};
+use crate::app::{handle_window_event, layout_window, render_window, AppState, Runtime, Signal, SignalContext, WindowId};
 use crate::core::{Cursor, Point, Rectangle};
 use crate::platform::{WindowEvent, WindowHandler};
 use crate::view::View;
@@ -133,7 +133,7 @@ impl<'a> AppContext<'a> {
         self.app_state.create_signal(value)
     }
 
-    pub fn create_effect(&mut self, f: impl Fn(&mut ReactiveContext) + 'static) {
+    pub fn create_effect(&mut self, f: impl Fn(&mut Runtime) + 'static) {
         self.app_state.create_effect(f)
     }
 

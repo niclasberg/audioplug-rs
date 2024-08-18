@@ -1,8 +1,8 @@
-use std::{any::Any, cell::RefCell, collections::VecDeque, ops::DerefMut, rc::{Rc, Weak}};
+use std::{any::Any, collections::VecDeque, ops::DerefMut, rc::Weak};
 use slotmap::{Key, SecondaryMap, SlotMap};
-use crate::{core::{Point, Rectangle}, param::Params, platform};
+use crate::{core::{Point, Rectangle}, param::{NormalizedValue, ParameterId, Params}, platform};
 
-use super::{binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, ReactiveContext, Scope, SignalContext, SignalGet, Widget, WindowId};
+use super::{binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, Runtime, Scope, SignalContext, SignalGet, Widget, WindowId};
 use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
@@ -10,11 +10,11 @@ use super::effect::EffectState;
 pub(super) enum Task {
     RunEffect {
         id: NodeId,
-        f: Weak<Box<dyn Fn(&mut ReactiveContext)>>
+        f: Weak<Box<dyn Fn(&mut Runtime)>>
     },
 	UpdateBinding {
 		widget_id: WidgetId,
-    	f: Weak<Box<dyn Fn(&mut ReactiveContext, &mut dyn Widget, &mut WidgetData)>>,
+    	f: Weak<Box<dyn Fn(&mut Runtime, &mut dyn Widget, &mut WidgetData)>>,
 	},
 	InvalidateRect {
 		window_id: WindowId,
@@ -58,11 +58,13 @@ pub struct AppState {
     widget_bindings: SecondaryMap<NodeId, WidgetId>,
     pub(super) mouse_capture_widget: Option<WidgetId>,
     pub(super) focus_widget: Option<WidgetId>,
-    pub(super) reactive_context: ReactiveContext,
+    pub(super) reactive_context: Runtime,
+    host_handle: Box<dyn HostHandle>,
 }
 
 impl AppState {
-    pub fn new(parameters: impl Params + Any) -> Self {
+    pub fn new(parameters: impl Params + Any, host_handle: impl HostHandle + 'static) -> Self {
+        let host_handle = Box::new(host_handle);
         Self {
             parameters: Box::new(parameters),
             widget_data: Default::default(),
@@ -71,7 +73,8 @@ impl AppState {
             windows: Default::default(),
             mouse_capture_widget: None,
             focus_widget: None,
-            reactive_context: Default::default()
+            reactive_context: Default::default(),
+            host_handle
         }
     }
 
@@ -114,9 +117,21 @@ impl AppState {
         }
     }
 
-    pub fn create_effect(&mut self, f: impl Fn(&mut ReactiveContext) + 'static) {
+    pub fn create_effect(&mut self, f: impl Fn(&mut Runtime) + 'static) {
         let id = self.reactive_context.create_effect_node(EffectState::new(f));
         self.reactive_context.notify(&id);
+    }
+
+    pub fn begin_edit(&mut self, id: ParameterId) {
+        self.host_handle.begin_edit(id);
+    }
+
+    pub fn end_edit(&mut self, id: ParameterId) {
+        self.host_handle.end_edit(id);
+    }
+
+    pub fn perform_edit(&mut self, id: ParameterId, value: NormalizedValue) {
+        self.host_handle.perform_edit(id, value);
     }
 
     pub fn add_window<W: Widget + 'static>(&mut self, handle: platform::Handle, f: impl FnOnce(&mut BuildContext) -> W) -> WindowId {

@@ -4,9 +4,6 @@ use slotmap::{SecondaryMap, SlotMap};
 
 use super::{app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::SignalState, Memo, NodeId, Signal, SignalContext};
 
-
-
-
 struct Node {
     node_type: NodeType,
     state: NodeState
@@ -46,7 +43,7 @@ pub(super) enum Scope {
 }
 
 
-pub struct ReactiveContext {
+pub struct Runtime {
     pub(super) scope: Scope,
     nodes: SlotMap<NodeId, Node>,
     pub(super) subscriptions: SecondaryMap<NodeId, HashSet<NodeId>>,
@@ -54,7 +51,7 @@ pub struct ReactiveContext {
     pub(super) pending_tasks: VecDeque<Task>,
 }
 
-impl Default for ReactiveContext {
+impl Default for Runtime {
     fn default() -> Self {
         Self { 
             scope: Scope::Root, 
@@ -66,7 +63,7 @@ impl Default for ReactiveContext {
     }
 }
 
-impl ReactiveContext {
+impl Runtime {
     pub(super) fn with_scope<R>(&mut self, scope: Scope, f: impl FnOnce(&mut Self) -> R) -> R {
         let old_scope = self.scope;
         self.scope = scope;
@@ -92,7 +89,6 @@ impl ReactiveContext {
         self.add_subscription(source_id, id);
         id
     }
-
 
     fn create_node(&mut self, node_type: NodeType, state: NodeState) -> NodeId {
         let node = Node { node_type, state };
@@ -195,7 +191,7 @@ impl ReactiveContext {
     }
 }
 
-impl SignalContext for ReactiveContext {
+impl SignalContext for Runtime {
     fn get_signal_value_ref_untracked<'a, T: Any>(&'a self, signal: &Signal<T>) -> &'a T {
         let node = self.nodes.get(signal.id).expect("No Signal found");
         match &node.node_type {

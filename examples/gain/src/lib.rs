@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 use audioplug::core::{Color, Size};
-use audioplug::param::{BoolParameter, FloatParameter, FloatRange, Parameter, ParameterId};
-use audioplug::view::{AnyView, Label, View};
+use audioplug::param::{BoolParameter, FloatParameter, FloatRange, NormalizedValue, Parameter, ParameterId};
+use audioplug::view::{AnyView, Column, Label, Slider, View};
 use audioplug::window::AppContext;
 use audioplug::{params, AudioLayout, Bus, ChannelType, Editor, Plugin, ProcessContext};
 use audioplug::wrapper::vst3::Factory;
@@ -24,7 +24,16 @@ impl Editor<MyPluginParams> for MyEditor {
 	}
 
     fn view(&self, _ctx: &mut AppContext, _parameters: &MyPluginParams) -> AnyView {
-        Label::new("Text input").with_color(Color::BLUE).as_any()
+        Column::new((
+            Label::new("Text input").with_color(Color::BLUE),
+            Slider::new()
+                .on_value_changed(|ctx, value| {
+                    let id = ParameterId::new(2);
+                    ctx.begin_edit(id);
+                    ctx.perform_edit(id, NormalizedValue::from_f64(value).unwrap());
+                    ctx.end_edit(id);
+                })
+        )).as_any()
     }
 }
 
