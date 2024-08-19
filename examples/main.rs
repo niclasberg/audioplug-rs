@@ -40,7 +40,7 @@ fn main() {
             )).with_spacing(5.0),
             Row::new((
                 Label::new("Image"),
-                Image::from_file(Path::new("C:/Users/nicla/Downloads/tortilla.png"))
+                Image::from_file(Path::new("/Users/niklas.berg/Desktop/Screenshot 2024-04-24 at 09.49.30.png"))
                     .with_style(|style| {
                         style.max_size.width = taffy::Dimension::Length(200.0)
                     })

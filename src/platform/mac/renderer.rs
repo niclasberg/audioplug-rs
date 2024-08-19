@@ -2,7 +2,7 @@ use objc2_foundation::{CGRect, CGFloat};
 
 use crate::core::{Rectangle, Color, Point, Size, Vector, Transform};
 
-use super::{core_graphics::{CGContext, CGColor, CGAffineTransform}, TextLayout};
+use super::{core_graphics::{CGAffineTransform, CGColor, CGContext}, ImageSource, TextLayout};
 
 pub struct RendererRef<'a> {
 	pub(super) context: &'a CGContext,
@@ -124,5 +124,9 @@ impl<'a> RendererRef<'a> {
 		frame.draw(self.context);
 
 		self.context.restore_state();
+    }
+
+	pub fn draw_bitmap(&mut self, source: &ImageSource, rect: Rectangle) {
+        unsafe { source.0.drawInRect(rect.into()) }
     }
 }

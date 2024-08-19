@@ -3,9 +3,25 @@ use std::{cell::RefCell, ffi::c_void, marker::PhantomData, rc::Rc};
 use objc2::rc::Retained;
 use objc2_app_kit::NSView;
 use objc2_foundation::{MainThreadMarker, NSError};
-use crate::{app::AppState, platform::view::View, window::MyHandler, Editor, Plugin};
+use crate::{app::{AppState, HostHandle}, platform::view::View, window::MyHandler, Editor, Plugin};
 
 use super::{audio_toolbox::{AUAudioUnit, AudioComponentDescription}, MyAudioUnit};
+
+struct AUV3HostHandle;
+
+impl HostHandle for AUV3HostHandle {
+	fn begin_edit(&self, id: crate::param::ParameterId) {
+		todo!()
+	}
+
+	fn end_edit(&self, id: crate::param::ParameterId) {
+		todo!()
+	}
+
+	fn perform_edit(&self, id: crate::param::ParameterId, value: crate::param::NormalizedValue) {
+		todo!()
+	}
+}
 
 pub struct ViewController<P: Plugin> {
 	app_state: Rc<RefCell<AppState>>,
@@ -15,7 +31,7 @@ pub struct ViewController<P: Plugin> {
 
 impl<P: Plugin + 'static> ViewController<P> {
 	pub fn new() -> Self {
-		let app_state =  Rc::new(RefCell::new(AppState::new(())));
+		let app_state =  Rc::new(RefCell::new(AppState::new((), AUV3HostHandle)));
 		let editor = Rc::new(RefCell::new(P::Editor::new()));
 		Self {
 			app_state,

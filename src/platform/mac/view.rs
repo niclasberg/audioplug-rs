@@ -6,7 +6,7 @@ use objc2::rc::{Id, Weak};
 use objc2::runtime::{NSObject, NSObjectProtocol};
 use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 
-use crate::core::Point;
+use crate::core::{Color, Point};
 use crate::event::{MouseButton, KeyEvent, MouseEvent};
 use crate::platform::mac::keyboard::{key_from_code, get_modifiers};
 use crate::platform::WindowEvent;
@@ -120,8 +120,12 @@ declare_class!(
 		fn draw_rect(&self, rect: NSRect) {
 			let graphics_context = NSGraphicsContext::current().unwrap();
 			let context = graphics_context.cg_context();
-			let renderer = RendererRef::new(context);
+			let bg_color = CGColor::from_rgba(1.0, 1.0, 1.0, 1.0);
+			context.set_fill_color(&bg_color);
+			context.fill_rect(self.frame());
 			
+			let renderer = RendererRef::new(context);
+
 			self.ivars().handler.borrow_mut().render(
 				rect.into(),
 				renderer
