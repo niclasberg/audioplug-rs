@@ -37,9 +37,9 @@ impl AudioHost {
 
 pub struct AudioDevice {
     device: Audio::IMMDevice,
-    audio_client: OnceCell<Audio::IAudioClient>,
+    audio_client: OnceCell<Audio::IAudioClient>
 }
-
+ 
 impl AudioDevice {
     pub fn id(&self) -> Result<String> {
         let id = unsafe { self.device.GetId()? };
@@ -63,12 +63,14 @@ impl AudioDevice {
         }
     }
 
-    pub fn sample_rate(&self) -> Result<u32> {
+    fn get_mix_format(&self) -> Result<&Audio::WAVEFORMATEX> {
         let audio_client = self.get_audio_client()?;
-        unsafe {
-            let mix_format = audio_client.GetMixFormat()?;
-            Ok((*mix_format).nSamplesPerSec)
-        }
+        let mix_format = unsafe { audio_client.GetMixFormat() }?;    
+        Ok(unsafe { &*mix_format} )
+    }
+
+    pub fn sample_rate(&self) -> Result<u32> {
+        self.get_mix_format().map(|x| x.nSamplesPerSec)
     }
 
     pub fn new(device: Audio::IMMDevice) -> Self {
@@ -76,6 +78,11 @@ impl AudioDevice {
     }
 
     pub fn create_output_stream(&self) -> Result<Stream> {
+        let audio_client = self.get_audio_client()?;
+        //audio_client.Initialize(sharemode, streamflags, hnsbufferduration, hnsperiodicity, pformat, audiosessionguid)
+        let sample_ready_event = unsafe { CreateEventExW(None, None, CREATE_EVENT_MANUAL_RESET, (EVENT_MODIFY_STATE | SYNCHRONIZATION_SYNCHRONIZE).0)? };
+        unsafe { audio_client.SetEventHandle(sample_ready_event) }?;
+        
         todo!()
     }
 

@@ -1,5 +1,5 @@
 use audioplug::{Plugin, GenericEditor};
-use audioplug::wrapper::standalone::AudioProcessor;
+use audioplug::wrapper::standalone::{standalone_main, AudioProcessor};
 
 struct TestPlugin {
 
@@ -18,7 +18,7 @@ impl Plugin for TestPlugin {
         Self {}
     }
 
-    fn reset(&mut self, sample_rate: f64) {
+    fn reset(&mut self, sample_rate: f64, _max_samples_per_frame: usize) {
         
     }
 
@@ -29,6 +29,5 @@ impl Plugin for TestPlugin {
 }
 
 fn main() {
-    let ss = AudioProcessor::<TestPlugin>::new();
-    ss.run()
+    standalone_main::<TestPlugin>()
 }

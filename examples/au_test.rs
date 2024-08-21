@@ -20,7 +20,7 @@ impl Plugin for TestPlugin {
         Self {}
     }
 
-    fn reset(&mut self, sample_rate: f64) {
+    fn reset(&mut self, sample_rate: f64, _max_samples_per_frame: usize) {
         
     }
 

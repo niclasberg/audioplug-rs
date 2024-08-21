@@ -35,7 +35,7 @@ pub trait Plugin {
     type Parameters: Params;
 
     fn new() -> Self;
-    fn reset(&mut self, sample_rate: f64);
+    fn reset(&mut self, sample_rate: f64, max_buffer_size: usize);
 
     fn process(&mut self, context: ProcessContext, parameters: &Self::Parameters);
 }

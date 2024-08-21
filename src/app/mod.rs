@@ -151,4 +151,4 @@ pub trait SignalUpdate {
 
     /// Set the current value, notifies subscribers
     fn update(&self, cx: &mut impl SignalContext, f: impl FnOnce(&mut Self::Value));
-}
+}   

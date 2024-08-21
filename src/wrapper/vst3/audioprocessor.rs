@@ -39,6 +39,10 @@ impl<P: Plugin> Vst3Plugin<P> {
 
 impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
     unsafe fn set_bus_arrangements(&self, _inputs: *mut SpeakerArrangement, _num_ins: i32, _outputs: *mut SpeakerArrangement, _num_outs: i32) -> tresult {
+        // From the VST3 docs, we can do the following:
+        // 1. Accept the provided speaker arrangement, adjust the bus:es and return true
+        // 2. Try to adjust the bus:es to match as well as possible, return false
+        // 3. Reject the change, keep the current arrangement and return false
         kResultFalse
     }
 
@@ -80,7 +84,7 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
 
     unsafe fn setup_processing(&self, setup: *const ProcessSetup) -> tresult {
         let setup = &*setup;
-        self.plugin.borrow_mut().reset(setup.sample_rate);
+        self.plugin.borrow_mut().reset(setup.sample_rate, setup.max_samples_per_block as usize);
         kResultOk
     }
 
