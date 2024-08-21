@@ -61,6 +61,8 @@ objc2-app-kit = { version = "0.2.2", features = [
 	"NSApplication",
 	"NSRunningApplication",
 	"NSGraphics",
+	"NSImage",
+	"NSImageRep",
 	"NSEvent",
 	"NSPasteboard",
 	"NSResponder",
