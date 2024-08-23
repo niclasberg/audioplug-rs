@@ -45,6 +45,12 @@ impl From<ParameterId> for u32 {
     }
 }
 
+impl From<ParameterId> for u64 {
+	fn from(value: ParameterId) -> Self {
+		value.0.into()
+	}
+}
+
 /// Normalized parameter value, in range 0.0 to 1.0
 #[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
 pub struct NormalizedValue(pub(super) f64);

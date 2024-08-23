@@ -20,6 +20,7 @@ _bundle_vst name target_dir: (_build name)
     mkdir -p {{target_dir}}/{{name}}.vst3/Contents/MacOS
     cp target/debug/lib{{name}}.dylib {{target_dir}}/{{name}}.vst3/Contents/MacOS/{{name}}
     cp examples/{{name}}/vst3/Info.plist {{target_dir}}/{{name}}.vst3/Contents/Info.plist
+    codesign --force --sign - --timestamp=none {{target_dir}}/{{name}}.vst3
 
 [macos]
 _bundle_au name target_dir: (_build name)

@@ -1,4 +1,4 @@
-use std::{cell::RefCell, ffi::c_void, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 use objc2::rc::Retained;
 use objc2_app_kit::NSView;
@@ -10,15 +10,15 @@ use super::{audio_toolbox::{AUAudioUnit, AudioComponentDescription}, MyAudioUnit
 struct AUV3HostHandle;
 
 impl HostHandle for AUV3HostHandle {
-	fn begin_edit(&self, id: crate::param::ParameterId) {
+	fn begin_edit(&self, _id: crate::param::ParameterId) {
 		todo!()
 	}
 
-	fn end_edit(&self, id: crate::param::ParameterId) {
+	fn end_edit(&self, _id: crate::param::ParameterId) {
 		todo!()
 	}
 
-	fn perform_edit(&self, id: crate::param::ParameterId, value: crate::param::NormalizedValue) {
+	fn perform_edit(&self, _id: crate::param::ParameterId, _value: crate::param::NormalizedValue) {
 		todo!()
 	}
 }
@@ -47,7 +47,7 @@ impl<P: Plugin + 'static> ViewController<P> {
 	}
 
 	pub fn create_view(&mut self) -> *mut NSView {
-		let mtm = MainThreadMarker::new().unwrap();
+		let mtm = unsafe { MainThreadMarker::new_unchecked() };
 		let app_state = self.app_state.clone();
 
 		let _editor = self.editor.clone();

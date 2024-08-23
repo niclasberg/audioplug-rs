@@ -134,7 +134,6 @@ pub unsafe extern "C" fn create_view_controller() -> *mut c_void {
 #[cfg(target_os = "macos")]
 #[no_mangle]
 pub unsafe extern "C" fn destroy_view_controller(view_controller: *mut c_void) {
-    
 	drop(unsafe { Box::from_raw(view_controller as *mut ViewController::<MyPlugin>) });
 }
 

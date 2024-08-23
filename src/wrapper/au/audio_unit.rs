@@ -1,19 +1,24 @@
-use std::{cell::{OnceCell, RefCell}, collections::HashMap, marker::PhantomData, mem::MaybeUninit, ops::Deref, sync::{Once, OnceLock}};
+use std::{cell::{OnceCell, RefCell}, collections::HashMap, marker::PhantomData, mem::MaybeUninit, ops::Deref, sync::OnceLock};
 
-use block2::{RcBlock, StackBlock};
-use objc2::{__extern_class_impl_traits, declare_class, msg_send, msg_send_id, mutability::{InteriorMutable,Mutable}, rc::{Allocated, PartialInit, Retained}, runtime::{AnyClass, AnyObject, ClassBuilder, Ivar, Sel}, sel, ClassType, DeclaredClass, Encode, Encoding, Message, RefEncode};
-use objc2_foundation::{NSArray, NSError, NSInteger, NSObject, NSObjectProtocol};
-use crate::{param::{ParameterGetter, ParameterId, Params}, platform::core_audio::{AudioBufferList, AudioTimeStamp}, AudioLayout, Plugin};
+use objc2::{__extern_class_impl_traits, msg_send, msg_send_id, mutability::Mutable, rc::Retained, runtime::{AnyClass, AnyObject, Bool, ClassBuilder, Sel}, sel, ClassType, Encoding, RefEncode};
+use objc2_foundation::{ns_string, NSArray, NSError, NSInteger, NSMutableArray, NSNumber, NSObject, NSString, NSTimeInterval};
+use crate::{param::{ParameterGetter, ParameterId, Params}, platform::core_audio::{AudioBufferList, AudioTimeStamp}, AudioBuffer, Plugin, ProcessContext};
 
-use super::{audio_toolbox::{AUAudioFrameCount, AUAudioUnit, AUAudioUnitBus, AUAudioUnitBusArray, AUAudioUnitBusType, AUAudioUnitStatus, AUInternalRenderBlock, AUInternalRenderRcBlock, AURenderEvent, AURenderPullInputBlock, AudioComponentDescription, AudioComponentInstantiationOptions, AudioUnitRenderActionFlags}, av_foundation::AVAudioFormat};
+use super::{audio_toolbox::{AUAudioFrameCount, AUAudioUnit, AUAudioUnitBus, AUAudioUnitBusArray, AUAudioUnitBusType, AUAudioUnitStatus, AUInternalRenderBlock, AUInternalRenderRcBlock, AUParameter, AUParameterNode, AUParameterTree, AURenderEvent, AURenderPullInputBlock, AudioComponentDescription, AudioComponentInstantiationOptions, AudioUnitParameterOptions, AudioUnitParameterUnit, AudioUnitRenderActionFlags}, av_foundation::AVAudioFormat};
+
+const DEFAULT_SAMPLE_RATE: f64 = 44100.0;
 
 struct Wrapper<P: Plugin> {
-	plugin: RefCell<P>,
+	plugin: P,
     parameters: P::Parameters,
 	parameter_getters: HashMap<ParameterId, ParameterGetter<P::Parameters>>,
 	inputs: Retained<AUAudioUnitBusArray>,
 	outputs: Retained<AUAudioUnitBusArray>,
-	block: Option<AUInternalRenderRcBlock>
+	parameter_tree: Retained<AUParameterTree>,
+	channel_capabilities: Retained<NSArray<NSNumber>>,
+	internal_render_block: Option<AUInternalRenderRcBlock>,
+	max_frames_to_render: usize,
+	rendering_offline: bool,
 }
 
 unsafe impl<P: Plugin> RefEncode for Wrapper<P> {
@@ -22,16 +27,38 @@ unsafe impl<P: Plugin> RefEncode for Wrapper<P> {
 
 impl<P: Plugin> Wrapper<P> {
 	pub fn new(audio_unit: &mut AUAudioUnit) -> Self {
-		let plugin = RefCell::new(P::new());
+		let plugin = P::new();
 		let parameters = P::Parameters::default();
 		let parameter_getters = P::Parameters::PARAMS.iter()
 			.map(|getter| (getter(&parameters).id(), *getter))
 			.collect();
 
+		let parameter_tree = {
+			let mut au_params = NSMutableArray::<AUParameterNode>::new();
+			
+			for param_getter in P::Parameters::PARAMS.iter() {
+				let p = param_getter(&parameters);
+				let au_param = AUParameterTree::createParameter(
+					&NSString::from_str(p.name()), 
+					&NSString::from_str(p.name()), 
+					p.id().into(), 
+					0.0, 
+					1.0, 
+					AudioUnitParameterUnit::CustomUnit, 
+					ns_string!("Unit"), 
+					AudioUnitParameterOptions::IsReadable | AudioUnitParameterOptions::IsWritable, 
+					&NSArray::new(), 
+					&NSArray::new());
+				au_params.push(Retained::into_super(au_param));
+			}
+
+			AUParameterTree::createTreeWithChildren(&au_params)
+		};
+
 		let format = unsafe {
 			AVAudioFormat::initStandardFormatWithSampleRate_channels(
 				AVAudioFormat::alloc(), 
-				44100.0, 
+				DEFAULT_SAMPLE_RATE, 
 				2)
 		};
 
@@ -57,6 +84,11 @@ impl<P: Plugin> Wrapper<P> {
 				AUAudioUnitBusType::Output,
 				&bus_array)
 		};
+
+		let channel_capabilities = NSArray::from_id_slice(&[
+			NSNumber::new_i16(2), 
+			NSNumber::new_i16(2)]
+		);
 		
 		Self {
 			plugin,
@@ -64,7 +96,11 @@ impl<P: Plugin> Wrapper<P> {
 			parameter_getters,
 			inputs,
 			outputs,
-			block: None
+			parameter_tree,
+			channel_capabilities,
+			internal_render_block: None,
+			max_frames_to_render: 1024,
+			rendering_offline: false
 		}
 	}
 
@@ -77,14 +113,31 @@ impl<P: Plugin> Wrapper<P> {
 	}
 
 	pub fn render(&mut self, 
-		flags: *mut AudioUnitRenderActionFlags, 
+		_action_flags: *mut AudioUnitRenderActionFlags, 
 		timestamp: *const AudioTimeStamp, 
 		frame_count: AUAudioFrameCount, 
-		output_bus_bumber: NSInteger, 
+		_output_bus_bumber: NSInteger, 
 		output_data: *mut AudioBufferList, 
 		realtime_event_list_head: *const AURenderEvent, 
-		pull_input_block: *mut AURenderPullInputBlock
+		pull_input_block: Option<&AURenderPullInputBlock>
 	) {
+		let input = AudioBuffer::empty();
+        let mut output = AudioBuffer::empty();
+
+        let context = ProcessContext {
+            input: &input,
+            output: &mut output,
+			rendering_offline: self.rendering_offline,
+        };
+
+        self.plugin.process(context, &self.parameters);	
+	}
+
+	pub fn allocate_render_resources(&mut self) {
+
+	}
+
+	pub fn deallocate_render_resources(&mut self) {
 		
 	}
 
@@ -98,6 +151,7 @@ pub struct MyAudioUnit<P: Plugin + 'static> {
 }
 
 const WRAPPER_IVAR_NAME: &'static str = "wrapper";
+static mut IVAR_OFFSET: MaybeUninit<isize> = MaybeUninit::uninit();
 
 __extern_class_impl_traits! {
 	unsafe impl (P: Plugin) for MyAudioUnit<P> {
@@ -112,6 +166,7 @@ __extern_class_impl_traits! {
 		}
 	}
 }
+
 
 impl<P: Plugin + 'static> MyAudioUnit<P> {
 	pub fn new_with_component_descriptor_error(desc: AudioComponentDescription, out_error: *mut *mut NSError) -> Retained<Self> {
@@ -147,31 +202,26 @@ impl<P: Plugin + 'static> MyAudioUnit<P> {
 			msg_send_id![self, outputBusses]
 		}
 	}
+}
 
-	fn ivar_offset() -> isize {
-		thread_local! {
-			pub static IVAR_OFFSET: OnceCell<isize> = OnceCell::new();
-		}
-		
-		IVAR_OFFSET.with(move |cell| {
-			*cell.get_or_init(|| {
-				let cls = MyAudioUnit::<P>::class();
-				let ivar = cls.instance_variable(WRAPPER_IVAR_NAME).unwrap();
-				ivar.offset()
-			})
-		})
+
+impl<P: Plugin + 'static> MyAudioUnit<P> {
+	fn wrapper_ptr(&self) -> *const Wrapper<P> {
+		let ptr = self as *const _ as *const *const Wrapper<P>;
+		unsafe { *ptr.byte_offset(IVAR_OFFSET.assume_init()) }
+	}
+
+	fn wrapper_ptr_mut(&mut self) -> *mut Wrapper<P> {
+		let ptr = self as *mut _ as *const *mut Wrapper<P>;
+		unsafe { *ptr.byte_offset(IVAR_OFFSET.assume_init()) }
 	}
 
 	fn wrapper(&self) -> &Wrapper<P> {
-		let ptr = self as *const _ as *const *const Wrapper<P>;
-		let ivar_ptr = unsafe { *ptr.byte_offset(Self::ivar_offset()) };
-		unsafe { &*ivar_ptr }
+		unsafe { &*self.wrapper_ptr() }
 	}
 	
 	fn wrapper_mut(&mut self) -> &mut Wrapper<P> {
-		let ptr = self as *mut _ as *const *mut Wrapper<P>;
-		let ivar_ptr = unsafe { *ptr.byte_offset(Self::ivar_offset()) };
-		unsafe { &mut *ivar_ptr }
+		unsafe { &mut *self.wrapper_ptr_mut() }
 	}
 
 	#[allow(non_snake_case)]
@@ -190,24 +240,20 @@ impl<P: Plugin + 'static> MyAudioUnit<P> {
 				let wrapper_ptr = Box::into_raw(wrapper);
                 ivar.load_ptr::<*mut Wrapper<P>>(&mut this.superclass)
 					.write(wrapper_ptr);
-
-				let wrapper_ptr = wrapper_ptr;
-				let block: AUInternalRenderRcBlock = RcBlock::new(move |flags, timestamp, frame_count, channels, buffers, events, pull_input_blocks| -> AUAudioUnitStatus {
-					let wrapper = unsafe { &mut *wrapper_ptr };
-					wrapper.render(flags, timestamp, frame_count, channels, buffers, events, pull_input_blocks);
+				let block = AUInternalRenderRcBlock::new(move |flags, timestamp, frame_count, channels, buffers, events, pull_input_blocks: *mut AURenderPullInputBlock| -> AUAudioUnitStatus {
+					let wrapper = &mut *wrapper_ptr ;
+					wrapper.render(flags, timestamp, frame_count, channels, buffers, events, pull_input_blocks.as_ref());
 					0
 				});
-				(&mut *wrapper_ptr).block = Some(block);
-				
+				let wrapper = &mut *wrapper_ptr;
+				wrapper.internal_render_block = Some(block);
             };
             this
         })
 	}
 
 	unsafe extern "C" fn dealloc(&mut self, _cmd: Sel) {
-		let ivar = Self::class().instance_variable(WRAPPER_IVAR_NAME).unwrap();
-		let wrapper_ptr = ivar.load_ptr::<*mut Wrapper<P>>(&mut self.superclass);
-		std::mem::drop(Box::from_raw(*wrapper_ptr));
+		std::mem::drop(Box::from_raw(self.wrapper_ptr_mut()));
 	}
 
 	#[allow(non_snake_case)]
@@ -221,8 +267,50 @@ impl<P: Plugin + 'static> MyAudioUnit<P> {
 	}
 
 	#[allow(non_snake_case)]
-	unsafe extern "C" fn internalRenderBlock(&mut self, _cmd: Sel) -> *mut AUInternalRenderBlock {
-		std::mem::transmute(self.wrapper_mut().block.clone().unwrap())
+	unsafe extern "C" fn internalRenderBlock(&self, _cmd: Sel) -> &AUInternalRenderBlock {
+		self.wrapper().internal_render_block.as_ref().unwrap().deref()
+	}
+
+	#[allow(non_snake_case)]
+	unsafe extern "C" fn maximumFramesToRender(&self, _cmd: Sel) -> AUAudioFrameCount {
+		self.wrapper().max_frames_to_render as _
+	}
+
+	#[allow(non_snake_case)]
+	unsafe extern "C" fn setMaximumFramesToRender(&mut self, _cmd: Sel, maximumFramesToRender: AUAudioFrameCount) {
+		self.wrapper_mut().max_frames_to_render = maximumFramesToRender as _;
+	}
+
+	#[allow(non_snake_case)]
+	unsafe extern "C" fn allocateRenderResourcesAndReturnError(&mut self, _cmd: Sel, error: *mut *mut NSError) -> Bool {
+		self.wrapper_mut().allocate_render_resources();
+		msg_send![super(self), allocateRenderResourcesAndReturnError: error]
+	}
+
+	#[allow(non_snake_case)]
+	unsafe extern "C" fn deallocateRenderResources(&mut self, _cmd: Sel) {
+		self.wrapper_mut().deallocate_render_resources();
+		msg_send![super(self), deallocateRenderResources]
+	}
+
+	#[allow(non_snake_case)]
+	unsafe extern "C" fn channelCapabilities(&self, _cmd: Sel) -> &NSArray<NSNumber> {
+		&self.wrapper().channel_capabilities
+	}
+
+	#[allow(non_snake_case)]
+	unsafe extern "C" fn latency(&self, _cmd: Sel) -> NSTimeInterval {
+		self.wrapper().plugin.latency_samples() as f64 / DEFAULT_SAMPLE_RATE
+	}
+
+	#[allow(non_snake_case)]
+	unsafe extern "C" fn tailTime(&self, _cmd: Sel) -> NSTimeInterval {
+		self.wrapper().plugin.tail_time().as_secs_f64()
+	}
+
+	#[allow(non_snake_case)]
+	unsafe extern "C" fn parameterTree(&self, _cmd: Sel) -> &AUParameterTree {
+		&self.wrapper().parameter_tree
 	}
 }
 
@@ -261,9 +349,48 @@ unsafe impl<P: Plugin + 'static> ClassType for MyAudioUnit<P> {
                     sel!(internalRenderBlock),
                     Self::internalRenderBlock as unsafe extern "C" fn(_, _) -> _,
                 );
+
+				builder.add_method(
+                    sel!(maximumFramesToRender),
+                    Self::maximumFramesToRender as unsafe extern "C" fn(_, _) -> _,
+                );
+
+				builder.add_method(
+                    sel!(setMaximumFramesToRender:),
+                    Self::setMaximumFramesToRender as unsafe extern "C" fn(_, _, _) -> _,
+                );
+				builder.add_method(
+                    sel!(allocateRenderResourcesAndReturnError:),
+                    Self::allocateRenderResourcesAndReturnError as unsafe extern "C" fn(_, _, _) -> _,
+                );
+				builder.add_method(
+                    sel!(deallocateRenderResources),
+                    Self::deallocateRenderResources as unsafe extern "C" fn(_, _),
+                );
+				builder.add_method(
+                    sel!(channelCapabilities),
+                    Self::channelCapabilities as unsafe extern "C" fn(_, _) -> _,
+                );
+				builder.add_method(
+                    sel!(tailTime),
+                    Self::tailTime as unsafe extern "C" fn(_, _) -> _,
+                );
+				builder.add_method(
+                    sel!(latency),
+                    Self::latency as unsafe extern "C" fn(_, _) -> _,
+                );
+				builder.add_method(
+                    sel!(parameterTree),
+                    Self::parameterTree as unsafe extern "C" fn(_, _) -> _,
+                );
             }
 
-            builder.register()
+			let cls = builder.register();
+			let ivar = cls.instance_variable(WRAPPER_IVAR_NAME).unwrap();
+			unsafe { 
+				IVAR_OFFSET.write(ivar.offset());
+			}
+			cls
         })
     }
 
@@ -274,86 +401,4 @@ unsafe impl<P: Plugin + 'static> ClassType for MyAudioUnit<P> {
     fn as_super_mut(&mut self) -> &mut Self::Super {
         &mut self.superclass
     }
-}
-
-
-
-
-pub struct IVars {
-	input_busses: RefCell<Option<Retained<AUAudioUnitBusArray>>>,
-	output_busses: RefCell<Option<Retained<AUAudioUnitBusArray>>>
-}
-
-declare_class!(
-	pub struct AudioUnit;
-
-	unsafe impl ClassType for AudioUnit {
-		type Super = AUAudioUnit;
-		type Mutability = InteriorMutable;
-		const NAME: &'static str = "AudioUnit";
-	}
-
-	impl DeclaredClass for AudioUnit {
-		type Ivars = IVars;
-	}
-
-	unsafe impl AudioUnit {
-		#[method(internalRenderBlock)]
-		#[allow(non_snake_case)]
-		fn internalRenderBlock(&self) -> *mut AUInternalRenderBlock {
-			std::ptr::null_mut()
-		}	
-
-		#[method_id(inputBusses)]
-		#[allow(non_snake_case)]
-		fn inputBusses(&self) -> Option<Retained<AUAudioUnitBusArray>> {
-			let input_busses = self.ivars().input_busses.borrow();
-			input_busses.clone()
-		}
-
-		#[method_id(outputBusses)]
-		#[allow(non_snake_case)]
-		fn outputBusses(&self) -> Option<Retained<AUAudioUnitBusArray>> {
-			let output_busses = self.ivars().output_busses.borrow();
-			output_busses.clone()
-		}
-
-		#[method_id(initWithComponentDescription:options:error:)]
-		#[allow(non_snake_case)]
-		fn initWithComponentDescription_options_error(
-			this: Allocated<Self>,
-			desc: AudioComponentDescription, 
-			options: AudioComponentInstantiationOptions,
-			out_error: *mut *mut NSError
-		) -> Retained<Self> {
-			let ivars = IVars {
-				input_busses: RefCell::new(None),
-				output_busses: RefCell::new(None),
-			};
-			let this = this.set_ivars(ivars);
-			unsafe { msg_send_id![super(this), initWithComponentDescription: desc, options: options, error: out_error ] } 
-		}
-	}
-
-	unsafe impl NSObjectProtocol for AudioUnit {}
-);
-
-impl AudioUnit {
-	pub fn new_with_component_descriptor_error(desc: AudioComponentDescription, out_error: *mut *mut NSError) -> Retained<Self> {
-		unsafe {
-			let this = AudioUnit::alloc();
-			let audio_unit: Retained<Self> = msg_send_id![
-				this,
-				initWithComponentDescription: desc,
-				error: out_error 
-			];
-
-			audio_unit
-		}
-	}
-}
-
-fn create_busses(audio_unit: *const AUAudioUnit, audio_layout: &AudioLayout) -> (Retained<AUAudioUnitBusArray>, Retained<AUAudioUnitBusArray>) {
-
-	todo!()
 }

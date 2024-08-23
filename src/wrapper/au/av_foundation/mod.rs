@@ -1,8 +1,8 @@
 use block2::Block;
 use objc2::{extern_class, extern_methods, mutability, rc::{Allocated, Retained}, ClassType};
-use objc2_foundation::{NSError, NSObject};
+use objc2_foundation::{NSError, NSObject, NSString};
 
-use super::audio_toolbox::{AudioComponentDescription, AudioComponentInstantiationOptions};
+use super::audio_toolbox::{AUAudioUnit, AudioComponentDescription, AudioComponentInstantiationOptions};
 
 extern_class!(
 	#[derive(PartialEq, Eq, Hash)]
@@ -32,6 +32,18 @@ extern_methods!(
 			desc: AudioComponentDescription, 
 			options: AudioComponentInstantiationOptions,
 			completion_handler: &Block<dyn Fn(*mut AVAudioUnit, *mut NSError)>);
+
+		#[method(audioComponentDescription)]
+		pub fn audio_component_description(&self) -> AudioComponentDescription;
+
+		#[method_id(manufacturerName)]
+		pub fn manufacturer_name(&self) -> Retained<NSString>;
+
+		#[method_id(name)]
+		pub fn name(&self) -> Retained<NSString>;
+
+		#[method_id(AUAudioUnit)]
+		pub fn au_audio_unit(&self) -> Retained<AUAudioUnit>;
 	}
 );
 

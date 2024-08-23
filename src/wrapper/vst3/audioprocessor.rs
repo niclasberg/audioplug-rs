@@ -2,7 +2,7 @@ use vst3_com::vst::{IComponent, SymbolicSampleSizes, MediaTypes, BusDirections, 
 use vst3_sys::{VST3, IID};
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
-use vst3_sys::vst::{BusDirection, BusInfo, IAudioProcessor, IParamValueQueue, IParameterChanges, IoMode, MediaType, ProcessData, ProcessSetup, RoutingInfo, SpeakerArrangement};
+use vst3_sys::vst::{BusDirection, BusInfo, IAudioProcessor, IParamValueQueue, IParameterChanges, IoMode, MediaType, ProcessData, ProcessModes, ProcessSetup, RoutingInfo, SpeakerArrangement};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::c_void;
@@ -130,6 +130,7 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
         let context = ProcessContext {
             input: &input,
             output: &mut output,
+			rendering_offline: data.process_mode == ProcessModes::kOffline as i32
         };
 
         self.plugin.borrow_mut().process(context, &self.parameters);

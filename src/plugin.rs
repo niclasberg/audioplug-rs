@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::param::Params;
 use crate::{AudioLayout, AudioBuffer};
 use crate::editor::Editor;
@@ -22,7 +24,8 @@ impl PluginInfo {
 
 pub struct ProcessContext<'a> {
     pub input: &'a AudioBuffer,
-    pub output: &'a mut AudioBuffer
+    pub output: &'a mut AudioBuffer,
+	pub rendering_offline: bool,
 }
 
 pub trait Plugin {
@@ -38,4 +41,12 @@ pub trait Plugin {
     fn reset(&mut self, sample_rate: f64, max_buffer_size: usize);
 
     fn process(&mut self, context: ProcessContext, parameters: &Self::Parameters);
+
+	fn tail_time(&self) -> Duration {
+		Duration::ZERO
+	}
+
+	fn latency_samples(&self) -> usize {
+		0
+	}
 }

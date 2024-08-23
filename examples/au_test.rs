@@ -53,7 +53,7 @@ fn main() {
 		component_sub_type: four_cc(b"demo"),
 		manufacturer: four_cc(b"Nibe"),
 		flags: AudioComponentFlags(0),
-		flags_mask: 0x12,
+		flags_mask: 0,
 	};
 
 	// let view_controller: ViewController<TestPlugin> = ViewController::new();
@@ -66,17 +66,19 @@ fn main() {
 	let aa = input_busses.count();
 	let bb = unsafe { audio_unit.allocate_render_resources() };
 
-	let render_block = audio_unit.render_block();
+	//AUAudioUnit::registerSubclass(MyAudioUnit::<TestPlugin>::class(), desc, ns_string!("RUST: TEST"), 0);
 
-	unsafe {
-		let render_block = &*render_block;
-	}
+	let view_controller_block = StackBlock::new(|view_controller| {
 
-	//AUAudioUnit::registerSubclass(AudioUnit::class(), desc, ns_string!("RUST: TEST"), 0);
+	});
 
 	let block = StackBlock::new(move |unit, error| {
 		let audio_unit: Option<&AUAudioUnit> = unsafe { msg_send![unit, AUAudioUnit] };
+		let provides_user_interface = unsafe { audio_unit.unwrap().providesUserInterface() };
 
+		unsafe {
+			audio_unit.unwrap().requestViewControllerWithCompletionHandler(&view_controller_block)
+		};
 		IS_DONE.store(true, std::sync::atomic::Ordering::Release);
 	});
 	AVAudioUnit::instantiateWithComponentDescription_options_completionHandler(

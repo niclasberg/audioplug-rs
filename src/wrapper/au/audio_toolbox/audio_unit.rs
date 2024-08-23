@@ -1,10 +1,10 @@
 use bitflags::bitflags;
 use block2::{Block, RcBlock};
-use objc2_foundation::{NSError, NSInteger, NSString, NSUInteger};
-use objc2::{extern_class, extern_methods, mutability, rc::{Allocated, Id, Retained}, runtime::{AnyClass, NSObject, NSObjectProtocol}, ClassType, Encode, Encoding, RefEncode};
+use objc2_foundation::{NSArray, NSError, NSInteger, NSNumber, NSString, NSTimeInterval, NSUInteger};
+use objc2::{extern_class, extern_methods, mutability, rc::{Allocated, Id, Retained}, runtime::{AnyClass, Bool, NSObject}, ClassType, Encode, Encoding, RefEncode};
 
 use crate::platform::mac::core_audio::{AudioBufferList, AudioTimeStamp};
-use super::{AUAudioUnitBusArray, AURenderEvent, AudioComponentDescription};
+use super::{AUAudioUnitBusArray, AUParameterTree, AURenderEvent, AUViewControllerBase, AudioComponentDescription};
 
 pub type AUAudioUnitStatus = i32;
 pub type AUAudioFrameCount = u32;
@@ -86,6 +86,7 @@ extern_methods!(
 			version: u32
 		);
 
+		// Initialization
 		#[method_id(initWithComponentDescription:error:_)]
 		#[allow(non_snake_case)]
 		pub fn initWithComponentDescription(
@@ -102,13 +103,50 @@ extern_methods!(
 			outError: *mut *mut NSError
 		) -> Id<Self>;
 
-		#[method(internalRenderBlock)]
+		// Querying Parameters
+		#[method_id(parameterTree)]
 		#[allow(non_snake_case)]
-		pub fn internalRenderBlock(&self) -> *mut AUInternalRenderBlock;
+		pub fn parameterTree(&self) -> Option<Retained<AUParameterTree>>;
+
+		#[method(allParameterValues)]
+		#[allow(non_snake_case)]
+		pub fn allParameterValues(&self) -> Bool;
+
+		#[method_id(parametersForOverviewWithCount:)]
+		#[allow(non_snake_case)]
+		pub fn parametersForOverviewWithCount(count: NSInteger) -> Option<Retained<NSArray<NSNumber>>>;
+
+		// Render cycle methods
+		#[method(allocateRenderResourcesAndReturnError:_)]
+		#[allow(non_snake_case)]
+		pub fn allocate_render_resources(&self) -> Result<(), Retained<NSError>>;
+
+		#[method(deallocateRenderResources)]
+		#[allow(non_snake_case)]
+		pub fn deallocateRenderResources(&self);
+
+		#[method(reset)]
+		pub unsafe fn reset(&self);
+
+		#[method(renderResourcesAllocated)]
+		#[allow(non_snake_case)]
+		pub unsafe fn renderResourcesAllocated(&self) -> bool;
 
 		#[method(renderBlock)]
 		#[allow(non_snake_case)]
-		pub fn render_block(&self) -> *mut AURenderBlock;
+		pub fn render_block(&self) -> Option<&AURenderBlock>;
+
+		#[method(maximumFramesToRender)]
+		#[allow(non_snake_case)]
+		pub fn maximumFramesToRender(&self) -> AUAudioFrameCount;
+
+		#[method(setMaximumFramesToRender:)]
+		#[allow(non_snake_case)]
+		pub fn setMaximumFramesToRender(&self, maximumFramesToRender: AUAudioFrameCount);
+
+		#[method(internalRenderBlock)]
+		#[allow(non_snake_case)]
+		pub fn internalRenderBlock(&self) -> Option<&AUInternalRenderBlock>;
 
 		#[method_id(inputBusses)]
 		#[allow(non_snake_case)]
@@ -118,12 +156,56 @@ extern_methods!(
 		#[allow(non_snake_case)]
 		pub fn output_busses(&self) -> Option<Retained<AUAudioUnitBusArray>>;
 
-		#[method(allocateRenderResourcesAndReturnError:_)]
-		#[allow(non_snake_case)]
-		pub unsafe fn allocate_render_resources(&self) -> Result<(), Retained<NSError>>;
+		// Optimizing performance
+		#[method(latency)]
+		pub fn latency(&self) -> NSTimeInterval;
 
-		#[method(deallocateRenderResources)]
+		#[method(tailTime)]
 		#[allow(non_snake_case)]
-		pub unsafe fn deallocateRenderResources(&self);
+		pub fn tailTime(&self) -> NSTimeInterval;
+
+		#[method(renderQuality)]
+		#[allow(non_snake_case)]
+		pub fn renderQuality(&self) -> NSInteger;
+
+		#[method(setRenderQuality:)]
+		#[allow(non_snake_case)]
+		pub fn setRenderQuality(&self, value: NSInteger);
+
+		#[method(shouldBypassEffect)]
+		#[allow(non_snake_case)]
+		pub fn shouldBypassEffect(&self) -> Bool;
+
+		#[method(setShouldBypassEffect:)]
+		#[allow(non_snake_case)]
+		pub fn setShouldBypassEffect(&self, value: Bool);
+
+		#[method(canProcessInPlace)]
+		#[allow(non_snake_case)]
+		pub fn canProcessInPlace(&self) -> Bool;
+
+		#[method(isRenderingOffline)]
+		#[allow(non_snake_case)]
+		pub fn isRenderingOffline(&self) -> Bool;
+
+		#[method(setRenderingOffline:)]
+		#[allow(non_snake_case)]
+		pub fn setRenderingOffline(&self, value: Bool);
+
+
+		// Configuring channel capabilities
+		#[method_id(channelCapabilities)]
+		#[allow(non_snake_case)]
+		pub fn channelCapabilities(&self) -> Option<Retained<NSArray<NSNumber>>>;
+		
+
+
+		#[method(providesUserInterface)]
+		#[allow(non_snake_case)]
+		pub unsafe fn providesUserInterface(&self) -> bool;
+
+		#[method(requestViewControllerWithCompletionHandler:)]
+		#[allow(non_snake_case)]
+		pub unsafe fn requestViewControllerWithCompletionHandler(&self, completion_handler: &Block<dyn Fn(*mut AUViewControllerBase)>);
 	}
 );

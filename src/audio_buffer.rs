@@ -21,6 +21,14 @@ impl AudioBuffer {
         Self { num_channels, num_samples, channel_samples }
     }
 
+	pub fn empty() -> Self {
+		Self {
+			num_channels: 0,
+			num_samples: 0,
+			channel_samples: std::ptr::null()
+		}
+	}
+
     pub fn samples(&self) -> usize {
         self.num_samples
     }

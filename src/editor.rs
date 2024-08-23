@@ -19,7 +19,7 @@ impl<P: Params> Editor<P> for GenericEditor<P> {
 		Self { _phantom: PhantomData }
 	}
 	
-    fn view(&self, ctx: &mut AppContext, parameters: &P) -> AnyView {
+    fn view(&self, _ctx: &mut AppContext, _parameters: &P) -> AnyView {
         Rectangle::new(Point::ZERO, Size::new(200.0, 200.0)).fill(Color::RED).as_any()
     }
 }
