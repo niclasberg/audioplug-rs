@@ -24,9 +24,7 @@ impl IntParameter {
 }
 
 impl Parameter<i64> for IntParameter {
-	type Info = IntParameterInfo;
-
-	fn info(&self) -> &Self::Info {
+	fn info(&self) -> &dyn ParameterInfo {
 		&self.info 
 	}
 

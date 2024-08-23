@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-use super::{bool::BoolParameterInfo, NormalizedValue, ParamRef, Parameter, ParameterId, PlainValue};
+use super::{bool::BoolParameterInfo, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue};
 
 pub struct ByPassParameter {
 	info: BoolParameterInfo,
@@ -18,11 +18,9 @@ impl ByPassParameter {
 }
 
 impl Parameter<bool> for ByPassParameter {
-	type Info = BoolParameterInfo; 
-
-	fn info(&self) -> &Self::Info {
-		&self.info
-	}
+	fn info(&self) -> &dyn ParameterInfo {
+        &self.info
+    }
 	
 	fn value(&self) -> bool {
 		self.value.get()

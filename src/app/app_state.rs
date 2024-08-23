@@ -2,7 +2,7 @@ use std::{any::Any, collections::VecDeque, ops::DerefMut, rc::Weak};
 use slotmap::{Key, SecondaryMap, SlotMap};
 use crate::{core::{Point, Rectangle}, param::{NormalizedValue, ParameterId, Params}, platform};
 
-use super::{binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, Runtime, Scope, SignalContext, SignalGet, Widget, WindowId};
+use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, parameter_wrapper::{wrap_parameters, ParameterWrapper}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, Runtime, Scope, SignalContext, SignalGet, Widget, WindowId};
 use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
@@ -51,7 +51,7 @@ pub(super) struct Window {
 }
 
 pub struct AppState {
-    parameters: Box<dyn Any>,
+    parameters: Box<dyn ParameterWrapper>,
     windows: SlotMap<WindowId, Window>,
     pub(super) widget_data: SlotMap<WidgetId, WidgetData>,
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
@@ -65,8 +65,9 @@ pub struct AppState {
 impl AppState {
     pub fn new(parameters: impl Params + Any, host_handle: impl HostHandle + 'static) -> Self {
         let host_handle = Box::new(host_handle);
+		let parameters = wrap_parameters(parameters);
         Self {
-            parameters: Box::new(parameters),
+            parameters,
             widget_data: Default::default(),
             widgets: Default::default(),
             widget_bindings: Default::default(),
@@ -78,13 +79,9 @@ impl AppState {
         }
     }
 
-    pub(crate) fn parameters_as<P: Params>(&self) -> Option<&P> {
-        self.parameters.downcast_ref()
-    }
-
-    pub(crate) fn parameters_as_mut<P: Params>(&mut self) -> Option<&mut P> {
-        self.parameters.downcast_mut()
-    }
+	pub fn parameters(&self) -> &dyn ParameterWrapper {
+		self.parameters.as_ref()
+	}
 
     pub fn create_signal<T: Any>(&mut self, value: T) -> Signal<T> {
         let state = SignalState::new(value);
@@ -99,22 +96,24 @@ impl AppState {
     }
 
     pub fn create_binding<T: 'static, W: Widget + 'static>(&mut self, accessor: Accessor<T>, widget_id: WidgetId, f: impl Fn(&T, WidgetMut<'_, W>) + 'static) -> bool {
-        if let Some(source_id) = accessor.get_source_id() {
-            let state = BindingState::new(widget_id, move |ctx, widget, data| {
-                let tasks = accessor.with_ref(ctx, |value| {
-					let mut tasks = VecDeque::new();
-                    let widget: &mut W = widget.downcast_mut().expect("Could not cast widget");
-                    let node = WidgetMut::new(widget, data, &mut tasks);
-                    f(value, node);
-					tasks
-                });
-				ctx.pending_tasks.extend(tasks.into_iter());
-            });
-            self.reactive_context.create_binding_node(source_id, state);
-            true
-        } else {
-            false
-        }
+		match accessor.get_source_id() {
+			SourceId::None => false,
+			SourceId::Parameter(_) => todo!(),
+			SourceId::Node(source_id) => {
+				let state = BindingState::new(widget_id, move |ctx, widget, data| {
+					let tasks = accessor.with_ref(ctx, |value| {
+						let mut tasks = VecDeque::new();
+						let widget: &mut W = widget.downcast_mut().expect("Could not cast widget");
+						let node = WidgetMut::new(widget, data, &mut tasks);
+						f(value, node);
+						tasks
+					});
+					ctx.pending_tasks.extend(tasks.into_iter());
+				});
+				self.reactive_context.create_binding_node(source_id, state);
+				true
+			}
+		}
     }
 
     pub fn create_effect(&mut self, f: impl Fn(&mut Runtime) + 'static) {

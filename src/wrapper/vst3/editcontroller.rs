@@ -1,5 +1,4 @@
 use std::cell::{OnceCell, RefCell};
-use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
@@ -13,7 +12,7 @@ use vst3_sys::vst::{IEditController, ParameterInfo, IComponentHandler};
 use vst3_sys as vst3_com;
 
 use crate::app::{AppState, HostHandle};
-use crate::param::{NormalizedValue, ParamRef, ParameterGetter, ParameterId, Params, PlainValue};
+use crate::param::{NormalizedValue, ParamRef, ParameterId, Params, PlainValue};
 use crate::Editor;
 
 use super::plugview::PlugView;
@@ -40,7 +39,6 @@ impl HostHandle for VST3HostHandle {
 // We can't fully construct the app_state until we have the ComponentHandler.
 // So, store the whole state in its own struct
 struct Inner<P: Params, E: Editor<P>> {
-    parameters: HashMap<ParameterId, ParameterGetter<P>>,
     app_state: Rc<RefCell<AppState>>,
     editor: Rc<RefCell<E>>,
     _phantom: PhantomData<P>
@@ -48,39 +46,19 @@ struct Inner<P: Params, E: Editor<P>> {
 
 impl<P: Params, E: Editor<P>> Inner<P, E> {
     fn new(component_handler: VstPtr<dyn IComponentHandler>) -> Self {
-        let params = P::default();
-        let parameters: HashMap<ParameterId, ParameterGetter<P>> = P::PARAMS.iter()
-			.map(|getter| (getter(&params).id(), *getter))
-			.collect();
         let host_handle = VST3HostHandle { component_handler };
-		let app_state = Rc::new(RefCell::new(AppState::new(params, host_handle)));
+		let app_state = Rc::new(RefCell::new(AppState::new(P::default(), host_handle)));
 		let editor = Rc::new(RefCell::new(E::new()));
         Self {
-            parameters,
             app_state,
             editor,
             _phantom: PhantomData
         }
     }
 
-    fn with_param_ref<T>(&self, id: ParameterId, f: impl FnOnce(Option<ParamRef<'_>>) -> T) -> T {
-		if let Some(getter) = self.parameters.get(&id) {
-			let app_state = RefCell::borrow(&self.app_state);
-			let params: &P = app_state.parameters_as().unwrap();
-			f(Some(getter(&params)))
-		} else {
-			f(None)
-		}
-	}
-
     fn get_parameter_info(&self, param_index: i32, info: &mut ParameterInfo) -> tresult {
-		if param_index < 0 || param_index >= P::PARAMS.len() as i32 {
-			return kInvalidArgument;
-		}
-
 		let app_state = RefCell::borrow(&self.app_state);
-		let params: &P = app_state.parameters_as().unwrap();
-		let param_ref = (P::PARAMS[param_index as usize])(params);
+		let Some(param_ref) = app_state.parameters().get_by_index(param_index as usize) else { return kInvalidArgument };
 
 		info.id = param_ref.id().into();
 		info.flags = match param_ref {
@@ -100,33 +78,29 @@ impl<P: Params, E: Editor<P>> Inner<P, E> {
     }
 
     fn set_param_normalized(&self, id: u32, value: f64) -> tresult {
-		self.with_param_ref(ParameterId::new(id), |param_ref| {
-			if let Some(param_ref) = param_ref {
-				param_ref.internal_set_value_normalized(unsafe { NormalizedValue::from_f64_unchecked(value) });
-				kResultOk
-			} else {
-				kInvalidArgument
-			}
-        })
+		let app_state = RefCell::borrow(&self.app_state);
+		let Some(param_ref) = app_state.parameters().get_by_id(ParameterId::new(id)) else { return kInvalidArgument };
+		param_ref.internal_set_value_normalized(unsafe { NormalizedValue::from_f64_unchecked(value) });
+		kResultOk
     }
 
     fn normalized_param_to_plain(&self, id: u32, value_normalized: f64) -> f64 {
-        self.with_param_ref(ParameterId::new(id), |param_ref| {
-            let value_normalized = unsafe { NormalizedValue::from_f64_unchecked(value_normalized) };
-            param_ref.map_or(0.0, |param| param.denormalize(value_normalized).into())
-        })
+		let app_state = RefCell::borrow(&self.app_state);
+		let value_normalized = unsafe { NormalizedValue::from_f64_unchecked(value_normalized) };
+		app_state.parameters().get_by_id(ParameterId::new(id))
+			.map_or(0.0, |param| param.denormalize(value_normalized).into())
     }
 
     fn plain_param_to_normalized(&self, id: u32, plain_value: f64) -> f64 {
-        self.with_param_ref(ParameterId::new(id), |param_ref| {
-            param_ref.map_or(0.0, |param| param.normalize(PlainValue::new(plain_value)).into())
-        })
+		let app_state = RefCell::borrow(&self.app_state);
+		app_state.parameters().get_by_id(ParameterId::new(id))
+        	.map_or(0.0, |param| param.normalize(PlainValue::new(plain_value)).into())
     }
 
     fn get_param_normalized(&self, id: u32) -> f64 {
-        self.with_param_ref(ParameterId::new(id), |param_ref| {
-            param_ref.map_or(0.0, |p| p.get_normalized().into())
-        })
+		let app_state = RefCell::borrow(&self.app_state);
+        app_state.parameters().get_by_id(ParameterId::new(id))
+			.map_or(0.0, |p| p.get_normalized().into())
     }
 }
 

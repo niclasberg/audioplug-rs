@@ -312,6 +312,11 @@ impl<P: Plugin + 'static> MyAudioUnit<P> {
 	unsafe extern "C" fn parameterTree(&self, _cmd: Sel) -> &AUParameterTree {
 		&self.wrapper().parameter_tree
 	}
+
+	#[allow(non_snake_case)]
+	unsafe extern "C" fn providesUserInterface(&self, _cmd: Sel) -> Bool {
+		Bool::YES
+	}
 }
 
 unsafe impl<P: Plugin + 'static> ClassType for MyAudioUnit<P> {
@@ -382,6 +387,10 @@ unsafe impl<P: Plugin + 'static> ClassType for MyAudioUnit<P> {
 				builder.add_method(
                     sel!(parameterTree),
                     Self::parameterTree as unsafe extern "C" fn(_, _) -> _,
+                );
+				builder.add_method(
+                    sel!(providesUserInterface),
+                    Self::providesUserInterface as unsafe extern "C" fn(_, _) -> _,
                 );
             }
 

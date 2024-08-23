@@ -18,9 +18,7 @@ impl BoolParameter {
 }
 
 impl Parameter<bool> for BoolParameter {
-    type Info = BoolParameterInfo;
-
-    fn info(&self) -> &Self::Info {
+    fn info(&self) -> &dyn ParameterInfo {
         &self.info
     }
 

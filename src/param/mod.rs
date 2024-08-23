@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{any::Any, fmt::Display};
 
 mod bool;
 mod float;
@@ -119,8 +119,7 @@ pub trait ParameterBase {
 }
 
 pub trait Parameter<T> {
-    type Info: ParameterInfo;
-    fn info(&self) -> &Self::Info;
+    fn info(&self) -> &dyn ParameterInfo;
 	fn value(&self) -> T;
     fn plain_value(&self) -> PlainValue;
 	fn normalized_value(&self) -> NormalizedValue {
@@ -220,9 +219,9 @@ impl<'a> ParamRef<'a> {
     }
 }
 
-pub type ParameterGetter<P: Params> = fn(&P) -> ParamRef;
+pub type ParameterGetter<P> = fn(&P) -> ParamRef;
 
-pub trait Params: Default + 'static {
+pub trait Params: Default + 'static + Any {
     const PARAMS: &'static [ParameterGetter<Self>];
 }
 

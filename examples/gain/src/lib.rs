@@ -6,8 +6,22 @@ use audioplug::window::AppContext;
 use audioplug::{params, AudioLayout, Bus, ChannelType, Editor, Plugin, ProcessContext};
 use audioplug::wrapper::vst3::Factory;
 
-struct MyPlugin {
+params!(
+	struct MyPluginParams {
+		enabled: BoolParameter,
+		gain: FloatParameter
+	}
+);
 
+impl Default for MyPluginParams {
+    fn default() -> Self {
+        Self {
+            enabled: BoolParameter::new(ParameterId::new(1), "Enabled", true),
+            gain: FloatParameter::new(ParameterId::new(2), "Gain")
+				.with_range(FloatRange::Linear { min: 0.0, max: 1.0 })
+				.with_default(0.5)
+        }
+    }
 }
 
 struct MyEditor {
@@ -37,22 +51,8 @@ impl Editor<MyPluginParams> for MyEditor {
     }
 }
 
-params!(
-	struct MyPluginParams {
-		enabled: BoolParameter,
-		gain: FloatParameter
-	}
-);
+struct MyPlugin {
 
-impl Default for MyPluginParams {
-    fn default() -> Self {
-        Self {
-            enabled: BoolParameter::new(ParameterId::new(1), "Enabled", true),
-            gain: FloatParameter::new(ParameterId::new(2), "Gain")
-				.with_range(FloatRange::Linear { min: 0.0, max: 1.0 })
-				.with_default(0.5)
-        }
-    }
 }
 
 impl Plugin for MyPlugin {
@@ -127,24 +127,30 @@ use audioplug::wrapper::au::{ViewController, NSError};
 
 #[cfg(target_os = "macos")]
 #[no_mangle]
-pub unsafe extern "C" fn create_view_controller() -> *mut c_void {
+pub unsafe extern "C" fn AUV3_create_view_controller() -> *mut c_void {
 	Box::into_raw(Box::new(ViewController::<MyPlugin>::new())) as *mut _
 }
 
 #[cfg(target_os = "macos")]
 #[no_mangle]
-pub unsafe extern "C" fn destroy_view_controller(view_controller: *mut c_void) {
+pub unsafe extern "C" fn AUV3_destroy_view_controller(view_controller: *mut c_void) {
 	drop(unsafe { Box::from_raw(view_controller as *mut ViewController::<MyPlugin>) });
 }
 
 #[cfg(target_os = "macos")]
 #[no_mangle]
-pub unsafe extern "C" fn create_audio_unit(view_controller: *mut c_void, desc: audioplug::wrapper::au::audio_toolbox::AudioComponentDescription, error: *mut *mut NSError) -> *mut c_void {
+pub unsafe extern "C" fn AUV3_create_audio_unit(view_controller: *mut c_void, desc: audioplug::wrapper::au::audio_toolbox::AudioComponentDescription, error: *mut *mut NSError) -> *mut c_void {
 	(&mut *(view_controller as *mut ViewController::<MyPlugin>)).create_audio_unit(desc, error) as *mut _
 }
 
 #[cfg(target_os = "macos")]
 #[no_mangle]
-pub unsafe extern "C" fn create_view(view_controller: *mut c_void) -> *mut c_void {
+pub unsafe extern "C" fn AUV3_create_view(view_controller: *mut c_void) -> *mut c_void {
 	(&mut *(view_controller as *mut ViewController::<MyPlugin>)).create_view() as *mut _
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub unsafe extern "C" fn AUV3_preferred_content_size(view_controller: *mut c_void) -> audioplug::wrapper::au::CGSize {
+	(&mut *(view_controller as *mut ViewController::<MyPlugin>)).preferred_size()
 }

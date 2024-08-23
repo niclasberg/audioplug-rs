@@ -1,6 +1,14 @@
 use std::any::Any;
 
+use crate::param::{Parameter, ParameterId};
+
 use super::{Memo, NodeId, Signal, SignalGet};
+
+pub(super) enum SourceId {
+	None,
+	Parameter(ParameterId),
+	Node(NodeId)
+}
 
 pub enum Accessor<T> {
     Signal(Signal<T>),
@@ -11,16 +19,20 @@ pub enum Accessor<T> {
 		with_ref: fn(&Box<dyn Any>) -> &T,
 		with_ref_untracked: fn(&Box<dyn Any>) -> &T,
 	},
+	Parameter {
+		id: ParameterId
+	},
     Const(T)
 }
 
 impl<T> Accessor<T> {
-    pub(super) fn get_source_id(&self) -> Option<NodeId> {
+    pub(super) fn get_source_id(&self) -> SourceId {
         match self {
-            Accessor::Signal(signal) => Some(signal.id),
-            Accessor::Memo(memo) => Some(memo.id),
-			Accessor::AnyGetter { source_id, ..} => Some(*source_id),
-            Accessor::Const(_) => None,
+            Accessor::Signal(signal) => SourceId::Node(signal.id),
+            Accessor::Memo(memo) => SourceId::Node(memo.id),
+			Accessor::AnyGetter { source_id, ..} => SourceId::Node(*source_id),
+			Accessor::Parameter { id } => SourceId::Parameter(*id),
+            Accessor::Const(_) => SourceId::None,
         }
     }
 }
@@ -49,6 +61,12 @@ impl From<&str> for Accessor<String> {
     }
 }
 
+impl<T> From<&dyn Parameter<T>> for Accessor<T> {
+	fn from(value: &dyn Parameter<T>) -> Self {
+		Self::Parameter { id: value.info().id() }
+	}
+}
+
 impl<T: 'static> SignalGet for Accessor<T> {
     type Value = T;
 
@@ -58,7 +76,7 @@ impl<T: 'static> SignalGet for Accessor<T> {
             Accessor::Memo(memo) => memo.with_ref(cx, f),
             Accessor::Const(value) => f(value),
 			Accessor::AnyGetter { state, with_ref, .. } => f(with_ref(state)),
-			
+			Accessor::Parameter { id } => todo!(),
         }
     }
 
@@ -68,6 +86,7 @@ impl<T: 'static> SignalGet for Accessor<T> {
             Accessor::Memo(memo) => memo.with_ref_untracked(cx, f),
             Accessor::Const(value) => f(value),
 			Accessor::AnyGetter { state, with_ref_untracked, .. } => f(with_ref_untracked(state)),
+			Accessor::Parameter { id } => todo!(),
         }
     }
 }

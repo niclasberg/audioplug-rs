@@ -2,7 +2,7 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 use objc2::rc::Retained;
 use objc2_app_kit::NSView;
-use objc2_foundation::{MainThreadMarker, NSError};
+use objc2_foundation::{CGSize, MainThreadMarker, NSError};
 use crate::{app::{AppState, HostHandle}, platform::view::View, window::MyHandler, Editor, Plugin};
 
 use super::{audio_toolbox::{AUAudioUnit, AudioComponentDescription}, MyAudioUnit};
@@ -57,6 +57,15 @@ impl<P: Plugin + 'static> ViewController<P> {
 			editor.view(ctx, &params)
 		});
 		let view = View::new(mtm, handler);
+
 		Retained::into_raw(Retained::into_super(view))
+	}
+
+	pub fn preferred_size(&self) -> CGSize {
+		if let Some(size) = self.editor.borrow().prefered_size() {
+			size.into()
+		} else {
+			CGSize::new(520.0, 480.0)
+		}
 	}
 }

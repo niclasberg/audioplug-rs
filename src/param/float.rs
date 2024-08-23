@@ -38,9 +38,7 @@ impl FloatParameter {
 }
 
 impl Parameter<f64> for FloatParameter {
-	type Info = FloatParameterInfo;
-
-	fn info(&self) -> &Self::Info {
+	fn info(&self) -> &dyn ParameterInfo {
 		&self.info
 	}
 

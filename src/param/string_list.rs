@@ -12,9 +12,7 @@ impl StringListParameter {
 }
 
 impl Parameter<usize> for StringListParameter {
-	type Info = StringListParameterInfo; 
-
-	fn info(&self) -> &Self::Info {
+	fn info(&self) -> &dyn ParameterInfo {
 		&self.info
 	}
 
