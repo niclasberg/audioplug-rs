@@ -55,9 +55,13 @@ impl HostHandle for NullHostHandle {
 
 impl App {
     pub fn new() -> Self {
+        Self::new_with_app_state(Rc::new(RefCell::new(AppState::new((), NullHostHandle))))
+    }
+
+    pub fn new_with_app_state(state: Rc<RefCell<AppState>>) -> Self {
         Self {
             native: platform::Application::new(),
-            state: Rc::new(RefCell::new(AppState::new((), NullHostHandle))),
+            state
         }
     }
 

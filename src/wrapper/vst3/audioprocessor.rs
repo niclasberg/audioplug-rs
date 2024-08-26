@@ -2,19 +2,21 @@ use vst3_com::vst::{IComponent, SymbolicSampleSizes, MediaTypes, BusDirections, 
 use vst3_sys::{VST3, IID};
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
-use vst3_sys::vst::{BusDirection, BusInfo, IAudioProcessor, IParamValueQueue, IParameterChanges, IoMode, MediaType, ProcessData, ProcessModes, ProcessSetup, RoutingInfo, SpeakerArrangement};
+use vst3_sys::vst::{BusDirection, BusInfo, IAudioProcessor, IConnectionPoint, IEventList, IMessage, IParamValueQueue, IParameterChanges, IoMode, MediaType, ProcessData, ProcessModes, ProcessSetup, RoutingInfo, SpeakerArrangement};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::c_void;
+use std::mem::MaybeUninit;
 
 use vst3_sys as vst3_com;
 
 use crate::param::{NormalizedValue, ParameterGetter, ParameterId, Params};
+use crate::wrapper::standalone::AudioProcessor;
 use crate::{Plugin, AudioBuffer, ProcessContext};
 use super::editcontroller::EditController;
 use super::util::strcpyw;
 
-#[VST3(implements(IComponent, IAudioProcessor))]
+#[VST3(implements(IComponent, IAudioProcessor, IConnectionPoint))]
 pub struct Vst3Plugin<P: Plugin> {
     plugin: RefCell<P>,
     parameters: P::Parameters,
@@ -41,8 +43,10 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
     unsafe fn set_bus_arrangements(&self, _inputs: *mut SpeakerArrangement, _num_ins: i32, _outputs: *mut SpeakerArrangement, _num_outs: i32) -> tresult {
         // From the VST3 docs, we can do the following:
         // 1. Accept the provided speaker arrangement, adjust the bus:es and return true
-        // 2. Try to adjust the bus:es to match as well as possible, return false
-        // 3. Reject the change, keep the current arrangement and return false
+        // 2. Otherwise, we return false. The host will then repeatedly call get_bus_arrangement,
+        // allowing us to adjust. The host will then call set_bus_arrangement with the provided
+        // adjustments.
+        
         kResultFalse
     }
 
@@ -124,6 +128,22 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
 			}
         }
 
+        if let Some(input_events) = data.input_events.upgrade() {
+            let event_count = input_events.get_event_count();
+            let mut event = MaybeUninit::uninit();
+            for i in 0..event_count {
+                if input_events.get_event(i, event.as_mut_ptr()) != kResultOk {
+                    continue;
+                }
+                let event = event.assume_init();
+
+                match event.type_ {
+
+                    _ => {}
+                }
+            }
+        }
+
         let input = AudioBuffer::from_ptr((*data.inputs).buffers as *const *mut _, (*data.inputs).num_channels as usize, data.num_samples as usize);
         let mut output = AudioBuffer::from_ptr((*data.outputs).buffers as *const *mut _, (*data.outputs).num_channels as usize, data.num_samples as usize);
 
@@ -173,6 +193,13 @@ impl<P: Plugin> IComponent for Vst3Plugin<P> {
                 1
             } else {
                 1
+            }
+        } else if type_ == MediaTypes::kEvent as MediaType {
+            if (dir == BusDirections::kInput as BusDirection && P::ACCEPTS_MIDI) ||  
+                (dir == BusDirections::kOutput as BusDirection && P::PRODUCES_MIDI) {
+                1
+            } else {
+                0
             }
         } else {
             0
@@ -237,5 +264,19 @@ impl<P: Plugin> IComponent for Vst3Plugin<P> {
         } else {
             kResultFalse
         }
+    }
+}
+
+impl<P: Plugin> IConnectionPoint for AudioProcessor<P> {
+    unsafe fn connect(&self,other:SharedVstPtr<dyn IConnectionPoint>) -> tresult {
+        todo!()
+    }
+
+    unsafe fn disconnect(&self,other:SharedVstPtr<dyn IConnectionPoint>) -> tresult {
+        todo!()
+    }
+
+    unsafe fn notify(&self, message:SharedVstPtr<dyn IMessage>) -> tresult {
+        todo!()
     }
 }

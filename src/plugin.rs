@@ -29,23 +29,37 @@ pub struct ProcessContext<'a> {
 }
 
 pub trait Plugin {
+    /// Name of the plugin
     const NAME: &'static str;
+    /// Name of the plugin vendor
     const VENDOR: &'static str;
+    /// URL of the plugin vendor
     const URL: &'static str;
     const EMAIL: &'static str;
     const AUDIO_LAYOUT: &'static [AudioLayout];
+    /// Type of editor (a.k.a. user interface) for the plugin. 
     type Editor: Editor<Self::Parameters>;
     type Parameters: Params;
+
+    /// True if the plugin accepts midi input messages
+    const ACCEPTS_MIDI: bool = false;
+    /// True if the plugin produces output midi messages
+    const PRODUCES_MIDI: bool = false;
 
     fn new() -> Self;
     fn reset(&mut self, sample_rate: f64, max_buffer_size: usize);
 
     fn process(&mut self, context: ProcessContext, parameters: &Self::Parameters);
 
+    /// Length of the tail of the signal from the plugin. This can be thought of as the 
+    /// time it takes for the plugin to go silent when no more input is given. A good example
+    /// for a plugin type with a tail is a reverb, which will reverberate for some time for 
+    /// each input value.
 	fn tail_time(&self) -> Duration {
 		Duration::ZERO
 	}
 
+    /// The latency (in number of samples) that the plugin imposes
 	fn latency_samples(&self) -> usize {
 		0
 	}
