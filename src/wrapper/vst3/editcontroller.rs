@@ -7,7 +7,7 @@ use vst3_com::vst::{kRootUnitId, ParameterFlags};
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
 use vst3_sys::{IID, VST3, c_void};
-use vst3_sys::vst::{IEditController, ParameterInfo, IComponentHandler};
+use vst3_sys::vst::{IComponentHandler, IConnectionPoint, IEditController, IMessage, ParameterInfo};
 
 use vst3_sys as vst3_com;
 
@@ -204,4 +204,18 @@ impl<P: Params, E: Editor<P>> IPluginBase for EditController<P, E> {
     unsafe fn terminate(&self) -> tresult {
         kResultOk
     }
+}
+
+impl<P: Params, E: Editor<P>> IConnectionPoint for EditController<P, E> {
+	unsafe fn connect(&self, _other: SharedVstPtr<dyn IConnectionPoint>) -> tresult {
+		kResultOk
+	}
+
+	unsafe fn disconnect(&self, _other: SharedVstPtr<dyn IConnectionPoint>) -> tresult {
+		kResultOk
+	}
+
+	unsafe fn notify(&self, _message: SharedVstPtr<dyn IMessage>) -> tresult {
+		kResultOk
+	}
 }

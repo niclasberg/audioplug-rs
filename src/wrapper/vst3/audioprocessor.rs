@@ -11,7 +11,6 @@ use std::mem::MaybeUninit;
 use vst3_sys as vst3_com;
 
 use crate::param::{NormalizedValue, ParameterGetter, ParameterId, Params};
-use crate::wrapper::standalone::AudioProcessor;
 use crate::{Plugin, AudioBuffer, ProcessContext};
 use super::editcontroller::EditController;
 use super::util::strcpyw;
@@ -267,16 +266,20 @@ impl<P: Plugin> IComponent for Vst3Plugin<P> {
     }
 }
 
-impl<P: Plugin> IConnectionPoint for AudioProcessor<P> {
-    unsafe fn connect(&self,other:SharedVstPtr<dyn IConnectionPoint>) -> tresult {
-        todo!()
+impl<P: Plugin> IConnectionPoint for Vst3Plugin<P> {
+    unsafe fn connect(&self, _other: SharedVstPtr<dyn IConnectionPoint>) -> tresult {
+		// TODO: We will need some way to share messages between the plugin and the editor.
+		// For instance, FFT data. Says in the VST3 docs that this API should not be called from the 
+		// process function (think it allocates). We could do like JUCE, and send a pointer to this
+		// object to the editor (and vice versa) using the IConnectionPoint API and then implement our own system. 
+        kResultOk
     }
 
-    unsafe fn disconnect(&self,other:SharedVstPtr<dyn IConnectionPoint>) -> tresult {
-        todo!()
+    unsafe fn disconnect(&self, _other: SharedVstPtr<dyn IConnectionPoint>) -> tresult {
+        kResultOk
     }
 
-    unsafe fn notify(&self, message:SharedVstPtr<dyn IMessage>) -> tresult {
-        todo!()
+    unsafe fn notify(&self, _message: SharedVstPtr<dyn IMessage>) -> tresult {
+        kResultOk
     }
 }

@@ -19,31 +19,31 @@ _bundle_vst name target_dir: (_build name)
     mkdir -p {{target_dir}}/{{name}}.vst3/Contents/Resources
     mkdir -p {{target_dir}}/{{name}}.vst3/Contents/MacOS
     cp target/debug/lib{{name}}.dylib {{target_dir}}/{{name}}.vst3/Contents/MacOS/{{name}}
-    echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-    <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
-    <plist version=\"1.0\">
-    <dict>
-        <key>CFBundleDevelopmentRegion</key>
-        <string>English</string>
-        <key>CFBundleExecutable</key>
-        <string>{{name}}</string>
-        <key>CFBundleGetInfoString</key>
-        <string>vst3</string>
-        <key>CFBundleIconFile</key>
-        <string></string>
-        <key>CFBundleIdentifier</key>
-        <string>com.github.niclasberg.$1</string>
-        <key>CFBundleInfoDictionaryVersion</key>
-        <string>6.0</string>
-        <key>CFBundleName</key>
-        <string>{{name}}</string>
-        <key>CFBundlePackageType</key>
-        <string>BNDL</string>
-        <key>CFBundleVersion</key>
-        <string>1.0</string>
-        <key>CSResourcesFileMapped</key>
-        <string></string>
-    </dict>
+    @echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?> \
+    <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"> \
+    <plist version=\"1.0\"> \
+    <dict> \
+        <key>CFBundleDevelopmentRegion</key> \
+        <string>English</string> \
+        <key>CFBundleExecutable</key> \
+        <string>{{name}}</string> \
+        <key>CFBundleGetInfoString</key> \
+        <string>vst3</string> \
+        <key>CFBundleIconFile</key> \
+        <string></string> \
+        <key>CFBundleIdentifier</key> \
+        <string>com.github.niclasberg.{{name}}</string> \
+        <key>CFBundleInfoDictionaryVersion</key> \
+        <string>6.0</string> \
+        <key>CFBundleName</key> \
+        <string>{{name}}</string> \
+        <key>CFBundlePackageType</key> \
+        <string>BNDL</string> \
+        <key>CFBundleVersion</key> \
+        <string>1.0</string> \
+        <key>CSResourcesFileMapped</key> \
+        <string></string> \
+    </dict> \
     </plist>" > {{target_dir}}/{{name}}.vst3/Contents/Info.plist
     codesign --force --sign - --timestamp=none {{target_dir}}/{{name}}.vst3
 
