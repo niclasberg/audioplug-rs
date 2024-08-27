@@ -38,7 +38,7 @@ pub trait Plugin {
     const EMAIL: &'static str;
     const AUDIO_LAYOUT: &'static [AudioLayout];
     /// Type of editor (a.k.a. user interface) for the plugin. 
-    type Editor: Editor<Self::Parameters>;
+    type Editor: Editor<Parameters = Self::Parameters>;
     type Parameters: Params;
 
     /// True if the plugin accepts midi input messages

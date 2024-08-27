@@ -1,17 +1,13 @@
 use raw_window_handle::RawWindowHandle;
-use vst3_sys::{VST3, VstPtr};
-use vst3_sys::vst::IComponentHandler;
+use vst3_sys::VST3;
 use vst3_sys::base::*;
 use vst3_sys::gui::{IPlugView, ViewRect};
 use std::cell::RefCell;
 use std::ffi::{CStr, c_void};
-use std::marker::PhantomData;
-use std::ptr::NonNull;
 use std::rc::Rc;
 
 use crate::app::AppState;
-use crate::core::{Color, Rectangle, Size, Point};
-use crate::param::Params;
+use crate::core::Rectangle;
 use crate::window::Window;
 use crate::Editor;
 
@@ -31,16 +27,15 @@ const VST3_PLATFORM_NSVIEW: &str = "NSView";
 
 use vst3_sys as vst3_com;
 #[VST3(implements(IPlugView))]
-pub struct PlugView<P: Params, E: Editor<P>> {
+pub struct PlugView<E: Editor> {
     window: RefCell<Option<Window>>,
     app_state: Rc<RefCell<AppState>>,
-	editor: Rc<RefCell<E>>,
-    _phantom: PhantomData<P>
+	editor: Rc<RefCell<E>>
 }
 
-impl<P: Params, E: Editor<P>> PlugView<P, E> {
+impl<E: Editor> PlugView<E> {
     pub fn new(app_state: Rc<RefCell<AppState>>, editor: Rc<RefCell<E>>) -> Box<Self> {
-        Self::allocate(RefCell::new(None), app_state, editor, PhantomData)
+        Self::allocate(RefCell::new(None), app_state, editor)
     }
 
     pub fn create_instance(app_state: Rc<RefCell<AppState>>, editor: Rc<RefCell<E>>) -> *mut c_void {
@@ -48,7 +43,7 @@ impl<P: Params, E: Editor<P>> PlugView<P, E> {
     }
 }
 
-impl<P: Params, E: Editor<P>> IPlugView for PlugView<P, E> {
+impl<E: Editor> IPlugView for PlugView<E> {
     unsafe fn is_platform_type_supported(&self, type_: FIDString) -> tresult {
         let type_ = CStr::from_ptr(type_);
         match type_.to_str() {
@@ -87,7 +82,7 @@ impl<P: Params, E: Editor<P>> IPlugView for PlugView<P, E> {
 			let _editor = self.editor.clone();
             *window = Some(Window::attach(self.app_state.clone(), handle, move |ctx| {
 				let editor = RefCell::borrow(&_editor);
-				let params = P::default();
+				let params = E::Parameters::default();
 				editor.view(ctx, &params)
 			}));
 

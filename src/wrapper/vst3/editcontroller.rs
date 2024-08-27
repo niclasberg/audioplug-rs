@@ -1,5 +1,4 @@
 use std::cell::{OnceCell, RefCell};
-use std::marker::PhantomData;
 use std::rc::Rc;
 
 use vst3_com::VstPtr;
@@ -38,21 +37,19 @@ impl HostHandle for VST3HostHandle {
 
 // We can't fully construct the app_state until we have the ComponentHandler.
 // So, store the whole state in its own struct
-struct Inner<P: Params, E: Editor<P>> {
+struct Inner<E: Editor> {
     app_state: Rc<RefCell<AppState>>,
-    editor: Rc<RefCell<E>>,
-    _phantom: PhantomData<P>
+    editor: Rc<RefCell<E>>
 }
 
-impl<P: Params, E: Editor<P>> Inner<P, E> {
+impl<E: Editor> Inner<E> {
     fn new(component_handler: VstPtr<dyn IComponentHandler>) -> Self {
         let host_handle = VST3HostHandle { component_handler };
-		let app_state = Rc::new(RefCell::new(AppState::new(P::default(), host_handle)));
+		let app_state = Rc::new(RefCell::new(AppState::new(E::Parameters::default(), host_handle)));
 		let editor = Rc::new(RefCell::new(E::new()));
         Self {
             app_state,
-            editor,
-            _phantom: PhantomData
+            editor
         }
     }
 
@@ -105,11 +102,11 @@ impl<P: Params, E: Editor<P>> Inner<P, E> {
 }
 
 #[VST3(implements(IEditController))]
-pub struct EditController<P: Params, E: Editor<P>> {
-    inner: OnceCell<Inner<P, E>>
+pub struct EditController<E: Editor> {
+    inner: OnceCell<Inner<E>>
 }
 
-impl<P: Params, E: Editor<P>> EditController<P, E> {
+impl<E: Editor> EditController<E> {
     pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 14] };
 
     pub fn new() -> Box<Self> {
@@ -121,7 +118,7 @@ impl<P: Params, E: Editor<P>> EditController<P, E> {
     }
 }
 
-impl<P: Params, E: Editor<P>> IEditController for EditController<P, E> {
+impl<E: Editor> IEditController for EditController<E> {
     unsafe fn set_component_state(&self, _state: SharedVstPtr<dyn IBStream>) -> tresult {
         kResultOk
     }
@@ -137,7 +134,7 @@ impl<P: Params, E: Editor<P>> IEditController for EditController<P, E> {
     }
 
     unsafe fn get_parameter_count(&self) -> i32 {
-        P::PARAMS.len() as i32
+        E::Parameters::PARAMS.len() as i32
     }
 
     unsafe fn get_parameter_info(&self, param_index: i32, info: *mut ParameterInfo) -> tresult {
@@ -196,7 +193,7 @@ impl<P: Params, E: Editor<P>> IEditController for EditController<P, E> {
     }
 }
 
-impl<P: Params, E: Editor<P>> IPluginBase for EditController<P, E> {
+impl<E: Editor> IPluginBase for EditController<E> {
     unsafe fn initialize(&self, _context: *mut c_void) -> tresult {
         kResultOk
     }
@@ -206,7 +203,7 @@ impl<P: Params, E: Editor<P>> IPluginBase for EditController<P, E> {
     }
 }
 
-impl<P: Params, E: Editor<P>> IConnectionPoint for EditController<P, E> {
+impl<E: Editor> IConnectionPoint for EditController<E> {
 	unsafe fn connect(&self, _other: SharedVstPtr<dyn IConnectionPoint>) -> tresult {
 		kResultOk
 	}

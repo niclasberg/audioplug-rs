@@ -1,10 +1,8 @@
-use std::ffi::c_void;
 use audioplug::core::{Color, Size};
 use audioplug::param::{BoolParameter, FloatParameter, FloatRange, NormalizedValue, Parameter, ParameterId};
 use audioplug::view::{AnyView, Column, Label, Slider, View};
 use audioplug::window::AppContext;
-use audioplug::{params, AudioLayout, Bus, ChannelType, Editor, Plugin, ProcessContext};
-use audioplug::wrapper::vst3::Factory;
+use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, params, AudioLayout, Bus, ChannelType, Editor, Plugin, ProcessContext};
 
 params!(
 	struct MyPluginParams {
@@ -24,11 +22,10 @@ impl Default for MyPluginParams {
     }
 }
 
-struct MyEditor {
+struct MyEditor;
+impl Editor for MyEditor {
+    type Parameters = MyPluginParams;
 
-}
-
-impl Editor<MyPluginParams> for MyEditor {
 	fn new() -> Self {
 		Self {}
 	}
@@ -87,70 +84,5 @@ impl Plugin for MyPlugin {
     }
 }
 
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "system" fn GetPluginFactory() -> *mut c_void {
-    Box::into_raw(Factory::<MyPlugin>::new()) as *mut c_void
-}
-
-#[cfg(target_os = "windows")]
-#[no_mangle]
-#[allow(non_snake_case)]
-pub extern "system" fn InitDll() -> bool {
-    true
-}
-
-#[cfg(target_os = "windows")]
-#[no_mangle]
-#[allow(non_snake_case)]
-pub extern "system" fn ExitDll() -> bool {
-    true
-}
-
-
-#[cfg(target_os = "macos")]
-#[no_mangle]
-#[allow(non_snake_case)]
-pub extern "system" fn bundleEntry() -> bool {
-    true
-}
-
-#[cfg(target_os = "macos")]
-#[no_mangle]
-#[allow(non_snake_case)]
-pub extern "system" fn bundleExit() -> bool {
-    true
-}
-
-#[cfg(target_os = "macos")]
-use audioplug::wrapper::au::{ViewController, NSError};
-
-#[cfg(target_os = "macos")]
-#[no_mangle]
-pub unsafe extern "C" fn AUV3_create_view_controller() -> *mut c_void {
-	Box::into_raw(Box::new(ViewController::<MyPlugin>::new())) as *mut _
-}
-
-#[cfg(target_os = "macos")]
-#[no_mangle]
-pub unsafe extern "C" fn AUV3_destroy_view_controller(view_controller: *mut c_void) {
-	drop(unsafe { Box::from_raw(view_controller as *mut ViewController::<MyPlugin>) });
-}
-
-#[cfg(target_os = "macos")]
-#[no_mangle]
-pub unsafe extern "C" fn AUV3_create_audio_unit(view_controller: *mut c_void, desc: audioplug::wrapper::au::audio_toolbox::AudioComponentDescription, error: *mut *mut NSError) -> *mut c_void {
-	(&mut *(view_controller as *mut ViewController::<MyPlugin>)).create_audio_unit(desc, error) as *mut _
-}
-
-#[cfg(target_os = "macos")]
-#[no_mangle]
-pub unsafe extern "C" fn AUV3_create_view(view_controller: *mut c_void) -> *mut c_void {
-	(&mut *(view_controller as *mut ViewController::<MyPlugin>)).create_view() as *mut _
-}
-
-#[cfg(target_os = "macos")]
-#[no_mangle]
-pub unsafe extern "C" fn AUV3_preferred_content_size(view_controller: *mut c_void) -> audioplug::wrapper::au::CGSize {
-	(&mut *(view_controller as *mut ViewController::<MyPlugin>)).preferred_size()
-}
+audioplug_vst3_plugin!(MyPlugin);
+audioplug_auv3_plugin!(MyPlugin);

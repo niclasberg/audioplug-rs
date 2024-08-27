@@ -8,7 +8,7 @@ pub enum PianoKeyEvent {
 }
 
 pub struct Piano {
-
+    
 }
 
 impl View for Piano {

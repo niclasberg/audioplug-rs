@@ -2,9 +2,11 @@ use std::marker::PhantomData;
 
 use crate::{core::{Color, Point, Rectangle, Size}, param::Params, view::{AnyView, Fill, View}, window::AppContext};
 
-pub trait Editor<P: Params>: 'static {
+pub trait Editor: 'static {
+	type Parameters: Params;
+
 	fn new() -> Self;
-    fn view(&self, ctx: &mut AppContext, parameters: &P) -> AnyView;
+    fn view(&self, ctx: &mut AppContext, parameters: &Self::Parameters) -> AnyView;
 	fn min_size(&self) -> Option<Size> { None }
 	fn max_size(&self) -> Option<Size> { None }
 	fn prefered_size(&self) -> Option<Size> { None }
@@ -14,7 +16,9 @@ pub struct GenericEditor<P> {
 	_phantom: PhantomData<P>
 }
 
-impl<P: Params> Editor<P> for GenericEditor<P> {
+impl<P: Params> Editor for GenericEditor<P> {
+	type Parameters = P;
+	
 	fn new() -> Self {
 		Self { _phantom: PhantomData }
 	}
