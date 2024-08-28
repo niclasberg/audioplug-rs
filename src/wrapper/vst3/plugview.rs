@@ -18,7 +18,10 @@ use {
 };
 
 #[cfg(target_os = "macos")]
-use raw_window_handle::AppKitWindowHandle;
+use {
+	raw_window_handle::AppKitWindowHandle,
+	std::ptr::NonNull
+};
 
 #[cfg(target_os = "windows")]
 const VST3_PLATFORM_HWND: &str = "HWND";
