@@ -100,16 +100,20 @@ impl Widget for SliderWidget {
     fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         match event {
             MouseEvent::Down { button, position } => {
-                if self.knob_shape(ctx.bounds()).hit_test(position) {
-                    if button == MouseButton::LEFT && self.state != State::Dragging {
-                        ctx.capture_mouse();
-                        ctx.request_render();
-                        if let Some(f) = self.on_drag_start.as_ref() {
-                            f();
-                        }
-                        self.state = State::Dragging;
-                    }
-                }
+				if button == MouseButton::LEFT && self.state != State::Dragging {
+                	if !self.knob_shape(ctx.bounds()).hit_test(position) {
+						let normalized_position = ((position.x - ctx.bounds().left()) / ctx.bounds().width()).clamp(0.0, 1.0);
+						if self.set_position(ctx.app_state_mut(), normalized_position) {
+							ctx.request_render();
+						}
+					}
+					ctx.capture_mouse();
+					ctx.request_render();
+					if let Some(f) = self.on_drag_start.as_ref() {
+						f();
+					}
+					self.state = State::Dragging;
+				}
                 EventStatus::Handled
             },
             MouseEvent::Moved { position } => {

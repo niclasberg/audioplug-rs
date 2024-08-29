@@ -52,7 +52,7 @@ _bundle_au name target_dir: (_build name)
     mkdir -p {{target_dir}}/tmp
     cp target/debug/lib{{name}}.a {{target_dir}}/tmp/libaudioplug.a
     clang++ -o "./target/debug/rusttest.app/Contents/PlugIns/rusttest.appex/Contents/MacOS/rusttest" -Wl,-no_adhoc_codesign -fobjc-arc -fobjc-link-runtime -fapplication-extension -e _NSExtensionMain -fmodules -framework Foundation -framework AudioToolbox -framework AppKit -framework CoreGraphics -framework CoreText -framework CoreAudioKit -L{{target_dir}}/tmp objc/view_controller.mm -laudioplug
-    cp examples/{{name}}/AU/Info.plist {{target_dir}}
+    cp examples/{{name}}/AU/Info.plist {{target_dir}}/rusttest.app/Contents/PlugIns/rusttest.appex/Contents/
     codesign --force --sign - -o runtime --entitlements ./examples/{{name}}/AU/entitlements.plist --timestamp=none "./target/debug/rusttest.app/Contents/PlugIns/rusttest.appex"
     codesign --force --sign - --timestamp=none "./target/debug/rusttest.app"
 

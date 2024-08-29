@@ -36,7 +36,7 @@ impl Editor for MyEditor {
 
     fn view(&self, _ctx: &mut AppContext, _parameters: &MyPluginParams) -> AnyView {
         Column::new((
-            Label::new("Text input").with_color(Color::BLUE),
+            Label::new("Gain").with_color(Color::BLUE),
             Slider::new()
                 .on_value_changed(|ctx, value| {
                     let id = ParameterId::new(2);

@@ -72,13 +72,18 @@ fn main() {
 
 	});
 
-	let block = StackBlock::new(move |unit, error| {
-		let audio_unit: Option<&AUAudioUnit> = unsafe { msg_send![unit, AUAudioUnit] };
-		let provides_user_interface = unsafe { audio_unit.unwrap().providesUserInterface() };
+	let block = StackBlock::new(move |unit, error: *mut NSError| {
+		if let Some(error) = unsafe { error.as_mut() } {
+			let aa = error.localizedDescription().to_string();
+			println!("{}", aa);
+		} else {
+			let audio_unit: Option<&AUAudioUnit> = unsafe { msg_send![unit, AUAudioUnit] };
+			let provides_user_interface = unsafe { audio_unit.unwrap().providesUserInterface() };
 
-		unsafe {
-			audio_unit.unwrap().requestViewControllerWithCompletionHandler(&view_controller_block)
-		};
+			unsafe {
+				audio_unit.unwrap().requestViewControllerWithCompletionHandler(&view_controller_block)
+			};
+		}
 		IS_DONE.store(true, std::sync::atomic::Ordering::Release);
 	});
 	AVAudioUnit::instantiateWithComponentDescription_options_completionHandler(

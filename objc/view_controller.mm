@@ -10,6 +10,7 @@ extern "C" void AUV3_destroy_view_controller(view_controller_t*);
 extern "C" NSView* AUV3_create_view(view_controller_t*);
 extern "C" AUAudioUnit* AUV3_create_audio_unit(view_controller_t*, AudioComponentDescription desc, NSError ** error);
 extern "C" CGSize AUV3_preferred_content_size(view_controller_t*);
+extern "C" void AUV3_view_did_layout_subviews(view_controller_t*);
 
 struct Deleter {
 	void operator()(view_controller_t* viewController) const {
@@ -26,12 +27,14 @@ struct Deleter {
 }
 
 - (instancetype) initWithNibName: (nullable NSString*) nib bundle: (nullable NSBundle*) bndl { 
+	NSLog(@"Init");
 	self = [super initWithNibName: nib bundle: bndl]; 
 	view_controller_t* vc = AUV3_create_view_controller();
 	viewController.reset(vc); 
 	return self; 
 }
 - (void) loadView { 
+	NSLog(@"Load view");
 	self.view = AUV3_create_view(viewController.get());
 }
 - (AUAudioUnit *) createAudioUnitWithComponentDescription: (AudioComponentDescription) desc error: (NSError **) error { 
@@ -42,7 +45,7 @@ struct Deleter {
 	return AUV3_preferred_content_size(viewController.get());
 }
 
-//- (void) viewDidLayoutSubviews   { cpp->viewDidLayoutSubviews();  }
-//- (void) viewDidLayout           { cpp->viewDidLayoutSubviews(); }
+//- (void) viewDidLayoutSubviews   { AUV3_view_did_layout_subviews(viewController.get());  }
+//- (void) viewDidLayout           { AUV3_view_did_layout_subviews(viewController.get()); }
 //- (void) didReceiveMemoryWarning { cpp->didReceiveMemoryWarning(); }
 @end

@@ -55,6 +55,8 @@ objc2 = "0.5.2"
 objc2-foundation = { version = "0.2.2", features = [
 	"NSAttributedString",
 	"NSDictionary",
+	"NSEnumerator",
+	"NSIndexSet",
 	"NSString",
 	"NSThread",
 ] }

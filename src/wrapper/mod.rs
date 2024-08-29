@@ -24,7 +24,8 @@ macro_rules! audioplug_auv3_plugin{
 
         #[no_mangle]
         pub unsafe extern "C" fn AUV3_destroy_view_controller(view_controller: *mut std::ffi::c_void) {
-            drop(unsafe { Box::from_raw(view_controller as *mut $crate::wrapper::au::ViewController::<$plugin>) });
+			let vc: Box<$crate::wrapper::au::ViewController<$plugin>> = unsafe { Box::from_raw(view_controller as *mut _) };
+            drop(vc);
         }
 
         #[no_mangle]
@@ -34,13 +35,20 @@ macro_rules! audioplug_auv3_plugin{
 
         #[no_mangle]
         pub unsafe extern "C" fn AUV3_create_view(view_controller: *mut std::ffi::c_void) -> *mut std::ffi::c_void {
-            (&mut *(view_controller as *mut $crate::wrapper::au::ViewController::<$plugin>)).create_view() as *mut _
+			(&mut *(view_controller as *mut $crate::wrapper::au::ViewController::<$plugin>)).create_view() as *mut _
+			//$crate::wrapper::au::ViewController::<$plugin>::create_view(&mut *(view_controller as *mut _)) as *mut _
         }
 
         #[no_mangle]
         pub unsafe extern "C" fn AUV3_preferred_content_size(view_controller: *mut std::ffi::c_void) -> $crate::wrapper::au::CGSize {
-            (&mut *(view_controller as *mut $crate::wrapper::au::ViewController::<$plugin>)).preferred_size()
+			(&mut *(view_controller as *mut $crate::wrapper::au::ViewController::<$plugin>)).preferred_size()
+			//$crate::wrapper::au::ViewController::<$plugin>::preferred_size(&mut *(view_controller as *mut _))
         }
+
+		#[no_mangle]
+		pub unsafe extern "C" fn AUV3_view_did_layout_subviews(view_controller: *mut std::ffi::c_void) {
+
+		}
     };
 }
 

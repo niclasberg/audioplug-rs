@@ -11,7 +11,7 @@
 	<key>CFBundleIconFile</key>
 	<string>icon</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.niclas.rusttest</string>
+	<string>com.niclas.rusttestapp.rusttestext</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -47,11 +47,13 @@
 					<string>aufx</string>
 					<key>version</key>
 					<integer>67072</integer>
+					<key>factoryFunction</key>
+					<string>MyViewController</string>			
 				</dict>
 			</array>
 		</dict>
 		<key>NSExtensionPointIdentifier</key>
-		<string>com.apple.AudioUnit</string>
+		<string>com.apple.AudioUnit-UI</string>
 		<key>NSExtensionPrincipalClass</key>
 		<string>MyViewController</string>
 	</dict>

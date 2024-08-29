@@ -1,6 +1,6 @@
 use bitflags::bitflags;
 use block2::{Block, RcBlock};
-use objc2_foundation::{NSArray, NSError, NSInteger, NSNumber, NSString, NSTimeInterval, NSUInteger};
+use objc2_foundation::{CGFloat, NSArray, NSError, NSInteger, NSNumber, NSString, NSTimeInterval, NSUInteger, NSIndexSet};
 use objc2::{extern_class, extern_methods, mutability, rc::{Allocated, Id, Retained}, runtime::{AnyClass, Bool, NSObject}, ClassType, Encode, Encoding, RefEncode};
 
 use crate::platform::mac::core_audio::{AudioBufferList, AudioTimeStamp};
@@ -64,6 +64,25 @@ pub type AURenderPullInputBlock = Block<dyn Fn(*mut AudioUnitRenderActionFlags, 
 pub type AUInternalRenderBlock = Block<dyn Fn(*mut AudioUnitRenderActionFlags, *const AudioTimeStamp, AUAudioFrameCount, NSInteger, *mut AudioBufferList, *const AURenderEvent, *mut AURenderPullInputBlock) -> AUAudioUnitStatus>;
 pub type AUInternalRenderRcBlock = RcBlock<dyn Fn(*mut AudioUnitRenderActionFlags, *const AudioTimeStamp, AUAudioFrameCount, NSInteger, *mut AudioBufferList, *const AURenderEvent, *mut AURenderPullInputBlock) -> AUAudioUnitStatus>;
 pub type AURenderBlock = AUInternalRenderBlock;
+
+extern_class!(
+	pub struct AUAudioUnitViewConfiguration;
+
+	unsafe impl ClassType for AUAudioUnitViewConfiguration {
+		type Super = NSObject;
+		type Mutability = mutability::InteriorMutable;
+	}
+);
+
+extern_methods!(
+	unsafe impl AUAudioUnitViewConfiguration {
+		#[method(width)]
+		pub fn width(&self) -> CGFloat;
+
+		#[method(height)]
+		pub fn height(&self) -> CGFloat;
+	}
+);
 
 extern_class!(
 	#[derive(PartialEq, Eq, Hash)]
@@ -199,10 +218,14 @@ extern_methods!(
 		pub fn channelCapabilities(&self) -> Option<Retained<NSArray<NSNumber>>>;
 		
 
-
+		// Configuring the User Interface
 		#[method(providesUserInterface)]
 		#[allow(non_snake_case)]
-		pub unsafe fn providesUserInterface(&self) -> bool;
+		pub unsafe fn providesUserInterface(&self) -> Bool;
+
+		#[method_id(supportedViewConfigurations:)]
+		#[allow(non_snake_case)]
+		pub unsafe fn supportedViewConfigurations(&self, availableViewConfigurations: &NSArray<AUAudioUnitViewConfiguration>) -> Retained<NSIndexSet>;
 
 		#[method(requestViewControllerWithCompletionHandler:)]
 		#[allow(non_snake_case)]

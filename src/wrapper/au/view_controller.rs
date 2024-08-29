@@ -11,15 +11,15 @@ struct AUV3HostHandle;
 
 impl HostHandle for AUV3HostHandle {
 	fn begin_edit(&self, _id: crate::param::ParameterId) {
-		todo!()
+		
 	}
 
 	fn end_edit(&self, _id: crate::param::ParameterId) {
-		todo!()
+		
 	}
 
 	fn perform_edit(&self, _id: crate::param::ParameterId, _value: crate::param::NormalizedValue) {
-		todo!()
+		
 	}
 }
 

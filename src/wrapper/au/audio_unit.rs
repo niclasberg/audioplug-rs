@@ -1,10 +1,10 @@
-use std::{cell::{OnceCell, RefCell}, collections::HashMap, marker::PhantomData, mem::MaybeUninit, ops::Deref, sync::OnceLock};
+use std::{collections::HashMap, marker::PhantomData, mem::MaybeUninit, ops::Deref, sync::OnceLock};
 
 use objc2::{__extern_class_impl_traits, msg_send, msg_send_id, mutability::Mutable, rc::Retained, runtime::{AnyClass, AnyObject, Bool, ClassBuilder, Sel}, sel, ClassType, Encoding, RefEncode};
-use objc2_foundation::{ns_string, NSArray, NSError, NSInteger, NSMutableArray, NSNumber, NSObject, NSString, NSTimeInterval};
+use objc2_foundation::{ns_string, NSArray, NSError, NSIndexSet, NSInteger, NSMutableArray, NSNumber, NSObject, NSRange, NSString, NSTimeInterval};
 use crate::{param::{ParameterGetter, ParameterId, Params}, platform::core_audio::{AudioBufferList, AudioTimeStamp}, AudioBuffer, Plugin, ProcessContext};
 
-use super::{audio_toolbox::{AUAudioFrameCount, AUAudioUnit, AUAudioUnitBus, AUAudioUnitBusArray, AUAudioUnitBusType, AUAudioUnitStatus, AUInternalRenderBlock, AUInternalRenderRcBlock, AUParameter, AUParameterNode, AUParameterTree, AURenderEvent, AURenderPullInputBlock, AudioComponentDescription, AudioComponentInstantiationOptions, AudioUnitParameterOptions, AudioUnitParameterUnit, AudioUnitRenderActionFlags}, av_foundation::AVAudioFormat};
+use super::{audio_toolbox::{AUAudioFrameCount, AUAudioUnit, AUAudioUnitBus, AUAudioUnitBusArray, AUAudioUnitBusType, AUAudioUnitStatus, AUAudioUnitViewConfiguration, AUInternalRenderBlock, AUInternalRenderRcBlock, AUParameter, AUParameterNode, AUParameterTree, AURenderEvent, AURenderPullInputBlock, AudioComponentDescription, AudioComponentInstantiationOptions, AudioUnitParameterOptions, AudioUnitParameterUnit, AudioUnitRenderActionFlags}, av_foundation::AVAudioFormat};
 
 const DEFAULT_SAMPLE_RATE: f64 = 44100.0;
 
@@ -317,6 +317,12 @@ impl<P: Plugin + 'static> MyAudioUnit<P> {
 	unsafe extern "C" fn providesUserInterface(&self, _cmd: Sel) -> Bool {
 		Bool::YES
 	}
+
+	#[allow(non_snake_case)]
+	unsafe extern "C" fn supportedViewConfigurations(&self, _cmd: Sel, availableViewConfigurations: &NSArray<AUAudioUnitViewConfiguration>) -> *mut NSIndexSet {
+		Retained::into_raw(NSIndexSet::indexSetWithIndexesInRange((0..availableViewConfigurations.count()).into())) 
+	}
+
 }
 
 unsafe impl<P: Plugin + 'static> ClassType for MyAudioUnit<P> {
@@ -392,6 +398,10 @@ unsafe impl<P: Plugin + 'static> ClassType for MyAudioUnit<P> {
                     sel!(providesUserInterface),
                     Self::providesUserInterface as unsafe extern "C" fn(_, _) -> _,
                 );
+				/*builder.add_method(
+                    sel!(supportedViewConfigurations:),
+                    Self::supportedViewConfigurations as unsafe extern "C" fn(_, _, _) -> _,
+                );*/
             }
 
 			let cls = builder.register();
