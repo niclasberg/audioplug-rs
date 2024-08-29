@@ -1,4 +1,7 @@
 use raw_window_handle::RawWindowHandle;
+use vst3_sys::gui::IPlugFrame;
+use vst3_sys::gui::IPlugViewContentScaleSupport;
+use vst3_sys::VstPtr;
 use vst3_sys::VST3;
 use vst3_sys::base::*;
 use vst3_sys::gui::{IPlugView, ViewRect};
@@ -33,12 +36,13 @@ use vst3_sys as vst3_com;
 pub struct PlugView<E: Editor> {
     window: RefCell<Option<Window>>,
     app_state: Rc<RefCell<AppState>>,
-	editor: Rc<RefCell<E>>
+	editor: Rc<RefCell<E>>,
+    plugin_frame: RefCell<Option<VstPtr<dyn IPlugFrame>>>
 }
 
 impl<E: Editor> PlugView<E> {
     pub fn new(app_state: Rc<RefCell<AppState>>, editor: Rc<RefCell<E>>) -> Box<Self> {
-        Self::allocate(RefCell::new(None), app_state, editor)
+        Self::allocate(RefCell::new(None), app_state, editor, RefCell::new(None))
     }
 
     pub fn create_instance(app_state: Rc<RefCell<AppState>>, editor: Rc<RefCell<E>>) -> *mut c_void {
@@ -157,8 +161,8 @@ impl<E: Editor> IPlugView for PlugView<E> {
         }
     }
 
-    unsafe fn set_frame(&self, _frame: *mut c_void) -> tresult {
-		// The void pointer is a IPlugFrame which can be used to resize the window
+    unsafe fn set_frame(&self, frame: *mut c_void) -> tresult {
+        self.plugin_frame.replace(VstPtr::<dyn IPlugFrame>::owned(frame as *mut _));
         kResultOk
     }
 
@@ -173,6 +177,12 @@ impl<E: Editor> IPlugView for PlugView<E> {
         let rect = &mut *rect;
 
 
+        kResultOk
+    }
+}
+
+impl<E: Editor> IPlugViewContentScaleSupport for PlugView<E> {
+    unsafe fn set_scale_factor(&self, _factor:f32) -> tresult {
         kResultOk
     }
 }

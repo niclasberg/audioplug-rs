@@ -1,3 +1,4 @@
+use atomic_refcell::AtomicRefCell;
 use vst3_com::vst::{IComponent, SymbolicSampleSizes, MediaTypes, BusDirections, BusTypes, BusType, BusFlags, kEmpty, kMono, kStereo};
 use vst3_sys::{VST3, IID};
 use vst3_sys::base::*;
@@ -17,7 +18,7 @@ use super::util::strcpyw;
 
 #[VST3(implements(IComponent, IAudioProcessor, IConnectionPoint))]
 pub struct Vst3Plugin<P: Plugin> {
-    plugin: RefCell<P>,
+    plugin: AtomicRefCell<P>,
     parameters: P::Parameters,
 	parameter_getters: HashMap<ParameterId, ParameterGetter<P::Parameters>>,
 }
@@ -30,7 +31,7 @@ impl<P: Plugin> Vst3Plugin<P> {
 		let parameter_getters = P::Parameters::PARAMS.iter()
 			.map(|getter| (getter(&parameters).id(), *getter))
 			.collect();
-        Self::allocate(RefCell::new(P::new()), parameters, parameter_getters)
+        Self::allocate(AtomicRefCell::new(P::new()), parameters, parameter_getters)
     }
 
     pub fn create_instance() -> *mut c_void {

@@ -1,4 +1,4 @@
-use std::cell::{OnceCell, RefCell};
+use std::cell::{Cell, OnceCell, RefCell};
 use std::rc::Rc;
 
 use vst3_com::VstPtr;
@@ -6,7 +6,7 @@ use vst3_com::vst::{kRootUnitId, ParameterFlags};
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
 use vst3_sys::{IID, VST3, c_void};
-use vst3_sys::vst::{IComponentHandler, IConnectionPoint, IEditController, IMessage, ParameterInfo};
+use vst3_sys::vst::{IComponentHandler, IConnectionPoint, IEditController, IHostApplication, IMessage, ParameterInfo};
 
 use vst3_sys as vst3_com;
 
@@ -101,20 +101,29 @@ impl<E: Editor> Inner<E> {
     }
 }
 
-#[VST3(implements(IEditController))]
+#[VST3(implements(IEditController, IConnectionPoint))]
 pub struct EditController<E: Editor> {
-    inner: OnceCell<Inner<E>>
+    inner: Cell<Option<Inner<E>>>,
+    host_context: Cell<Option<VstPtr<dyn IUnknown>>>,
+    peer_connection: Cell<Option<VstPtr<dyn IConnectionPoint>>>,
 }
 
 impl<E: Editor> EditController<E> {
     pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 14] };
 
     pub fn new() -> Box<Self> {
-        Self::allocate(OnceCell::new())
+        Self::allocate(Cell::new(None), Cell::new(None), Cell::new(None))
     }
 
     pub fn create_instance() -> *mut c_void {
         Box::into_raw(Self::new()) as *mut c_void
+    }
+
+    fn try_with_inner<R>(&self, f: impl FnOnce(&Inner<E>) -> R) -> Option<R> {
+        let inner = self.inner.take();
+        let result = inner.as_ref().map(|inner| f(inner));
+        self.inner.set(inner);
+        result
     }
 }
 
@@ -138,11 +147,7 @@ impl<E: Editor> IEditController for EditController<E> {
     }
 
     unsafe fn get_parameter_info(&self, param_index: i32, info: *mut ParameterInfo) -> tresult {
-        self.inner.get()
-            .map(|inner| {
-                let info = unsafe { &mut *info };
-                inner.get_parameter_info(param_index, info)
-            })
+        self.try_with_inner(|inner| inner.get_parameter_info(param_index, unsafe { &mut *info }))
             .unwrap_or(kResultFalse)
     }
 
@@ -155,60 +160,76 @@ impl<E: Editor> IEditController for EditController<E> {
     }
 
     unsafe fn normalized_param_to_plain(&self, id: u32, value_normalized: f64) -> f64 {
-        self.inner.get()
-            .map(|inner| inner.normalized_param_to_plain(id, value_normalized))
+        self.try_with_inner(|inner| inner.normalized_param_to_plain(id, value_normalized))
             .unwrap_or(0.0)
     }
 
     unsafe fn plain_param_to_normalized(&self, id: u32, plain_value: f64) -> f64 {
-        self.inner.get()
-            .map(|inner| inner.plain_param_to_normalized(id, plain_value))
+        self.try_with_inner(|inner| inner.plain_param_to_normalized(id, plain_value))
             .unwrap_or(0.0)
     }
 
     unsafe fn get_param_normalized(&self, id: u32) -> f64 {
-        self.inner.get()
-            .map(|inner| inner.get_param_normalized(id))
+        self.try_with_inner(|inner| inner.get_param_normalized(id))
             .unwrap_or(0.0)
     }
 
     unsafe fn set_param_normalized(&self, id: u32, value: f64) -> tresult {
-        self.inner.get()
-            .map(|inner| inner.set_param_normalized(id, value))
+        self.try_with_inner(|inner| inner.set_param_normalized(id, value))
             .unwrap_or(kResultFalse)
     }
 
     unsafe fn set_component_handler(&self, handler: SharedVstPtr<dyn IComponentHandler>) -> tresult {
         if let Some(handler) = handler.upgrade() {
-            self.inner.set(Inner::new(handler)).map_or(kResultFalse, |_| kResultOk)
+            self.inner.replace(Some(Inner::new(handler)));
+            kResultOk
         } else {
             kInvalidArgument
         }
     }
 
     unsafe fn create_view(&self, _name: FIDString) -> *mut c_void {
-        self.inner.get()
-            .map(|inner| PlugView::create_instance(inner.app_state.clone(), inner.editor.clone()))
+        self.try_with_inner(|inner| PlugView::create_instance(inner.app_state.clone(), inner.editor.clone()))
             .unwrap_or(std::ptr::null_mut())
     }
 }
 
 impl<E: Editor> IPluginBase for EditController<E> {
-    unsafe fn initialize(&self, _context: *mut c_void) -> tresult {
-        kResultOk
+    unsafe fn initialize(&self, context: *mut c_void) -> tresult {
+        let old_host_context = self.host_context.take();
+        if old_host_context.is_some() {
+            self.host_context.set(old_host_context);
+            return kResultFalse;
+        }
+
+        if let Some(context) = VstPtr::<dyn IUnknown>::owned(context as *mut _) {
+            self.host_context.set(Some(context));
+            kResultOk
+        } else {
+            kInvalidArgument
+        }
     }
 
     unsafe fn terminate(&self) -> tresult {
+        self.inner.replace(None);
+        self.host_context.replace(None);
+        // Clear in case the host did not call disconnect
+        self.peer_connection.take();
         kResultOk
     }
 }
 
 impl<E: Editor> IConnectionPoint for EditController<E> {
-	unsafe fn connect(&self, _other: SharedVstPtr<dyn IConnectionPoint>) -> tresult {
+	unsafe fn connect(&self, other: SharedVstPtr<dyn IConnectionPoint>) -> tresult {
+        if let Some(other) = other.upgrade() {
+            self.peer_connection.set(Some(other));
+            //other.notify(message)
+        }
 		kResultOk
 	}
 
 	unsafe fn disconnect(&self, _other: SharedVstPtr<dyn IConnectionPoint>) -> tresult {
+        self.peer_connection.take();
 		kResultOk
 	}
 
