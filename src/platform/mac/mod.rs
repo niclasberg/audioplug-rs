@@ -1,6 +1,9 @@
 mod appkit;
 mod application;
 mod audio;
+// Leave these as public for now while we're testing. Revert later
+pub mod audio_toolbox;
+pub mod av_foundation;
 pub(crate) mod core_audio;
 pub(crate) mod core_midi;
 mod core_foundation;

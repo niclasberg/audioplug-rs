@@ -7,7 +7,7 @@ mod event;
 mod id;
 mod keyboard;
 pub mod param;
-mod platform;
+pub mod platform;
 mod plugin;
 mod text;
 mod theme;

@@ -19,30 +19,29 @@ macro_rules! audioplug_auv3_plugin{
     ($plugin: ty) => {
         #[no_mangle]
         pub unsafe extern "C" fn AUV3_create_view_controller() -> *mut std::ffi::c_void {
-            Box::into_raw(Box::new($crate::wrapper::au::ViewController::<$plugin>::new())) as *mut _
+			let vc = Box::new($crate::wrapper::au::ViewController::<$plugin>::new());
+            Box::into_raw(vc) as *mut _
         }
 
         #[no_mangle]
         pub unsafe extern "C" fn AUV3_destroy_view_controller(view_controller: *mut std::ffi::c_void) {
-			let vc: Box<$crate::wrapper::au::ViewController<$plugin>> = unsafe { Box::from_raw(view_controller as *mut _) };
+			let vc = Box::from_raw(view_controller as *mut $crate::wrapper::au::ViewController<$plugin>);
             drop(vc);
         }
 
         #[no_mangle]
-        pub unsafe extern "C" fn AUV3_create_audio_unit(view_controller: *mut std::ffi::c_void, desc: $crate::wrapper::au::audio_toolbox::AudioComponentDescription, error: *mut *mut $crate::wrapper::au::NSError) -> *mut std::ffi::c_void {
-            (&mut *(view_controller as *mut $crate::wrapper::au::ViewController::<$plugin>)).create_audio_unit(desc, error) as *mut _
+        pub unsafe extern "C" fn AUV3_create_audio_unit(view_controller: *mut std::ffi::c_void, desc: $crate::wrapper::au::AudioComponentDescription, error: *mut *mut $crate::wrapper::au::NSError) -> *mut std::ffi::c_void {
+            $crate::wrapper::au::ViewController::<$plugin>::create_audio_unit(&mut *(view_controller as *mut _), desc, error) as *mut _
         }
 
         #[no_mangle]
         pub unsafe extern "C" fn AUV3_create_view(view_controller: *mut std::ffi::c_void) -> *mut std::ffi::c_void {
-			(&mut *(view_controller as *mut $crate::wrapper::au::ViewController::<$plugin>)).create_view() as *mut _
-			//$crate::wrapper::au::ViewController::<$plugin>::create_view(&mut *(view_controller as *mut _)) as *mut _
+			$crate::wrapper::au::ViewController::<$plugin>::create_view(&mut *(view_controller as *mut _)) as *mut _
         }
 
         #[no_mangle]
         pub unsafe extern "C" fn AUV3_preferred_content_size(view_controller: *mut std::ffi::c_void) -> $crate::wrapper::au::CGSize {
-			(&mut *(view_controller as *mut $crate::wrapper::au::ViewController::<$plugin>)).preferred_size()
-			//$crate::wrapper::au::ViewController::<$plugin>::preferred_size(&mut *(view_controller as *mut _))
+			$crate::wrapper::au::ViewController::<$plugin>::preferred_size(&mut *(view_controller as *mut _))
         }
 
 		#[no_mangle]

@@ -20,11 +20,11 @@ impl Plugin for TestPlugin {
         Self {}
     }
 
-    fn reset(&mut self, sample_rate: f64, _max_samples_per_frame: usize) {
+    fn reset(&mut self, _sample_rate: f64, _max_samples_per_frame: usize) {
         
     }
 
-    fn process(&mut self, context: audioplug::ProcessContext, _parameters: &()) {
+    fn process(&mut self, _context: audioplug::ProcessContext, _parameters: &()) {
         
     }
     
@@ -32,14 +32,13 @@ impl Plugin for TestPlugin {
 
 #[cfg(target_os = "macos")]
 fn main() {
-    use audioplug::wrapper::au::audio_toolbox::{AUAudioUnitBusArray, AudioComponentFlags, AudioComponentInstantiationOptions};
-	use audioplug::wrapper::au::av_foundation::AVAudioUnit;
-	use audioplug::wrapper::au::audio_toolbox::{AUAudioUnit, AudioComponentDescription};
-	use audioplug::wrapper::au::{MyAudioUnit, ViewController};
+    use audioplug::platform::audio_toolbox::{AudioComponentFlags, AudioComponentInstantiationOptions};
+	use audioplug::platform::av_foundation::AVAudioUnit;
+	use audioplug::platform::audio_toolbox::{AUAudioUnit, AudioComponentDescription};
+	use audioplug::wrapper::au::MyAudioUnit;
 	use block2::StackBlock;
-	use objc2::rc::autoreleasepool;
-	use objc2::{msg_send, ClassType};
-	use objc2_foundation::{ns_string, NSError};
+	use objc2::msg_send;
+	use objc2_foundation::NSError;
 
 	const fn four_cc(str: &[u8; 4]) -> u32 {
 		((str[0] as u32) << 24 & 0xff000000)
@@ -69,13 +68,14 @@ fn main() {
 	//AUAudioUnit::registerSubclass(MyAudioUnit::<TestPlugin>::class(), desc, ns_string!("RUST: TEST"), 0);
 
 	let view_controller_block = StackBlock::new(|view_controller| {
-
+		IS_DONE.store(true, std::sync::atomic::Ordering::Release);
 	});
 
 	let block = StackBlock::new(move |unit, error: *mut NSError| {
 		if let Some(error) = unsafe { error.as_mut() } {
 			let aa = error.localizedDescription().to_string();
 			println!("{}", aa);
+			IS_DONE.store(true, std::sync::atomic::Ordering::Release);
 		} else {
 			let audio_unit: Option<&AUAudioUnit> = unsafe { msg_send![unit, AUAudioUnit] };
 			let provides_user_interface = unsafe { audio_unit.unwrap().providesUserInterface() };
@@ -84,11 +84,10 @@ fn main() {
 				audio_unit.unwrap().requestViewControllerWithCompletionHandler(&view_controller_block)
 			};
 		}
-		IS_DONE.store(true, std::sync::atomic::Ordering::Release);
 	});
 	AVAudioUnit::instantiateWithComponentDescription_options_completionHandler(
 		desc, 
-		AudioComponentInstantiationOptions::kAudioComponentInstantiation_LoadOutOfProcess, 
+		AudioComponentInstantiationOptions::LoadOutOfProcess, 
 		&block);
 
 	while !IS_DONE.load(std::sync::atomic::Ordering::Acquire) {

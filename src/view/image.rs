@@ -20,7 +20,7 @@ impl Image {
 impl View for Image {
     type Element = ImageWidget;
 
-    fn build(self, ctx: &mut crate::app::BuildContext) -> Self::Element {
+    fn build(self, _ctx: &mut crate::app::BuildContext) -> Self::Element {
         ImageWidget {
             source: self.source
         }

@@ -4,8 +4,8 @@ use objc2::rc::Retained;
 use objc2_app_kit::NSView;
 use objc2_foundation::{CGSize, MainThreadMarker, NSError};
 use crate::{app::{AppState, HostHandle}, platform::view::View, window::MyHandler, Editor, Plugin};
-
-use super::{audio_toolbox::{AUAudioUnit, AudioComponentDescription}, MyAudioUnit};
+use crate::platform::mac::audio_toolbox::{AUAudioUnit, AudioComponentDescription};
+use super::MyAudioUnit;
 
 struct AUV3HostHandle;
 

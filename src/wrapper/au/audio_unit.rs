@@ -1,10 +1,11 @@
 use std::{collections::HashMap, marker::PhantomData, mem::MaybeUninit, ops::Deref, sync::OnceLock};
 
 use objc2::{__extern_class_impl_traits, msg_send, msg_send_id, mutability::Mutable, rc::Retained, runtime::{AnyClass, AnyObject, Bool, ClassBuilder, Sel}, sel, ClassType, Encoding, RefEncode};
-use objc2_foundation::{ns_string, NSArray, NSError, NSIndexSet, NSInteger, NSMutableArray, NSNumber, NSObject, NSRange, NSString, NSTimeInterval};
-use crate::{param::{ParameterGetter, ParameterId, Params}, platform::core_audio::{AudioBufferList, AudioTimeStamp}, AudioBuffer, Plugin, ProcessContext};
-
-use super::{audio_toolbox::{AUAudioFrameCount, AUAudioUnit, AUAudioUnitBus, AUAudioUnitBusArray, AUAudioUnitBusType, AUAudioUnitStatus, AUAudioUnitViewConfiguration, AUInternalRenderBlock, AUInternalRenderRcBlock, AUParameter, AUParameterNode, AUParameterTree, AURenderEvent, AURenderPullInputBlock, AudioComponentDescription, AudioComponentInstantiationOptions, AudioUnitParameterOptions, AudioUnitParameterUnit, AudioUnitRenderActionFlags}, av_foundation::AVAudioFormat};
+use objc2_foundation::{ns_string, NSArray, NSError, NSIndexSet, NSInteger, NSMutableArray, NSNumber, NSObject, NSString, NSTimeInterval};
+use crate::{param::{ParameterGetter, ParameterId, Params}, AudioBuffer, Plugin, ProcessContext};
+use crate::platform::mac::audio_toolbox::{AUAudioUnitBusArray, AUParameterTree, AUInternalRenderRcBlock, AUAudioUnit, AudioUnitParameterUnit, AUParameterNode, AudioUnitParameterOptions, AUAudioUnitBus, AUAudioUnitBusType, AudioUnitRenderActionFlags, AUAudioFrameCount, AURenderEvent, AURenderPullInputBlock, AudioComponentDescription, AUInternalRenderBlock, AudioComponentInstantiationOptions, AUAudioUnitStatus, AUAudioUnitViewConfiguration};
+use crate::platform::mac::av_foundation::AVAudioFormat;
+use crate::platform::mac::core_audio::{AudioBufferList, AudioTimeStamp};
 
 const DEFAULT_SAMPLE_RATE: f64 = 44100.0;
 
@@ -104,22 +105,14 @@ impl<P: Plugin> Wrapper<P> {
 		}
 	}
 
-	pub fn input_busses(&self) -> *mut AUAudioUnitBusArray {
-		Retained::into_raw(self.inputs.clone())
-	}
-
-	pub fn output_busses(&self) -> *mut AUAudioUnitBusArray {
-		Retained::into_raw(self.outputs.clone())
-	}
-
 	pub fn render(&mut self, 
 		_action_flags: *mut AudioUnitRenderActionFlags, 
-		timestamp: *const AudioTimeStamp, 
-		frame_count: AUAudioFrameCount, 
+		_timestamp: *const AudioTimeStamp, 
+		_frame_count: AUAudioFrameCount, 
 		_output_bus_bumber: NSInteger, 
-		output_data: *mut AudioBufferList, 
-		realtime_event_list_head: *const AURenderEvent, 
-		pull_input_block: Option<&AURenderPullInputBlock>
+		_output_data: *mut AudioBufferList, 
+		_realtime_event_list_head: *const AURenderEvent, 
+		_pull_input_block: Option<&AURenderPullInputBlock>
 	) {
 		let input = AudioBuffer::empty();
         let mut output = AudioBuffer::empty();
@@ -257,13 +250,13 @@ impl<P: Plugin + 'static> MyAudioUnit<P> {
 	}
 
 	#[allow(non_snake_case)]
-	unsafe extern "C" fn inputBusses(&self, _cmd: Sel) -> *mut AUAudioUnitBusArray {
-		self.wrapper().input_busses()
+	unsafe extern "C" fn inputBusses(&self, _cmd: Sel) -> &AUAudioUnitBusArray {
+		&self.wrapper().inputs
 	}
 
 	#[allow(non_snake_case)]
-	unsafe extern "C" fn outputBusses(&self, _cmd: Sel) -> *mut AUAudioUnitBusArray {
-		self.wrapper().output_busses()
+	unsafe extern "C" fn outputBusses(&self, _cmd: Sel) -> &AUAudioUnitBusArray {
+		&self.wrapper().outputs
 	}
 
 	#[allow(non_snake_case)]
@@ -398,10 +391,10 @@ unsafe impl<P: Plugin + 'static> ClassType for MyAudioUnit<P> {
                     sel!(providesUserInterface),
                     Self::providesUserInterface as unsafe extern "C" fn(_, _) -> _,
                 );
-				/*builder.add_method(
+				builder.add_method(
                     sel!(supportedViewConfigurations:),
                     Self::supportedViewConfigurations as unsafe extern "C" fn(_, _, _) -> _,
-                );*/
+                );
             }
 
 			let cls = builder.register();

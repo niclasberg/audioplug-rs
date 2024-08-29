@@ -2,7 +2,7 @@ use c_enum::c_enum;
 use objc2::{extern_class, extern_methods, rc::{Allocated, Retained}, ClassType, Encode, Encoding, RefEncode};
 use objc2_foundation::{NSArray, NSError, NSInteger, NSObject, NSUInteger};
 
-use crate::wrapper::au::av_foundation::AVAudioFormat;
+use crate::platform::mac::av_foundation::AVAudioFormat;
 
 use super::AUAudioUnit;
 
