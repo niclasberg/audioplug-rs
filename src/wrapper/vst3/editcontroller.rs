@@ -103,7 +103,7 @@ impl<E: Editor> Inner<E> {
 
 #[VST3(implements(IEditController, IConnectionPoint))]
 pub struct EditController<E: Editor> {
-    inner: Cell<Option<Inner<E>>>,
+    inner: RefCell<Option<Inner<E>>>,
     host_context: Cell<Option<VstPtr<dyn IUnknown>>>,
     peer_connection: Cell<Option<VstPtr<dyn IConnectionPoint>>>,
 }
@@ -112,7 +112,7 @@ impl<E: Editor> EditController<E> {
     pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 14] };
 
     pub fn new() -> Box<Self> {
-        Self::allocate(Cell::new(None), Cell::new(None), Cell::new(None))
+        Self::allocate(RefCell::new(None), Cell::new(None), Cell::new(None))
     }
 
     pub fn create_instance() -> *mut c_void {
@@ -120,10 +120,11 @@ impl<E: Editor> EditController<E> {
     }
 
     fn try_with_inner<R>(&self, f: impl FnOnce(&Inner<E>) -> R) -> Option<R> {
-        let inner = self.inner.take();
-        let result = inner.as_ref().map(|inner| f(inner));
-        self.inner.set(inner);
-        result
+        if let Ok(inner) = self.inner.try_borrow() {
+            inner.as_ref().map(f)
+        } else {
+            None
+        }
     }
 }
 
@@ -180,12 +181,8 @@ impl<E: Editor> IEditController for EditController<E> {
     }
 
     unsafe fn set_component_handler(&self, handler: SharedVstPtr<dyn IComponentHandler>) -> tresult {
-        if let Some(handler) = handler.upgrade() {
-            self.inner.replace(Some(Inner::new(handler)));
-            kResultOk
-        } else {
-            kInvalidArgument
-        }
+        *self.inner.borrow_mut() = handler.upgrade().map(|handler| Inner::new(handler));
+        kResultOk
     }
 
     unsafe fn create_view(&self, _name: FIDString) -> *mut c_void {
@@ -196,7 +193,7 @@ impl<E: Editor> IEditController for EditController<E> {
 
 impl<E: Editor> IPluginBase for EditController<E> {
     unsafe fn initialize(&self, context: *mut c_void) -> tresult {
-        let old_host_context = self.host_context.take();
+        /*let old_host_context = self.host_context.take();
         if old_host_context.is_some() {
             self.host_context.set(old_host_context);
             return kResultFalse;
@@ -207,14 +204,15 @@ impl<E: Editor> IPluginBase for EditController<E> {
             kResultOk
         } else {
             kInvalidArgument
-        }
+        }*/
+        kResultOk
     }
 
     unsafe fn terminate(&self) -> tresult {
-        self.inner.replace(None);
+        /*self.inner.replace(None);
         self.host_context.replace(None);
         // Clear in case the host did not call disconnect
-        self.peer_connection.take();
+        self.peer_connection.take();*/
         kResultOk
     }
 }

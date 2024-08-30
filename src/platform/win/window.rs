@@ -68,7 +68,7 @@ impl WindowState {
             WM_DESTROY => {
                 unsafe { 
                     KillTimer(hwnd, ANIMATION_FRAME_TIMER).unwrap();
-                    PostQuitMessage(0);
+                    //PostQuitMessage(0);
                 };
                 Some(LRESULT(0))
             },
