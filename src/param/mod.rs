@@ -6,12 +6,14 @@ mod int;
 mod string_list;
 mod bypass;
 mod macros;
+mod parameter_map;
 
 pub use bool::{BoolParameter, BoolParameterInfo};
 pub use bypass::ByPassParameter;
 pub use float::{FloatParameter, FloatParameterInfo, FloatRange};
 pub use int::{IntParameter, IntParameterInfo, IntRange};
 pub use string_list::StringListParameter;
+pub use parameter_map::{ParameterMap, AnyParameterMap};
 
 #[derive(Clone, Debug)]
 pub struct ParseError;

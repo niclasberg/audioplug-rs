@@ -4,14 +4,12 @@ use vst3_sys::{VST3, IID};
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
 use vst3_sys::vst::{BusDirection, BusInfo, IAudioProcessor, IConnectionPoint, IEventList, IMessage, IParamValueQueue, IParameterChanges, IoMode, MediaType, ProcessData, ProcessModes, ProcessSetup, RoutingInfo, SpeakerArrangement};
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::ffi::c_void;
 use std::mem::MaybeUninit;
 
 use vst3_sys as vst3_com;
 
-use crate::param::{NormalizedValue, ParameterGetter, ParameterId, Params};
+use crate::param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap};
 use crate::{Plugin, AudioBuffer, ProcessContext};
 use super::editcontroller::EditController;
 use super::util::strcpyw;
@@ -19,19 +17,15 @@ use super::util::strcpyw;
 #[VST3(implements(IComponent, IAudioProcessor, IConnectionPoint))]
 pub struct Vst3Plugin<P: Plugin> {
     plugin: AtomicRefCell<P>,
-    parameters: P::Parameters,
-	parameter_getters: HashMap<ParameterId, ParameterGetter<P::Parameters>>,
+    parameters: ParameterMap<P::Parameters> 
 }
 
 impl<P: Plugin> Vst3Plugin<P> {
     pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] };
 
     pub fn new() -> Box<Self> {
-		let parameters = P::Parameters::default();
-		let parameter_getters = P::Parameters::PARAMS.iter()
-			.map(|getter| (getter(&parameters).id(), *getter))
-			.collect();
-        Self::allocate(AtomicRefCell::new(P::new()), parameters, parameter_getters)
+		let parameters = ParameterMap::new(P::Parameters::default());
+        Self::allocate(AtomicRefCell::new(P::new()), parameters)
     }
 
     pub fn create_instance() -> *mut c_void {
@@ -110,14 +104,13 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
             let parameter_change_count = input_param_changes.get_parameter_count();
             for i in 0..parameter_change_count {
 				if let Some(data) = input_param_changes.get_parameter_data(i).upgrade() {
-					let param_idx = ParameterId::new(data.get_parameter_id());
+					let param_id = ParameterId::new(data.get_parameter_id());
 					let point_count = data.get_point_count();
 					if point_count <= 0 {
 						continue;
 					}
 
-					if let Some(getter) = self.parameter_getters.get(&param_idx) {
-						let param_ref = getter(&self.parameters);
+					if let Some(param_ref) = self.parameters.get_by_id(param_id) {
 						let mut value = 0.0;
 						let mut sample_offset = 0;
 						if data.get_point(point_count - 1, &mut sample_offset as *mut _, &mut value as *mut _) == kResultOk {
@@ -153,7 +146,7 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
 			rendering_offline: data.process_mode == ProcessModes::kOffline as i32
         };
 
-        self.plugin.borrow_mut().process(context, &self.parameters);
+        self.plugin.borrow_mut().process(context, self.parameters.parameters_ref());
 
         /*if let Some(output_param_changes) = data.output_param_changes.upgrade() {
             output_param_changes.add_parameter_data(id, index)

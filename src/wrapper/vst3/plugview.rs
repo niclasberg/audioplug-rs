@@ -1,6 +1,7 @@
 use raw_window_handle::RawWindowHandle;
 use vst3_sys::gui::IPlugFrame;
 use vst3_sys::gui::IPlugViewContentScaleSupport;
+use vst3_sys::utils::SharedVstPtr;
 use vst3_sys::VstPtr;
 use vst3_sys::VST3;
 use vst3_sys::base::*;
@@ -162,7 +163,8 @@ impl<E: Editor> IPlugView for PlugView<E> {
     }
 
     unsafe fn set_frame(&self, frame: *mut c_void) -> tresult {
-        self.plugin_frame.replace(VstPtr::<dyn IPlugFrame>::owned(frame as *mut _));
+        let frame: SharedVstPtr<dyn IPlugFrame> = std::mem::transmute(frame);
+        self.plugin_frame.replace(frame.upgrade());
         kResultOk
     }
 

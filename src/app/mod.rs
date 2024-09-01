@@ -8,7 +8,6 @@ mod host_handle;
 mod layout;
 mod memo;
 mod param_signal;
-mod parameter_wrapper;
 mod render;
 mod signal;
 mod runtime;

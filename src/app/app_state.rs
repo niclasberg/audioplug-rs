@@ -1,8 +1,8 @@
 use std::{any::Any, collections::VecDeque, ops::DerefMut, rc::Weak};
 use slotmap::{Key, SecondaryMap, SlotMap};
-use crate::{core::{Point, Rectangle}, param::{NormalizedValue, ParameterId, Params}, platform};
+use crate::{core::{Point, Rectangle}, param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap, Params}, platform};
 
-use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, parameter_wrapper::{wrap_parameters, ParameterWrapper}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, Runtime, Scope, SignalContext, SignalGet, Widget, WindowId};
+use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, Runtime, Scope, SignalContext, SignalGet, Widget, WindowId};
 use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
@@ -51,7 +51,7 @@ pub(super) struct Window {
 }
 
 pub struct AppState {
-    parameters: Box<dyn ParameterWrapper>,
+    parameters: Box<dyn AnyParameterMap>,
     windows: SlotMap<WindowId, Window>,
     pub(super) widget_data: SlotMap<WidgetId, WidgetData>,
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
@@ -65,7 +65,7 @@ pub struct AppState {
 impl AppState {
     pub fn new(parameters: impl Params + Any, host_handle: impl HostHandle + 'static) -> Self {
         let host_handle = Box::new(host_handle);
-		let parameters = wrap_parameters(parameters);
+		let parameters = Box::new(ParameterMap::new(parameters));
         Self {
             parameters,
             widget_data: Default::default(),
@@ -79,7 +79,7 @@ impl AppState {
         }
     }
 
-	pub fn parameters(&self) -> &dyn ParameterWrapper {
+	pub fn parameters(&self) -> &dyn AnyParameterMap {
 		self.parameters.as_ref()
 	}
 
