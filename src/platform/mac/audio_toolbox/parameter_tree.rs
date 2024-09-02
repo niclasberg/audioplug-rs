@@ -306,5 +306,13 @@ extern_methods!(
 		#[method(maxValue)]
 		#[allow(non_snake_case)]
 		pub fn maxValue(&self) -> AUValue;
+
+		#[method(address)]
+		pub fn address(&self) -> AUParameterAddress;
+
+		#[method(unit)]
+		pub fn unit(&self) -> AudioUnitParameterUnit;
+
+		
 	}
 );

@@ -1,8 +1,9 @@
-use std::{collections::HashMap, marker::PhantomData, mem::MaybeUninit, ops::Deref, sync::OnceLock};
+use std::{marker::PhantomData, mem::MaybeUninit, ops::Deref, sync::OnceLock};
 
+use block2::RcBlock;
 use objc2::{__extern_class_impl_traits, msg_send, msg_send_id, mutability::Mutable, rc::Retained, runtime::{AnyClass, AnyObject, Bool, ClassBuilder, Sel}, sel, ClassType, Encoding, RefEncode};
 use objc2_foundation::{ns_string, NSArray, NSError, NSIndexSet, NSInteger, NSMutableArray, NSNumber, NSObject, NSString, NSTimeInterval};
-use crate::{param::{ParameterGetter, ParameterId, Params}, AudioBuffer, Plugin, ProcessContext};
+use crate::{param::{AnyParameterMap, ParameterId, ParameterMap, PlainValue}, platform::audio_toolbox::{AUParameter, AUValue}, AudioBuffer, Plugin, ProcessContext};
 use crate::platform::mac::audio_toolbox::{AUAudioUnitBusArray, AUParameterTree, AUInternalRenderRcBlock, AUAudioUnit, AudioUnitParameterUnit, AUParameterNode, AudioUnitParameterOptions, AUAudioUnitBus, AUAudioUnitBusType, AudioUnitRenderActionFlags, AUAudioFrameCount, AURenderEvent, AURenderPullInputBlock, AudioComponentDescription, AUInternalRenderBlock, AudioComponentInstantiationOptions, AUAudioUnitStatus, AUAudioUnitViewConfiguration};
 use crate::platform::mac::av_foundation::AVAudioFormat;
 use crate::platform::mac::core_audio::{AudioBufferList, AudioTimeStamp};
@@ -11,8 +12,7 @@ const DEFAULT_SAMPLE_RATE: f64 = 44100.0;
 
 struct Wrapper<P: Plugin> {
 	plugin: P,
-    parameters: P::Parameters,
-	parameter_getters: HashMap<ParameterId, ParameterGetter<P::Parameters>>,
+    parameters: ParameterMap<P::Parameters>,
 	inputs: Retained<AUAudioUnitBusArray>,
 	outputs: Retained<AUAudioUnitBusArray>,
 	parameter_tree: Retained<AUParameterTree>,
@@ -26,19 +26,15 @@ unsafe impl<P: Plugin> RefEncode for Wrapper<P> {
 	const ENCODING_REF: Encoding = Encoding::Pointer(&Encoding::Struct("?", &[]));
 } 
 
-impl<P: Plugin> Wrapper<P> {
+impl<P: Plugin + 'static> Wrapper<P> {
 	pub fn new(audio_unit: &mut AUAudioUnit) -> Self {
 		let plugin = P::new();
-		let parameters = P::Parameters::default();
-		let parameter_getters = P::Parameters::PARAMS.iter()
-			.map(|getter| (getter(&parameters).id(), *getter))
-			.collect();
+		let parameters = ParameterMap::new(P::Parameters::default());
 
 		let parameter_tree = {
 			let mut au_params = NSMutableArray::<AUParameterNode>::new();
 			
-			for param_getter in P::Parameters::PARAMS.iter() {
-				let p = param_getter(&parameters);
+			for p in parameters.iter() {
 				let au_param = AUParameterTree::createParameter(
 					&NSString::from_str(p.name()), 
 					&NSString::from_str(p.name()), 
@@ -94,7 +90,6 @@ impl<P: Plugin> Wrapper<P> {
 		Self {
 			plugin,
 			parameters,
-			parameter_getters,
 			inputs,
 			outputs,
 			parameter_tree,
@@ -109,7 +104,7 @@ impl<P: Plugin> Wrapper<P> {
 		_action_flags: *mut AudioUnitRenderActionFlags, 
 		_timestamp: *const AudioTimeStamp, 
 		_frame_count: AUAudioFrameCount, 
-		_output_bus_bumber: NSInteger, 
+		_output_bus_number: NSInteger, 
 		_output_data: *mut AudioBufferList, 
 		_realtime_event_list_head: *const AURenderEvent, 
 		_pull_input_block: Option<&AURenderPullInputBlock>
@@ -123,7 +118,7 @@ impl<P: Plugin> Wrapper<P> {
 			rendering_offline: self.rendering_offline,
         };
 
-        self.plugin.process(context, &self.parameters);	
+        self.plugin.process(context, self.parameters.parameters_ref());	
 	}
 
 	pub fn allocate_render_resources(&mut self) {
@@ -132,6 +127,30 @@ impl<P: Plugin> Wrapper<P> {
 
 	pub fn deallocate_render_resources(&mut self) {
 		
+	}
+
+	pub unsafe fn setup_parameter_tree(this: *const Self) {
+		let value_observer =
+			RcBlock::new(move |p: *mut AUParameter, value: AUValue| {
+				let this = unsafe { &*this };
+				let p = unsafe { &*p };
+				let id = ParameterId::new(p.address() as _);
+				if let Some(param_ref) = this.parameters.get_by_id(id) {
+					param_ref.internal_set_value_plain(PlainValue::new(value as _));
+				}
+			});
+		(*this).parameter_tree.setImplementorValueObserver(&value_observer);
+		let value_provider = 
+			RcBlock::new(move |p: *mut AUParameter| -> AUValue {
+				let this = unsafe { &*this };
+				let p = unsafe { &*p };
+				let id = ParameterId::new(p.address() as _);
+				this.parameters.get_by_id(id).map_or(0.0, |param| {
+					let value: f64 = param.plain_value().into();
+					value as _
+				})
+			});
+		(*this).parameter_tree.setImplementorValueProvider(&value_provider);
 	}
 
 }
@@ -238,6 +257,7 @@ impl<P: Plugin + 'static> MyAudioUnit<P> {
 					wrapper.render(flags, timestamp, frame_count, channels, buffers, events, pull_input_blocks.as_ref());
 					0
 				});
+				Wrapper::<P>::setup_parameter_tree(wrapper_ptr);
 				let wrapper = &mut *wrapper_ptr;
 				wrapper.internal_render_block = Some(block);
             };

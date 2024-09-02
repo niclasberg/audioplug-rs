@@ -19,6 +19,20 @@ pub trait AnyParameterMap: 'static {
 	fn count(&self) -> usize;
 }
 
+pub struct ParamIter<'a, P: Params + 'a> {
+	parameters: &'a P,
+	inner_iter: std::slice::Iter<'a, ParameterGetter<P>>
+}
+
+impl<'a, P: Params> Iterator for ParamIter<'a, P> {
+	type Item = ParamRef<'a>;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		self.inner_iter.next().map(|getter|
+			getter(&self.parameters))
+	}
+}
+
 pub struct ParameterMap<P: Params + Any> {
 	parameters: P,
 	getters_map: HashMap<ParameterId, ParameterGetter<P>>
@@ -38,6 +52,13 @@ impl<P: Params + Any> ParameterMap<P> {
 
 	pub fn parameters_ref(&self) -> &P {
 		&self.parameters
+	}
+
+	pub fn iter<'s>(&'s self) -> ParamIter<'s, P> {
+		ParamIter {
+			parameters: &self.parameters,
+			inner_iter: P::PARAMS.iter()
+		}
 	}
 }
 

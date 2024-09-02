@@ -7,6 +7,7 @@ use c_enum::c_enum;
 
 c_enum! {
 	#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+	#[repr(C)]
 	pub enum CFNumberType: CFIndex {
 		SINT8 = 1,
 		SINT16 = 2,

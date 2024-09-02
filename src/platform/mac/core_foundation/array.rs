@@ -16,7 +16,7 @@ pub struct CFArrayCallBacks {
     pub version: CFIndex,
     pub retain: CFArrayRetainCallBack,
     pub release: CFArrayReleaseCallBack,
-    pub copyDescription: CFArrayCopyDescriptionCallBack,
+    pub copy_description: CFArrayCopyDescriptionCallBack,
     pub equal: CFArrayEqualCallBack,
 }
 

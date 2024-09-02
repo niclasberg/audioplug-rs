@@ -190,6 +190,10 @@ impl<'a> ParamRef<'a> {
         }
     }
 
+	pub(crate) fn internal_set_value_plain(&self, value: PlainValue) {
+		self.internal_set_value_normalized(self.normalize(value))
+	}
+
     pub fn plain_value(&self) -> PlainValue {
         match self {
             Self::Float(p) => p.plain_value(),
@@ -200,7 +204,7 @@ impl<'a> ParamRef<'a> {
         }
     }
 
-    pub fn get_normalized(&self) -> NormalizedValue {
+    pub fn normalized_value(&self) -> NormalizedValue {
         match self {
             Self::Float(p) => p.normalized_value(),
             Self::Int(p) => p.normalized_value(),

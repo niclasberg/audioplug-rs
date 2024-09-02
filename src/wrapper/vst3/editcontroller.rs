@@ -97,7 +97,7 @@ impl<E: Editor> Inner<E> {
     fn get_param_normalized(&self, id: u32) -> f64 {
 		let app_state = RefCell::borrow(&self.app_state);
         app_state.parameters().get_by_id(ParameterId::new(id))
-			.map_or(0.0, |p| p.get_normalized().into())
+			.map_or(0.0, |p| p.normalized_value().into())
     }
 
     fn get_param_string_by_value(&self, id: u32, value_normalized: f64, string: &mut String128) -> tresult {
