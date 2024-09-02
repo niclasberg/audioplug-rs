@@ -13,7 +13,7 @@ pub use bypass::ByPassParameter;
 pub use float::{FloatParameter, FloatParameterInfo, FloatRange};
 pub use int::{IntParameter, IntParameterInfo, IntRange};
 pub use string_list::StringListParameter;
-pub use parameter_map::{ParameterMap, AnyParameterMap};
+pub use parameter_map::{ParameterMap, AnyParameterMap, Params, ParameterGetter};
 
 #[derive(Clone, Debug)]
 pub struct ParseError;
@@ -141,6 +141,8 @@ pub trait ParameterInfo {
 	fn normalize(&self, value: PlainValue) -> NormalizedValue;
 	fn denormalize(&self, value: NormalizedValue) -> PlainValue;
 	fn step_count(&self) -> usize;
+    fn value_from_string(&self, str: &str) -> Result<NormalizedValue, ParseError>;
+    fn string_from_value(&self, value: NormalizedValue) -> String;
 }
 
 pub enum ParamRef<'a> {
@@ -221,12 +223,3 @@ impl<'a> ParamRef<'a> {
     }
 }
 
-pub type ParameterGetter<P> = fn(&P) -> ParamRef;
-
-pub trait Params: Default + 'static + Any {
-    const PARAMS: &'static [ParameterGetter<Self>];
-}
-
-impl Params for () {
-    const PARAMS: &'static [ParameterGetter<Self>] = &[];
-}

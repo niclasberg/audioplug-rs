@@ -77,7 +77,7 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
     }
 
     unsafe fn get_latency_samples(&self) -> u32 {
-        0
+        self.plugin.borrow().latency_samples() as u32
     }
 
     unsafe fn setup_processing(&self, setup: *const ProcessSetup) -> tresult {
@@ -91,14 +91,8 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
     }
 
     unsafe fn process(&self, data: *mut ProcessData) -> tresult {
-        if data.is_null() {
-            return kInvalidArgument;
-        }
-
+        if data.is_null() { return kInvalidArgument; }
         let data = &mut *data;
-        if data.inputs.is_null() || data.outputs.is_null() {
-            return kResultOk;
-        }
 
         if let Some(input_param_changes) = data.input_param_changes.upgrade() {
             let parameter_change_count = input_param_changes.get_parameter_count();
@@ -119,6 +113,10 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
 					}
 				}
 			}
+        }
+
+        if data.inputs.is_null() || data.outputs.is_null() {
+            return kResultOk;
         }
 
         if let Some(input_events) = data.input_events.upgrade() {

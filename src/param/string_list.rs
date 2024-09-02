@@ -91,4 +91,12 @@ impl ParameterInfo for StringListParameterInfo {
             self.strings.len() - 1
         }
 	}
+	
+	fn value_from_string(&self, str: &str) -> Result<NormalizedValue, super::ParseError> {
+			todo!()
+		}
+	
+	fn string_from_value(&self, value: NormalizedValue) -> String {
+			todo!()
+		}
 }

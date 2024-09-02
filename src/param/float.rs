@@ -109,6 +109,14 @@ impl ParameterInfo for FloatParameterInfo {
 	fn step_count(&self) -> usize {
 		0
 	}
+    
+    fn value_from_string(&self, str: &str) -> Result<NormalizedValue, super::ParseError> {
+        todo!()
+    }
+    
+    fn string_from_value(&self, value: NormalizedValue) -> String {
+        todo!()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

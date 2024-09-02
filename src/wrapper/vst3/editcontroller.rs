@@ -6,7 +6,7 @@ use vst3_com::vst::{kRootUnitId, ParameterFlags};
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
 use vst3_sys::{IID, VST3, c_void};
-use vst3_sys::vst::{IComponentHandler, IConnectionPoint, IEditController, IHostApplication, IMessage, ParameterInfo};
+use vst3_sys::vst::{IComponentHandler, IConnectionPoint, IEditController, IHostApplication, IMessage, ParameterInfo, String128};
 
 use vst3_sys as vst3_com;
 
@@ -99,6 +99,30 @@ impl<E: Editor> Inner<E> {
         app_state.parameters().get_by_id(ParameterId::new(id))
 			.map_or(0.0, |p| p.get_normalized().into())
     }
+
+    fn get_param_string_by_value(&self, id: u32, value_normalized: f64, string: &mut String128) -> tresult {
+        let app_state = RefCell::borrow(&self.app_state);
+		let Some(param_ref) = app_state.parameters().get_by_id(ParameterId::new(id)) else { return kInvalidArgument };
+        let Some(value) = NormalizedValue::from_f64(value_normalized) else { return kInvalidArgument };
+        let value_str = param_ref.info().string_from_value(value);
+
+        strcpyw(&value_str, string);
+        kResultOk
+    }
+
+    fn get_param_value_by_string(&self, id: u32, string: *const tchar, value_normalized: &mut f64) -> tresult {
+        let app_state = RefCell::borrow(&self.app_state);
+		let Some(param_ref) = app_state.parameters().get_by_id(ParameterId::new(id)) else { return kInvalidArgument };
+        
+        let len = (0..).take_while(|&i| unsafe { *string.offset(i) } != 0).count();
+        let slice = unsafe { std::slice::from_raw_parts(string as *mut u16, len) };
+
+        let Ok(str) = String::from_utf16(slice) else { return kInvalidArgument };
+        let Ok(value) = param_ref.info().value_from_string(&str) else { return kInvalidArgument };
+        *value_normalized = value.0;
+
+        kResultOk
+    }
 }
 
 #[VST3(implements(IEditController, IConnectionPoint))]
@@ -152,8 +176,11 @@ impl<E: Editor> IEditController for EditController<E> {
             .unwrap_or(kResultFalse)
     }
 
-    unsafe fn get_param_string_by_value(&self, _id: u32, _value_normalized: f64, _string: *mut tchar) -> tresult {
-        kNotImplemented
+    unsafe fn get_param_string_by_value(&self, id: u32, value_normalized: f64, string: *mut tchar) -> tresult {
+        // The string is actually a String128, it's mistyped in vst3-sys
+        let string = string as *mut String128;
+        self.try_with_inner(|inner| inner.get_param_string_by_value(id, value_normalized, &mut *string))
+            .unwrap_or(kResultFalse)
     }
 
     unsafe fn get_param_value_by_string(&self, _id: u32, _string: *const tchar, _value_normalized: *mut f64) -> tresult {

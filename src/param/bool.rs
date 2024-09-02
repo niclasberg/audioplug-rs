@@ -1,6 +1,9 @@
 use std::cell::Cell;
 
-use super::{NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue};
+use super::{NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, ParseError, PlainValue};
+
+const NORMALIZED_VALUE_OFF: NormalizedValue = NormalizedValue(0.0);
+const NORMALIZED_VALUE_ON: NormalizedValue = NormalizedValue(1.0);
 
 pub struct BoolParameter {
     info: BoolParameterInfo,
@@ -47,7 +50,6 @@ impl Parameter<bool> for BoolParameter {
 	}
 }
 
-
 pub struct BoolParameterInfo {
     id: ParameterId,
     name: &'static str,
@@ -84,5 +86,23 @@ impl ParameterInfo for BoolParameterInfo {
 	
 	fn step_count(&self) -> usize {
 		1
+	}
+	
+	fn value_from_string(&self, str: &str) -> Result<NormalizedValue, ParseError> {
+		if str.eq_ignore_ascii_case("on") { 
+			Ok(NormalizedValue::from_bool(true)) 
+		} else if str.eq_ignore_ascii_case("off") {
+			Ok(NormalizedValue::from_bool(false)) 
+		} else {
+			Err(ParseError)
+		}
+	}
+	
+	fn string_from_value(&self, value: NormalizedValue) -> String {
+		if value.into() {
+			"On".to_string()
+		} else {
+			"Off".to_string()
+		}
 	}
 }

@@ -1,7 +1,18 @@
 use std::{any::Any, collections::HashMap};
 
-use super::{ParamRef, ParameterGetter, ParameterId, Params};
+use super::{ParamRef, ParameterId};
 
+pub type ParameterGetter<P> = fn(&P) -> ParamRef;
+
+pub trait Params: Default + 'static + Any {
+    const PARAMS: &'static [ParameterGetter<Self>];
+}
+
+impl Params for () {
+    const PARAMS: &'static [ParameterGetter<Self>] = &[];
+}
+
+/// A collection of parameters. Supports getting parameters by index and id
 pub trait AnyParameterMap: 'static {
 	fn get_by_id(&self, id: ParameterId) -> Option<ParamRef>;
 	fn get_by_index(&self, index: usize) -> Option<ParamRef>;
