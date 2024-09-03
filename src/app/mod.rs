@@ -13,6 +13,7 @@ mod signal;
 mod runtime;
 mod widget;
 mod widget_node;
+mod window;
 
 use std::{any::Any, cell::RefCell, rc::Rc};
 
@@ -29,6 +30,7 @@ pub use signal::Signal;
 use slotmap::new_key_type;
 pub use widget::{EventStatus, StatusChange, Widget};
 pub use widget_node::{WidgetData, WidgetRef, WidgetMut, WidgetId};
+pub use window::{AppContext, Window};
 
 use crate::platform;
 

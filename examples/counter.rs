@@ -1,4 +1,4 @@
-use audioplug::{app::{SignalGet, SignalSet}, view::{Button, Column, Label}, window::Window, App};
+use audioplug::{app::{SignalGet, SignalSet, Window}, view::{Button, Column, Label}, App};
 
 fn main() {
     let mut app = App::new();

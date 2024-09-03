@@ -12,7 +12,6 @@ mod plugin;
 mod text;
 mod theme;
 pub mod view;
-pub mod window;
 pub mod wrapper;
 
 pub use app::App;

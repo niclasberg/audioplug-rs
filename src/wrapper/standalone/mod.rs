@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 use rtrb::{Consumer, Producer, RingBuffer};
 
-use crate::{app::{AppState, HostHandle}, param::{NormalizedValue, ParameterId}, platform::AudioHost, window::Window, App, Editor, Plugin};
+use crate::{app::{AppState, HostHandle, Window}, param::{NormalizedValue, ParameterId}, platform::AudioHost, App, Editor, Plugin};
 
 const SAMPLES_PER_BLOCK: usize = 128;
 

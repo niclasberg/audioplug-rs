@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{core::{Color, Point, Rectangle, Size}, param::Params, view::{AnyView, Fill, View}, window::AppContext};
+use crate::{app::AppContext, core::{Color, Point, Rectangle, Size}, param::Params, view::{AnyView, Fill, View}};
 
 pub trait Editor: 'static {
 	type Parameters: Params;

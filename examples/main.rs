@@ -1,9 +1,9 @@
 use std::path::Path;
 
-use audioplug::app::{SignalGet, SignalSet};
+use audioplug::app::{SignalGet, SignalSet, Window};
 use audioplug::core::{Color, Size, Alignment, Rectangle, Point};
 use audioplug::view::{Button, Checkbox, Column, Fill, Image, Label, Row, Slider, TextBox, View};
-use audioplug::{window::*, App};
+use audioplug::App;
 
 fn main() {
     //let device = Device::new()?;

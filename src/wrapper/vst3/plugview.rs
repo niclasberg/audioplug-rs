@@ -10,9 +10,8 @@ use std::cell::RefCell;
 use std::ffi::{CStr, c_void};
 use std::rc::Rc;
 
-use crate::app::AppState;
+use crate::app::{AppState, Window};
 use crate::core::Rectangle;
-use crate::window::Window;
 use crate::Editor;
 
 #[cfg(target_os = "windows")]
