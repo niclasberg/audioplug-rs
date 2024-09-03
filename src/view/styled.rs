@@ -14,8 +14,8 @@ where
 {
     type Element = StyledWidget<V::Element, F>;
 
-    fn build(self, ctx: &mut BuildContext) -> Self::Element {
-        let widget = self.view.build(ctx);
+    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
+        let widget = ctx.build(self.view);
         StyledWidget {
             widget,
             style_function: self.style_function

@@ -10,8 +10,8 @@ pub struct Background<V: View> {
 impl<V: View> View for Background<V> {
     type Element = BackgroundWidget<V::Element>;
 
-    fn build(self, ctx: &mut BuildContext) -> Self::Element {
-        let widget = self.view.build(ctx);
+    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
+        let widget = ctx.build(self.view);
         BackgroundWidget { widget, color: self.color }
     }
 }

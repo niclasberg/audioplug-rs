@@ -1,14 +1,25 @@
+use std::marker::PhantomData;
+
 use crate::view::View;
 
 use super::{widget_node::{WidgetFlags, WidgetId, WidgetMut}, Accessor, AppState, SignalGet, Widget};
 
-pub struct BuildContext<'a> {
-    pub(crate) id: WidgetId,
-    pub(crate) app_state: &'a mut AppState
+pub struct BuildContext<'a, W: Widget> {
+    id: WidgetId,
+    pub(crate) app_state: &'a mut AppState,
+    _phantom: PhantomData<W>
 }
 
-impl<'a> BuildContext<'a> {
-    pub fn get_and_track<W: Widget + 'static, T: Clone + 'static>(&mut self, accessor: Accessor<T>, f: impl Fn(&T, WidgetMut<'_, W>) + 'static) -> T {
+impl<'a, W: Widget> BuildContext<'a, W> {
+    pub fn new(id: WidgetId, app_state: &'a mut AppState) -> Self {
+        Self {
+            id,
+            app_state,
+            _phantom: PhantomData
+        }
+    }
+
+    pub fn get_and_track<T: Clone + 'static>(&mut self, accessor: Accessor<T>, f: impl Fn(&T, WidgetMut<'_, W>) + 'static) -> T {
         let value = accessor.get_untracked(self.app_state);
         self.app_state.create_binding(accessor, self.id, f);
         value
@@ -26,27 +37,20 @@ impl<'a> BuildContext<'a> {
         }
     }
 
-    pub fn add_child(&mut self, view: impl View) {
-        self.app_state.add_widget(self.id, move |ctx| {
+    pub fn add_child<V: View>(&mut self, view: V) {
+        self.app_state.add_widget(self.id, move |ctx| -> V::Element {
             view.build(ctx)
         });
     }
 
-    /*pub fn build_child<'s, V: View>(&'s mut self, id: Id, view: V) -> WidgetNode {
-		let mut id_path = self.id_path.clone();
-        id_path.push_child(id);
-        let mut data = WidgetData::new(id_path.clone());
-        let widget = Box::new(view.build(&mut BuildContext {
-            id_path,
-            widget_data: &mut data,
-            app_state: &mut self.app_state
-        }));
-        data.style = widget.style();
-        WidgetNode {
-            widget,
-            data
-        }
-    }*/
+    pub(crate) fn build<V: View>(&mut self, view: V) -> V::Element {
+        let mut ctx = BuildContext {
+            id: self.id,
+            app_state: self.app_state,
+            _phantom: PhantomData
+        };
+        view.build(&mut ctx)
+    }
 }
 
 

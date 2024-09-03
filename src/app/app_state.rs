@@ -1,4 +1,4 @@
-use std::{any::Any, collections::VecDeque, ops::DerefMut, rc::Weak};
+use std::{any::Any, collections::VecDeque, marker::PhantomData, ops::DerefMut, rc::Weak};
 use slotmap::{Key, SecondaryMap, SlotMap};
 use crate::{core::{Point, Rectangle}, param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap, Params}, platform};
 
@@ -133,7 +133,7 @@ impl AppState {
         self.host_handle.perform_edit(id, value);
     }
 
-    pub fn add_window<W: Widget + 'static>(&mut self, handle: platform::Handle, f: impl FnOnce(&mut BuildContext) -> W) -> WindowId {
+    pub fn add_window<W: Widget + 'static>(&mut self, handle: platform::Handle, f: impl FnOnce(&mut BuildContext<W>) -> W) -> WindowId {
 		let window_id = self.windows.insert_with_key(|window_id| {
             Window {
                 handle,
@@ -148,7 +148,7 @@ impl AppState {
 		self.windows[window_id].root_widget = widget_id;
 
 		{
-            let widget = f(&mut BuildContext { id: widget_id, app_state: self });
+            let widget = f(&mut BuildContext::new(widget_id, self));
 			self.widget_data[widget_id].style = widget.style();
             self.widgets.insert(widget_id, Box::new(widget));
         }
@@ -162,14 +162,14 @@ impl AppState {
     }
 
     /// Add a new widget
-    pub fn add_widget<W: Widget + 'static>(&mut self, parent_id: WidgetId, f: impl FnOnce(&mut BuildContext) -> W) -> WidgetId {
+    pub fn add_widget<W: Widget + 'static>(&mut self, parent_id: WidgetId, f: impl FnOnce(&mut BuildContext<W>) -> W) -> WidgetId {
 		let window_id = self.widget_data.get(parent_id).expect("Parent not found").window_id;
         let id = self.widget_data.insert_with_key(|id| {
 			WidgetData::new(window_id, id).with_parent(parent_id)
 		});
         
 		{
-            let widget = f(&mut BuildContext { id, app_state: self });
+            let widget = f(&mut BuildContext::new(id, self));
 			self.widget_data[id].style = widget.style();
             self.widgets.insert(id, Box::new(widget));
         }

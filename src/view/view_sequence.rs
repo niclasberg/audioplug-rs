@@ -1,16 +1,16 @@
-use crate::app::BuildContext;
+use crate::app::{BuildContext, Widget};
 
 use super::View;
 
 pub trait ViewSequence: Sized {
     fn len(&self) -> usize;
-    fn build(self, ctx: &mut BuildContext);
+    fn build<W: Widget>(self, ctx: &mut BuildContext<W>);
 }
 
 macro_rules! impl_view_seq_tuple {
     ( $n: tt; $( $t: ident),* ; $( $s: tt),*) => {
         impl<$( $t: View, )*> ViewSequence for ($( $t, )*) {
-            fn build(self, ctx: &mut BuildContext) {
+            fn build<W: Widget>(self, ctx: &mut BuildContext<W>) {
                 (
                     $( ctx.add_child(self.$s), )*
                 );
@@ -37,7 +37,7 @@ impl_view_seq_tuple!(11; V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11; 0, 1, 2, 
 impl_view_seq_tuple!(12; V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12; 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
 
 impl<V: View> ViewSequence for Vec<V> {
-    fn build(self, ctx: &mut BuildContext) {
+    fn build<W: Widget>(self, ctx: &mut BuildContext<W>) {
         for child in self {
             ctx.add_child(child);
         }

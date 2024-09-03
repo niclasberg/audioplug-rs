@@ -21,7 +21,7 @@ impl<V: View> Button<V> {
 impl<V: View> View for Button<V> {
     type Element = ButtonWidget; 
 
-    fn build(self, ctx: &mut BuildContext) -> Self::Element {
+    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         ctx.set_focusable(true);
         ctx.add_child(self.child);
 

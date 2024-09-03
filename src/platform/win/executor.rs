@@ -9,6 +9,12 @@ struct Inner {
 
 }
 
+impl Inner {
+    fn handle_message(&self, hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        todo!()
+    }
+}
+
 pub struct Executor {
     hwnd: HWND
 }
@@ -43,6 +49,10 @@ impl Executor {
                 None, 
                 Some(Rc::into_raw(inner) as _))?
         };
+
+        Ok(Self {
+            hwnd
+        })
     }
 }
 
@@ -60,7 +70,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, message: u32, wparam: WPARAM, lpar
             drop(Rc::from_raw(inner_ptr));
             DefWindowProcW(hwnd, message, wparam, lparam)
         } else {
-            let result = (&*window_state_ptr).handle_message(hwnd, message, wparam, lparam);
+            let result = (&*inner_ptr).handle_message(hwnd, message, wparam, lparam);
             result.unwrap_or_else(|| {
                 DefWindowProcW(hwnd, message, wparam, lparam)
             })

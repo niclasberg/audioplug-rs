@@ -14,7 +14,7 @@ pub struct Piano {
 impl View for Piano {
     type Element = Piano;
 
-    fn build(self, ctx: &mut crate::app::BuildContext) -> Self::Element {
+    fn build(self, ctx: &mut crate::app::BuildContext<Self::Element>) -> Self::Element {
         todo!()
     }
 }

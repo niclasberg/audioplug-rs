@@ -23,7 +23,7 @@ impl Label {
 impl View for Label {
     type Element = TextWidget;
 
-    fn build(self, ctx: &mut BuildContext) -> Self::Element {
+    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         let text = ctx.get_and_track(self.text, |value, mut widget: WidgetMut<'_, Self::Element>| {
             widget.text_layout.replace_with(|_text_layout| {
 				TextLayout::new(value.as_str(), widget.color, Size::INFINITY)

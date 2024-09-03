@@ -33,7 +33,7 @@ impl<VS: ViewSequence> Column<VS> {
 impl<VS: ViewSequence> View for Column<VS> {
     type Element = LinearLayoutWidget;
 
-    fn build(self, ctx: &mut BuildContext) -> Self::Element {
+    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         self.view_seq.build(ctx);
         LinearLayoutWidget {
             alignment: self.alignment,
@@ -72,10 +72,9 @@ impl<VS: ViewSequence> Row<VS> {
 impl<VS: ViewSequence> View for Row<VS> {
     type Element = LinearLayoutWidget;
 
-    fn build(self, ctx: &mut BuildContext) -> Self::Element {
+    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         self.view_seq.build(ctx);
         LinearLayoutWidget {
-            //widgets: self.view_seq.build(ctx),
             alignment: self.alignment,
             spacing: self.spacing,
             axis: taffy::FlexDirection::Row

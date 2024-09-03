@@ -17,8 +17,8 @@ impl Checkbox {
 impl View for Checkbox {
     type Element = CheckboxWidget;
 
-    fn build(self, ctx: &mut BuildContext) -> Self::Element {
-        let checked = ctx.get_and_track(self.checked, |value, mut widget: WidgetMut<'_, Self::Element>| {
+    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
+        let checked = ctx.get_and_track(self.checked, |value, mut widget| {
             (*widget).checked = *value;
 			widget.request_render();
         });

@@ -36,7 +36,7 @@ impl Slider {
 impl View for Slider {
     type Element = SliderWidget;
 
-    fn build(self, ctx: &mut BuildContext) -> Self::Element {
+    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         ctx.set_focusable(true);
         SliderWidget {
             position_normalized: 0.4,

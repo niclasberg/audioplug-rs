@@ -2,12 +2,12 @@ use crate::{app::{BuildContext, Widget}, core::Color};
 
 use super::{Background, Styled};
 
-pub type AnyView = Box<dyn FnOnce(&mut BuildContext) -> Box<dyn Widget>>;
+pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn Widget>>;
 
 pub trait View: Sized {
     type Element: Widget + 'static;
 
-    fn build(self, ctx: &mut BuildContext) -> Self::Element;
+    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element;
 
     fn background(self, color: Color) -> Background<Self> {
         Background { view: self, color }
@@ -24,7 +24,7 @@ pub trait View: Sized {
     where 
         Self: 'static 
     {
-        Box::new(move |ctx: &mut BuildContext| Box::new(self.build(ctx)))
+        Box::new(move |ctx| Box::new(ctx.build(self)))
     }
 }
 
@@ -32,7 +32,7 @@ pub trait View: Sized {
 impl View for AnyView {
 	type Element = Box<dyn Widget>;
 
-	fn build(self, ctx: &mut BuildContext) -> Self::Element {
+	fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
 		self(ctx)
 	}
 }

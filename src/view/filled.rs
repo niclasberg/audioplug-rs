@@ -26,7 +26,7 @@ pub struct Filled {
 impl View for Filled {
     type Element = Self;
 
-    fn build(self, _ctx: &mut BuildContext) -> Self { 
+    fn build(self, _ctx: &mut BuildContext<Self::Element>) -> Self { 
         self
     }
 }

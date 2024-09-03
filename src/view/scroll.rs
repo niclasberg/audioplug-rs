@@ -16,8 +16,8 @@ impl<V: View> Scroll<V> {
 impl<V: View> View for Scroll<V> {
     type Element = ScrollWidget;
 
-    fn build(self, ctx: &mut BuildContext) -> Self::Element {
-        let child = Box::new(self.child.build(ctx));
+    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
+        let child = Box::new(ctx.build(self.child));
         ScrollWidget {
             child
         }
