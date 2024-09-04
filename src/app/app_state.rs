@@ -2,7 +2,7 @@ use std::{any::Any, collections::VecDeque, marker::PhantomData, ops::DerefMut, r
 use slotmap::{Key, SecondaryMap, SlotMap};
 use crate::{core::{Point, Rectangle}, param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap, Params}, platform};
 
-use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, Runtime, Scope, SignalContext, SignalGet, Widget, WindowId};
+use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, ParamContext, Runtime, Scope, SignalContext, SignalGet, Widget, WindowId};
 use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
@@ -45,14 +45,14 @@ impl Task {
     }
 }
 
-pub(super) struct Window {
+pub(super) struct WindowState {
     pub(super) handle: platform::Handle,
     pub(super) root_widget: WidgetId,
 }
 
 pub struct AppState {
     parameters: Box<dyn AnyParameterMap>,
-    windows: SlotMap<WindowId, Window>,
+    windows: SlotMap<WindowId, WindowState>,
     pub(super) widget_data: SlotMap<WidgetId, WidgetData>,
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
     widget_bindings: SecondaryMap<NodeId, WidgetId>,
@@ -121,21 +121,13 @@ impl AppState {
         self.reactive_context.notify(&id);
     }
 
-    pub fn begin_edit(&mut self, id: ParameterId) {
-        self.host_handle.begin_edit(id);
-    }
+    pub(crate) fn set_parameter_value_from_host(&mut self, id: ParameterId, value: NormalizedValue) {
 
-    pub fn end_edit(&mut self, id: ParameterId) {
-        self.host_handle.end_edit(id);
-    }
-
-    pub fn perform_edit(&mut self, id: ParameterId, value: NormalizedValue) {
-        self.host_handle.perform_edit(id, value);
     }
 
     pub fn add_window<W: Widget + 'static>(&mut self, handle: platform::Handle, f: impl FnOnce(&mut BuildContext<W>) -> W) -> WindowId {
 		let window_id = self.windows.insert_with_key(|window_id| {
-            Window {
+            WindowState {
                 handle,
                 root_widget: WidgetId::null()
             }
@@ -257,7 +249,7 @@ impl AppState {
 		}
 	}
 
-    pub(super) fn window(&self, id: WindowId) -> &Window {
+    pub(super) fn window(&self, id: WindowId) -> &WindowState {
         self.windows.get(id).expect("Window handle not found")
     }
 
@@ -289,6 +281,12 @@ impl SignalContext for AppState {
 
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
         self.reactive_context.set_signal_value(signal, value)
+    }
+}
+
+impl ParamContext for AppState {
+    fn host_handle(&self) -> &dyn HostHandle {
+        self.host_handle.as_ref()
     }
 }
 

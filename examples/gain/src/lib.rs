@@ -1,7 +1,7 @@
 use audioplug::core::{Color, Size};
 use audioplug::param::{BoolParameter, FloatParameter, FloatRange, NormalizedValue, Parameter, ParameterId};
 use audioplug::view::{AnyView, Column, Label, Slider, View};
-use audioplug::app::AppContext;
+use audioplug::app::{AppContext, UiParam};
 use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, params, AudioLayout, Bus, ChannelType, Editor, Plugin, ProcessContext};
 
 params!(
@@ -34,15 +34,15 @@ impl Editor for MyEditor {
 		Some(Size::new(540.0, 480.0))
 	}
 
-    fn view(&self, _ctx: &mut AppContext, _parameters: &MyPluginParams) -> AnyView {
+    fn view(&self, _ctx: &mut AppContext, parameters: &MyPluginParams) -> AnyView {
+        let param = UiParam::new(&parameters.gain);
         Column::new((
             Label::new("Gain").with_color(Color::BLUE),
             Slider::new()
-                .on_value_changed(|ctx, value| {
-                    let id = ParameterId::new(2);
-                    ctx.begin_edit(id);
-                    ctx.perform_edit(id, NormalizedValue::from_f64(value).unwrap());
-                    ctx.end_edit(id);
+                .on_value_changed(move |ctx, value| {
+                    param.begin_edit(ctx);
+                    //ctx.set_parameter_value_notifying_host(id, NormalizedValue::from_f64(value).unwrap());
+                    param.end_edit(ctx);
                 })
         )).as_any()
     }
