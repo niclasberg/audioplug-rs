@@ -60,17 +60,7 @@ impl<P: Plugin + 'static> ViewController<P> {
 
 	pub fn create_audio_unit(&mut self, desc: AudioComponentDescription, error: *mut *mut NSError) -> *mut AUAudioUnit {
 		let audio_unit = MyAudioUnit::<P>::new_with_component_descriptor_error(desc, error);
-
-		{
-			let parameter_tree = audio_unit.parameter_tree();
-			// The observer block can be called on any thread. We downcast to weak here,
-			// and then we ensure that we upgrade to an Rc on the main thread by dispatching.
-			
-
-
-		}
-		
-
+		audio_unit.parameter_tree().tokenByAddingParameterObserver(&self.parameter_observer);
 		let audio_unit = Retained::into_super(audio_unit);
 		Retained::into_raw(audio_unit) 
 	}
