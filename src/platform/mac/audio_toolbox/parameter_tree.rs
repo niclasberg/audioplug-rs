@@ -8,6 +8,7 @@ use bitflags::bitflags;
 
 pub type AUValue = f32;
 pub type AUParameterAddress = u64;
+pub type AUParameterObserverToken = *mut c_void;
 
 c_enum!(
 	pub enum AudioUnitParameterUnit: u32 {
@@ -185,8 +186,6 @@ pub type AUParameterRecordingObserver = Block<dyn Fn(NSInteger, *const AURecorde
 /// A block called to record parameter changes as automation events.
 pub type AUParameterAutomationObserver = Block<dyn Fn(NSInteger, *const AUParameterAutomationEvent)>;
 
-pub type AUParameterObserverToken = *mut c_void;
-
 /// A block called to notify the audio unit implementation of changes to a parameter value.
 pub type AUImplementorValueObserver = Block<dyn Fn(*mut AUParameter, AUValue)>;
 
@@ -217,6 +216,22 @@ extern_methods!(
 		#[method_id(displayNameWithLength:)]
 		#[allow(non_snake_case)]
 		pub fn displayNameWithLength(&self, maximumLength: NSInteger) -> Retained<NSString>;
+
+		#[method(tokenByAddingParameterObserver:)]
+		#[allow(non_snake_case)]
+		pub fn tokenByAddingParameterObserver(&self, observer: &AUParameterObserver) -> AUParameterObserverToken;
+
+		#[method(tokenByAddingParameterRecordingObserver:)]
+		#[allow(non_snake_case)]
+		pub fn tokenByAddingParameterRecordingObserver(&self, observer: &AUParameterRecordingObserver) -> AUParameterObserverToken;
+
+		#[method(tokenByAddingParameterAutomationObserver:)]
+		#[allow(non_snake_case)]
+		pub fn tokenByAddingParameterAutomationObserver(&self, observer: &AUParameterAutomationObserver) -> AUParameterObserverToken;
+
+		#[method(removeParameterObserver:)]
+		#[allow(non_snake_case)]
+		pub fn removeParameterObserver(&self, token: AUParameterObserverToken);
 	}
 );
 
@@ -313,6 +328,6 @@ extern_methods!(
 		#[method(unit)]
 		pub fn unit(&self) -> AudioUnitParameterUnit;
 
-		
+
 	}
 );

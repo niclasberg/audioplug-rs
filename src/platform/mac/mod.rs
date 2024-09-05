@@ -9,6 +9,7 @@ pub(crate) mod core_midi;
 mod core_foundation;
 mod core_graphics;
 mod core_text;
+pub(crate) mod dispatch;
 mod error;
 mod handle;
 mod image;
@@ -22,6 +23,7 @@ mod window;
 mod window_state;
 
 pub(crate) use audio::AudioHost;
+pub(crate) use dispatch::{DispatchQueue, MainThreadQueue};
 pub(crate) use handle::Handle;
 pub(crate) use application::Application;
 pub(crate) use window::Window;

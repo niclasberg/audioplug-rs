@@ -39,7 +39,7 @@ impl MyApplicationDelegate {
 
 pub(crate) struct Application {
 	app: Id<NSApplication>,
-	delegate: Id<MyApplicationDelegate>
+	_delegate: Id<MyApplicationDelegate>
 }
 
 impl Application {
@@ -48,12 +48,12 @@ impl Application {
 		let app: Id<NSApplication> = NSApplication::sharedApplication(mtm);
 		app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
 
-		let delegate: Id<MyApplicationDelegate> = MyApplicationDelegate::new(mtm);
+		let _delegate: Id<MyApplicationDelegate> = MyApplicationDelegate::new(mtm);
 
-		let object = ProtocolObject::from_ref(&*delegate);
+		let object = ProtocolObject::from_ref(&*_delegate);
 		app.setDelegate(Some(object));
 
-		Self { app, delegate }
+		Self { app, _delegate }
 	}
 
 	pub fn run(&mut self) {

@@ -1,6 +1,6 @@
 use std::{any::Any, collections::VecDeque, marker::PhantomData, ops::DerefMut, rc::Weak};
 use slotmap::{Key, SecondaryMap, SlotMap};
-use crate::{core::{Point, Rectangle}, param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap, Params}, platform};
+use crate::{core::{Point, Rectangle}, param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap, Params, PlainValue}, platform};
 
 use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, ParamContext, Runtime, Scope, SignalContext, SignalGet, Widget, WindowId};
 use super::NodeId;
@@ -119,6 +119,10 @@ impl AppState {
     pub fn create_effect(&mut self, f: impl Fn(&mut Runtime) + 'static) {
         let id = self.reactive_context.create_effect_node(EffectState::new(f));
         self.reactive_context.notify(&id);
+    }
+
+	pub(crate) fn set_plain_parameter_value_from_host(&mut self, id: ParameterId, value: PlainValue) {
+
     }
 
     pub(crate) fn set_parameter_value_from_host(&mut self, id: ParameterId, value: NormalizedValue) {

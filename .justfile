@@ -3,7 +3,7 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 dylib_ext := if os_family() == "windows" { ".dll" } else { ".dylib" }
 staticlib_ext := if os_family() == "windows" { ".lib" } else { ".a" }
 
-build target="gain" target_dir="target/debug": (_bundle_au target target_dir) (_bundle_vst target target_dir)
+build target="gain" target_dir="target/debug": (_bundle_vst target target_dir) (_bundle_au target target_dir) 
 
 _build target="gain":
     cargo build --package {{target}}

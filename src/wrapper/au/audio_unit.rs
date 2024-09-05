@@ -214,6 +214,13 @@ impl<P: Plugin + 'static> MyAudioUnit<P> {
 			msg_send_id![self, outputBusses]
 		}
 	}
+
+	pub fn parameter_tree(&self) -> Retained<AUParameterTree> {
+		unsafe {
+			msg_send_id![self, parameterTree]
+		}
+	}
+
 }
 
 
