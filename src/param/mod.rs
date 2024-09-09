@@ -139,6 +139,8 @@ pub trait ParameterInfo {
     fn id(&self) -> ParameterId;
     fn name(&self) -> &str;
     fn default_value(&self) -> PlainValue;
+	fn min_value(&self) -> PlainValue;
+	fn max_value(&self) -> PlainValue;
 	fn normalize(&self, value: PlainValue) -> NormalizedValue;
 	fn denormalize(&self, value: NormalizedValue) -> PlainValue;
 	fn step_count(&self) -> usize;

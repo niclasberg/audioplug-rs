@@ -48,14 +48,6 @@ pub struct App {
     native: platform::Application,
     pub(crate) state: Rc<RefCell<AppState>>,
 }
-
-struct NullHostHandle;
-impl HostHandle for NullHostHandle {
-    fn begin_edit(&self, _id: crate::param::ParameterId) {}
-    fn end_edit(&self, _id: crate::param::ParameterId) {}
-    fn perform_edit(&self, _id: crate::param::ParameterId, _value: crate::param::NormalizedValue) {}
-}
-
 impl App {
     pub fn new() -> Self {
         Self::new_with_app_state(Rc::new(RefCell::new(AppState::new(()))))

@@ -322,12 +322,28 @@ extern_methods!(
 		#[allow(non_snake_case)]
 		pub fn maxValue(&self) -> AUValue;
 
-		#[method(address)]
-		pub fn address(&self) -> AUParameterAddress;
-
 		#[method(unit)]
 		pub fn unit(&self) -> AudioUnitParameterUnit;
 
+		#[method(flags)]
+		pub fn flags(&self) -> AudioUnitParameterOptions;
 
+		#[method(address)]
+		pub fn address(&self) -> AUParameterAddress;
+
+		#[method(value)]
+		pub fn value(&self) -> AUValue;
+
+		#[method(setValue:originator:)]
+		#[allow(non_snake_case)]
+		pub fn setValue_orginator(&self, value: AUValue, originator: AUParameterObserverToken);
+
+		#[method(setValue:originator:atHostTime:)]
+		#[allow(non_snake_case)]
+		pub fn setValue_orginator_atHostTime(&self, value: AUValue, originator: AUParameterObserverToken, host_time: u64);
+
+		#[method(setValue:originator:atHostTime:eventType:)]
+		#[allow(non_snake_case)]
+		pub fn setValue_orginator_atHostTime_eventType(&self, value: AUValue, originator: AUParameterObserverToken, host_time: u64, event_type: AUParameterAutomationEventType);
 	}
 );

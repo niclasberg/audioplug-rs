@@ -91,6 +91,14 @@ impl ParameterInfo for IntParameterInfo {
 	fn default_value(&self) -> PlainValue {
 		PlainValue::new(self.default as f64)
 	}
+
+	fn min_value(&self) -> PlainValue {
+		self.range.min_value()
+	}
+
+	fn max_value(&self) -> PlainValue {
+		self.range.max_value()
+	}
 	
 	fn normalize(&self, value: PlainValue) -> NormalizedValue {
 		self.range.normalize(value)
@@ -133,6 +141,20 @@ impl IntRange {
 				*min as f64 + value.0 * (*max - *min) as f64,
 		};
         PlainValue(value)
+	}
+
+	pub fn min_value(&self) -> PlainValue {
+		let value = match self {
+			Self::Linear { min, ..} => *min
+		};
+		PlainValue(value as _)
+	}
+
+	pub fn max_value(&self) -> PlainValue {
+		let value = match self {
+			Self::Linear { max, ..} => *max
+		};
+		PlainValue(value as _)
 	}
 
     pub fn steps(&self) -> usize {

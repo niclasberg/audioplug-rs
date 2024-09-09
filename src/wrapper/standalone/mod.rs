@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 use rtrb::{Consumer, Producer, RingBuffer};
 
-use crate::{app::{AppState, HostHandle, Window}, param::{NormalizedValue, ParameterId}, platform::AudioHost, App, Editor, Plugin};
+use crate::{app::{AppState, HostHandle, Window}, param::{NormalizedValue, ParameterId, ParameterInfo}, platform::AudioHost, App, Editor, Plugin};
 
 const SAMPLES_PER_BLOCK: usize = 128;
 
@@ -19,17 +19,17 @@ struct StandaloneHostHandle {
 }
 
 impl HostHandle for StandaloneHostHandle {
-    fn begin_edit(&self, id: crate::param::ParameterId) {
+    fn begin_edit(&self, id: ParameterId) {
         
     }
 
-    fn end_edit(&self, id: crate::param::ParameterId) {
+    fn end_edit(&self, id: ParameterId) {
         
     }
 
-    fn perform_edit(&self, id: crate::param::ParameterId, value: crate::param::NormalizedValue) {
+    fn perform_edit(&self, info: &dyn ParameterInfo, value: crate::param::NormalizedValue) {
         let mut app_inner = RefCell::borrow_mut(&self.app_inner);
-        app_inner.parameter_updates.push(ParameterUpdate {id, value }).unwrap();
+        app_inner.parameter_updates.push(ParameterUpdate {id: info.id(), value }).unwrap();
     }
 }
 

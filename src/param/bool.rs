@@ -81,6 +81,14 @@ impl ParameterInfo for BoolParameterInfo {
 		let value = if self.default { 1.0 } else { 0.0 };
 		PlainValue::new(value)
 	}
+
+	fn min_value(&self) -> PlainValue {
+		PlainValue::new(0.0)
+	}
+
+	fn max_value(&self) -> PlainValue {
+		PlainValue::new(1.0)
+	}
 	
 	fn normalize(&self, value: PlainValue) -> NormalizedValue {
 		NormalizedValue(value.0)

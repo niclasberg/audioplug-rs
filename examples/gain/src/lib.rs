@@ -1,5 +1,5 @@
 use audioplug::core::{Color, Size};
-use audioplug::param::{BoolParameter, FloatParameter, FloatRange, NormalizedValue, Parameter, ParameterId};
+use audioplug::param::{BoolParameter, FloatParameter, FloatRange, NormalizedValue, Parameter, ParameterId, PlainValue};
 use audioplug::view::{AnyView, Column, Label, Slider, View};
 use audioplug::app::{AppContext, ParamEditor};
 use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, params, AudioLayout, Bus, ChannelType, Editor, Plugin, ProcessContext};
@@ -16,7 +16,7 @@ impl Default for MyPluginParams {
         Self {
             enabled: BoolParameter::new(ParameterId::new(1), "Enabled", true),
             gain: FloatParameter::new(ParameterId::new(2), "Gain")
-				.with_range(FloatRange::Linear { min: 0.0, max: 1.0 })
+				.with_range(FloatRange::Linear { min: 0.0, max: 20.0 })
 				.with_default(0.5)
         }
     }
@@ -39,9 +39,10 @@ impl Editor for MyEditor {
         Column::new((
             Label::new("Gain").with_color(Color::BLUE),
             Slider::new()
+				.with_range(0.0, 20.0)
                 .on_value_changed(move |ctx, value| {
                     param.begin_edit(ctx);
-                    param.set_value_normalized(ctx, NormalizedValue::from_f64(value).unwrap());
+                    param.set_value_plain(ctx, PlainValue::new(value));
                     param.end_edit(ctx);
                 })
         )).as_any()

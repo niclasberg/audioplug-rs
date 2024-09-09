@@ -29,12 +29,16 @@ impl<P: AnyParameter> ParamEditor<P> {
 	}
 
 	pub fn set_value_normalized(&self, ctx: &mut impl ParamContext, value: NormalizedValue) {
-		ctx.host_handle().perform_edit(self.id, value);
+		let param_ref = ctx.get_parameter_ref(self.id).unwrap();
+		let info = param_ref.info();
+		ctx.host_handle().perform_edit(info, value);
 	}
 
 	pub fn set_value_plain(&self, ctx: &mut impl ParamContext, value: PlainValue) {
-		let value = ctx.get_parameter_ref(self.id).unwrap().info().normalize(value);
-		ctx.host_handle().perform_edit(self.id, value);
+		let param_ref = ctx.get_parameter_ref(self.id).unwrap();
+		let info = param_ref.info();
+		let value = info.normalize(value);
+		ctx.host_handle().perform_edit(info, value);
 	}
 
 	pub fn end_edit(&self, ctx: &mut impl ParamContext) {

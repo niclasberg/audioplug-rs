@@ -30,8 +30,8 @@ impl HostHandle for VST3HostHandle {
         unsafe { self.component_handler.end_edit(id.into()) };
     }
 
-    fn perform_edit(&self, id: ParameterId, value: NormalizedValue) {
-        unsafe { self.component_handler.perform_edit(id.into(), value.into()) };
+    fn perform_edit(&self, info: &dyn crate::param::ParameterInfo, value: NormalizedValue) {
+        unsafe { self.component_handler.perform_edit(info.id().into(), value.into()) };
     }
 }
 

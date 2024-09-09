@@ -105,6 +105,14 @@ impl ParameterInfo for StringListParameterInfo {
 		}
 	
 	fn string_from_value(&self, value: NormalizedValue) -> String {
-			todo!()
-		}
+		todo!()
+	}
+	
+	fn min_value(&self) -> PlainValue {
+		PlainValue::new(0.0)
+	}
+	
+	fn max_value(&self) -> PlainValue {
+		PlainValue::new(self.step_count() as _)
+	}
 }

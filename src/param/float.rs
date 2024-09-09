@@ -105,6 +105,14 @@ impl ParameterInfo for FloatParameterInfo {
 	fn default_value(&self) -> PlainValue {
 		PlainValue::new(self.default)
 	}
+
+	fn min_value(&self) -> PlainValue {
+		self.range.min_value()
+	}
+
+	fn max_value(&self) -> PlainValue {
+		self.range.max_value()
+	}
 	
 	fn normalize(&self, value: PlainValue) -> NormalizedValue {
 		self.range.normalize(value)
@@ -144,6 +152,20 @@ impl FloatRange {
 	pub fn denormalize(&self, value: NormalizedValue) -> PlainValue {
 		let value = match self {
 			Self::Linear { min, max } => *min + value.0 * (*max - *min)
+		};
+		PlainValue(value)
+	}
+
+	pub fn min_value(&self) -> PlainValue {
+		let value = match self {
+			Self::Linear { min, ..} => *min
+		};
+		PlainValue(value)
+	}
+
+	pub fn max_value(&self) -> PlainValue {
+		let value = match self {
+			Self::Linear { max, ..} => *max
 		};
 		PlainValue(value)
 	}
