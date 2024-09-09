@@ -1,10 +1,10 @@
-use std::{cell::RefCell, clone, marker::PhantomData, rc::{Rc, Weak}, sync::atomic::AtomicPtr};
+use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 use block2::RcBlock;
 use objc2::rc::Retained;
 use objc2_app_kit::NSView;
 use objc2_foundation::{CGSize, MainThreadMarker, NSError};
-use crate::{app::{AppState, HostHandle, MyHandler}, param::{NormalizedValue, ParameterId, ParameterInfo, PlainValue}, platform::{audio_toolbox::{AUParameterAddress, AUParameterAutomationEventType, AUParameterObserverToken, AUParameterTree, AUValue}, dispatch::create_block_dispatching_to_main2, view::View, DispatchQueue, MainThreadQueue}, Editor, Plugin};
+use crate::{app::{AppState, HostHandle, MyHandler}, param::{NormalizedValue, ParameterId, ParameterInfo, PlainValue}, platform::{audio_toolbox::{AUParameterAddress, AUParameterAutomationEventType, AUParameterObserverToken, AUParameterTree, AUValue}, dispatch::create_block_dispatching_to_main2, view::View}, Editor, Plugin};
 use crate::platform::mac::audio_toolbox::{AUAudioUnit, AudioComponentDescription};
 use super::MyAudioUnit;
 

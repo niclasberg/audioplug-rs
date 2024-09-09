@@ -2,9 +2,9 @@ use std::{marker::PhantomData, mem::MaybeUninit, ops::Deref, sync::OnceLock};
 
 use block2::RcBlock;
 use objc2::{__extern_class_impl_traits, msg_send, msg_send_id, mutability::Mutable, rc::Retained, runtime::{AnyClass, AnyObject, Bool, ClassBuilder, Sel}, sel, ClassType, Encoding, RefEncode};
-use objc2_foundation::{ns_string, NSArray, NSError, NSIndexSet, NSInteger, NSMutableArray, NSNumber, NSObject, NSString, NSTimeInterval};
+use objc2_foundation::{NSArray, NSError, NSIndexSet, NSInteger, NSNumber, NSObject, NSTimeInterval};
 use crate::{param::{AnyParameterMap, ParameterId, ParameterMap, PlainValue}, platform::audio_toolbox::{AUParameter, AUValue}, AudioBuffer, Plugin, ProcessContext};
-use crate::platform::mac::audio_toolbox::{AUAudioUnitBusArray, AUParameterTree, AUInternalRenderRcBlock, AUAudioUnit, AudioUnitParameterUnit, AUParameterNode, AudioUnitParameterOptions, AUAudioUnitBus, AUAudioUnitBusType, AudioUnitRenderActionFlags, AUAudioFrameCount, AURenderEvent, AURenderPullInputBlock, AudioComponentDescription, AUInternalRenderBlock, AudioComponentInstantiationOptions, AUAudioUnitStatus, AUAudioUnitViewConfiguration};
+use crate::platform::mac::audio_toolbox::{AUAudioUnitBusArray, AUParameterTree, AUInternalRenderRcBlock, AUAudioUnit, AUAudioUnitBus, AUAudioUnitBusType, AudioUnitRenderActionFlags, AUAudioFrameCount, AURenderEvent, AURenderPullInputBlock, AudioComponentDescription, AUInternalRenderBlock, AudioComponentInstantiationOptions, AUAudioUnitStatus, AUAudioUnitViewConfiguration};
 use crate::platform::mac::av_foundation::AVAudioFormat;
 use crate::platform::mac::core_audio::{AudioBufferList, AudioTimeStamp};
 
@@ -30,27 +30,7 @@ impl<P: Plugin + 'static> Wrapper<P> {
 	pub fn new(audio_unit: &mut AUAudioUnit) -> Self {
 		let plugin = P::new();
 		let parameters = ParameterMap::new(P::Parameters::default());
-
-		let parameter_tree = {
-			let mut au_params = NSMutableArray::<AUParameterNode>::new();
-			
-			for p in parameters.iter() {
-				let au_param = AUParameterTree::createParameter(
-					&NSString::from_str(p.name()), 
-					&NSString::from_str(p.name()), 
-					p.id().into(), 
-					Into::<f64>::into(p.info().min_value()) as _, 
-					Into::<f64>::into(p.info().max_value()) as _, 
-					AudioUnitParameterUnit::CustomUnit, 
-					ns_string!("Unit"), 
-					AudioUnitParameterOptions::IsReadable | AudioUnitParameterOptions::IsWritable, 
-					&NSArray::new(), 
-					&NSArray::new());
-				au_params.push(Retained::into_super(au_param));
-			}
-
-			AUParameterTree::createTreeWithChildren(&au_params)
-		};
+		let parameter_tree = super::utils::create_parameter_tree(&parameters);
 
 		let format = unsafe {
 			AVAudioFormat::initStandardFormatWithSampleRate_channels(
@@ -70,6 +50,7 @@ impl<P: Plugin + 'static> Wrapper<P> {
 				AUAudioUnitBusType::Input,
 				&bus_array)
 		};
+		
 		let outputs = unsafe {
 			let output_bus = AUAudioUnitBus::initWithFormat_error(
 				AUAudioUnitBus::alloc(),
