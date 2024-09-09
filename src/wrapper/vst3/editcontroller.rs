@@ -35,27 +35,50 @@ impl HostHandle for VST3HostHandle {
     }
 }
 
-// We can't fully construct the app_state until we have the ComponentHandler.
-// So, store the whole state in its own struct
-struct Inner<E: Editor> {
+#[VST3(implements(IEditController, IConnectionPoint))]
+pub struct EditController<E: Editor> {
     app_state: Rc<RefCell<AppState>>,
-    editor: Rc<RefCell<E>>
+    editor: Rc<RefCell<E>>,
+    host_context: Cell<Option<VstPtr<dyn IUnknown>>>,
+    peer_connection: Cell<Option<VstPtr<dyn IConnectionPoint>>>,
 }
 
-impl<E: Editor> Inner<E> {
-    fn new(component_handler: VstPtr<dyn IComponentHandler>) -> Self {
-        let host_handle = VST3HostHandle { component_handler };
-		let app_state = Rc::new(RefCell::new(AppState::new(E::Parameters::default(), host_handle)));
+impl<E: Editor> EditController<E> {
+    pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 14] };
+
+    pub fn new() -> Box<Self> {
+		let app_state = Rc::new(RefCell::new(AppState::new(E::Parameters::default())));
 		let editor = Rc::new(RefCell::new(E::new()));
-        Self {
-            app_state,
-            editor
-        }
+        Self::allocate(app_state, editor, Cell::new(None), Cell::new(None))
     }
 
-    fn get_parameter_info(&self, param_index: i32, info: &mut ParameterInfo) -> tresult {
-		let app_state = RefCell::borrow(&self.app_state);
+    pub fn create_instance() -> *mut c_void {
+        Box::into_raw(Self::new()) as *mut c_void
+    }
+}
+
+impl<E: Editor> IEditController for EditController<E> {
+    unsafe fn set_component_state(&self, _state: SharedVstPtr<dyn IBStream>) -> tresult {
+        kResultOk
+    }
+
+    unsafe fn set_state(&self, _state: SharedVstPtr<dyn IBStream>) -> tresult {
+        kResultOk
+    }
+
+    unsafe fn get_state(&self, _state: SharedVstPtr<dyn IBStream>) -> tresult {
+        kResultOk
+    }
+
+    unsafe fn get_parameter_count(&self) -> i32 {
+        E::Parameters::PARAMS.len() as i32
+    }
+
+    unsafe fn get_parameter_info(&self, param_index: i32, info: *mut ParameterInfo) -> tresult {
+        let app_state = RefCell::borrow(&self.app_state);
 		let Some(param_ref) = app_state.parameters().get_by_index(param_index as usize) else { return kInvalidArgument };
+
+        let info = &mut *info;
 
 		info.id = param_ref.id().into();
 		info.flags = match param_ref {
@@ -74,43 +97,19 @@ impl<E: Editor> Inner<E> {
 		kResultOk
     }
 
-    fn set_param_normalized(&self, id: u32, value: f64) -> tresult {
-		let app_state = RefCell::borrow(&self.app_state);
-		let Some(param_ref) = app_state.parameters().get_by_id(ParameterId::new(id)) else { return kInvalidArgument };
-		param_ref.internal_set_value_normalized(unsafe { NormalizedValue::from_f64_unchecked(value) });
-		kResultOk
-    }
-
-    fn normalized_param_to_plain(&self, id: u32, value_normalized: f64) -> f64 {
-		let app_state = RefCell::borrow(&self.app_state);
-		let value_normalized = unsafe { NormalizedValue::from_f64_unchecked(value_normalized) };
-		app_state.parameters().get_by_id(ParameterId::new(id))
-			.map_or(0.0, |param| param.denormalize(value_normalized).into())
-    }
-
-    fn plain_param_to_normalized(&self, id: u32, plain_value: f64) -> f64 {
-		let app_state = RefCell::borrow(&self.app_state);
-		app_state.parameters().get_by_id(ParameterId::new(id))
-        	.map_or(0.0, |param| param.normalize(PlainValue::new(plain_value)).into())
-    }
-
-    fn get_param_normalized(&self, id: u32) -> f64 {
-		let app_state = RefCell::borrow(&self.app_state);
-        app_state.parameters().get_by_id(ParameterId::new(id))
-			.map_or(0.0, |p| p.normalized_value().into())
-    }
-
-    fn get_param_string_by_value(&self, id: u32, value_normalized: f64, string: &mut String128) -> tresult {
+    unsafe fn get_param_string_by_value(&self, id: u32, value_normalized: f64, string: *mut tchar) -> tresult {
+        // The string is actually a String128, it's mistyped in vst3-sys
+        let string = string as *mut String128;
         let app_state = RefCell::borrow(&self.app_state);
 		let Some(param_ref) = app_state.parameters().get_by_id(ParameterId::new(id)) else { return kInvalidArgument };
         let Some(value) = NormalizedValue::from_f64(value_normalized) else { return kInvalidArgument };
         let value_str = param_ref.info().string_from_value(value);
 
-        strcpyw(&value_str, string);
+        strcpyw(&value_str, &mut *string);
         kResultOk
     }
 
-    fn get_param_value_by_string(&self, id: u32, string: *const tchar, value_normalized: &mut f64) -> tresult {
+    unsafe fn get_param_value_by_string(&self, id: u32, string: *const tchar, value_normalized: *mut f64) -> tresult {
         let app_state = RefCell::borrow(&self.app_state);
 		let Some(param_ref) = app_state.parameters().get_by_id(ParameterId::new(id)) else { return kInvalidArgument };
         
@@ -123,98 +122,50 @@ impl<E: Editor> Inner<E> {
 
         kResultOk
     }
-}
-
-#[VST3(implements(IEditController, IConnectionPoint))]
-pub struct EditController<E: Editor> {
-    inner: RefCell<Option<Inner<E>>>,
-    host_context: Cell<Option<VstPtr<dyn IUnknown>>>,
-    peer_connection: Cell<Option<VstPtr<dyn IConnectionPoint>>>,
-}
-
-impl<E: Editor> EditController<E> {
-    pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 14] };
-
-    pub fn new() -> Box<Self> {
-        Self::allocate(RefCell::new(None), Cell::new(None), Cell::new(None))
-    }
-
-    pub fn create_instance() -> *mut c_void {
-        Box::into_raw(Self::new()) as *mut c_void
-    }
-
-    fn try_with_inner<R>(&self, f: impl FnOnce(&Inner<E>) -> R) -> Option<R> {
-        if let Ok(inner) = self.inner.try_borrow() {
-            inner.as_ref().map(f)
-        } else {
-            None
-        }
-    }
-}
-
-impl<E: Editor> IEditController for EditController<E> {
-    unsafe fn set_component_state(&self, _state: SharedVstPtr<dyn IBStream>) -> tresult {
-        kResultOk
-    }
-
-    unsafe fn set_state(&self, _state: SharedVstPtr<dyn IBStream>) -> tresult {
-        // The actual write is done in IComponent
-        kResultOk
-    }
-
-    unsafe fn get_state(&self, _state: SharedVstPtr<dyn IBStream>) -> tresult {
-        // The actual read is done in IComponent
-        kResultOk
-    }
-
-    unsafe fn get_parameter_count(&self) -> i32 {
-        E::Parameters::PARAMS.len() as i32
-    }
-
-    unsafe fn get_parameter_info(&self, param_index: i32, info: *mut ParameterInfo) -> tresult {
-        self.try_with_inner(|inner| inner.get_parameter_info(param_index, unsafe { &mut *info }))
-            .unwrap_or(kResultFalse)
-    }
-
-    unsafe fn get_param_string_by_value(&self, id: u32, value_normalized: f64, string: *mut tchar) -> tresult {
-        // The string is actually a String128, it's mistyped in vst3-sys
-        let string = string as *mut String128;
-        self.try_with_inner(|inner| inner.get_param_string_by_value(id, value_normalized, &mut *string))
-            .unwrap_or(kResultFalse)
-    }
-
-    unsafe fn get_param_value_by_string(&self, _id: u32, _string: *const tchar, _value_normalized: *mut f64) -> tresult {
-        kNotImplemented
-    }
 
     unsafe fn normalized_param_to_plain(&self, id: u32, value_normalized: f64) -> f64 {
-        self.try_with_inner(|inner| inner.normalized_param_to_plain(id, value_normalized))
-            .unwrap_or(0.0)
+        let app_state = RefCell::borrow(&self.app_state);
+		let value_normalized = unsafe { NormalizedValue::from_f64_unchecked(value_normalized) };
+		app_state.parameters().get_by_id(ParameterId::new(id))
+			.map_or(0.0, |param| param.denormalize(value_normalized).into())
     }
 
     unsafe fn plain_param_to_normalized(&self, id: u32, plain_value: f64) -> f64 {
-        self.try_with_inner(|inner| inner.plain_param_to_normalized(id, plain_value))
-            .unwrap_or(0.0)
+        let app_state = RefCell::borrow(&self.app_state);
+		app_state.parameters().get_by_id(ParameterId::new(id))
+        	.map_or(0.0, |param| param.normalize(PlainValue::new(plain_value)).into())
     }
 
     unsafe fn get_param_normalized(&self, id: u32) -> f64 {
-        self.try_with_inner(|inner| inner.get_param_normalized(id))
-            .unwrap_or(0.0)
+        let app_state = RefCell::borrow(&self.app_state);
+        app_state.parameters().get_by_id(ParameterId::new(id))
+			.map_or(0.0, |p| p.normalized_value().into())
     }
 
     unsafe fn set_param_normalized(&self, id: u32, value: f64) -> tresult {
-        self.try_with_inner(|inner| inner.set_param_normalized(id, value))
-            .unwrap_or(kResultFalse)
+        let mut app_state = RefCell::borrow_mut(&self.app_state);
+        let id = ParameterId::new(id);
+        let Some(value) = NormalizedValue::from_f64(value) else { return kInvalidArgument };
+		if app_state.set_normalized_parameter_value_from_host(id, value) {
+            kResultOk
+        } else {
+            kResultFalse
+        }
     }
 
     unsafe fn set_component_handler(&self, handler: SharedVstPtr<dyn IComponentHandler>) -> tresult {
-        *self.inner.borrow_mut() = handler.upgrade().map(|handler| Inner::new(handler));
+        if let Some(handle) = handler.upgrade() {
+            let handle = Box::new(VST3HostHandle { component_handler: handle });
+            self.app_state.borrow_mut().set_host_handle(Some(handle));
+        } else {
+            self.app_state.borrow_mut().set_host_handle(None);
+        }
+        
         kResultOk
     }
 
     unsafe fn create_view(&self, _name: FIDString) -> *mut c_void {
-        self.try_with_inner(|inner| PlugView::create_instance(inner.app_state.clone(), inner.editor.clone()))
-            .unwrap_or(std::ptr::null_mut())
+        PlugView::create_instance(self.app_state.clone(), self.editor.clone())
     }
 }
 

@@ -2,6 +2,8 @@ use std::{any::Any, collections::{HashSet, VecDeque}, rc::Rc};
 
 use slotmap::{SecondaryMap, SlotMap};
 
+use crate::param::ParameterId;
+
 use super::{app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::SignalState, Memo, NodeId, Signal, SignalContext};
 
 struct Node {
@@ -32,7 +34,8 @@ enum NodeType {
     Signal(SignalState),
     Memo(MemoState),
     Effect(EffectState),
-    Binding(BindingState)
+    Binding(BindingState),
+    Parameter(ParameterId)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -182,7 +185,7 @@ impl Runtime {
 				self.pending_tasks.push_back(task);
             },
             NodeType::Memo(_) => todo!(),
-            NodeType::Signal(_) => unreachable!(),
+            NodeType::Signal(_) | NodeType::Parameter(_) => unreachable!(),
         }
     }
 

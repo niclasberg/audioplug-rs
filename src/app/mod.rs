@@ -24,7 +24,7 @@ pub use event_handling::{EventContext, MouseEventContext, handle_window_event};
 pub use host_handle::HostHandle;
 pub use layout::{LayoutContext, layout_window};
 pub use memo::Memo;
-pub use param::{ParamContext, UiParam};
+pub use param::{ParamContext, ParamEditor};
 pub use render::{RenderContext, render_window, invalidate_window};
 pub use runtime::*;
 pub use signal::Signal;
@@ -58,7 +58,7 @@ impl HostHandle for NullHostHandle {
 
 impl App {
     pub fn new() -> Self {
-        Self::new_with_app_state(Rc::new(RefCell::new(AppState::new((), NullHostHandle))))
+        Self::new_with_app_state(Rc::new(RefCell::new(AppState::new(()))))
     }
 
     pub fn new_with_app_state(state: Rc<RefCell<AppState>>) -> Self {

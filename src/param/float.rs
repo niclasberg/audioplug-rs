@@ -1,6 +1,6 @@
-use std::cell::Cell;
+use std::{any::Any, cell::Cell};
 
-use super::{NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue};
+use super::{AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, ParseError, PlainValue};
 
 pub struct FloatParameter {
     info: FloatParameterInfo,
@@ -37,30 +37,38 @@ impl FloatParameter {
     }
 }
 
-impl Parameter<f64> for FloatParameter {
+impl AnyParameter for FloatParameter {
 	fn info(&self) -> &dyn ParameterInfo {
 		&self.info
 	}
 
-	fn value(&self) -> f64 {
-        self.value.get()
-    }
-
 	fn plain_value(&self) -> PlainValue {
         PlainValue(self.value())
+    }
+
+	fn set_value_normalized(&self, value: NormalizedValue) {
+		self.value.replace(self.info.denormalize(value).0);
+	}
+}
+
+impl Parameter for FloatParameter {
+    type Value = f64;
+
+	fn value(&self) -> f64 {
+        self.value.get()
     }
 
 	fn set_value(&self, value: f64) {
 		self.value.replace(value);
 	}
 
-	fn set_value_normalized(&self, value: NormalizedValue) {
-		self.value.replace(self.info.denormalize(value).0);
-	}
-
 	fn as_param_ref(&self) -> ParamRef {
         ParamRef::Float(self)
     }
+
+    fn as_any(&self) -> &dyn Any {
+		self
+	}
 }
 
 pub struct FloatParameterInfo {
@@ -110,12 +118,13 @@ impl ParameterInfo for FloatParameterInfo {
 		0
 	}
     
-    fn value_from_string(&self, str: &str) -> Result<NormalizedValue, super::ParseError> {
-        todo!()
+    fn value_from_string(&self, str: &str) -> Result<NormalizedValue, ParseError> {
+        let value = str.parse().map_err(|_| ParseError)?;
+        NormalizedValue::from_f64(value).ok_or(ParseError)
     }
     
     fn string_from_value(&self, value: NormalizedValue) -> String {
-        todo!()
+        value.0.to_string()
     }
 }
 

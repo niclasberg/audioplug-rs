@@ -1,9 +1,6 @@
-use std::cell::Cell;
+use std::{any::Any, cell::Cell};
 
-use super::{NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, ParseError, PlainValue};
-
-const NORMALIZED_VALUE_OFF: NormalizedValue = NormalizedValue(0.0);
-const NORMALIZED_VALUE_ON: NormalizedValue = NormalizedValue(1.0);
+use super::{AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, ParseError, PlainValue};
 
 pub struct BoolParameter {
     info: BoolParameterInfo,
@@ -20,8 +17,8 @@ impl BoolParameter {
 	}
 }
 
-impl Parameter<bool> for BoolParameter {
-    fn info(&self) -> &dyn ParameterInfo {
+impl AnyParameter for BoolParameter {
+	fn info(&self) -> &dyn ParameterInfo {
         &self.info
     }
 
@@ -32,14 +29,22 @@ impl Parameter<bool> for BoolParameter {
     fn normalized_value(&self) -> NormalizedValue {
         NormalizedValue::from_bool(self.value.get())
     }
-	
-	fn as_param_ref(&self) -> ParamRef {
-		ParamRef::Bool(&self)
-	}
     
     fn set_value_normalized(&self, value: NormalizedValue) {
         self.value.replace(value.into());
     }
+}
+
+impl Parameter for BoolParameter {
+	type Value = bool;
+
+	fn as_param_ref(&self) -> ParamRef {
+		ParamRef::Bool(&self)
+	}
+
+	fn as_any(&self) -> &dyn Any {
+		self
+	}
 	
 	fn value(&self) -> bool {
 		self.value.get()
@@ -50,6 +55,7 @@ impl Parameter<bool> for BoolParameter {
 	}
 }
 
+#[derive(Clone, Copy)]
 pub struct BoolParameterInfo {
     id: ParameterId,
     name: &'static str,

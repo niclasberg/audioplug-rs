@@ -1,8 +1,8 @@
 use std::{any::Any, collections::VecDeque, marker::PhantomData, ops::DerefMut, rc::Weak};
 use slotmap::{Key, SecondaryMap, SlotMap};
-use crate::{core::{Point, Rectangle}, param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap, Params, PlainValue}, platform};
+use crate::{core::{Point, Rectangle}, param::{AnyParameter, AnyParameterMap, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, ParameterMap, Params, PlainValue}, platform};
 
-use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, ParamContext, Runtime, Scope, SignalContext, SignalGet, Widget, WindowId};
+use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, ParamContext, Runtime, Scope, SignalContext, SignalGet, ParamEditor, Widget, WindowId};
 use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
@@ -59,12 +59,11 @@ pub struct AppState {
     pub(super) mouse_capture_widget: Option<WidgetId>,
     pub(super) focus_widget: Option<WidgetId>,
     pub(super) reactive_context: Runtime,
-    host_handle: Box<dyn HostHandle>,
+    host_handle: Option<Box<dyn HostHandle>>,
 }
 
 impl AppState {
-    pub fn new(parameters: impl Params + Any, host_handle: impl HostHandle + 'static) -> Self {
-        let host_handle = Box::new(host_handle);
+    pub fn new(parameters: impl Params + Any) -> Self {
 		let parameters = Box::new(ParameterMap::new(parameters));
         Self {
             parameters,
@@ -75,8 +74,12 @@ impl AppState {
             mouse_capture_widget: None,
             focus_widget: None,
             reactive_context: Default::default(),
-            host_handle
+            host_handle: None
         }
+    }
+
+    pub fn set_host_handle(&mut self, host_handle: Option<Box<dyn HostHandle>>) {
+        self.host_handle = host_handle;
     }
 
 	pub fn parameters(&self) -> &dyn AnyParameterMap {
@@ -121,12 +124,14 @@ impl AppState {
         self.reactive_context.notify(&id);
     }
 
-	pub(crate) fn set_plain_parameter_value_from_host(&mut self, id: ParameterId, value: PlainValue) {
-
+	pub(crate) fn set_plain_parameter_value_from_host(&mut self, id: ParameterId, value: PlainValue) -> bool {
+        true
     }
 
-    pub(crate) fn set_parameter_value_from_host(&mut self, id: ParameterId, value: NormalizedValue) {
-
+    pub(crate) fn set_normalized_parameter_value_from_host(&mut self, id: ParameterId, value: NormalizedValue) -> bool {
+        let Some(param_ref) = self.parameters.get_by_id(id) else { return false };
+		param_ref.internal_set_value_normalized(value);
+        true
     }
 
     pub fn add_window<W: Widget + 'static>(&mut self, handle: platform::Handle, f: impl FnOnce(&mut BuildContext<W>) -> W) -> WindowId {
@@ -290,7 +295,20 @@ impl SignalContext for AppState {
 
 impl ParamContext for AppState {
     fn host_handle(&self) -> &dyn HostHandle {
-        self.host_handle.as_ref()
+        let Some(host_handle) = self.host_handle.as_ref() else { panic!("Host handle not set") };
+        host_handle.as_ref()
+    }
+    
+    fn get_parameter_as<'a, P: AnyParameter>(&'a self, param: &ParamEditor<P>) -> &'a P {
+        if let Some(p) = self.parameters.get_by_id_as_any(param.id) {
+            p.downcast_ref().expect("Parameter had wrong type")
+        } else {
+            unreachable!()
+        }
+    }
+    
+    fn get_parameter_ref<'a>(&'a self, id: ParameterId) -> Option<ParamRef<'a>> {
+        self.parameters.get_by_id(id)
     }
 }
 

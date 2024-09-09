@@ -1,6 +1,6 @@
-use std::cell::Cell;
+use std::{any::Any, cell::Cell};
 
-use super::{NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue};
+use super::{AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue};
 
 pub struct IntParameter {
     info: IntParameterInfo,
@@ -23,30 +23,38 @@ impl IntParameter {
     }
 }
 
-impl Parameter<i64> for IntParameter {
+impl AnyParameter for IntParameter {
 	fn info(&self) -> &dyn ParameterInfo {
 		&self.info 
 	}
 
-	fn value(&self) -> i64 {
-        self.value.get()
-    }
-
 	fn plain_value(&self) -> PlainValue {
 		todo!()
 	}
-	
-	fn set_value(&self, value: i64) {
-        self.value.replace(value);
-    }
 
 	fn set_value_normalized(&self, value: NormalizedValue) {
 		todo!()
 	}
+}
+
+impl Parameter for IntParameter {
+	type Value = i64;
+
+	fn value(&self) -> i64 {
+        self.value.get()
+    }
+	
+	fn set_value(&self, value: i64) {
+        self.value.replace(value);
+    }
 	
 	fn as_param_ref(&self) -> ParamRef {
         ParamRef::Int(self)
     }
+
+	fn as_any(&self) -> &dyn Any {
+		self
+	}
 }
 
 pub struct IntParameterInfo {
@@ -97,12 +105,12 @@ impl ParameterInfo for IntParameterInfo {
 	}
 	
 	fn value_from_string(&self, str: &str) -> Result<NormalizedValue, super::ParseError> {
-			todo!()
-		}
-	
+		todo!()
+	}
+
 	fn string_from_value(&self, value: NormalizedValue) -> String {
-			todo!()
-		}
+		todo!()
+	}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

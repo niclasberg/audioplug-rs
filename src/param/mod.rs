@@ -116,22 +116,23 @@ impl Into<f64> for PlainValue {
     }
 }
 
-pub trait ParameterBase {
-	
-}
-
-pub trait Parameter<T> {
+pub trait AnyParameter: Any {
     fn info(&self) -> &dyn ParameterInfo;
-	fn value(&self) -> T;
     fn plain_value(&self) -> PlainValue;
 	fn normalized_value(&self) -> NormalizedValue {
 		self.info().normalize(self.plain_value())
 	}
-
-	fn set_value(&self, value: T);
     fn set_value_normalized(&self, value: NormalizedValue);
+}
+
+pub trait Parameter: AnyParameter {
+    type Value;
+
+	fn value(&self) -> Self::Value;
+	fn set_value(&self, value: Self::Value);
 	
 	fn as_param_ref(&self) -> ParamRef;
+    fn as_any(&self) -> &dyn Any;
 }
 
 pub trait ParameterInfo {

@@ -61,12 +61,6 @@ impl From<&str> for Accessor<String> {
     }
 }
 
-impl<T> From<&dyn Parameter<T>> for Accessor<T> {
-	fn from(value: &dyn Parameter<T>) -> Self {
-		Self::Parameter { id: value.info().id() }
-	}
-}
-
 impl<T: 'static> SignalGet for Accessor<T> {
     type Value = T;
 
