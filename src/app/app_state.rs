@@ -26,7 +26,7 @@ impl Task {
     pub(super) fn run(&self, app_state: &mut AppState) {
         match self {
             Task::RunEffect { id, f } => {
-                app_state.reactive_context.with_scope(Scope::Effect(*id), |cx| {
+                app_state.runtime.with_scope(Scope::Effect(*id), |cx| {
                     if let Some(f) = f.upgrade() {
                         f(cx)
                     }
@@ -34,7 +34,7 @@ impl Task {
             },
             Task::UpdateBinding { widget_id, f } => {
                 if let Some(f) = f.upgrade() {
-                    f(&mut app_state.reactive_context, app_state.widgets[*widget_id].deref_mut(), &mut app_state.widget_data[*widget_id]);
+                    f(&mut app_state.runtime, app_state.widgets[*widget_id].deref_mut(), &mut app_state.widget_data[*widget_id]);
 					app_state.merge_widget_flags(*widget_id);
                 }
             },
@@ -51,14 +51,13 @@ pub(super) struct WindowState {
 }
 
 pub struct AppState {
-    parameters: Box<dyn AnyParameterMap>,
     windows: SlotMap<WindowId, WindowState>,
     pub(super) widget_data: SlotMap<WidgetId, WidgetData>,
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
     widget_bindings: SecondaryMap<NodeId, WidgetId>,
     pub(super) mouse_capture_widget: Option<WidgetId>,
     pub(super) focus_widget: Option<WidgetId>,
-    pub(super) reactive_context: Runtime,
+    pub(super) runtime: Runtime,
     host_handle: Option<Box<dyn HostHandle>>,
 }
 
@@ -66,14 +65,13 @@ impl AppState {
     pub fn new(parameters: impl Params + Any) -> Self {
 		let parameters = Box::new(ParameterMap::new(parameters));
         Self {
-            parameters,
             widget_data: Default::default(),
             widgets: Default::default(),
             widget_bindings: Default::default(),
             windows: Default::default(),
             mouse_capture_widget: None,
             focus_widget: None,
-            reactive_context: Default::default(),
+            runtime: Runtime::new(parameters),
             host_handle: None
         }
     }
@@ -83,18 +81,18 @@ impl AppState {
     }
 
 	pub fn parameters(&self) -> &dyn AnyParameterMap {
-		self.parameters.as_ref()
+		self.runtime.parameters.as_ref()
 	}
 
     pub fn create_signal<T: Any>(&mut self, value: T) -> Signal<T> {
         let state = SignalState::new(value);
-        let id = self.reactive_context.create_signal_node(state);
+        let id = self.runtime.create_signal_node(state);
         Signal::new(id)
     }
 
     pub fn create_memo<T: PartialEq + 'static>(&mut self, f: impl Fn(&mut Self) -> T + 'static) -> Memo<T> {
         let state = MemoState::new(move |cx| Box::new(f(cx)));
-        let id = self.reactive_context.create_memo_node(state);
+        let id = self.runtime.create_memo_node(state);
         Memo::new(id)
     }
 
@@ -113,15 +111,15 @@ impl AppState {
 					});
 					ctx.pending_tasks.extend(tasks.into_iter());
 				});
-				self.reactive_context.create_binding_node(source_id, state);
+				self.runtime.create_binding_node(source_id, state);
 				true
 			}
 		}
     }
 
     pub fn create_effect(&mut self, f: impl Fn(&mut Runtime) + 'static) {
-        let id = self.reactive_context.create_effect_node(EffectState::new(f));
-        self.reactive_context.notify(&id);
+        let id = self.runtime.create_effect_node(EffectState::new(f));
+        self.runtime.notify(&id);
     }
 
 	pub(crate) fn set_plain_parameter_value_from_host(&mut self, id: ParameterId, value: PlainValue) -> bool {
@@ -129,7 +127,7 @@ impl AppState {
     }
 
     pub(crate) fn set_normalized_parameter_value_from_host(&mut self, id: ParameterId, value: NormalizedValue) -> bool {
-        let Some(param_ref) = self.parameters.get_by_id(id) else { return false };
+        let Some(param_ref) = self.runtime.parameters.get_by_id(id) else { return false };
 		param_ref.internal_set_value_normalized(value);
         true
     }
@@ -209,7 +207,7 @@ impl AppState {
     }
 
     pub fn widget_mut(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
-        WidgetMut::new(&mut *self.widgets[id], &mut self.widget_data[id], &mut self.reactive_context.pending_tasks)
+        WidgetMut::new(&mut *self.widgets[id], &mut self.widget_data[id], &mut self.runtime.pending_tasks)
     }
 
     pub fn widget_has_focus(&self, id: WidgetId) -> bool {
@@ -267,11 +265,11 @@ impl AppState {
     }
 
     pub fn run_effects(&mut self) {
-        let mut tasks = self.reactive_context.take_tasks();
+        let mut tasks = self.runtime.take_tasks();
         loop {
             if let Some(task) = tasks.pop_front() {
                 task.run(self);
-                tasks.extend(self.reactive_context.take_tasks().into_iter());
+                tasks.extend(self.runtime.take_tasks().into_iter());
             } else {
                 break;
             }
@@ -281,15 +279,23 @@ impl AppState {
 
 impl SignalContext for AppState {
     fn get_signal_value_ref_untracked<'a, T: Any>(&'a self, signal: &Signal<T>) -> &'a T {
-        self.reactive_context.get_signal_value_ref_untracked(signal)
+        self.runtime.get_signal_value_ref_untracked(signal)
     }
 
     fn get_signal_value_ref<'a, T: Any>(&'a mut self, signal: &Signal<T>) -> &'a T {
-        self.reactive_context.get_signal_value_ref(signal)
+        self.runtime.get_signal_value_ref(signal)
     }
 
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
-        self.reactive_context.set_signal_value(signal, value)
+        self.runtime.set_signal_value(signal, value)
+    }
+    
+    fn get_parameter_ref_untracked<'a, P: AnyParameter>(&'a self, parameter: &super::param::ParamSignal<P>) -> &'a P {
+        self.runtime.get_parameter_ref_untracked(parameter)
+    }
+    
+    fn get_parameter_ref<'a, P: AnyParameter>(&'a mut self, parameter: &super::param::ParamSignal<P>) -> &'a P {
+        self.runtime.get_parameter_ref(parameter)
     }
 }
 
@@ -300,7 +306,7 @@ impl ParamContext for AppState {
     }
     
     fn get_parameter_as<'a, P: AnyParameter>(&'a self, param: &ParamEditor<P>) -> &'a P {
-        if let Some(p) = self.parameters.get_by_id_as_any(param.id) {
+        if let Some(p) = self.runtime.parameters.get_by_id_as_any(param.id) {
             p.downcast_ref().expect("Parameter had wrong type")
         } else {
             unreachable!()
@@ -308,7 +314,7 @@ impl ParamContext for AppState {
     }
     
     fn get_parameter_ref<'a>(&'a self, id: ParameterId) -> Option<ParamRef<'a>> {
-        self.parameters.get_by_id(id)
+        self.runtime.parameters.get_by_id(id)
     }
 }
 

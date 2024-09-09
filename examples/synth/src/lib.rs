@@ -1,16 +1,8 @@
-use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, params, AudioLayout, Bus, ChannelType, GenericEditor, Plugin};
+use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, AudioLayout, Bus, ChannelType, GenericEditor, Plugin};
+use params::SynthParams;
 
-params!(
-    struct SynthParams {
-
-    }
-);
-
-impl Default for SynthParams {
-    fn default() -> Self {
-        Self {  }
-    }
-}
+mod views;
+mod params;
 
 struct SynthPlugin;
 impl Plugin for SynthPlugin {
@@ -24,6 +16,7 @@ impl Plugin for SynthPlugin {
             main_output: Some(Bus { name: "Stereo Output", channel: ChannelType::Stereo })
         }
     ];
+    const ACCEPTS_MIDI: bool = true;
 
     type Editor = GenericEditor<SynthParams>;
     type Parameters = SynthParams;
@@ -38,6 +31,14 @@ impl Plugin for SynthPlugin {
 
     fn process(&mut self, _context: audioplug::ProcessContext, _parameters: &Self::Parameters) {
         
+    }
+    
+    fn tail_time(&self) -> std::time::Duration {
+        std::time::Duration::ZERO
+    }
+    
+    fn latency_samples(&self) -> usize {
+        0
     }
 }
 

@@ -157,7 +157,7 @@ pub enum ParamRef<'a> {
 }
 
 impl<'a> ParamRef<'a> {
-    pub fn info(&self) -> &dyn ParameterInfo {
+    pub fn info(&self) -> &'a dyn ParameterInfo {
         match self {
             Self::ByPass(p) => p.info(),
             Self::Float(p) => p.info(),

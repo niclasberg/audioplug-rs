@@ -24,7 +24,7 @@ pub use event_handling::{EventContext, MouseEventContext, handle_window_event};
 pub use host_handle::HostHandle;
 pub use layout::{LayoutContext, layout_window};
 pub use memo::Memo;
-pub use param::{ParamContext, ParamEditor};
+pub use param::{ParamContext, ParamEditor, ParamSignal};
 pub use render::{RenderContext, render_window, invalidate_window};
 pub use runtime::*;
 pub use signal::Signal;
@@ -34,7 +34,7 @@ pub use widget_node::{WidgetData, WidgetRef, WidgetMut, WidgetId};
 pub use window::{AppContext, Window};
 pub(crate) use window::MyHandler;
 
-use crate::platform;
+use crate::{param::AnyParameter, platform};
 
 new_key_type! {
     pub struct NodeId;
@@ -68,6 +68,8 @@ impl App {
 pub trait SignalContext {
     fn get_signal_value_ref_untracked<'a, T: Any>(&'a self, signal: &Signal<T>) -> &'a T;
     fn get_signal_value_ref<'a, T: Any>(&'a mut self, signal: &Signal<T>) -> &'a T;
+    fn get_parameter_ref_untracked<'a, P: AnyParameter>(&'a self, parameter: &ParamSignal<P>) -> &'a P;
+    fn get_parameter_ref<'a, P: AnyParameter>(&'a mut self, parameter: &ParamSignal<P>) -> &'a P;
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T);
 }
 

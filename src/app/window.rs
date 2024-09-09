@@ -6,6 +6,7 @@ use raw_window_handle::RawWindowHandle;
 
 use crate::app::{handle_window_event, layout_window, render_window, AppState, Runtime, Signal, SignalContext, WindowId};
 use crate::core::{Cursor, Point, Rectangle};
+use crate::param::AnyParameter;
 use crate::platform::{WindowEvent, WindowHandler};
 use crate::view::View;
 use crate::{platform, App};
@@ -153,6 +154,14 @@ impl<'b> SignalContext for AppContext<'b> {
 
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
         self.app_state.set_signal_value(signal, value)
+    }
+    
+    fn get_parameter_ref_untracked<'a, P: AnyParameter>(&'a self, parameter: &super::param::ParamSignal<P>) -> &'a P {
+        self.app_state.get_parameter_ref_untracked(parameter)
+    }
+    
+    fn get_parameter_ref<'a, P: AnyParameter>(&'a mut self, parameter: &super::param::ParamSignal<P>) -> &'a P {
+        self.app_state.get_parameter_ref(parameter)
     }
 }
 

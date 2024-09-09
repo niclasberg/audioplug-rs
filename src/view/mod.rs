@@ -26,7 +26,7 @@ pub use label::Label;
 pub use linear_layout::{Column, Row};
 pub use piano::Piano;
 pub use scroll::*;
-pub use slider::Slider;
+pub use slider::{Slider, ParameterSlider};
 pub use styled::*;
 pub use textbox::TextBox;
 pub use view::*;

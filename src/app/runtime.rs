@@ -2,9 +2,9 @@ use std::{any::Any, collections::{HashSet, VecDeque}, rc::Rc};
 
 use slotmap::{SecondaryMap, SlotMap};
 
-use crate::param::ParameterId;
+use crate::param::{AnyParameter, AnyParameterMap, ParameterId};
 
-use super::{app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::SignalState, Memo, NodeId, Signal, SignalContext};
+use super::{app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, param::ParamSignal, signal::SignalState, Memo, NodeId, Signal, SignalContext};
 
 struct Node {
     node_type: NodeType,
@@ -52,21 +52,21 @@ pub struct Runtime {
     pub(super) subscriptions: SecondaryMap<NodeId, HashSet<NodeId>>,
     pub(super) dependencies: SecondaryMap<NodeId, HashSet<NodeId>>,
     pub(super) pending_tasks: VecDeque<Task>,
+    pub(super) parameters: Box<dyn AnyParameterMap>,
 }
 
-impl Default for Runtime {
-    fn default() -> Self {
+impl Runtime {
+    pub fn new(parameters: Box<dyn AnyParameterMap>) -> Self {
         Self { 
             scope: Scope::Root, 
             nodes: Default::default(), 
             subscriptions: Default::default(), 
             dependencies: Default::default(),
-            pending_tasks: Default::default()
+            pending_tasks: Default::default(),
+            parameters
         }
     }
-}
 
-impl Runtime {
     pub(super) fn with_scope<R>(&mut self, scope: Scope, f: impl FnOnce(&mut Self) -> R) -> R {
         let old_scope = self.scope;
         self.scope = scope;
@@ -210,5 +210,17 @@ impl SignalContext for Runtime {
 
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
         self.update_signal_value(signal, move |x| { *x = value });
+    }
+
+    fn get_parameter_ref<'a, P: AnyParameter>(&'a mut self, parameter: &ParamSignal<P>) -> &'a P {
+        self.get_parameter_ref_untracked(parameter)
+    }
+    
+    fn get_parameter_ref_untracked<'a, P: AnyParameter>(&'a self, parameter: &ParamSignal<P>) -> &'a P {
+        if let Some(p) = self.parameters.get_by_id_as_any(parameter.id) {
+            p.downcast_ref().expect("Parameter had wrong type")
+        } else {
+            unreachable!()
+        }
     }
 }

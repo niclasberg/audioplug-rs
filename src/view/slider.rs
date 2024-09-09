@@ -1,4 +1,4 @@
-use crate::{app::{AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, KeyEvent, MouseEvent};
+use crate::{app::{AppState, BuildContext, EventContext, EventStatus, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, param::{AnyParameter, PlainValue}, KeyEvent, MouseEvent};
 
 use super::View;
 
@@ -47,6 +47,36 @@ impl View for Slider {
             on_drag_end: self.on_drag_end,
             on_value_changed: self.on_value_changed
         }
+    }
+}
+
+pub struct ParameterSlider<P: AnyParameter> {
+    editor: ParamEditor<P>
+}
+
+impl<P: AnyParameter> ParameterSlider<P> {
+    pub fn new(parameter: &P) -> Self {
+        let editor = ParamEditor::new(parameter);
+        Self {
+            editor
+        }
+    }
+}
+
+impl<P: AnyParameter> View for ParameterSlider<P> {
+    type Element = SliderWidget;
+
+    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
+        let editor = self.editor;
+        let slider = Slider::new()
+            .with_range(editor.info(ctx).min_value().into(), editor.info(ctx).max_value().into())
+            .on_value_changed(move |cx, value| {
+                editor.begin_edit(cx);
+                editor.set_value_plain(cx, PlainValue::new(value));
+                editor.end_edit(cx);
+            });
+
+        ctx.build(slider)
     }
 }
 
@@ -226,32 +256,3 @@ impl Widget for SliderWidget {
         ctx.fill(self.knob_shape(bounds), knob_color);
     }
 }
-
-/*pub struct ParameterSlider {
-    slider: Slider,
-}
-
-impl View for ParameterSlider {
-    type Message = ();
-    type State = <Slider as View>::State;
-
-    fn build(&mut self, ctx: &mut crate::BuildContext) -> Self::State {
-        self.slider.build(ctx)
-    }
-
-    fn rebuild(&mut self, state: &mut Self::State, ctx: &mut crate::BuildContext) {
-        todo!()
-    }
-
-    fn event(&mut self, state: &mut Self::State, event: Event, ctx: &mut crate::EventContext<Self::Message>) {
-        todo!()
-    }
-
-    fn layout(&self, state: &mut Self::State, constraint: crate::core::Constraint, ctx: &mut crate::LayoutContext) -> Size {
-        todo!()
-    }
-
-    fn render(&self, state: &Self::State, ctx: &mut crate::RenderContext) {
-        todo!()
-    }
-}*/

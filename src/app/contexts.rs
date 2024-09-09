@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::view::View;
 
-use super::{widget_node::{WidgetFlags, WidgetId, WidgetMut}, Accessor, AppState, SignalGet, Widget};
+use super::{widget_node::{WidgetFlags, WidgetId, WidgetMut}, Accessor, AppState, ParamContext, SignalGet, Widget};
 
 pub struct BuildContext<'a, W: Widget> {
     id: WidgetId,
@@ -50,6 +50,20 @@ impl<'a, W: Widget> BuildContext<'a, W> {
             _phantom: PhantomData
         };
         view.build(&mut ctx)
+    }
+}
+
+impl<'s, W: Widget> ParamContext for BuildContext<'s, W> {
+    fn host_handle(&self) -> &dyn super::HostHandle {
+        self.app_state.host_handle()
+    }
+
+    fn get_parameter_ref<'a>(&'a self, id: crate::param::ParameterId) -> Option<crate::param::ParamRef<'a>> {
+        self.app_state.get_parameter_ref(id)
+    }
+
+    fn get_parameter_as<'a, P: crate::param::AnyParameter>(&'a self, param: &super::ParamEditor<P>) -> &'a P {
+        self.app_state.get_parameter_as(param)
     }
 }
 
