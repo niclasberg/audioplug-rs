@@ -25,9 +25,7 @@ impl AnyParameter for StringListParameter {
 	}
 }
 
-impl Parameter for StringListParameter {
-	type Value = usize;
-
+impl Parameter<usize> for StringListParameter {
 	fn value(&self) -> usize {
 		self.index.get()
 	}

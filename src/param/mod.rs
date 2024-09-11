@@ -1,4 +1,4 @@
-use std::{any::Any, fmt::Display};
+use std::{any::{Any, TypeId}, fmt::Display};
 
 mod bool;
 mod float;
@@ -14,6 +14,8 @@ pub use float::{FloatParameter, FloatParameterInfo, FloatRange};
 pub use int::{IntParameter, IntParameterInfo, IntRange};
 pub use string_list::StringListParameter;
 pub use parameter_map::{ParameterMap, AnyParameterMap, Params, ParameterGetter};
+
+use crate::app::ParamSignal;
 
 #[derive(Clone, Debug)]
 pub struct ParseError;
@@ -123,16 +125,35 @@ pub trait AnyParameter: Any {
 		self.info().normalize(self.plain_value())
 	}
     fn set_value_normalized(&self, value: NormalizedValue);
+	fn as_signal_plain(&self) -> ParamSignal<PlainValue> where Self: Sized {
+		ParamSignal::new_plain(self)
+	}
+	fn as_signal_normalized(&self) -> ParamSignal<NormalizedValue> where Self: Sized {
+		ParamSignal::new_normalized(self)
+	}
 }
 
-pub trait Parameter: AnyParameter {
-    type Value;
-
-	fn value(&self) -> Self::Value;
-	fn set_value(&self, value: Self::Value);
+pub trait Parameter<T>: AnyParameter {
+	fn value(&self) -> T;
+	fn set_value(&self, value: T);
 	
 	fn as_param_ref(&self) -> ParamRef;
     fn as_any(&self) -> &dyn Any;
+	fn as_signal(&self) -> ParamSignal<T> where Self: Sized {
+		ParamSignal::new(self)
+	}
+}
+
+fn get_parameter_value_as<T: Any, U: Any>(p: &impl Parameter<U>) -> Option<T> {
+	if TypeId::of::<T>() == TypeId::of::<PlainValue>() {
+		Some(unsafe { std::mem::transmute_copy(&p.plain_value()) })
+	} else if TypeId::of::<T>() == TypeId::of::<NormalizedValue>() {
+		Some(unsafe { std::mem::transmute_copy(&p.normalized_value()) })
+	} else if TypeId::of::<T>() == TypeId::of::<U>() {
+		Some(unsafe { std::mem::transmute_copy(&p.value()) })
+	} else {
+		None
+	}
 }
 
 pub trait ParameterInfo {
@@ -216,6 +237,16 @@ impl<'a> ParamRef<'a> {
             Self::Bool(p) => p.normalized_value(),
         }
     }
+
+	pub fn value_as<T: Any>(&self) -> Option<T> {
+		match self {
+            Self::Float(p) => get_parameter_value_as(*p),
+            Self::Int(p) => get_parameter_value_as(*p),
+            Self::StringList(p) => get_parameter_value_as(*p),
+            Self::ByPass(p) => get_parameter_value_as(*p),
+            Self::Bool(p) => get_parameter_value_as(*p),
+        }
+	}
 
     pub fn normalize(&self, value: PlainValue) -> NormalizedValue {
         self.info().normalize(value)

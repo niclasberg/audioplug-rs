@@ -1,4 +1,4 @@
-use std::{any::Any, cell::Cell};
+use std::{any::{Any, TypeId}, cell::Cell};
 
 use super::{AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, ParseError, PlainValue};
 
@@ -35,9 +35,7 @@ impl AnyParameter for BoolParameter {
     }
 }
 
-impl Parameter for BoolParameter {
-	type Value = bool;
-
+impl Parameter<bool> for BoolParameter {
 	fn as_param_ref(&self) -> ParamRef {
 		ParamRef::Bool(&self)
 	}

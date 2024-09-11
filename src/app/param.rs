@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{any::Any, marker::PhantomData};
 
 use crate::param::{AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue};
 
@@ -57,20 +57,14 @@ impl<P: AnyParameter> ParamEditor<P> {
 	}
 }
 
-impl<P: Parameter> ParamEditor<P> {
-	pub fn set_value(&self, ctx: &mut impl ParamContext, value: P::Value) {
-		
-	}
-}
-
 #[derive(Clone, Copy)]
-pub struct ParamSignal<P: AnyParameter> {
+pub struct ParamSignal<T> {
 	pub(super) id: ParameterId,
-	_phantom: PhantomData<P>
+	_phantom: PhantomData<T>
 }
 
-impl<P: AnyParameter> ParamSignal<P> {
-	pub fn new(p: &P) -> Self {
+impl<T> ParamSignal<T> {
+	pub fn new(p: &impl Parameter<T>) -> Self {
 		Self {
 			id: p.info().id(),
 			_phantom: PhantomData
@@ -78,14 +72,38 @@ impl<P: AnyParameter> ParamSignal<P> {
 	}
 }
 
-impl<P: AnyParameter> SignalGet for ParamSignal<P> {
-	type Value = P;
+impl ParamSignal<PlainValue> {
+	pub fn new_plain(p: &impl AnyParameter) -> Self {
+		Self {
+			id: p.info().id(),
+			_phantom: PhantomData
+		}
+	}
+}
+
+impl ParamSignal<NormalizedValue> {
+	pub fn new_normalized(p: &impl AnyParameter) -> Self {
+		Self {
+			id: p.info().id(),
+			_phantom: PhantomData
+		}
+	}
+}
+
+impl<T: Any> SignalGet for ParamSignal<T> {
+	type Value = T;
 
 	fn with_ref<R>(&self, cx: &mut impl super::SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-		f(cx.get_parameter_ref(&self))
+		let value = cx.get_parameter_value(&self);
+		f(&value)
 	}
 
 	fn with_ref_untracked<R>(&self, cx: &impl super::SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-		f(cx.get_parameter_ref_untracked(&self))
+		let value = cx.get_parameter_value_untracked(&self);
+		f(&value)
+	}
+	
+	fn get(&self, cx: &mut impl super::SignalContext) -> Self::Value where Self::Value: Clone {
+		cx.get_parameter_value(&self)
 	}
 }

@@ -155,14 +155,14 @@ impl<'b> SignalContext for AppContext<'b> {
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
         self.app_state.set_signal_value(signal, value)
     }
-    
-    fn get_parameter_ref_untracked<'a, P: AnyParameter>(&'a self, parameter: &super::param::ParamSignal<P>) -> &'a P {
-        self.app_state.get_parameter_ref_untracked(parameter)
-    }
-    
-    fn get_parameter_ref<'a, P: AnyParameter>(&'a mut self, parameter: &super::param::ParamSignal<P>) -> &'a P {
-        self.app_state.get_parameter_ref(parameter)
-    }
+	
+	fn get_parameter_value_untracked<T: Any>(&self, parameter: &super::ParamSignal<T>) -> T {
+		self.app_state.get_parameter_value_untracked(parameter)
+	}
+	
+	fn get_parameter_value<T: Any>(&mut self, parameter: &super::ParamSignal<T>) -> T {
+		self.app_state.get_parameter_value(parameter)
+	}
 }
 
 pub struct Window(platform::Window);

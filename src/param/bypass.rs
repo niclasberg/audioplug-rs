@@ -35,9 +35,7 @@ impl AnyParameter for ByPassParameter {
 	}
 }
 
-impl Parameter for ByPassParameter {
-	type Value = bool;
-	
+impl Parameter<bool> for ByPassParameter {
 	fn value(&self) -> bool {
 		self.value.get()
 	}

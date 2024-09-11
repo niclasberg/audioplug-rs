@@ -1,4 +1,4 @@
-use crate::{app::{AppState, BuildContext, EventContext, EventStatus, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, param::{AnyParameter, PlainValue}, KeyEvent, MouseEvent};
+use crate::{app::{Accessor, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, param::{AnyParameter, NormalizedValue, PlainValue}, KeyEvent, MouseEvent};
 
 use super::View;
 
@@ -51,14 +51,17 @@ impl View for Slider {
 }
 
 pub struct ParameterSlider<P: AnyParameter> {
-    editor: ParamEditor<P>
+    editor: ParamEditor<P>,
+	signal: Accessor<NormalizedValue>
 }
 
 impl<P: AnyParameter> ParameterSlider<P> {
     pub fn new(parameter: &P) -> Self {
+		let signal = parameter.as_signal_normalized().into();
         let editor = ParamEditor::new(parameter);
         Self {
-            editor
+            editor,
+			signal
         }
     }
 }
@@ -76,7 +79,14 @@ impl<P: AnyParameter> View for ParameterSlider<P> {
                 editor.end_edit(cx);
             });
 
-        ctx.build(slider)
+		let normalized_position = ctx.get_and_track(self.signal, |value, mut widget| {
+			widget.position_normalized = value.0;
+			widget.request_render();
+		});
+
+        let mut widget = ctx.build(slider);
+		widget.position_normalized = normalized_position.into();
+		widget
     }
 }
 

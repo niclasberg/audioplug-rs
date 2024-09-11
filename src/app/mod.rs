@@ -68,8 +68,8 @@ impl App {
 pub trait SignalContext {
     fn get_signal_value_ref_untracked<'a, T: Any>(&'a self, signal: &Signal<T>) -> &'a T;
     fn get_signal_value_ref<'a, T: Any>(&'a mut self, signal: &Signal<T>) -> &'a T;
-    fn get_parameter_ref_untracked<'a, P: AnyParameter>(&'a self, parameter: &ParamSignal<P>) -> &'a P;
-    fn get_parameter_ref<'a, P: AnyParameter>(&'a mut self, parameter: &ParamSignal<P>) -> &'a P;
+    fn get_parameter_value_untracked<T: Any>(&self, parameter: &ParamSignal<T>) -> T;
+    fn get_parameter_value<T: Any>(&mut self, parameter: &ParamSignal<T>) -> T;
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T);
 }
 

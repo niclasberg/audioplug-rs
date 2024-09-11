@@ -63,7 +63,6 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(parameters: impl Params + Any) -> Self {
-		let parameters = Box::new(ParameterMap::new(parameters));
         Self {
             widget_data: Default::default(),
             widgets: Default::default(),
@@ -97,21 +96,28 @@ impl AppState {
     }
 
     pub fn create_binding<T: 'static, W: Widget + 'static>(&mut self, accessor: Accessor<T>, widget_id: WidgetId, f: impl Fn(&T, WidgetMut<'_, W>) + 'static) -> bool {
-		match accessor.get_source_id() {
-			SourceId::None => false,
-			SourceId::Parameter(_) => todo!(),
-			SourceId::Node(source_id) => {
-				let state = BindingState::new(widget_id, move |ctx, widget, data| {
-					let tasks = accessor.with_ref(ctx, |value| {
-						let mut tasks = VecDeque::new();
-						let widget: &mut W = widget.downcast_mut().expect("Could not cast widget");
-						let node = WidgetMut::new(widget, data, &mut tasks);
-						f(value, node);
-						tasks
-					});
-					ctx.pending_tasks.extend(tasks.into_iter());
+		let source_id = accessor.get_source_id();
+		let create_state = move || -> BindingState {
+			BindingState::new(widget_id, move |ctx, widget, data| {
+				let tasks = accessor.with_ref(ctx, |value| {
+					let mut tasks = VecDeque::new();
+					let widget: &mut W = widget.downcast_mut().expect("Could not cast widget");
+					let node = WidgetMut::new(widget, data, &mut tasks);
+					f(value, node);
+					tasks
 				});
-				self.runtime.create_binding_node(source_id, state);
+				ctx.pending_tasks.extend(tasks.into_iter());
+			})
+		};
+
+		match source_id {
+			SourceId::None => false,
+			SourceId::Parameter(source_id) => {
+				self.runtime.create_parameter_binding_node(source_id, create_state());
+				true
+			},
+			SourceId::Node(source_id) => {
+				self.runtime.create_binding_node(source_id, create_state());
 				true
 			}
 		}
@@ -123,12 +129,16 @@ impl AppState {
     }
 
 	pub(crate) fn set_plain_parameter_value_from_host(&mut self, id: ParameterId, value: PlainValue) -> bool {
+		let Some(param_ref) = self.runtime.parameters.get_by_id(id) else { return false };
+		param_ref.internal_set_value_plain(value);
+		self.runtime.notify_parameter_subscribers(id);
         true
     }
 
     pub(crate) fn set_normalized_parameter_value_from_host(&mut self, id: ParameterId, value: NormalizedValue) -> bool {
         let Some(param_ref) = self.runtime.parameters.get_by_id(id) else { return false };
 		param_ref.internal_set_value_normalized(value);
+		self.runtime.notify_parameter_subscribers(id);
         true
     }
 
@@ -289,14 +299,14 @@ impl SignalContext for AppState {
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
         self.runtime.set_signal_value(signal, value)
     }
-    
-    fn get_parameter_ref_untracked<'a, P: AnyParameter>(&'a self, parameter: &super::param::ParamSignal<P>) -> &'a P {
-        self.runtime.get_parameter_ref_untracked(parameter)
-    }
-    
-    fn get_parameter_ref<'a, P: AnyParameter>(&'a mut self, parameter: &super::param::ParamSignal<P>) -> &'a P {
-        self.runtime.get_parameter_ref(parameter)
-    }
+	
+	fn get_parameter_value_untracked<T: Any>(&self, parameter: &super::ParamSignal<T>) -> T {
+		self.runtime.get_parameter_value_untracked(parameter)
+	}
+	
+	fn get_parameter_value<T: Any>(&mut self, parameter: &super::ParamSignal<T>) -> T {
+		self.runtime.get_parameter_value(parameter)
+	}
 }
 
 impl ParamContext for AppState {

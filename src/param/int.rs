@@ -37,9 +37,7 @@ impl AnyParameter for IntParameter {
 	}
 }
 
-impl Parameter for IntParameter {
-	type Value = i64;
-
+impl Parameter<i64> for IntParameter {
 	fn value(&self) -> i64 {
         self.value.get()
     }

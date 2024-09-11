@@ -50,7 +50,7 @@ impl<P: Plugin + 'static> Wrapper<P> {
 				AUAudioUnitBusType::Input,
 				&bus_array)
 		};
-		
+
 		let outputs = unsafe {
 			let output_bus = AUAudioUnitBus::initWithFormat_error(
 				AUAudioUnitBus::alloc(),

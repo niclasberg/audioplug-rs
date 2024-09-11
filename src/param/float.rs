@@ -51,9 +51,7 @@ impl AnyParameter for FloatParameter {
 	}
 }
 
-impl Parameter for FloatParameter {
-    type Value = f64;
-
+impl Parameter<f64> for FloatParameter {
 	fn value(&self) -> f64 {
         self.value.get()
     }
