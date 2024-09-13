@@ -6,8 +6,8 @@ use objc2::{Encode, RefEncode};
 #[repr(C)]
 #[allow(non_snake_case)]
 pub struct AudioBufferList {
-	mNumberBuffers: u32,
-    mBuffers: *mut AudioBuffer
+	pub mNumberBuffers: u32,
+    pub mBuffers: *mut AudioBuffer
 }
 
 unsafe impl Encode for AudioBufferList {
@@ -24,9 +24,9 @@ unsafe impl RefEncode for AudioBufferList {
 #[repr(C)]
 #[allow(non_snake_case)]
 pub struct AudioBuffer {
-	mNumberChannels: u32,
-    mDataByteSize: u32,
-    mData: *mut c_void
+	pub mNumberChannels: u32,
+    pub mDataByteSize: u32,
+    pub mData: *mut c_void
 }
 
 unsafe impl Encode for AudioBuffer {

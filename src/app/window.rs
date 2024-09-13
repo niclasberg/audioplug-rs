@@ -6,7 +6,6 @@ use raw_window_handle::RawWindowHandle;
 
 use crate::app::{handle_window_event, layout_window, render_window, AppState, Runtime, Signal, SignalContext, WindowId};
 use crate::core::{Cursor, Point, Rectangle};
-use crate::param::AnyParameter;
 use crate::platform::{WindowEvent, WindowHandler};
 use crate::view::View;
 use crate::{platform, App};

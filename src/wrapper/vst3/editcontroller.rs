@@ -1,4 +1,4 @@
-use std::cell::{Cell, OnceCell, RefCell};
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use vst3_com::VstPtr;
@@ -171,7 +171,7 @@ impl<E: Editor> IEditController for EditController<E> {
 
 impl<E: Editor> IPluginBase for EditController<E> {
     unsafe fn initialize(&self, context: *mut c_void) -> tresult {
-        /*let old_host_context = self.host_context.take();
+        let old_host_context = self.host_context.take();
         if old_host_context.is_some() {
             self.host_context.set(old_host_context);
             return kResultFalse;
@@ -182,15 +182,13 @@ impl<E: Editor> IPluginBase for EditController<E> {
             kResultOk
         } else {
             kInvalidArgument
-        }*/
-        kResultOk
+        }
     }
 
     unsafe fn terminate(&self) -> tresult {
-        /*self.inner.replace(None);
         self.host_context.replace(None);
         // Clear in case the host did not call disconnect
-        self.peer_connection.take();*/
+        self.peer_connection.take();
         kResultOk
     }
 }

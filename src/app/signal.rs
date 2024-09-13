@@ -5,7 +5,7 @@ use super::{NodeId, SignalContext, SignalGet, SignalSet, SignalUpdate};
 #[derive(Clone, Copy)]
 pub struct Signal<T> {
     pub(super) id: NodeId,
-    _marker: PhantomData<T>
+    _marker: PhantomData<*mut T>
 }
 
 impl<T: Any> Signal<T> {

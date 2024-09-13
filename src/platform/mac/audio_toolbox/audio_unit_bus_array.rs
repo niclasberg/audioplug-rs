@@ -6,6 +6,8 @@ use crate::platform::mac::av_foundation::AVAudioFormat;
 
 use super::AUAudioUnit;
 
+pub type AUAudioChannelCount = u32;
+
 c_enum!(
 	pub enum AUAudioUnitBusType: NSInteger {
 		Input		= 1,
@@ -69,6 +71,14 @@ extern_methods!(
 		pub unsafe fn initWithFormat_error(
 			this: Allocated<Self>,
 			format: &AVAudioFormat) -> Result<Retained<Self>, Retained<NSError>>;
+
+		#[method(maximumChannelCount)]
+		#[allow(non_snake_case)]
+		pub fn maximumChannelCount(&self) -> AUAudioChannelCount;
+
+		#[method(setMaximumChannelCount:)]
+		#[allow(non_snake_case)]
+		pub fn setMaximumChannelCount(&self, value: AUAudioChannelCount);
 	}
 );
 

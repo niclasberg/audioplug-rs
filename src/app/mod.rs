@@ -34,7 +34,7 @@ pub use widget_node::{WidgetData, WidgetRef, WidgetMut, WidgetId};
 pub use window::{AppContext, Window};
 pub(crate) use window::MyHandler;
 
-use crate::{param::AnyParameter, platform};
+use crate::platform;
 
 new_key_type! {
     pub struct NodeId;

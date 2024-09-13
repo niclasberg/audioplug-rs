@@ -8,6 +8,8 @@ use crate::platform::mac::audio_toolbox::{AUAudioUnitBusArray, AUParameterTree, 
 use crate::platform::mac::av_foundation::AVAudioFormat;
 use crate::platform::mac::core_audio::{AudioBufferList, AudioTimeStamp};
 
+use super::buffers::BusBuffer;
+
 const DEFAULT_SAMPLE_RATE: f64 = 44100.0;
 
 struct Wrapper<P: Plugin> {
@@ -15,6 +17,8 @@ struct Wrapper<P: Plugin> {
     parameters: ParameterMap<P::Parameters>,
 	inputs: Retained<AUAudioUnitBusArray>,
 	outputs: Retained<AUAudioUnitBusArray>,
+	input_buffer: BusBuffer,
+	output_buffer: BusBuffer,
 	parameter_tree: Retained<AUParameterTree>,
 	channel_capabilities: Retained<NSArray<NSNumber>>,
 	internal_render_block: Option<AUInternalRenderRcBlock>,
@@ -39,11 +43,9 @@ impl<P: Plugin + 'static> Wrapper<P> {
 				2)
 		};
 
+		let input_buffer = BusBuffer::new(2, &format);
 		let inputs = unsafe {
-			let input_bus = AUAudioUnitBus::initWithFormat_error(
-				AUAudioUnitBus::alloc(),
-				&format).unwrap();
-			let bus_array = NSArray::from_slice(&[input_bus.as_ref()]);
+			let bus_array = NSArray::from_slice(&[input_buffer.bus()]);
 			AUAudioUnitBusArray::initWithAudioUnit_busType_busses(
 				AUAudioUnitBusArray::alloc(), 
 				audio_unit as *mut _, 
@@ -51,11 +53,9 @@ impl<P: Plugin + 'static> Wrapper<P> {
 				&bus_array)
 		};
 
+		let output_buffer = BusBuffer::new(2, &format);
 		let outputs = unsafe {
-			let output_bus = AUAudioUnitBus::initWithFormat_error(
-				AUAudioUnitBus::alloc(),
-				&format).unwrap();
-			let bus_array = NSArray::from_slice(&[output_bus.as_ref()]);
+			let bus_array = NSArray::from_slice(&[output_buffer.bus()]);
 			AUAudioUnitBusArray::initWithAudioUnit_busType_busses(
 				AUAudioUnitBusArray::alloc(), 
 				audio_unit as *mut _, 
@@ -73,6 +73,8 @@ impl<P: Plugin + 'static> Wrapper<P> {
 			parameters,
 			inputs,
 			outputs,
+			input_buffer,
+			output_buffer,
 			parameter_tree,
 			channel_capabilities,
 			internal_render_block: None,
@@ -103,11 +105,13 @@ impl<P: Plugin + 'static> Wrapper<P> {
 	}
 
 	pub fn allocate_render_resources(&mut self) {
-
+		self.input_buffer.allocate(self.max_frames_to_render);
+		self.output_buffer.allocate(self.max_frames_to_render);
 	}
 
 	pub fn deallocate_render_resources(&mut self) {
-		
+		self.input_buffer.deallocate();
+		self.output_buffer.deallocate();
 	}
 
 	pub unsafe fn setup_parameter_tree(this: *const Self) {
@@ -132,6 +136,15 @@ impl<P: Plugin + 'static> Wrapper<P> {
 				})
 			});
 		(*this).parameter_tree.setImplementorValueProvider(&value_provider);
+	}
+
+	pub unsafe fn create_render_block(this: *mut Self) {
+		let block = AUInternalRenderRcBlock::new(move |flags, timestamp, frame_count, channels, buffers, events, pull_input_blocks: *mut AURenderPullInputBlock| -> AUAudioUnitStatus {
+			let this = unsafe { &mut *this};
+			this.render(flags, timestamp, frame_count, channels, buffers, events, pull_input_blocks.as_ref());
+			0
+		});
+		(*this).internal_render_block = Some(block);
 	}
 
 }
@@ -240,14 +253,8 @@ impl<P: Plugin + 'static> MyAudioUnit<P> {
 				let wrapper_ptr = Box::into_raw(wrapper);
                 ivar.load_ptr::<*mut Wrapper<P>>(&mut this.superclass)
 					.write(wrapper_ptr);
-				let block = AUInternalRenderRcBlock::new(move |flags, timestamp, frame_count, channels, buffers, events, pull_input_blocks: *mut AURenderPullInputBlock| -> AUAudioUnitStatus {
-					let wrapper = &mut *wrapper_ptr ;
-					wrapper.render(flags, timestamp, frame_count, channels, buffers, events, pull_input_blocks.as_ref());
-					0
-				});
-				Wrapper::<P>::setup_parameter_tree(wrapper_ptr);
-				let wrapper = &mut *wrapper_ptr;
-				wrapper.internal_render_block = Some(block);
+				Wrapper::create_render_block(wrapper_ptr);
+				Wrapper::setup_parameter_tree(wrapper_ptr);
             };
             this
         })

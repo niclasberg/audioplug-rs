@@ -17,7 +17,6 @@ impl Params for () {
 pub trait AnyParameterMap: 'static {
 	fn get_by_id<'s>(&'s self, id: ParameterId) -> Option<ParamRef<'s>>;
 	fn get_by_id_as_any(&self, id: ParameterId) -> Option<&dyn Any>;
-	fn get_value_as_any(&self, id: ParameterId) -> Option<&dyn Any>;
 	fn get_by_index(&self, index: usize) -> Option<ParamRef>;
 	fn count(&self) -> usize;
 }
@@ -82,10 +81,6 @@ impl<P: Params> AnyParameterMap for ParameterMap<P> {
 		self.getters_any_map.get(&id).map(|getter| {
 			getter(&self.parameters)
 		}) 
-	}
-
-	fn get_value_as_any(&self, id: ParameterId) -> Option<&dyn Any> {
-		todo!()
 	}
 
 	fn get_by_index(&self, index: usize) -> Option<ParamRef> {

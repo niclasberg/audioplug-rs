@@ -32,7 +32,7 @@ impl AnyParameter for IntParameter {
 		todo!()
 	}
 
-	fn set_value_normalized(&self, value: NormalizedValue) {
+	fn set_value_normalized(&self, _value: NormalizedValue) {
 		todo!()
 	}
 }

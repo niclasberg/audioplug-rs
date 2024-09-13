@@ -8,20 +8,14 @@ fn main() {
         Column::new((
             Label::new("hi"),
 			Button::new(Label::new("Increase"))
-				.on_click({
-					let count = count.clone();
-					move |ctx| {
-						let old_value = count.get(ctx);		
-						count.set(ctx, old_value + 1);
-					}
+				.on_click(move |ctx| {
+					let old_value = count.get(ctx);		
+					count.set(ctx, old_value + 1);
 				}),
 			Button::new(Label::new("Decrease"))
-				.on_click({
-					let count = count.clone();
-					move |ctx| {
-						let old_value = count.get(ctx);		
-						count.set(ctx, old_value - 1);
-					}
+				.on_click(move |ctx| {
+					let old_value = count.get(ctx);		
+					count.set(ctx, old_value - 1);
 				}),
         ))
     });

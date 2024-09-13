@@ -1,5 +1,4 @@
-use crate::param::{Parameter, ParameterId};
-
+use crate::param::ParameterId;
 use super::{Memo, NodeId, ParamSignal, Signal, SignalGet};
 
 pub(super) enum SourceId {

@@ -1,5 +1,4 @@
-use std::{any::{Any, TypeId}, cell::Cell};
-
+use std::{any::Any, cell::Cell};
 use super::{AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, ParseError, PlainValue};
 
 pub struct BoolParameter {
