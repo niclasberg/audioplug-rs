@@ -5,7 +5,7 @@ mod label;
 //mod stack;
 mod background;
 mod button;
-mod checkbox;
+mod switch;
 mod filled;
 mod image;
 mod linear_layout;
@@ -19,7 +19,7 @@ mod xy_pad;
 
 pub use background::Background;
 pub use button::{Button, ButtonWidget};
-pub use checkbox::Checkbox;
+pub use switch::Checkbox;
 pub use filled::*;
 pub use image::Image;
 pub use label::Label;

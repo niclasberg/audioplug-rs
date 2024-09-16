@@ -48,7 +48,7 @@ struct WindowState {
 }
 
 impl WindowState {
-    fn publish_event(&self, hwnd: HWND, event: WindowEvent) {
+    fn publish_event(&self, _hwnd: HWND, event: WindowEvent) {
         self.handler.borrow_mut().event(event.into());
     }
 

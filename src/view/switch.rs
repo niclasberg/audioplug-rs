@@ -46,7 +46,7 @@ impl Widget for CheckboxWidget {
 
     fn style(&self) -> taffy::Style {
         taffy::Style {
-            size: taffy::Size { width: taffy::Dimension::Length(10.0), height: taffy::Dimension::Length(10.0) },
+            size: taffy::Size { width: taffy::Dimension::Length(20.0), height: taffy::Dimension::Length(10.0) },
             ..Default::default()
         }
         
