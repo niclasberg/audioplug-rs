@@ -6,7 +6,7 @@ pub struct Background<V: View> {
     pub(super) view: V,
     pub(super) color: Color,
 }
-
+	
 impl<V: View> View for Background<V> {
     type Element = BackgroundWidget<V::Element>;
 
@@ -45,10 +45,6 @@ impl<W: Widget> Widget for BackgroundWidget<W> {
     fn render(&mut self, ctx: &mut RenderContext) {
         ctx.fill(ctx.local_bounds(), self.color);
         self.widget.render(ctx)
-    }
-
-    fn style(&self) -> taffy::Style {
-        self.widget.style()
     }
 
     fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {

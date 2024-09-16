@@ -124,7 +124,7 @@ declare_class!(
 			context.set_fill_color(&bg_color);
 			context.fill_rect(self.frame());
 			
-			let renderer = RendererRef::new(context);
+			let renderer = RendererRef::new(context, rect);
 
 			self.ivars().handler.borrow_mut().render(
 				rect.into(),

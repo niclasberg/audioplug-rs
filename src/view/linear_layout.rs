@@ -35,10 +35,15 @@ impl<VS: ViewSequence> View for Column<VS> {
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         self.view_seq.build(ctx);
+		ctx.set_style(taffy::Style {
+            flex_direction: taffy::FlexDirection::Column,
+            gap: taffy::Size::from_length(self.spacing as f32),
+            display: taffy::Display::Flex,
+            ..Default::default()
+        });
+		
         LinearLayoutWidget {
-            alignment: self.alignment,
-            spacing: self.spacing,
-            axis: taffy::FlexDirection::Column
+            alignment: self.alignment
         }
     }
 }
@@ -74,18 +79,20 @@ impl<VS: ViewSequence> View for Row<VS> {
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         self.view_seq.build(ctx);
+		ctx.set_style(taffy::Style {
+            flex_direction: taffy::FlexDirection::Row,
+            gap: taffy::Size::from_length(self.spacing as f32),
+            display: taffy::Display::Flex,
+            ..Default::default()
+        });
         LinearLayoutWidget {
             alignment: self.alignment,
-            spacing: self.spacing,
-            axis: taffy::FlexDirection::Row
         }
     }
 }
 
 pub struct LinearLayoutWidget {
-    alignment: Alignment,
-    spacing: f64,
-    axis: taffy::FlexDirection,
+    alignment: Alignment
 }
 
 impl Widget for LinearLayoutWidget {
@@ -95,14 +102,5 @@ impl Widget for LinearLayoutWidget {
 
     fn render(&mut self, ctx: &mut RenderContext) {
         ctx.render_children();
-    }
-    
-    fn style(&self) -> taffy::Style {
-        taffy::Style {
-            flex_direction: self.axis,
-            gap: taffy::Size::from_length(self.spacing as f32),
-            display: taffy::Display::Flex,
-            ..Default::default()
-        }
     }
 }

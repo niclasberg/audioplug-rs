@@ -220,6 +220,10 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
 		})
     }
 
+	pub fn update_style(&mut self, f: impl FnOnce(&mut taffy::Style)) {
+		f(&mut self.data.style);
+	}
+
     pub fn layout_requested(&self) -> bool {
         self.data().flag_is_set(WidgetFlags::NEEDS_LAYOUT)
     }

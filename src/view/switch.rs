@@ -22,6 +22,10 @@ impl View for Checkbox {
             (*widget).checked = *value;
 			widget.request_render();
         });
+		ctx.set_style(taffy::Style {
+            size: taffy::Size { width: taffy::Dimension::Length(20.0), height: taffy::Dimension::Length(10.0) },
+            ..Default::default()
+        });
         CheckboxWidget { checked }
     }
 }
@@ -42,14 +46,6 @@ impl Widget for CheckboxWidget {
         } else {
             taffy::Size::zero()
         }
-    }
-
-    fn style(&self) -> taffy::Style {
-        taffy::Style {
-            size: taffy::Size { width: taffy::Dimension::Length(20.0), height: taffy::Dimension::Length(10.0) },
-            ..Default::default()
-        }
-        
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {

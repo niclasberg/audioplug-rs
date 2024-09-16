@@ -158,7 +158,6 @@ impl AppState {
 
 		{
             let widget = f(&mut BuildContext::new(widget_id, self));
-			self.widget_data[widget_id].style = widget.style();
             self.widgets.insert(widget_id, Box::new(widget));
         }
         
@@ -179,7 +178,6 @@ impl AppState {
         
 		{
             let widget = f(&mut BuildContext::new(id, self));
-			self.widget_data[id].style = widget.style();
             self.widgets.insert(id, Box::new(widget));
         }
 

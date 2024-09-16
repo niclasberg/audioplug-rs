@@ -22,9 +22,9 @@ fn main() {
 				Label::new("Slider"),
 				Slider::new()
                     .with_range(1.0, 10.0)
-                    .with_style(|style| {
+                    /*.with_style(|style| {
                         style.align_self = Some(taffy::AlignItems::Center);
-                    })
+                    }) */
 			)).with_spacing(5.0),
             Row::new((
 				Label::new("Checkbox"),
@@ -41,9 +41,7 @@ fn main() {
             Row::new((
                 Label::new("Image"),
                 Image::from_file(Path::new("/Users/niklas.berg/Desktop/Screenshot 2024-04-24 at 09.49.30.png"))
-                    .with_style(|style| {
-                        style.max_size.width = taffy::Dimension::Length(200.0)
-                    })
+					.max_width(200.0)
             )),
             Row::new((
                 Label::new("Text input").with_color(Color::BLUE),

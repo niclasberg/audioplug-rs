@@ -28,6 +28,18 @@ impl View for TextBox {
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         ctx.set_focusable(true);
+
+		{
+			use taffy::prelude::*;
+			let border = LengthPercentage::Length(1.0);
+			let padding = LengthPercentage::Length(2.0);
+			ctx.set_style(taffy::Style {
+				padding: Rect { left: padding, right: padding, top: padding, bottom: padding }, 
+				border: Rect { left: border, right: border, top: border, bottom: border }, 
+				..Default::default()
+			});
+		}
+
         TextBoxWidget { 
             width: self.width,
             editor: Editor::new(""), 
@@ -435,17 +447,6 @@ impl Widget for TextBoxWidget {
 
     fn cursor(&self) -> Option<Cursor> {
         Some(Cursor::IBeam)
-    }
-
-    fn style(&self) -> taffy::Style {
-        use taffy::prelude::*;
-        let border = LengthPercentage::Length(1.0);
-        let padding = LengthPercentage::Length(2.0);
-        taffy::Style {
-            padding: Rect { left: padding, right: padding, top: padding, bottom: padding }, 
-            border: Rect { left: border, right: border, top: border, bottom: border }, 
-            ..Default::default()
-        }
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {

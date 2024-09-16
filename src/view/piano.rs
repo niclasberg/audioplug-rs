@@ -24,10 +24,6 @@ impl Widget for Piano {
         "Piano"
     }
 
-    fn style(&self) -> taffy::Style {
-        taffy::Style::default()
-    }
-
     fn render(&mut self, ctx: &mut crate::app::RenderContext) {
         todo!()
     }

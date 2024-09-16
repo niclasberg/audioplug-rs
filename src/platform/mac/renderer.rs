@@ -1,4 +1,4 @@
-use objc2_foundation::{CGRect, CGFloat};
+use objc2_foundation::{CGFloat, CGRect, NSRect};
 
 use crate::core::{Rectangle, Color, Point, Size, Vector, Transform};
 
@@ -6,12 +6,17 @@ use super::{core_graphics::{CGAffineTransform, CGColor, CGContext}, ImageSource,
 
 pub struct RendererRef<'a> {
 	pub(super) context: &'a CGContext,
-	transforms: Vec<CGAffineTransform>
+	transforms: Vec<CGAffineTransform>,
+	dirty_rect: Rectangle
 }
 
 impl<'a> RendererRef<'a> {
-	pub fn new(context: &'a CGContext) -> Self {
-		Self { context, transforms: Vec::new() }
+	pub fn new(context: &'a CGContext, dirty_rect: NSRect) -> Self {
+		Self { 
+			context, 
+			transforms: Vec::new(),
+			dirty_rect: dirty_rect.into()
+		}
 	}
 
 	pub fn save(&mut self) {

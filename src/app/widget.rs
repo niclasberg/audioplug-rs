@@ -42,7 +42,6 @@ pub trait Widget: Any {
 
 	fn debug_label(&self) -> &'static str;
 
-    fn style(&self) -> taffy::Style;
     fn render(&mut self, ctx: &mut RenderContext);
 }
 
@@ -91,9 +90,5 @@ impl Widget for Box<dyn Widget> {
 
     fn cursor(&self) -> Option<Cursor> {
         self.deref().cursor()
-    }
-
-    fn style(&self) -> taffy::Style {
-        self.deref().style()
     }
 }

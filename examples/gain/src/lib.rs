@@ -38,7 +38,9 @@ impl Editor for MyEditor {
         Column::new((
             Label::new("Gain").with_color(Color::BLUE),
             ParameterSlider::new(&parameters.gain)
-        )).as_any()
+        ))
+		.padding(10.0)
+		.as_any()
     }
 }
 

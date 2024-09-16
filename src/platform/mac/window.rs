@@ -48,8 +48,11 @@ impl Window {
 		let mtm = MainThreadMarker::new().unwrap();
 		let parent = unsafe { &*(handle.ns_view.as_ptr() as *mut NSView) };
 		let view = View::new(mtm, widget);
-		unsafe { parent.addSubview(&view) };
-		unsafe { view.setFrame(parent.frame()) };
+		unsafe { 
+			parent.addSubview(&view);
+			view.setFrame(parent.frame());
+			view.setNeedsDisplay(true);
+		};
 
 		Ok(Self::AttachedToView(Weak::from_retained(&view)))
 	}

@@ -38,6 +38,10 @@ impl View for Slider {
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         ctx.set_focusable(true);
+		ctx.set_style(taffy::Style {
+            size: taffy::Size { width: taffy::Dimension::Auto, height: taffy::Dimension::Length(10.0) },
+            ..Default::default()
+        });
         SliderWidget {
             position_normalized: 0.4,
             state: State::Idle,
@@ -221,13 +225,6 @@ impl Widget for SliderWidget {
                 }
             },
             _ => EventStatus::Ignored
-        }
-    }
-    
-    fn style(&self) -> taffy::Style {
-        taffy::Style {
-            size: taffy::Size { width: taffy::Dimension::Auto, height: taffy::Dimension::Length(10.0) },
-            ..Default::default()
         }
     }
 

@@ -37,13 +37,6 @@ impl Widget for ScrollWidget {
         self.child.measure(style, known_dimensions, available_space)
     }
 
-    fn style(&self) -> taffy::Style {
-        let mut style = self.child.style();
-        style.overflow.x = taffy::Overflow::Scroll;
-        style.overflow.y = taffy::Overflow::Scroll;
-        style
-    }
-
     fn render(&mut self, ctx: &mut RenderContext) {
         self.child.render(ctx)
     }

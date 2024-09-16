@@ -24,6 +24,13 @@ impl<V: View> View for Button<V> {
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         ctx.set_focusable(true);
         ctx.add_child(self.child);
+		let padding = taffy::LengthPercentage::Length(4.0);
+		ctx.set_style(taffy::Style {
+            padding: taffy::Rect { left: padding, right: padding, top: padding, bottom: padding },
+            justify_content: Some(taffy::JustifyContent::Center),
+			display: taffy::Display::Block,
+            ..Default::default()
+        });
 
         let widget = ButtonWidget {
             is_hot: false,
@@ -119,15 +126,5 @@ impl Widget for ButtonWidget {
         ctx.stroke(shape, Color::BLACK, 1.0);
         
         ctx.render_children()
-    }
-    
-    fn style(&self) -> taffy::Style {
-        let padding = taffy::LengthPercentage::Length(4.0);
-        taffy::Style {
-            padding: taffy::Rect { left: padding, right: padding, top: padding, bottom: padding },
-            justify_content: Some(taffy::JustifyContent::Center),
-			display: taffy::Display::Block,
-            ..Default::default()
-        }
     }
 }

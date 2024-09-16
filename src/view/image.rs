@@ -36,10 +36,6 @@ impl Widget for ImageWidget {
         "Image"
     }
 
-    fn style(&self) -> taffy::Style {
-        taffy::Style::default()
-    }
-
     fn measure(&self, _style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, _available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
         let image_size = self.source.as_ref().map(|source| source.size())
             .unwrap_or(Size::new(20.0, 20.0));

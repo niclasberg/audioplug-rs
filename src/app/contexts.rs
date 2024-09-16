@@ -51,6 +51,14 @@ impl<'a, W: Widget> BuildContext<'a, W> {
         };
         view.build(&mut ctx)
     }
+
+	pub fn set_style(&mut self, style: taffy::Style) {
+		self.app_state.widget_data_mut(self.id).style = style;
+	}
+
+	pub fn update_style(&mut self, f: impl FnOnce(&mut taffy::Style)) {
+		f(&mut self.app_state.widget_data_mut(self.id).style);
+	}
 }
 
 impl<'s, W: Widget> ParamContext for BuildContext<'s, W> {

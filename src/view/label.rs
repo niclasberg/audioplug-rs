@@ -76,8 +76,4 @@ impl Widget for TextWidget {
         text_layout.set_max_size(ctx.global_bounds().size());
         ctx.draw_text(&text_layout, ctx.global_bounds().top_left())
     }
-    
-    fn style(&self) -> taffy::Style {
-        Default::default()
-    }
 }

@@ -26,7 +26,13 @@ pub struct Filled {
 impl View for Filled {
     type Element = Self;
 
-    fn build(self, _ctx: &mut BuildContext<Self::Element>) -> Self { 
+    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self { 
+		let bounds = self.shape.bounds();
+        ctx.set_style(taffy::Style {
+            size: taffy::Size { width: taffy::Dimension::Length(bounds.width() as f32), height: taffy::Dimension::Length(bounds.height() as f32) },
+            ..Default::default()
+        });
+
         self
     }
 }
@@ -43,13 +49,5 @@ impl Widget for Filled {
 
     fn render(&mut self, ctx: &mut RenderContext) {
         ctx.fill(self.shape.offset(ctx.global_bounds().top_left()), self.color)
-    }
-    
-    fn style(&self) -> taffy::Style {
-        let bounds = self.shape.bounds();
-        taffy::Style {
-            size: taffy::Size { width: taffy::Dimension::Length(bounds.width() as f32), height: taffy::Dimension::Length(bounds.height() as f32) },
-            ..Default::default()
-        }
     }
 }

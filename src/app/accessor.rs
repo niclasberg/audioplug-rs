@@ -7,6 +7,7 @@ pub(super) enum SourceId {
 	Node(NodeId)
 }
 
+#[derive(Copy, Clone)]
 pub enum Accessor<T> {
     Signal(Signal<T>),
     Memo(Memo<T>),
