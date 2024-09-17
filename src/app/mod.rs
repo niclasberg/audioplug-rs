@@ -101,14 +101,6 @@ pub trait SignalGet {
     {
         self.with_ref_untracked(cx, Self::Value::clone)
     }
-
-    fn map<F, R>(self, f: F) -> Map<Self, F>
-    where
-        Self: Sized,
-        F: Fn(&Self::Value) -> R,
-    {
-        Map { source: self, f }
-    }
 }
 
 #[derive(Clone, Copy)]

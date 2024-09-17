@@ -2,7 +2,7 @@ use std::{any::Any, collections::VecDeque, ops::DerefMut, rc::Weak};
 use slotmap::{Key, SecondaryMap, SlotMap};
 use crate::{core::{Point, Rectangle}, param::{AnyParameter, AnyParameterMap, NormalizedValue, ParamRef, ParameterId, Params, PlainValue}, platform};
 
-use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, memo::{Memo, MemoState}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, ParamContext, Runtime, Scope, SignalContext, SignalGet, ParamEditor, Widget, WindowId};
+use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, layout_window, memo::{Memo, MemoState}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, ParamContext, ParamEditor, Runtime, Scope, SignalContext, SignalGet, Widget, WindowId};
 use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
@@ -258,7 +258,7 @@ impl AppState {
 		let mut flags_to_apply = WidgetFlags::empty();
 		while !current.is_null() {
 			let data = self.widget_data_mut(current);
-			data.flags = data.flags & flags_to_apply;
+			data.flags = data.flags | flags_to_apply;
 			flags_to_apply = data.flags & (WidgetFlags::NEEDS_LAYOUT);
 			current = data.parent_id;
 		}
@@ -274,6 +274,11 @@ impl AppState {
 
     pub fn run_effects(&mut self) {
         let mut tasks = self.runtime.take_tasks();
+
+        if tasks.is_empty() {
+            return;
+        }
+
         loop {
             if let Some(task) = tasks.pop_front() {
                 task.run(self);
@@ -281,6 +286,19 @@ impl AppState {
             } else {
                 break;
             }
+        }
+
+        // Layout if needed
+        let windows_needing_layout: Vec<_> = self.windows.iter()
+            .filter_map(|(window_id, window_state)|
+                self.widget_data_ref(window_state.root_widget)
+                    .flag_is_set(WidgetFlags::NEEDS_LAYOUT)
+                    .then_some(window_id)
+            )
+            .collect();
+
+        for window_to_layout in windows_needing_layout {
+            layout_window(self, window_to_layout);
         }
     }
 }

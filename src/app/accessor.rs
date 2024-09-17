@@ -1,5 +1,30 @@
 use crate::param::ParameterId;
-use super::{Memo, NodeId, ParamSignal, Signal, SignalGet};
+use super::{signal::MappedSignal, Memo, NodeId, ParamSignal, Signal, SignalGet};
+
+pub(super) trait MappedAccessor<T>: CloneMappedAccessor<T> {
+    fn get_source_id(&self) -> SourceId;
+    fn get_ref(&self) -> &T;
+    fn get_ref_untracked(&self) -> &T;
+}
+
+pub(super) trait CloneMappedAccessor<T> {
+    fn box_clone(&self) -> Box<dyn MappedAccessor<T>>;
+}
+
+impl<T, V> CloneMappedAccessor<T> for V
+where
+    V: 'static + MappedAccessor<T> + Clone
+{
+    fn box_clone(&self) -> Box<dyn MappedAccessor<T>> {
+        Box::new(self.clone())
+    }
+}
+
+impl<T> Clone for Box<dyn MappedAccessor<T>> {
+    fn clone(&self) -> Box<dyn MappedAccessor<T>> {
+        self.box_clone()
+    }
+}
 
 pub(super) enum SourceId {
 	None,
@@ -7,12 +32,13 @@ pub(super) enum SourceId {
 	Node(NodeId)
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub enum Accessor<T> {
     Signal(Signal<T>),
     Memo(Memo<T>),
 	Parameter(ParamSignal<T>),
-    Const(T)
+    Const(T),
+    Mapped(Box<dyn MappedAccessor<T>>)
 }
 
 impl<T> Accessor<T> {
@@ -22,6 +48,7 @@ impl<T> Accessor<T> {
             Accessor::Memo(memo) => SourceId::Node(memo.id),
 			Accessor::Parameter(param) => SourceId::Parameter(param.id),
             Accessor::Const(_) => SourceId::None,
+            Accessor::Mapped(mapped) => mapped.get_source_id()
         }
     }
 }
@@ -42,6 +69,15 @@ impl<T> From<ParamSignal<T>> for Accessor<T> {
 	fn from(value: ParamSignal<T>) -> Self {
 		Self::Parameter(value)
 	}
+}
+
+impl<T, R, F> From<MappedSignal<T, R, F>> for Accessor<R> 
+where
+    MappedSignal<T, R, F>: MappedAccessor<R> + 'static
+{
+    fn from(value: MappedSignal<T, R, F>) -> Self {
+        Self::Mapped(Box::new(value))
+    }
 }
 
 impl<T> From<T> for Accessor<T> {
@@ -65,6 +101,7 @@ impl<T: 'static> SignalGet for Accessor<T> {
             Accessor::Memo(memo) => memo.with_ref(cx, f),
             Accessor::Const(value) => f(value),
 			Accessor::Parameter(param) => param.with_ref(cx, f),
+            Accessor::Mapped(mapped) => f(mapped.get_ref())
         }
     }
 
@@ -74,6 +111,7 @@ impl<T: 'static> SignalGet for Accessor<T> {
             Accessor::Memo(memo) => memo.with_ref_untracked(cx, f),
             Accessor::Const(value) => f(value),
 			Accessor::Parameter(param) => param.with_ref_untracked(cx, f),
+            Accessor::Mapped(mapped) => f(mapped.get_ref_untracked())
         }
     }
 }

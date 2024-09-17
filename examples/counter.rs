@@ -6,7 +6,7 @@ fn main() {
         let count = ctx.create_signal(0);
         let text = count.map(|cnt| format!("Count is {}", cnt));
         Column::new((
-            Label::new("hi"),
+            Label::new(text),
 			Button::new(Label::new("Increase"))
 				.on_click(move |ctx| {
 					let old_value = count.get(ctx);		

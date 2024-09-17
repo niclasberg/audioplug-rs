@@ -13,6 +13,7 @@ fn main() {
     let _ = Window::open(&mut app, |ctx| {  
         let checkbox_enabled = ctx.create_signal(false);
         let text = ctx.create_signal("".to_string());
+        let slider_value = ctx.create_signal(0.0);
         
         Column::new((
             Rectangle::new(Point::ZERO, Size::new(50.0, 10.0)).fill(Color::BLUE),
@@ -22,6 +23,7 @@ fn main() {
 				Label::new("Slider"),
 				Slider::new()
                     .with_range(1.0, 10.0)
+                    .on_value_changed(move |ctx, value| slider_value.set(ctx, value * 10.0))
                     /*.with_style(|style| {
                         style.align_self = Some(taffy::AlignItems::Center);
                     }) */
@@ -42,6 +44,7 @@ fn main() {
                 Label::new("Image"),
                 Image::from_file(Path::new("/Users/niklas.berg/Desktop/Screenshot 2024-04-24 at 09.49.30.png"))
 					.max_width(200.0)
+                    .height(slider_value)
             )),
             Row::new((
                 Label::new("Text input").with_color(Color::BLUE),

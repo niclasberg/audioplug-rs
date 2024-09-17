@@ -106,19 +106,19 @@ impl<V: View> Styled<V> {
 
 	pub fn padding(mut self, value: impl Into<Accessor<f64>>) -> Self {
 		let value = value.into();
-		self.left = LengthPercentageAccessor::Length(value);
-		self.right = LengthPercentageAccessor::Length(value);
-		self.top = LengthPercentageAccessor::Length(value);
-		self.bottom = LengthPercentageAccessor::Length(value);
+		self.left = LengthPercentageAccessor::Length(value.clone());
+		self.right = LengthPercentageAccessor::Length(value.clone());
+		self.top = LengthPercentageAccessor::Length(value.clone());
+		self.bottom = LengthPercentageAccessor::Length(value.clone());
 		self
 	}
 
 	pub fn padding_percent(mut self, value: impl Into<Accessor<f64>>) -> Self {
 		let value = value.into();
-		self.left = LengthPercentageAccessor::Percent(value);
-		self.right = LengthPercentageAccessor::Percent(value);
-		self.top = LengthPercentageAccessor::Percent(value);
-		self.bottom = LengthPercentageAccessor::Percent(value);
+		self.left = LengthPercentageAccessor::Percent(value.clone());
+		self.right = LengthPercentageAccessor::Percent(value.clone());
+		self.top = LengthPercentageAccessor::Percent(value.clone());
+		self.bottom = LengthPercentageAccessor::Percent(value.clone());
 		self
 	}
 
