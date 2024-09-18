@@ -1,18 +1,24 @@
-use crate::{app::{BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Cursor}, KeyEvent, MouseEvent};
+use crate::{app::{Accessor, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Cursor}, KeyEvent, MouseEvent};
 
 use super::View;
 
 pub struct Background<V: View> {
     pub(super) view: V,
-    pub(super) color: Color,
+    pub(super) color: Accessor<Color>,
 }
-	
+
 impl<V: View> View for Background<V> {
     type Element = BackgroundWidget<V::Element>;
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         let widget = ctx.build(self.view);
-        BackgroundWidget { widget, color: self.color }
+
+		let color = ctx.get_and_track(self.color, |value, mut widget| {
+			widget.color = *value;
+			widget.request_render();
+		});
+
+        BackgroundWidget { widget, color }
     }
 }
 
@@ -50,4 +56,12 @@ impl<W: Widget> Widget for BackgroundWidget<W> {
     fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
         self.widget.measure(style, known_dimensions, available_space)
     }
+
+	fn inner_widget(&self) -> Option<&dyn Widget> {
+		Some(&self.widget)
+	}
+
+	fn inner_widget_mut(&mut self) -> Option<&mut dyn Widget> {
+		Some(&mut self.widget)
+	}
 } 

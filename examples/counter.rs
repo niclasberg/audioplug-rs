@@ -19,7 +19,12 @@ fn main() {
         ))
 		.spacing(5.0)
 		.padding(15.0)
-		.background(Color::from_rgb(0.8, 0.8, 0.8))
+		.background(count.map(|cnt| 
+			if *cnt >= 0 {
+				Color::from_rgb(0.8, 0.8, 0.8)
+			} else {
+				Color::RED
+			}))
     });
 	app.run();
 }

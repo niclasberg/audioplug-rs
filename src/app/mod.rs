@@ -32,6 +32,7 @@ use slotmap::new_key_type;
 pub use widget::{EventStatus, StatusChange, Widget};
 pub use widget_node::{WidgetData, WidgetRef, WidgetMut, WidgetId};
 pub use window::{AppContext, Window};
+pub(crate) use window::MyHandler;
 
 use crate::{param::{ParamRef, ParameterId}, platform};
 

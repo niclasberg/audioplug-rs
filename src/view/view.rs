@@ -9,8 +9,8 @@ pub trait View: Sized {
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element;
 
-    fn background(self, color: Color) -> Background<Self> {
-        Background { view: self, color }
+    fn background(self, color: impl Into<Accessor<Color>>) -> Background<Self> {
+        Background { view: self, color: color.into() }
     }
 
 	fn padding(self, value: impl Into<Accessor<f64>>) -> Styled<Self> {

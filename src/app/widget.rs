@@ -40,6 +40,18 @@ pub trait Widget: Any {
         taffy::Size::ZERO
     }
 
+	/// Widgets that wrap another widget (like background, styled etc) need to implement this method and return the 
+	/// wrapped widget in order for downcasting to work properly.
+	fn inner_widget(&self) -> Option<&dyn Widget> {
+		None
+	}
+
+	/// Widgets that wrap another widget (like background, styled etc) need to implement this method and return the 
+	/// wrapped widget in order for downcasting to work properly.
+	fn inner_widget_mut(&mut self) -> Option<&mut dyn Widget> {
+		None
+	}
+
 	fn debug_label(&self) -> &'static str;
 
     fn render(&mut self, ctx: &mut RenderContext);
@@ -50,7 +62,7 @@ impl dyn Widget + 'static {
         if self.type_id() == TypeId::of::<T>() {
             Some(unsafe { &*(self as *const _ as *const T) })
         } else {
-            None
+            self.inner_widget().and_then(|w| w.downcast_ref())
         }
     }
 
@@ -58,7 +70,7 @@ impl dyn Widget + 'static {
         if (&*self).type_id() == TypeId::of::<T>() {
             Some(unsafe { &mut *(self as *mut _ as *mut T) })
         } else {
-            None
+            self.inner_widget_mut().and_then(|w| w.downcast_mut())
         }
     }
 }

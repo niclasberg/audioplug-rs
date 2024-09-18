@@ -57,7 +57,6 @@ impl Widget for ButtonWidget {
         match event {
             MouseEvent::Down { button, position } | MouseEvent::DoubleClick { button, position } if ctx.bounds().contains(position) => {
                 if button == MouseButton::LEFT {
-                    println!("Down");
                     self.mouse_down = true;
                     ctx.capture_mouse();
                     ctx.request_render();
