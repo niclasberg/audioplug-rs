@@ -162,8 +162,8 @@ impl<E: Editor> IPlugView for PlugView<E> {
     }
 
     unsafe fn set_frame(&self, frame: *mut c_void) -> tresult {
-        let frame: SharedVstPtr<dyn IPlugFrame> = std::mem::transmute(frame);
-        self.plugin_frame.replace(frame.upgrade());
+        //let frame: SharedVstPtr<dyn IPlugFrame> = std::mem::transmute(frame);
+        //self.plugin_frame.replace(frame.upgrade());
         kResultOk
     }
 

@@ -97,7 +97,7 @@ impl<P: Plugin + 'static> ViewController<P> {
 			let params = P::Parameters::default();
 			editor.view(ctx, &params)
 		});
-		let view = View::new(mtm, handler);
+		let view = View::new(mtm, handler, None);
 
 		Retained::into_raw(Retained::into_super(view))
 	}

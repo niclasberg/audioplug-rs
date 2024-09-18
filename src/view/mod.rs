@@ -1,5 +1,4 @@
 mod view_sequence;
-pub use crate::id::IdPath;
 pub use view_sequence::*;
 mod label;
 //mod stack;

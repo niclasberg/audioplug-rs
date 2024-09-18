@@ -3,14 +3,15 @@ use std::ffi::c_void;
 use block2::Block;
 use objc2::{extern_class, extern_methods, mutability, rc::Retained, ClassType, Encode, Encoding, RefEncode};
 use objc2_foundation::{NSArray, NSInteger, NSNumber, NSObject, NSString};
-use c_enum::c_enum;
 use bitflags::bitflags;
+
+use super::cf_enum;
 
 pub type AUValue = f32;
 pub type AUParameterAddress = u64;
 pub type AUParameterObserverToken = *mut c_void;
 
-c_enum!(
+cf_enum!(
 	pub enum AudioUnitParameterUnit: u32 {
 		Generic				= 0,
 		Indexed				= 1,
@@ -42,14 +43,6 @@ c_enum!(
 		MIDI2Controller	 	= 27
 	}
 );
-
-unsafe impl Encode for AudioUnitParameterUnit {
-    const ENCODING: Encoding = u32::ENCODING;
-}
-
-unsafe impl RefEncode for AudioUnitParameterUnit {
-    const ENCODING_REF: Encoding = Encoding::Pointer(&Self::ENCODING);
-}
 
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -96,7 +89,7 @@ unsafe impl RefEncode for AudioUnitParameterOptions {
     const ENCODING_REF: Encoding = Encoding::Pointer(&Self::ENCODING);
 }
 
-c_enum!(
+cf_enum!(
 	pub enum AUParameterAutomationEventType: u32 {
 		/// The event contains an updated value for the parameter.
 		Value = 0,
@@ -106,14 +99,6 @@ c_enum!(
 		Release = 2
 	}
 );
-
-unsafe impl Encode for AUParameterAutomationEventType {
-    const ENCODING: Encoding = u32::ENCODING;
-}
-
-unsafe impl RefEncode for AUParameterAutomationEventType {
-    const ENCODING_REF: Encoding = Encoding::Pointer(&Self::ENCODING);
-}
 
 #[repr(C)]
 /// An event recording the changing of a parameter at a particular host time.

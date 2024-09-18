@@ -19,10 +19,10 @@ pub enum Window {
 impl Window {
 	pub(crate) fn open(widget: impl WindowHandler + 'static) -> Result<Self, Error> {
 		let mtm = MainThreadMarker::new().unwrap();
+		let content_rect = NSRect::new(NSPoint::new(0., 0.), NSSize::new(1024., 768.));
 		let window = {
 			let this = mtm.alloc();
 			let backing_store_type = NSBackingStoreType::NSBackingStoreBuffered;
-			let content_rect = NSRect::new(NSPoint::new(0., 0.), NSSize::new(1024., 768.));
 			let style = NSWindowStyleMask::Closable | NSWindowStyleMask::Resizable | NSWindowStyleMask::Titled;
 			let flag = false;
 	
@@ -36,7 +36,7 @@ impl Window {
 			}
 		};
 
-		let view = View::new(mtm, widget);
+		let view = View::new(mtm, widget, Some(content_rect));
 
 		window.makeKeyAndOrderFront(None);
 		window.setContentView(Some(&*view));
@@ -47,10 +47,10 @@ impl Window {
 	pub fn attach(handle: AppKitWindowHandle, widget: impl WindowHandler + 'static) -> Result<Self, Error> {
 		let mtm = MainThreadMarker::new().unwrap();
 		let parent = unsafe { &*(handle.ns_view.as_ptr() as *mut NSView) };
-		let view = View::new(mtm, widget);
+		let frame = parent.frame();
+		let view = View::new(mtm, widget, None);
 		unsafe { 
 			parent.addSubview(&view);
-			view.setFrame(parent.frame());
 			view.setNeedsDisplay(true);
 		};
 

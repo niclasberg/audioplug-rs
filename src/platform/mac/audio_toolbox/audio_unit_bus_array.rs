@@ -1,27 +1,18 @@
-use c_enum::c_enum;
 use objc2::{extern_class, extern_methods, rc::{Allocated, Retained}, ClassType, Encode, Encoding, RefEncode};
 use objc2_foundation::{NSArray, NSError, NSInteger, NSObject, NSUInteger};
 
 use crate::platform::mac::av_foundation::AVAudioFormat;
 
-use super::AUAudioUnit;
+use super::{cf_enum, AUAudioUnit};
 
 pub type AUAudioChannelCount = u32;
 
-c_enum!(
+cf_enum!(
 	pub enum AUAudioUnitBusType: NSInteger {
 		Input		= 1,
 		Output	= 2
 	}
 );
-
-unsafe impl Encode for AUAudioUnitBusType {
-    const ENCODING: Encoding = NSInteger::ENCODING;
-}
-
-unsafe impl RefEncode for AUAudioUnitBusType {
-    const ENCODING_REF: Encoding = Encoding::Pointer(&Self::ENCODING);
-}
 
 extern_class!(
 	pub struct AUAudioUnitBusArray;

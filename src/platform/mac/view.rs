@@ -137,13 +137,18 @@ declare_class!(
 );
 
 impl View {
-	pub(crate) fn new(mtm: MainThreadMarker, handler: impl WindowHandler + 'static) -> Id<Self> {
+	pub(crate) fn new(mtm: MainThreadMarker, handler: impl WindowHandler + 'static, frame: Option<NSRect>) -> Id<Self> {
 		let handler = RefCell::new(Box::new(handler));
 		let tracking_area = RefCell::new(None);
 
 		let this = mtm.alloc();
 		let this = this.set_ivars(Ivars { handler, tracking_area });
-		let this: Id<Self> = unsafe { msg_send_id![super(this), init] };
+
+		let this: Id<Self> = if let Some(frame) = frame {
+			unsafe { msg_send_id![super(this), initWithFrame: frame] }
+		} else {
+			unsafe { msg_send_id![super(this), init] }
+		};
 
 		this.setPostsFrameChangedNotifications(true);
 		let notification_center = unsafe { NSNotificationCenter::defaultCenter() };

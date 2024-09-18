@@ -3,21 +3,28 @@ use vst3_com::vst::{IComponent, SymbolicSampleSizes, MediaTypes, BusDirections, 
 use vst3_sys::{VST3, IID};
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
-use vst3_sys::vst::{BusDirection, BusInfo, IAudioProcessor, IConnectionPoint, IEventList, IMessage, IParamValueQueue, IParameterChanges, IoMode, MediaType, ProcessData, ProcessModes, ProcessSetup, RoutingInfo, SpeakerArrangement};
+use vst3_sys::vst::{BusDirection, BusInfo, EventTypes, IAudioProcessor, IConnectionPoint, IEventList, IMessage, IParamValueQueue, IParameterChanges, IoMode, MediaType, ProcessData, ProcessModes, ProcessSetup, RoutingInfo, SpeakerArrangement};
+use std::cell::RefCell;
 use std::ffi::c_void;
 use std::mem::MaybeUninit;
 
 use vst3_sys as vst3_com;
 
+use crate::midi::NoteEvent;
+use crate::midi_buffer::MidiBuffer;
 use crate::param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap};
 use crate::{Plugin, AudioBuffer, ProcessContext};
 use super::editcontroller::EditController;
 use super::util::strcpyw;
 
+const NOTE_ON_EVENT: u16 = EventTypes::kNoteOnEvent as u16;
+const NOTE_OFF_EVENT: u16 = EventTypes::kNoteOffEvent as u16;
+
 #[VST3(implements(IComponent, IAudioProcessor, IConnectionPoint))]
 pub struct Vst3Plugin<P: Plugin> {
     plugin: AtomicRefCell<P>,
-    parameters: ParameterMap<P::Parameters> 
+    parameters: ParameterMap<P::Parameters> ,
+	midi_buffer: RefCell<MidiBuffer>
 }
 
 impl<P: Plugin> Vst3Plugin<P> {
@@ -25,7 +32,7 @@ impl<P: Plugin> Vst3Plugin<P> {
 
     pub fn new() -> Box<Self> {
 		let parameters = ParameterMap::new(P::Parameters::default());
-        Self::allocate(AtomicRefCell::new(P::new()), parameters)
+        Self::allocate(AtomicRefCell::new(P::new()), parameters, RefCell::new(MidiBuffer::new(1024)))
     }
 
     pub fn create_instance() -> *mut c_void {
@@ -119,21 +126,38 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
             return kResultOk;
         }
 
-        if let Some(input_events) = data.input_events.upgrade() {
-            let event_count = input_events.get_event_count();
-            let mut event = MaybeUninit::uninit();
-            for i in 0..event_count {
-                if input_events.get_event(i, event.as_mut_ptr()) != kResultOk {
-                    continue;
-                }
-                let event = event.assume_init();
+		let mut midi_buffer = self.midi_buffer.borrow_mut();
+		midi_buffer.reset();
+		if let Some(input_events) = data.input_events.upgrade() {
+			let event_count = input_events.get_event_count();
+			let mut event = MaybeUninit::uninit();
+			for i in 0..event_count {
+				if input_events.get_event(i, event.as_mut_ptr()) != kResultOk {
+					continue;
+				}
+				let event = event.assume_init();
 
-                match event.type_ {
-
-                    _ => {}
-                }
-            }
-        }
+				match event.type_ {
+					NOTE_ON_EVENT => {
+						let note_on_event = &event.event.note_on;
+						midi_buffer.push(NoteEvent::NoteOn { 
+							channel: note_on_event.channel, 
+							sample_offset: event.sample_offset, 
+							pitch: note_on_event.pitch 
+						});
+					},
+					NOTE_OFF_EVENT => {
+						let note_off_event = &event.event.note_off;
+						midi_buffer.push(NoteEvent::NoteOn { 
+							channel: note_off_event.channel, 
+							sample_offset: event.sample_offset, 
+							pitch: note_off_event.pitch 
+						});
+					},
+					_ => {}
+				}
+			}
+		}
 
         let input = AudioBuffer::from_ptr((*data.inputs).buffers as *const *mut _, (*data.inputs).num_channels as usize, data.num_samples as usize);
         let mut output = AudioBuffer::from_ptr((*data.outputs).buffers as *const *mut _, (*data.outputs).num_channels as usize, data.num_samples as usize);
@@ -141,7 +165,8 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
         let context = ProcessContext {
             input: &input,
             output: &mut output,
-			rendering_offline: data.process_mode == ProcessModes::kOffline as i32
+			rendering_offline: data.process_mode == ProcessModes::kOffline as i32,
+			midi_input: &midi_buffer
         };
 
         self.plugin.borrow_mut().process(context, self.parameters.parameters_ref());
@@ -203,28 +228,56 @@ impl<P: Plugin> IComponent for Vst3Plugin<P> {
         }
 
         let info = &mut *info;
-        let matched_bus = P::AUDIO_LAYOUT.get(index as usize).and_then(|layout| {
-            const AUDIO: MediaType = MediaTypes::kAudio as MediaType;
-            const INPUT: BusDirection = BusDirections::kInput as BusDirection;
-            const OUTPUT: BusDirection = BusDirections::kOutput as BusDirection;
-            match (type_, dir) {
-                (AUDIO, INPUT) => layout.main_input.as_ref(),
-                (AUDIO, OUTPUT) => layout.main_output.as_ref(),
-                _ => None,
-            }
-        });
+		const AUDIO: MediaType = MediaTypes::kAudio as MediaType;
+		const EVENT: MediaType = MediaTypes::kEvent as MediaType;
+		const INPUT: BusDirection = BusDirections::kInput as BusDirection;	
+		const OUTPUT: BusDirection = BusDirections::kOutput as BusDirection;
 
-        if let Some(bus) = matched_bus {
-            info.channel_count = bus.channel.size() as i32;
-            info.direction = dir;
-            info.media_type = type_;
-            strcpyw(bus.name, &mut info.name);
-            info.bus_type = BusTypes::kMain as BusType;
-            info.flags = BusFlags::kDefaultActive as u32;
-            kResultOk
-        } else {
-            kInvalidArgument
-        }
+		match type_ {
+			AUDIO => {
+				let matched_bus = P::AUDIO_LAYOUT.get(index as usize)
+					.and_then(|layout| match dir {
+						INPUT => layout.main_input.as_ref(),
+						OUTPUT => layout.main_output.as_ref(),
+						_ => None,
+					});
+
+				if let Some(bus) = matched_bus {
+					info.channel_count = bus.channel.size() as i32;
+					info.direction = dir;
+					info.media_type = type_;
+					strcpyw(bus.name, &mut info.name);
+					info.bus_type = BusTypes::kMain as BusType;
+					info.flags = BusFlags::kDefaultActive as u32;
+					kResultOk
+				} else {
+					kInvalidArgument
+				}
+			},
+			EVENT => {
+				if dir == INPUT && P::ACCEPTS_MIDI {
+					info.channel_count = 16;
+					info.direction = INPUT;
+					info.media_type = EVENT;
+					strcpyw("MIDI in", &mut info.name);
+					info.bus_type = BusTypes::kMain as BusType;
+					info.flags = BusFlags::kDefaultActive as u32;
+					kResultOk
+				} else if dir == OUTPUT && P::PRODUCES_MIDI {
+					info.channel_count = 16;
+					info.direction = OUTPUT;
+					info.media_type = EVENT;
+					strcpyw("MIDI out", &mut info.name);
+					info.bus_type = BusTypes::kMain as BusType;
+					info.flags = BusFlags::kDefaultActive as u32;
+
+					kResultOk
+				} else {
+					kInvalidArgument	
+				}
+			},
+			_ => kInvalidArgument
+		}
     }
 
     unsafe fn get_routing_info(&self, _in_info: *mut RoutingInfo, _out_info: *mut RoutingInfo) -> tresult {

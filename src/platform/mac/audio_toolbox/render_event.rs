@@ -1,5 +1,6 @@
-use c_enum::c_enum;
 use objc2::{Encode, Encoding, RefEncode};
+
+use super::cf_enum;
 
 type AUEventSampleTime = i64;
 type AUParameterAddress = u64;
@@ -24,7 +25,7 @@ unsafe impl Encode for AURenderEventHeader {
     const ENCODING: Encoding = Encoding::Struct("AURenderEventHeader", &[]);
 }
 
-c_enum!(
+cf_enum!(
 	#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 	pub enum AURenderEventType: u8 {
 		AURenderEventParameter		= 1,
@@ -34,14 +35,6 @@ c_enum!(
 		AURenderEventMIDIEventList  = 10
 	}
 );
-
-unsafe impl Encode for AURenderEventType {
-    const ENCODING: Encoding = u8::ENCODING;
-}
-
-unsafe impl RefEncode for AURenderEventType {
-    const ENCODING_REF: Encoding = Encoding::Pointer(&Self::ENCODING);
-}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -60,6 +53,14 @@ pub struct AUParameterEvent {
 	parameter_address: AUParameterAddress,
 	/// If ramped, the parameter value at the end of the ramp; for a non-ramped event, the new value.
 	value: AUValue,				
+}
+
+unsafe impl Encode for AUParameterEvent {
+    const ENCODING: Encoding = u8::ENCODING;
+}
+
+unsafe impl RefEncode for AUParameterEvent {
+    const ENCODING_REF: Encoding = Encoding::Pointer(&Self::ENCODING);
 }
 
 #[repr(C)]

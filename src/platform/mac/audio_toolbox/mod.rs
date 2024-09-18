@@ -10,3 +10,4 @@ pub use audio_unit::*;
 pub use parameter_tree::*;
 pub use render_event::*;
 pub use audio_unit_bus_array::*;
+pub(super) use super::cf_enum;

@@ -3,14 +3,14 @@ use std::sync::mpsc::channel;
 use objc2::{rc::Retained, ClassType};
 use objc2_foundation::NSInteger;
 
-use crate::platform::{audio_toolbox::{AUAudioFrameCount, AUAudioUnitBus, AUAudioUnitStatus, AURenderPullInputBlock, AudioUnitRenderActionFlags}, av_foundation::AVAudioFormat, core_audio::{AudioBuffer, AudioBufferList, AudioTimeStamp}};
+use crate::platform::{audio_toolbox::{AUAudioFrameCount, AUAudioUnitBus, AUAudioUnitStatus, AURenderPullInputBlock, AudioUnitRenderActionFlags}, av_foundation::AVAudioFormat, core_audio};
 
 pub struct BusBuffer {
 	channel_count: usize,
 	max_frames: usize,
 	samples: Box<[f32]>,
-	buffers: Box<[AudioBuffer]>,
-	buffer_list: AudioBufferList,
+	buffers: Box<[core_audio::AudioBuffer]>,
+	buffer_list: core_audio::AudioBufferList,
 	bus: Retained<AUAudioUnitBus>,
 }
 
@@ -25,7 +25,7 @@ impl BusBuffer {
 
 		let mut buffers = Vec::new();
 		for _ in 0..channel_count {
-			buffers.push(AudioBuffer {
+			buffers.push(core_audio::AudioBuffer {
 				mNumberChannels: channel_count as _,
 				mDataByteSize: 0,
 				mData: std::ptr::null_mut(),
@@ -37,7 +37,7 @@ impl BusBuffer {
 			channel_count,
 			max_frames: 0,
 			samples: Box::new([]),
-			buffer_list: AudioBufferList {
+			buffer_list: core_audio::AudioBufferList {
 				mNumberBuffers: 0,
 				mBuffers: std::ptr::null_mut(),
 			},
@@ -65,14 +65,14 @@ impl BusBuffer {
 
 	pub fn pull_inputs(&mut self, 
 		action_flags: *mut AudioUnitRenderActionFlags, 
-		timestamp: *const AudioTimeStamp, 
+		timestamp: *const core_audio::AudioTimeStamp, 
 		frame_count: AUAudioFrameCount,
 		input_bus_number: NSInteger,
 		pull_input_block: Option<&AURenderPullInputBlock>
 	) -> AUAudioUnitStatus {
 		let Some(pull_input_block) = pull_input_block else { return -10876 }; // NoConnection 
 
-		pull_input_block.call((action_flags, timestamp, frame_count, input_bus_number, &mut self.buffer_list as *mut AudioBufferList))
+		pull_input_block.call((action_flags, timestamp, frame_count, input_bus_number, &mut self.buffer_list as *mut core_audio::AudioBufferList))
 	}
 
 	pub fn prepare_output_buffer_list(&self) {

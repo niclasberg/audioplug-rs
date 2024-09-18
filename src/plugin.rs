@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use crate::midi_buffer::MidiBuffer;
 use crate::param::Params;
 use crate::{AudioLayout, AudioBuffer};
 use crate::editor::Editor;
@@ -25,6 +26,7 @@ impl PluginInfo {
 pub struct ProcessContext<'a> {
     pub input: &'a AudioBuffer,
     pub output: &'a mut AudioBuffer,
+	pub midi_input: &'a MidiBuffer,
 	pub rendering_offline: bool,
 }
 
