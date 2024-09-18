@@ -10,6 +10,7 @@ rust-version = "1.81.0"
 members = ["examples/gain", "examples/synth"]
 
 [dependencies]
+async-task = "4.7.1"
 num = { version = "0.4.3" }
 bitflags = "2.6.0"
 vst3-sys = { git = "https://github.com/RustAudio/vst3-sys.git" }

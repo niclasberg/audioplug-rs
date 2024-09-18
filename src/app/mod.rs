@@ -48,9 +48,11 @@ pub struct App {
     native: platform::Application,
     pub(crate) state: Rc<RefCell<AppState>>,
 }
+
 impl App {
     pub fn new() -> Self {
-        Self::new_with_app_state(Rc::new(RefCell::new(AppState::new(()))))
+        let executor = Rc::new(platform::Executor::new().unwrap());
+        Self::new_with_app_state(Rc::new(RefCell::new(AppState::new((), executor))))
     }
 
     pub fn new_with_app_state(state: Rc<RefCell<AppState>>) -> Self {

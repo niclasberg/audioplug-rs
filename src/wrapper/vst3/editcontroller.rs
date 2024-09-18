@@ -12,7 +12,7 @@ use vst3_sys as vst3_com;
 
 use crate::app::{AppState, HostHandle};
 use crate::param::{NormalizedValue, ParamRef, ParameterId, Params, PlainValue};
-use crate::Editor;
+use crate::{platform, Editor};
 
 use super::plugview::PlugView;
 use super::util::strcpyw;
@@ -41,15 +41,17 @@ pub struct EditController<E: Editor> {
     editor: Rc<RefCell<E>>,
     host_context: Cell<Option<VstPtr<dyn IUnknown>>>,
     peer_connection: Cell<Option<VstPtr<dyn IConnectionPoint>>>,
+    executor: Rc<platform::Executor>,
 }
 
 impl<E: Editor> EditController<E> {
     pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 14] };
 
     pub fn new() -> Box<Self> {
-		let app_state = Rc::new(RefCell::new(AppState::new(E::Parameters::default())));
+        let executor = Rc::new(platform::Executor::new().unwrap());
+		let app_state = Rc::new(RefCell::new(AppState::new(E::Parameters::default(), executor.clone())));
 		let editor = Rc::new(RefCell::new(E::new()));
-        Self::allocate(app_state, editor, Cell::new(None), Cell::new(None))
+        Self::allocate(app_state, editor, Cell::new(None), Cell::new(None), executor)
     }
 
     pub fn create_instance() -> *mut c_void {
@@ -143,14 +145,16 @@ impl<E: Editor> IEditController for EditController<E> {
     }
 
     unsafe fn set_param_normalized(&self, id: u32, value: f64) -> tresult {
-        let mut app_state = RefCell::borrow_mut(&self.app_state);
         let id = ParameterId::new(id);
         let Some(value) = NormalizedValue::from_f64(value) else { return kInvalidArgument };
-		if app_state.set_normalized_parameter_value_from_host(id, value) {
-            kResultOk
-        } else {
-            kResultFalse
-        }
+
+        /*let weak_app_state = Rc::downgrade(&self.app_state);
+        self.executor.dispatch_on_main(move || {
+            if let Some(app_state) = weak_app_state.upgrade() {
+                app_state.borrow_mut().set_normalized_parameter_value_from_host(id, value);
+            }
+        });*/
+        kResultOk
     }
 
     unsafe fn set_component_handler(&self, handler: SharedVstPtr<dyn IComponentHandler>) -> tresult {

@@ -13,6 +13,7 @@ mod window;
 
 pub(crate) use application::Application;
 pub(crate) use audio::{AudioDevice, AudioHost};
+pub(crate) use executor::Executor;
 pub(crate) use handle::{Handle, HandleRef};
 pub(crate) use image::{ImageSource};
 pub(crate) use renderer::{Renderer, RendererRef};

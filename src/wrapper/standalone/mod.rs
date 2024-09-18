@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 use rtrb::{Consumer, Producer, RingBuffer};
 
-use crate::{app::{AppState, HostHandle, Window}, param::{NormalizedValue, ParameterId, ParameterInfo}, platform::AudioHost, App, Editor, Plugin};
+use crate::{app::{AppState, HostHandle, Window}, param::{NormalizedValue, ParameterId, ParameterInfo}, platform::{self, AudioHost}, App, Editor, Plugin};
 
 const SAMPLES_PER_BLOCK: usize = 128;
 
@@ -39,10 +39,10 @@ pub struct StandaloneApp<P: Plugin> {
 }
 
 impl<P: Plugin> StandaloneApp<P> {
-    pub fn new(parameter_updates: Producer<ParameterUpdate>) -> Self {
+    pub fn new(parameter_updates: Producer<ParameterUpdate>, executor: Rc<platform::Executor>) -> Self {
         let app_inner = Rc::new(RefCell::new(AppInner { parameter_updates }));
         let host_handle = StandaloneHostHandle { app_inner: app_inner.clone() };
-        let mut app_state = AppState::new(P::Parameters::default());
+        let mut app_state = AppState::new(P::Parameters::default(), executor);
         app_state.set_host_handle(Some(Box::new(host_handle)));
 
         let state = Rc::new(RefCell::new(app_state));
@@ -87,13 +87,13 @@ impl<P: Plugin> AudioProcessor<P> {
 
         self.plugin.reset(sample_rate as f64, SAMPLES_PER_BLOCK);
     }
-
 }
 
 pub fn standalone_main<P: Plugin>() {
+    let executor = Rc::new(platform::Executor::new().unwrap());
     let (producer, consumer) = RingBuffer::new(1024);
     let processor = AudioProcessor::<P>::new(consumer);
-    let app = StandaloneApp::<P>::new(producer);
+    let app = StandaloneApp::<P>::new(producer, executor);
     processor.start();
     app.run();
 }

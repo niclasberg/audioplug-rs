@@ -1,4 +1,4 @@
-use std::{any::Any, collections::VecDeque, ops::DerefMut, rc::Weak};
+use std::{any::Any, collections::VecDeque, ops::DerefMut, rc::{Rc, Weak}};
 use slotmap::{Key, SecondaryMap, SlotMap};
 use crate::{core::{Point, Rectangle}, param::{AnyParameter, AnyParameterMap, NormalizedValue, ParamRef, ParameterId, Params, PlainValue}, platform};
 
@@ -59,10 +59,11 @@ pub struct AppState {
     pub(super) focus_widget: Option<WidgetId>,
     pub(super) runtime: Runtime,
     host_handle: Option<Box<dyn HostHandle>>,
+    executor: Rc<platform::Executor>
 }
 
 impl AppState {
-    pub fn new(parameters: impl Params + Any) -> Self {
+    pub fn new(parameters: impl Params + Any, executor: Rc<platform::Executor>) -> Self {
         Self {
             widget_data: Default::default(),
             widgets: Default::default(),
@@ -71,7 +72,8 @@ impl AppState {
             mouse_capture_widget: None,
             focus_widget: None,
             runtime: Runtime::new(parameters),
-            host_handle: None
+            host_handle: None,
+            executor
         }
     }
 
