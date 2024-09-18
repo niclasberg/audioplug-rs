@@ -48,7 +48,7 @@ impl Window {
 		let mtm = MainThreadMarker::new().unwrap();
 		let parent = unsafe { &*(handle.ns_view.as_ptr() as *mut NSView) };
 		let frame = parent.frame();
-		let view = View::new(mtm, widget, None);
+		let view = View::new(mtm, widget, Some(frame));
 		unsafe { 
 			parent.addSubview(&view);
 			view.setNeedsDisplay(true);
