@@ -17,7 +17,6 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
         };
         let mut ctx = LayoutContext { app_state };
         taffy::compute_root_layout(&mut ctx, widget_id.into(), available_space);
-		taffy::print_tree(&mut ctx, widget_id.into());
     }
 
     update_node_origins(app_state, widget_id);

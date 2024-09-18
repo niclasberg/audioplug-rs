@@ -55,7 +55,7 @@ impl Widget for ButtonWidget {
 
     fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         match event {
-            MouseEvent::Down { button, position } if ctx.bounds().contains(position) => {
+            MouseEvent::Down { button, position } | MouseEvent::DoubleClick { button, position } if ctx.bounds().contains(position) => {
                 if button == MouseButton::LEFT {
                     println!("Down");
                     self.mouse_down = true;

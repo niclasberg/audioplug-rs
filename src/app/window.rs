@@ -4,11 +4,14 @@ use std::rc::Rc;
 
 use raw_window_handle::RawWindowHandle;
 
-use crate::app::{handle_window_event, layout_window, render_window, AppState, Runtime, Signal, SignalContext, WindowId};
+use crate::app::{handle_window_event, layout_window, render_window, AppState, Runtime, Signal, SignalGetContext, WindowId};
 use crate::core::{Cursor, Point, Rectangle};
+use crate::param::{ParamRef, ParameterId};
 use crate::platform::{WindowEvent, WindowHandler};
 use crate::view::View;
 use crate::{platform, App};
+
+use super::{NodeId, SignalContext};
 
 struct PreInit<F>(F);
 struct Constructed(WindowId);
@@ -142,26 +145,28 @@ impl<'a> AppContext<'a> {
 	}
 }
 
+impl<'b> SignalGetContext for AppContext<'b> {
+    fn get_signal_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any {
+        self.app_state.get_signal_value_ref_untracked(signal_id)
+    }
+
+    fn get_signal_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
+        self.app_state.get_signal_value_ref(signal_id)
+    }
+	
+	fn get_parameter_ref_untracked(&self, parameter_id: ParameterId) -> ParamRef {
+		self.app_state.get_parameter_ref_untracked(parameter_id)
+	}
+	
+	fn get_parameter_ref(&mut self, parameter_id: ParameterId) -> ParamRef {
+		self.app_state.get_parameter_ref(parameter_id)
+	}
+}
+
 impl<'b> SignalContext for AppContext<'b> {
-    fn get_signal_value_ref_untracked<'a, T: Any>(&'a self, signal: &Signal<T>) -> &'a T {
-        self.app_state.get_signal_value_ref_untracked(signal)
-    }
-
-    fn get_signal_value_ref<'a, T: Any>(&'a mut self, signal: &Signal<T>) -> &'a T {
-        self.app_state.get_signal_value_ref(signal)
-    }
-
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
         self.app_state.set_signal_value(signal, value)
     }
-	
-	fn get_parameter_value_untracked<T: Any>(&self, parameter: &super::ParamSignal<T>) -> T {
-		self.app_state.get_parameter_value_untracked(parameter)
-	}
-	
-	fn get_parameter_value<T: Any>(&mut self, parameter: &super::ParamSignal<T>) -> T {
-		self.app_state.get_parameter_value(parameter)
-	}
 }
 
 pub struct Window(platform::Window);

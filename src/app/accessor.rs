@@ -1,10 +1,10 @@
 use crate::param::ParameterId;
-use super::{signal::MappedSignal, Memo, NodeId, ParamSignal, Signal, SignalGet};
+use super::{signal::MappedSignal, Memo, NodeId, ParamSignal, Signal, SignalGet, SignalGetContext};
 
 pub(super) trait MappedAccessor<T>: CloneMappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;
-    fn get_ref(&self) -> &T;
-    fn get_ref_untracked(&self) -> &T;
+    fn get_ref(&self, ctx: &mut dyn SignalGetContext) -> T;
+    fn get_ref_untracked(&self, ctx: &dyn SignalGetContext) -> T;
 }
 
 pub(super) trait CloneMappedAccessor<T> {
@@ -95,23 +95,23 @@ impl From<&str> for Accessor<String> {
 impl<T: 'static> SignalGet for Accessor<T> {
     type Value = T;
 
-    fn with_ref<R>(&self, cx: &mut impl super::SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+    fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         match self {
             Accessor::Signal(signal) => signal.with_ref(cx, f),
             Accessor::Memo(memo) => memo.with_ref(cx, f),
             Accessor::Const(value) => f(value),
 			Accessor::Parameter(param) => param.with_ref(cx, f),
-            Accessor::Mapped(mapped) => f(mapped.get_ref())
+            Accessor::Mapped(mapped) => f(&mapped.get_ref(cx))
         }
     }
 
-    fn with_ref_untracked<R>(&self, cx: &impl super::SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+    fn with_ref_untracked<R>(&self, cx: &dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         match self {
             Accessor::Signal(signal) => signal.with_ref_untracked(cx, f),
             Accessor::Memo(memo) => memo.with_ref_untracked(cx, f),
             Accessor::Const(value) => f(value),
 			Accessor::Parameter(param) => param.with_ref_untracked(cx, f),
-            Accessor::Mapped(mapped) => f(mapped.get_ref_untracked())
+            Accessor::Mapped(mapped) => f(&mapped.get_ref_untracked(cx))
         }
     }
 }

@@ -2,9 +2,9 @@ use std::{any::Any, collections::{HashMap, HashSet, VecDeque}, rc::Rc};
 
 use slotmap::{SecondaryMap, SlotMap};
 
-use crate::param::{AnyParameter, AnyParameterMap, Parameter, ParameterId, ParameterMap, Params};
+use crate::param::{AnyParameter, AnyParameterMap, ParamRef, Parameter, ParameterId, ParameterMap, Params};
 
-use super::{app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, param::ParamSignal, signal::SignalState, Memo, NodeId, Signal, SignalContext};
+use super::{app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, param::ParamSignal, signal::SignalState, Memo, NodeId, Signal, SignalContext, SignalGetContext};
 
 struct Node {
     node_type: NodeType,
@@ -238,33 +238,31 @@ impl Runtime {
     }
 }
 
-impl SignalContext for Runtime {
-    fn get_signal_value_ref_untracked<'a, T: Any>(&'a self, signal: &Signal<T>) -> &'a T {
-        let node = self.nodes.get(signal.id).expect("No Signal found");
+impl SignalGetContext for Runtime {
+    fn get_signal_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any {
+        let node = self.nodes.get(signal_id).expect("No Signal found");
         match &node.node_type {
-            NodeType::Signal(signal) => signal.value.downcast_ref().expect("Node had wrong value type"),
+            NodeType::Signal(signal) => signal.value.as_ref(),
             _ => unreachable!()
         }
     }
 
-    fn get_signal_value_ref<'a, T: Any>(&'a mut self, signal: &Signal<T>) -> &'a T {
-        self.track(signal.id);
-        self.get_signal_value_ref_untracked(signal)
+    fn get_signal_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
+        self.track(signal_id);
+        self.get_signal_value_ref_untracked(signal_id)
     }
 
-    fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
-        self.update_signal_value(signal, move |x| { *x = value });
-    }
-
-    fn get_parameter_value<T: Any>(&mut self, parameter: &ParamSignal<T>) -> T {
-        self.get_parameter_value_untracked(parameter)
+    fn get_parameter_ref(&mut self, parameter_id: ParameterId) -> ParamRef {
+        self.get_parameter_ref_untracked(parameter_id)
     }
     
-    fn get_parameter_value_untracked<T: Any>(&self, parameter: &ParamSignal<T>) -> T {
-        if let Some(p) = self.parameters.get_by_id(parameter.id) {
-			p.value_as().unwrap()
-        } else {
-            unreachable!()
-        }
+    fn get_parameter_ref_untracked(&self, parameter_id: ParameterId) -> ParamRef {
+        self.parameters.get_by_id(parameter_id).expect("Invalid parameter id")
+    }
+}
+
+impl SignalContext for Runtime {
+    fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
+        self.update_signal_value(signal, move |x| { *x = value });
     }
 }

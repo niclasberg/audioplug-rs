@@ -2,7 +2,7 @@ use std::{any::Any, marker::PhantomData};
 
 use crate::param::{AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue};
 
-use super::{HostHandle, SignalGet};
+use super::{HostHandle, SignalGet, SignalGetContext};
 
 pub trait ParamContext {
 	fn host_handle(&self) -> &dyn HostHandle;
@@ -93,17 +93,20 @@ impl ParamSignal<NormalizedValue> {
 impl<T: Any> SignalGet for ParamSignal<T> {
 	type Value = T;
 
-	fn with_ref<R>(&self, cx: &mut impl super::SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-		let value = cx.get_parameter_value(&self);
+	fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+		let param_ref = cx.get_parameter_ref(self.id);
+		let value = param_ref.value_as().unwrap();
 		f(&value)
 	}
 
-	fn with_ref_untracked<R>(&self, cx: &impl super::SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-		let value = cx.get_parameter_value_untracked(&self);
+	fn with_ref_untracked<R>(&self, cx: &dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+		let param_ref = cx.get_parameter_ref_untracked(self.id);
+		let value = param_ref.value_as().unwrap();
 		f(&value)
 	}
 	
-	fn get(&self, cx: &mut impl super::SignalContext) -> Self::Value where Self::Value: Clone {
-		cx.get_parameter_value(&self)
+	fn get(&self, cx: &mut dyn SignalGetContext) -> Self::Value where Self::Value: Clone {
+		let param_ref = cx.get_parameter_ref_untracked(self.id);
+		param_ref.value_as().unwrap()
 	}
 }

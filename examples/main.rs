@@ -13,7 +13,7 @@ fn main() {
     let _ = Window::open(&mut app, |ctx| {  
         let checkbox_enabled = ctx.create_signal(false);
         let text = ctx.create_signal("".to_string());
-        let slider_value = ctx.create_signal(0.0);
+        let slider_value = ctx.create_signal(20.0);
         
         Column::new((
             Rectangle::new(Point::ZERO, Size::new(50.0, 10.0)).fill(Color::BLUE),
@@ -52,7 +52,7 @@ fn main() {
                     .on_input(move |cx, str| text.set(cx, str.to_string()))
             )).with_spacing(5.0)
         )).with_alignment(Alignment::Leading)
-        .with_spacing(5.0)
+        .spacing(5.0)
     });
 
     app.run();

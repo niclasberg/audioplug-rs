@@ -32,9 +32,8 @@ use slotmap::new_key_type;
 pub use widget::{EventStatus, StatusChange, Widget};
 pub use widget_node::{WidgetData, WidgetRef, WidgetMut, WidgetId};
 pub use window::{AppContext, Window};
-pub(crate) use window::MyHandler;
 
-use crate::platform;
+use crate::{param::{ParamRef, ParameterId}, platform};
 
 new_key_type! {
     pub struct NodeId;
@@ -65,11 +64,14 @@ impl App {
     }
 }
 
-pub trait SignalContext {
-    fn get_signal_value_ref_untracked<'a, T: Any>(&'a self, signal: &Signal<T>) -> &'a T;
-    fn get_signal_value_ref<'a, T: Any>(&'a mut self, signal: &Signal<T>) -> &'a T;
-    fn get_parameter_value_untracked<T: Any>(&self, parameter: &ParamSignal<T>) -> T;
-    fn get_parameter_value<T: Any>(&mut self, parameter: &ParamSignal<T>) -> T;
+pub trait SignalGetContext {
+    fn get_signal_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any;
+    fn get_signal_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any;
+    fn get_parameter_ref_untracked<'a>(&'a self, parameter_id: ParameterId) -> ParamRef<'a>;
+    fn get_parameter_ref<'a>(&'a mut self, parameter_id: ParameterId) -> ParamRef<'a>;
+}
+
+pub trait SignalContext: SignalGetContext {
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T);
 }
 
@@ -79,10 +81,10 @@ pub trait SignalGet {
     type Value;
 
     /// Map the current value using `f` and subscribe to changes
-    fn with_ref<R>(&self, cx: &mut impl SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R;
+    fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R;
 
     /// Get the current value and subscribe to changes
-    fn get(&self, cx: &mut impl SignalContext) -> Self::Value
+    fn get(&self, cx: &mut dyn SignalGetContext) -> Self::Value
     where
         Self::Value: Clone,
     {
@@ -91,11 +93,11 @@ pub trait SignalGet {
 
     fn with_ref_untracked<R>(
         &self,
-        cx: &impl SignalContext,
+        cx: &dyn SignalGetContext,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R;
 
-    fn get_untracked(&self, cx: &impl SignalContext) -> Self::Value
+    fn get_untracked(&self, cx: &dyn SignalGetContext) -> Self::Value
     where
         Self::Value: Clone,
     {
@@ -115,13 +117,13 @@ where
 {
     type Value = B;
 
-    fn with_ref<R>(&self, cx: &mut impl SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+    fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         f(&self.source.with_ref(cx, |x| (self.f)(x)))
     }
 
     fn with_ref_untracked<R>(
         &self,
-        cx: &impl SignalContext,
+        cx: &dyn SignalGetContext,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
         f(&self.source.with_ref_untracked(cx, |x| (self.f)(x)))
@@ -138,11 +140,7 @@ pub trait SignalSet {
 
     /// Set the current value, notifies subscribers
     fn set_with(&self, cx: &mut impl SignalContext, f: impl FnOnce() -> Self::Value);
-}
-
-pub trait SignalUpdate {
-    type Value;
 
     /// Set the current value, notifies subscribers
     fn update(&self, cx: &mut impl SignalContext, f: impl FnOnce(&mut Self::Value));
-}   
+}

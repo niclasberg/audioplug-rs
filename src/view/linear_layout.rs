@@ -24,7 +24,7 @@ impl<VS: ViewSequence> Column<VS> {
         self
     }
 
-    pub fn with_spacing(mut self, spacing: f64) -> Self {
+    pub fn spacing(mut self, spacing: f64) -> Self {
         self.spacing = spacing;
         self
     }

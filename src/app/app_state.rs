@@ -2,7 +2,7 @@ use std::{any::Any, collections::VecDeque, ops::DerefMut, rc::Weak};
 use slotmap::{Key, SecondaryMap, SlotMap};
 use crate::{core::{Point, Rectangle}, param::{AnyParameter, AnyParameterMap, NormalizedValue, ParamRef, ParameterId, Params, PlainValue}, platform};
 
-use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, layout_window, memo::{Memo, MemoState}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, ParamContext, ParamEditor, Runtime, Scope, SignalContext, SignalGet, Widget, WindowId};
+use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, layout_window, memo::{Memo, MemoState}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, ParamContext, ParamEditor, Runtime, Scope, SignalContext, SignalGet, SignalGetContext, Widget, WindowId};
 use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
@@ -240,7 +240,7 @@ impl AppState {
             }
 
             let data = &self.widget_data[current];
-            for child in self.widget_data[current].children.iter().rev() {
+            for child in self.widget_data[current].children.iter() {
                 if data.global_bounds().contains(pos) {
                     stack.push(*child)
                 }
@@ -303,26 +303,28 @@ impl AppState {
     }
 }
 
+impl SignalGetContext for AppState {
+    fn get_signal_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any {
+        self.runtime.get_signal_value_ref_untracked(signal_id)
+    }
+
+    fn get_signal_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
+        self.runtime.get_signal_value_ref(signal_id)
+    }
+	
+	fn get_parameter_ref_untracked(&self, parameter_id: ParameterId) -> ParamRef {
+		self.runtime.get_parameter_ref_untracked(parameter_id)
+	}
+	
+	fn get_parameter_ref(&mut self, parameter_id: ParameterId) -> ParamRef {
+		self.runtime.get_parameter_ref(parameter_id)
+	}
+}
+
 impl SignalContext for AppState {
-    fn get_signal_value_ref_untracked<'a, T: Any>(&'a self, signal: &Signal<T>) -> &'a T {
-        self.runtime.get_signal_value_ref_untracked(signal)
-    }
-
-    fn get_signal_value_ref<'a, T: Any>(&'a mut self, signal: &Signal<T>) -> &'a T {
-        self.runtime.get_signal_value_ref(signal)
-    }
-
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
         self.runtime.set_signal_value(signal, value)
     }
-	
-	fn get_parameter_value_untracked<T: Any>(&self, parameter: &super::ParamSignal<T>) -> T {
-		self.runtime.get_parameter_value_untracked(parameter)
-	}
-	
-	fn get_parameter_value<T: Any>(&mut self, parameter: &super::ParamSignal<T>) -> T {
-		self.runtime.get_parameter_value(parameter)
-	}
 }
 
 impl ParamContext for AppState {

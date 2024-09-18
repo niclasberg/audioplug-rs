@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{accessor::{MappedAccessor, SourceId}, NodeId, SignalContext, SignalGet, SignalSet, SignalUpdate};
+use super::{accessor::{MappedAccessor, SourceId}, NodeId, SignalContext, SignalGet, SignalGetContext, SignalSet};
 
 #[derive(Clone, Copy)]
 pub struct Signal<T> {
@@ -36,10 +36,6 @@ impl<T: Any> SignalSet for Signal<T> {
     fn set_with(&self, cx: &mut impl SignalContext, f: impl FnOnce() -> Self::Value) {
         cx.set_signal_value(self, f())
     }
-}
-
-impl<T: Any> SignalUpdate for Signal<T> {
-    type Value = T;
 
     fn update(&self, _cx: &mut impl SignalContext, _f: impl FnOnce(&mut Self::Value)) {
         //cx.update_signal_value(self, f)
@@ -50,12 +46,14 @@ impl<T: Any> SignalUpdate for Signal<T> {
 impl<T: 'static> SignalGet for Signal<T> {
     type Value = T;
 
-    fn with_ref<R>(&self, cx: &mut impl SignalContext, f: impl FnOnce(&T) -> R) -> R {
-        f(cx.get_signal_value_ref(self))
+    fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&T) -> R) -> R {
+        let value = cx.get_signal_value_ref(self.id).downcast_ref().expect("Signal had wrong type");
+        f(value)
     }
 
-    fn with_ref_untracked<R>(&self, cx: &impl SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-        f(cx.get_signal_value_ref_untracked(self))
+    fn with_ref_untracked<R>(&self, cx: &dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+        let value = cx.get_signal_value_ref_untracked(self.id).downcast_ref().expect("Signal had wrong type");
+        f(value)
     }
 }
 
@@ -88,11 +86,11 @@ where
 {
     type Value = B;
 
-    fn with_ref<R>(&self, cx: &mut impl SignalContext, f: impl FnOnce(&B) -> R) -> R {
+    fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&B) -> R) -> R {
         f(&self.parent.with_ref(cx, |x| (self.f)(x)))
     }
 
-    fn with_ref_untracked<R>(&self, cx: &impl SignalContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+    fn with_ref_untracked<R>(&self, cx: &dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         f(&self.parent.with_ref_untracked(cx, |x| (self.f)(x)))
     }
 }
@@ -107,12 +105,12 @@ where
         SourceId::Node(self.parent.id)
     }
 
-    fn get_ref(&self) -> &B {
-        todo!()
+    fn get_ref(&self, ctx: &mut dyn SignalGetContext) -> B {
+        self.parent.with_ref(ctx, &self.f)
     }
 
-    fn get_ref_untracked(&self) -> &B {
-        todo!()
+    fn get_ref_untracked(&self, ctx: &dyn SignalGetContext) -> B {
+        self.parent.with_ref_untracked(ctx, &self.f)
     }
 }
 
