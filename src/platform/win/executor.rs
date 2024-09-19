@@ -48,7 +48,7 @@ pub struct Executor {
 
 impl Executor {
     pub fn new() -> Result<Self> {
-        /*let instance = unsafe { GetModuleHandleW(None)? };
+        let instance = unsafe { GetModuleHandleW(None)? };
         REGISTER_WINDOW_CLASS.call_once(|| {
             let class = WNDCLASSW {
                 lpszClassName: WINDOW_CLASS,
@@ -57,12 +57,12 @@ impl Executor {
                 ..WNDCLASSW::default()
             };
             assert_ne!(unsafe { RegisterClassW(&class) }, 0, "Unable to register window class");
-        });*/
+        });
 
         let (sender, receiver) = mpsc::channel();
 
         let inner = Rc::new(Inner{receiver});
-        let hwnd = HWND(std::ptr::null_mut());/*unsafe {
+        let hwnd = unsafe {
             CreateWindowExW(
                 WINDOW_EX_STYLE::default(), 
                 WINDOW_CLASS, 
@@ -76,7 +76,7 @@ impl Executor {
                 None, 
                 None, 
                 Some(Rc::into_raw(inner.clone()) as _))?
-        };*/
+        };
 
         Ok(Self {
             hwnd,

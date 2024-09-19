@@ -19,7 +19,7 @@ use super::util::strcpyw;
 
 struct VST3HostHandle {
     component_handler: VstPtr<dyn IComponentHandler>,
-    executor: Rc<platform::Executor>
+	is_editing_parameters_from_gui: Rc<Cell<bool>>
 }
 
 impl HostHandle for VST3HostHandle {
@@ -32,7 +32,9 @@ impl HostHandle for VST3HostHandle {
     }
 
     fn perform_edit(&self, info: &dyn crate::param::ParameterInfo, value: NormalizedValue) {
+		self.is_editing_parameters_from_gui.replace(true);
         unsafe { self.component_handler.perform_edit(info.id().into(), value.into()) };
+		self.is_editing_parameters_from_gui.replace(false);
     }
 }
 
@@ -43,6 +45,7 @@ pub struct EditController<E: Editor> {
     host_context: Cell<Option<VstPtr<dyn IUnknown>>>,
     peer_connection: Cell<Option<VstPtr<dyn IConnectionPoint>>>,
     executor: Rc<platform::Executor>,
+	is_editing_parameters_from_gui: Rc<Cell<bool>>
 }
 
 impl<E: Editor> EditController<E> {
@@ -52,7 +55,8 @@ impl<E: Editor> EditController<E> {
         let executor = Rc::new(platform::Executor::new().unwrap());
 		let app_state = Rc::new(RefCell::new(AppState::new(E::Parameters::default(), executor.clone())));
 		let editor = Rc::new(RefCell::new(E::new()));
-        Self::allocate(app_state, editor, Cell::new(None), Cell::new(None), executor)
+		let is_editing_parameters = Rc::new(Cell::new(false));
+        Self::allocate(app_state, editor, Cell::new(None), Cell::new(None), executor, is_editing_parameters)
     }
 
     pub fn create_instance() -> *mut c_void {
@@ -146,19 +150,25 @@ impl<E: Editor> IEditController for EditController<E> {
     }
 
     unsafe fn set_param_normalized(&self, id: u32, value: f64) -> tresult {
-        let id = ParameterId::new(id);
-        let Some(value) = NormalizedValue::from_f64(value) else { return kInvalidArgument };
-        let mut app_state = self.app_state.borrow_mut();
-        if app_state.set_normalized_parameter_value_from_host(id, value) {
-            kResultOk
-        } else {
-            kInvalidArgument
-        }
+		// Avoid re-entrancy issues when setting a parameter from the ui
+		if self.is_editing_parameters_from_gui.get() {
+			return kResultOk;
+		}
+
+		let id = ParameterId::new(id);
+		let Some(value) = NormalizedValue::from_f64(value) else { return kInvalidArgument };
+		let mut app_state = self.app_state.borrow_mut();
+		if app_state.set_normalized_parameter_value_from_host(id, value) {
+			kResultOk
+		} else {
+			kInvalidArgument
+		}
     }
 
     unsafe fn set_component_handler(&self, handler: SharedVstPtr<dyn IComponentHandler>) -> tresult {
-        if let Some(handle) = handler.upgrade() {
-            let handle = Box::new(VST3HostHandle { component_handler: handle, executor: self.executor.clone() });
+        if let Some(component_handler) = handler.upgrade() {
+			let is_editing_parameters = self.is_editing_parameters_from_gui.clone();
+            let handle = Box::new(VST3HostHandle { component_handler, is_editing_parameters_from_gui: is_editing_parameters });
             self.app_state.borrow_mut().set_host_handle(Some(handle));
         } else {
             self.app_state.borrow_mut().set_host_handle(None);

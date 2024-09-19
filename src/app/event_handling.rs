@@ -7,6 +7,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         WindowEvent::Resize { .. } => {
             layout_window(app_state, window_id);
             invalidate_window(app_state, window_id);
+			return;
         }
         WindowEvent::Mouse(mouse_event) => {
             match mouse_event {

@@ -4,7 +4,7 @@ use block2::RcBlock;
 use objc2::rc::Retained;
 use objc2_app_kit::NSView;
 use objc2_foundation::{CGSize, MainThreadMarker, NSError};
-use crate::{app::{AppState, HostHandle, MyHandler}, param::{NormalizedValue, ParameterId, ParameterInfo, PlainValue}, platform::{audio_toolbox::{AUParameterAddress, AUParameterAutomationEventType, AUParameterObserverToken, AUParameterTree, AUValue}, dispatch::create_block_dispatching_to_main2, view::View}, Editor, Plugin};
+use crate::{app::{AppState, HostHandle, MyHandler}, param::{NormalizedValue, ParameterId, ParameterInfo, PlainValue}, platform::{self, audio_toolbox::{AUParameterAddress, AUParameterAutomationEventType, AUParameterObserverToken, AUParameterTree, AUValue}, dispatch::create_block_dispatching_to_main2, view::View}, Editor, Plugin};
 use crate::platform::mac::audio_toolbox::{AUAudioUnit, AudioComponentDescription};
 use super::MyAudioUnit;
 
@@ -49,7 +49,8 @@ pub struct ViewController<P: Plugin> {
 
 impl<P: Plugin + 'static> ViewController<P> {
 	pub fn new() -> Self {
-		let app_state =  Rc::new(RefCell::new(AppState::new(P::Parameters::default())));
+		let executor = Rc::new(platform::Executor::new().unwrap());
+		let app_state =  Rc::new(RefCell::new(AppState::new(P::Parameters::default(), executor)));
 		let editor = Rc::new(RefCell::new(P::Editor::new()));
 		let parameter_observer = {
 			let weak_app_state = Rc::downgrade(&app_state);
