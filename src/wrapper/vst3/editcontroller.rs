@@ -19,6 +19,7 @@ use super::util::strcpyw;
 
 struct VST3HostHandle {
     component_handler: VstPtr<dyn IComponentHandler>,
+    executor: Rc<platform::Executor>
 }
 
 impl HostHandle for VST3HostHandle {
@@ -147,19 +148,17 @@ impl<E: Editor> IEditController for EditController<E> {
     unsafe fn set_param_normalized(&self, id: u32, value: f64) -> tresult {
         let id = ParameterId::new(id);
         let Some(value) = NormalizedValue::from_f64(value) else { return kInvalidArgument };
-
-        /*let weak_app_state = Rc::downgrade(&self.app_state);
-        self.executor.dispatch_on_main(move || {
-            if let Some(app_state) = weak_app_state.upgrade() {
-                app_state.borrow_mut().set_normalized_parameter_value_from_host(id, value);
-            }
-        });*/
-        kResultOk
+        let mut app_state = self.app_state.borrow_mut();
+        if app_state.set_normalized_parameter_value_from_host(id, value) {
+            kResultOk
+        } else {
+            kInvalidArgument
+        }
     }
 
     unsafe fn set_component_handler(&self, handler: SharedVstPtr<dyn IComponentHandler>) -> tresult {
         if let Some(handle) = handler.upgrade() {
-            let handle = Box::new(VST3HostHandle { component_handler: handle });
+            let handle = Box::new(VST3HostHandle { component_handler: handle, executor: self.executor.clone() });
             self.app_state.borrow_mut().set_host_handle(Some(handle));
         } else {
             self.app_state.borrow_mut().set_host_handle(None);
@@ -175,7 +174,7 @@ impl<E: Editor> IEditController for EditController<E> {
 
 impl<E: Editor> IPluginBase for EditController<E> {
     unsafe fn initialize(&self, context: *mut c_void) -> tresult {
-        let old_host_context = self.host_context.take();
+        /*let old_host_context = self.host_context.take();
         if old_host_context.is_some() {
             self.host_context.set(old_host_context);
             return kResultFalse;
@@ -186,13 +185,14 @@ impl<E: Editor> IPluginBase for EditController<E> {
             kResultOk
         } else {
             kInvalidArgument
-        }
+        }*/
+        kResultOk
     }
 
     unsafe fn terminate(&self) -> tresult {
-        self.host_context.replace(None);
+        //self.host_context.replace(None);
         // Clear in case the host did not call disconnect
-        self.peer_connection.take();
+        //self.peer_connection.take();
         kResultOk
     }
 }
@@ -200,14 +200,14 @@ impl<E: Editor> IPluginBase for EditController<E> {
 impl<E: Editor> IConnectionPoint for EditController<E> {
 	unsafe fn connect(&self, other: SharedVstPtr<dyn IConnectionPoint>) -> tresult {
         if let Some(other) = other.upgrade() {
-            self.peer_connection.set(Some(other));
+            //self.peer_connection.set(Some(other));
             //other.notify(message)
         }
 		kResultOk
 	}
 
 	unsafe fn disconnect(&self, _other: SharedVstPtr<dyn IConnectionPoint>) -> tresult {
-        self.peer_connection.take();
+        //self.peer_connection.take();
 		kResultOk
 	}
 

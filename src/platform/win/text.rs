@@ -58,8 +58,8 @@ impl TextLayout {
 
     pub fn set_max_size(&mut self, size: Size) {
         unsafe {
-            self.text_layout.SetMaxWidth(size.width as f32).ok().unwrap();
-            self.text_layout.SetMaxHeight(size.height as f32).ok().unwrap();
+            let _ = self.text_layout.SetMaxWidth(size.width as f32);//.ok().unwrap();
+            let _ = self.text_layout.SetMaxHeight(size.height as f32); //.ok().unwrap();
         }
     }
 

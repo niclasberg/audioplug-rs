@@ -86,7 +86,7 @@ where
 		let state = state.initialize(&mut app_state, handle);
 		let _ = std::mem::replace(&mut self.state, state);
 
-        layout_window(&mut app_state, self.state.window_id());
+        //layout_window(&mut app_state, self.state.window_id());
     }
 
     fn event(&mut self, event: WindowEvent) {
