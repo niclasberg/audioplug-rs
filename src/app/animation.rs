@@ -1,13 +1,10 @@
-use num::Float;
+use super::AppState;
 
-pub trait Animation {
-    fn tick(&mut self, delta_t: f64) -> Option<f64>;
+pub fn drive_animations(app_state: &mut AppState) {
+
 }
 
-pub struct SpringAnimation {
-    x: f64,
-    xdot: f64,
-    end: f64,
-    mass: f64,
-    stiffness: f64
+pub struct AnimationContext {
+
 }
+

@@ -49,9 +49,17 @@ pub trait Plugin {
     const PRODUCES_MIDI: bool = false;
 
     fn new() -> Self;
-    fn reset(&mut self, sample_rate: f64, max_buffer_size: usize);
 
+    /// Called before processing starts. If you need to allocate memory for internal buffers,
+    /// this is where to do it. [`max_buffer_size`] is the maximal number of samples that
+    /// the host can request to be processed in a single call to [process].
+    fn prepare(&mut self, sample_rate: f64, max_buffer_size: usize);
+
+    /// 
     fn process(&mut self, context: ProcessContext, parameters: &Self::Parameters);
+
+    /// Called when the plugin should reset internal buffers and voices (???)
+    fn reset(&mut self) {}
 
     /// Length of the tail of the signal from the plugin. This can be thought of as the 
     /// time it takes for the plugin to go silent when no more input is given. A good example

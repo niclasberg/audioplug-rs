@@ -1,4 +1,5 @@
 mod accessor;
+mod animation;
 mod app_state;
 mod binding;
 mod contexts;
@@ -28,19 +29,19 @@ pub use param::{ParamContext, ParamEditor, ParamSignal};
 pub use render::{RenderContext, render_window, invalidate_window};
 pub use runtime::*;
 pub use signal::Signal;
-use slotmap::new_key_type;
 pub use widget::{EventStatus, StatusChange, Widget};
 pub use widget_node::{WidgetData, WidgetRef, WidgetMut, WidgetId};
 pub use window::{AppContext, Window};
+#[cfg(target_os  ="macos")]
 pub(crate) use window::MyHandler;
 
 use crate::{param::{ParamRef, ParameterId}, platform};
 
-new_key_type! {
+slotmap::new_key_type! {
     pub struct NodeId;
 }
 
-new_key_type! {
+slotmap::new_key_type! {
     pub struct WindowId;
 }
 

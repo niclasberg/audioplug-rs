@@ -59,7 +59,10 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         }
         WindowEvent::Unfocused => {
             set_focus_widget(app_state, None);
-        }
+        },
+        WindowEvent::Animation(frame) => {
+
+        },
         _ => {}
     };
 

@@ -66,7 +66,7 @@ impl Plugin for MyPlugin {
         Self {}
     }
 
-    fn reset(&mut self, _sample_rate: f64, _max_samples_per_frame: usize) {
+    fn prepare(&mut self, _sample_rate: f64, _max_samples_per_frame: usize) {
         
     }
 

@@ -89,11 +89,16 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
 
     unsafe fn setup_processing(&self, setup: *const ProcessSetup) -> tresult {
         let setup = &*setup;
-        self.plugin.borrow_mut().reset(setup.sample_rate, setup.max_samples_per_block as usize);
+        self.plugin.borrow_mut().prepare(setup.sample_rate, setup.max_samples_per_block as usize);
         kResultOk
     }
 
-    unsafe fn set_processing(&self, _state: TBool) -> tresult {
+    // Called with true before processing starts, and false after. Can be called from both UI and 
+    // realtime thread
+    unsafe fn set_processing(&self, state: TBool) -> tresult {
+        if state != 0 {
+            self.plugin.borrow_mut().reset();
+        }
         kResultOk
     }
 

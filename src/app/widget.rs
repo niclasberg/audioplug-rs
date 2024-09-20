@@ -31,6 +31,8 @@ pub trait Widget: Any {
 
     fn status_updated(&mut self, _event: StatusChange, _ctx: &mut EventContext) {}
     
+    fn animation_frame(&mut self) {}
+
     fn cursor(&self) -> Option<Cursor> {
         None
     }

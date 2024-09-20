@@ -25,7 +25,7 @@ impl Plugin for SynthPlugin {
         Self
     }
 
-    fn reset(&mut self, _sample_rate: f64, _max_buffer_size: usize) {
+    fn prepare(&mut self, _sample_rate: f64, _max_buffer_size: usize) {
         
     }
 

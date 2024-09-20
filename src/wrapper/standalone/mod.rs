@@ -85,7 +85,7 @@ impl<P: Plugin> AudioProcessor<P> {
         let output_device = AudioHost::default_output_device().unwrap();
         let sample_rate = output_device.sample_rate().unwrap();
 
-        self.plugin.reset(sample_rate as f64, SAMPLES_PER_BLOCK);
+        self.plugin.prepare(sample_rate as f64, SAMPLES_PER_BLOCK);
     }
 }
 
