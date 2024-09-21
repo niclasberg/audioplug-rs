@@ -35,7 +35,7 @@ pub use window::{AppContext, Window};
 #[cfg(target_os  ="macos")]
 pub(crate) use window::MyHandler;
 
-use crate::{param::{ParamRef, ParameterId}, platform};
+use crate::{param::{ParamRef, ParameterId, ParameterMap}, platform};
 
 slotmap::new_key_type! {
     pub struct NodeId;
@@ -53,7 +53,8 @@ pub struct App {
 impl App {
     pub fn new() -> Self {
         let executor = Rc::new(platform::Executor::new().unwrap());
-        Self::new_with_app_state(Rc::new(RefCell::new(AppState::new((), executor))))
+        let parameters = Rc::new(ParameterMap::new(()));
+        Self::new_with_app_state(Rc::new(RefCell::new(AppState::new(parameters, executor))))
     }
 
     pub fn new_with_app_state(state: Rc<RefCell<AppState>>) -> Self {

@@ -131,7 +131,7 @@ impl Rectangle<f64> {
     }
 
     pub fn scale(&self, scale: f64) -> Self{
-        Self::new(self.position(), self.size().scale(scale))
+        Self::new(self.position().scale(scale), self.size().scale(scale))
     }
 
     pub fn scale_x(&self, scale: f64) -> Self{

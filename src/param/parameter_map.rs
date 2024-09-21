@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap};
+use std::{any::Any, collections::HashMap, rc::Rc};
 
 use super::{ParamRef, ParameterId};
 
@@ -19,6 +19,7 @@ pub trait AnyParameterMap: 'static {
 	fn get_by_id_as_any(&self, id: ParameterId) -> Option<&dyn Any>;
 	fn get_by_index(&self, index: usize) -> Option<ParamRef>;
 	fn count(&self) -> usize;
+	fn parameter_ids(&self) -> Vec<ParameterId>;
 }
 
 pub struct ParamIter<'a, P: Params + 'a> {
@@ -33,6 +34,10 @@ impl<'a, P: Params> Iterator for ParamIter<'a, P> {
 		self.inner_iter.next().map(|getter|
 			getter.0(&self.parameters))
 	}
+}
+
+struct Getters {
+
 }
 
 pub struct ParameterMap<P: Params> {
@@ -91,5 +96,11 @@ impl<P: Params> AnyParameterMap for ParameterMap<P> {
 
 	fn count(&self) -> usize {
 		P::PARAMS.len()
+	}
+
+	fn parameter_ids(&self) -> Vec<ParameterId> {
+		self.iter()
+			.map(|param_ref| param_ref.id())
+			.collect()
 	}
 }

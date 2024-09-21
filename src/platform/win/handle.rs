@@ -1,5 +1,7 @@
+use std::cell::Cell;
 use std::ffi::{CString, CStr};
 use std::mem::size_of;
+use std::rc::Rc;
 
 use windows::Win32::System::DataExchange::CloseClipboard;
 use windows::Win32::System::Ole::CF_TEXT;
@@ -23,15 +25,17 @@ impl<F: Fn()> Drop for ScopeExit<F> {
 }
 
 pub struct Handle {
-    hwnd: HWND
+    hwnd: HWND,
+    scale_factor: Rc<Cell<f64>>
 }
 
 impl Handle {
-    pub(crate) fn new(hwnd: HWND) -> Self {
-        Self { hwnd }
+    pub(crate) fn new(hwnd: HWND, scale_factor: Rc<Cell<f64>>) -> Self {
+        Self { hwnd, scale_factor }
     }
 
     pub fn invalidate(&self, rect: Rectangle) {
+        let rect = rect.scale(1.0 / self.scale_factor.get());
         let rect = RECT {
             left: rect.left().floor() as i32, 
             top: rect.top().floor() as i32, 
@@ -42,8 +46,8 @@ impl Handle {
     }
 
     pub fn global_bounds(&self) -> Rectangle {
-        let rect = get_client_rect(self.hwnd);
-        rect.into()
+        let rect: Rectangle = get_client_rect(self.hwnd).into();
+        rect.scale(1.0 / self.scale_factor.get())
     }
 
     pub fn set_clipboard(&self, string: &str) -> Result<()>{

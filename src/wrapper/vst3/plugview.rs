@@ -12,6 +12,7 @@ use std::rc::Rc;
 
 use crate::app::{AppState, Window};
 use crate::core::Rectangle;
+use crate::param::ParameterMap;
 use crate::Editor;
 
 #[cfg(target_os = "windows")]
@@ -37,16 +38,17 @@ pub struct PlugView<E: Editor> {
     window: RefCell<Option<Window>>,
     app_state: Rc<RefCell<AppState>>,
 	editor: Rc<RefCell<E>>,
-    plugin_frame: RefCell<Option<VstPtr<dyn IPlugFrame>>>
+    plugin_frame: RefCell<Option<VstPtr<dyn IPlugFrame>>>,
+    parameters: Rc<ParameterMap<E::Parameters>>
 }
 
 impl<E: Editor> PlugView<E> {
-    pub fn new(app_state: Rc<RefCell<AppState>>, editor: Rc<RefCell<E>>) -> Box<Self> {
-        Self::allocate(RefCell::new(None), app_state, editor, RefCell::new(None))
+    pub fn new(app_state: Rc<RefCell<AppState>>, editor: Rc<RefCell<E>>, parameters: Rc<ParameterMap<E::Parameters>>) -> Box<Self> {
+        Self::allocate(RefCell::new(None), app_state, editor, RefCell::new(None), parameters)
     }
 
-    pub fn create_instance(app_state: Rc<RefCell<AppState>>, editor: Rc<RefCell<E>>) -> *mut c_void {
-        Box::into_raw(Self::new(app_state, editor)) as *mut c_void
+    pub fn create_instance(app_state: Rc<RefCell<AppState>>, editor: Rc<RefCell<E>>, parameters: Rc<ParameterMap<E::Parameters>>) -> *mut c_void {
+        Box::into_raw(Self::new(app_state, editor, parameters)) as *mut c_void
     }
 }
 
@@ -87,10 +89,10 @@ impl<E: Editor> IPlugView for PlugView<E> {
             };
 
 			let _editor = self.editor.clone();
+            let parameters = self.parameters.clone();
             *window = Some(Window::attach(self.app_state.clone(), handle, move |ctx| {
 				let editor = RefCell::borrow(&_editor);
-				let params = E::Parameters::default();
-				editor.view(ctx, &params)
+				editor.view(ctx, parameters.parameters_ref())
 			}));
 
             kResultOk

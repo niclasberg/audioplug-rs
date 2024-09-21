@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 use rtrb::{Consumer, Producer, RingBuffer};
 
-use crate::{app::{AppState, HostHandle, Window}, param::{NormalizedValue, ParameterId, ParameterInfo}, platform::{self, AudioHost}, App, Editor, Plugin};
+use crate::{app::{AppState, HostHandle, Window}, param::{NormalizedValue, ParameterId, ParameterInfo, ParameterMap}, platform::{self, AudioHost}, App, Editor, Plugin};
 
 const SAMPLES_PER_BLOCK: usize = 128;
 
@@ -42,7 +42,8 @@ impl<P: Plugin> StandaloneApp<P> {
     pub fn new(parameter_updates: Producer<ParameterUpdate>, executor: Rc<platform::Executor>) -> Self {
         let app_inner = Rc::new(RefCell::new(AppInner { parameter_updates }));
         let host_handle = StandaloneHostHandle { app_inner: app_inner.clone() };
-        let mut app_state = AppState::new(P::Parameters::default(), executor);
+        let parameters = Rc::new(ParameterMap::new(P::Parameters::default()));
+        let mut app_state = AppState::new(parameters, executor);
         app_state.set_host_handle(Some(Box::new(host_handle)));
 
         let state = Rc::new(RefCell::new(app_state));

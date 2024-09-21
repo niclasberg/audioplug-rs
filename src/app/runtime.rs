@@ -4,7 +4,7 @@ use slotmap::{SecondaryMap, SlotMap};
 
 use crate::param::{AnyParameter, AnyParameterMap, ParamRef, Parameter, ParameterId, ParameterMap, Params};
 
-use super::{app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, param::ParamSignal, signal::SignalState, Memo, NodeId, Signal, SignalContext, SignalGetContext};
+use super::{app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, param::ParamSignal, signal::SignalState, Memo, NodeId, Signal, SignalContext, SignalGetContext, WidgetId};
 
 struct Node {
     node_type: NodeType,
@@ -50,26 +50,22 @@ pub struct Runtime {
     pub(super) subscriptions: SecondaryMap<NodeId, HashSet<NodeId>>,
     pub(super) dependencies: SecondaryMap<NodeId, HashSet<NodeId>>,
     pub(super) pending_tasks: VecDeque<Task>,
-    pub(super) parameters: Box<dyn AnyParameterMap>,
+    pub(super) parameters: Rc<dyn AnyParameterMap>,
 	parameter_subscriptions: HashMap<ParameterId, HashSet<NodeId>>,
 	parameter_dependencies: SecondaryMap<NodeId, HashSet<ParameterId>>,
 }
 
 impl Runtime {
-    pub fn new(parameters: impl Params + Any) -> Self {
-		let parameter_map = ParameterMap::new(parameters);
-		let parameter_ids: Vec<ParameterId> = parameter_map.iter()
-			.map(|param_ref| param_ref.id())
-			.collect();
-
-		let parameters = Box::new(parameter_map);
+    pub fn new(parameter_map: Rc<dyn AnyParameterMap>) -> Self {
+		let parameter_ids = parameter_map.parameter_ids();
+    
         let mut this = Self { 
             scope: Scope::Root, 
             nodes: Default::default(), 
             subscriptions: Default::default(), 
             dependencies: Default::default(),
             pending_tasks: Default::default(),
-            parameters,
+            parameters: parameter_map,
 			parameter_subscriptions: Default::default(),
 			parameter_dependencies: Default::default(),
         };
@@ -122,7 +118,7 @@ impl Runtime {
         id
     }
 
-    fn remove_node(&mut self, id: NodeId) -> Node {
+    pub(crate) fn remove_node(&mut self, id: NodeId) {
         // Remove the node's subscriptions to other nodes
         let node_dependencies = self.dependencies.remove(id).expect("Missing dependencies for node");
         for node_id in node_dependencies {
@@ -141,7 +137,7 @@ impl Runtime {
             self.parameter_subscriptions.get_mut(&parameter_id).expect("Missing parameter subscription").remove(&id);
         }
 
-        self.nodes.remove(id).expect("Missing node")
+        self.nodes.remove(id).expect("Missing node");
     }
 
     fn update_signal_value<T: Any>(&mut self, signal: &Signal<T>, f: impl FnOnce(&mut T)) {

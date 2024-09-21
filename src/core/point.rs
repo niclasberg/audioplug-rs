@@ -35,6 +35,18 @@ impl Point<f64> {
     pub fn zero() -> Self {
         Self { x: 0f64, y: 0f64 }
     }
+
+    pub fn scale(self, s: f64) -> Self {
+        Self::new(self.x * s, self.y * s)
+    }
+
+    pub fn scale_x(self, s: f64) -> Self {
+        Self::new(self.x * s, self.y)
+    }
+
+    pub fn scale_y(self, s: f64) -> Self {
+        Self::new(self.x, self.y * s)
+    }
 }
 
 impl From<Point<i32>> for Point<f64> {

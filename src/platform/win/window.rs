@@ -1,11 +1,11 @@
-use std::{sync::Once, cell::RefCell, marker::PhantomData, rc::Rc, mem::MaybeUninit};
+use std::{cell::{Cell, RefCell}, marker::PhantomData, mem::MaybeUninit, rc::Rc, sync::Once};
 
 use windows::{core::{w, Error, Result, PCWSTR}, 
     Win32::{
-        Foundation::*, Graphics::Gdi::{self, InvalidateRect, ScreenToClient}, System::{LibraryLoader::GetModuleHandleW, Performance}, UI::{Input::{KeyboardAndMouse::{TrackMouseEvent, VIRTUAL_KEY}, *}, WindowsAndMessaging::*}}};
+        Foundation::*, Graphics::Gdi::{self, InvalidateRect, ScreenToClient}, System::{LibraryLoader::GetModuleHandleW, Performance}, UI::{HiDpi::GetDpiForWindow, Input::{KeyboardAndMouse::{TrackMouseEvent, VIRTUAL_KEY}, *}, WindowsAndMessaging::*}}};
 
 use super::{com, cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, Handle, Renderer};
-use crate::{core::{Color, Point, Rectangle}, event::{AnimationFrame, KeyEvent, MouseEvent}, keyboard::Key, platform::{WindowEvent, WindowHandler}};
+use crate::{core::{Color, Point, Rectangle, Size}, event::{AnimationFrame, KeyEvent, MouseEvent}, keyboard::Key, platform::{WindowEvent, WindowHandler}};
 use crate::event::MouseButton;
 
 const WINDOW_CLASS: PCWSTR = w!("my_window");
@@ -44,7 +44,8 @@ struct WindowState {
     handler: RefCell<Box<dyn WindowHandler>>,
     last_mouse_pos: RefCell<Option<Point<i32>>>,
     ticks_per_second: f64,
-    current_key_event: RefCell<Option<TmpKeyEvent>>
+    current_key_event: RefCell<Option<TmpKeyEvent>>,
+    scale_factor: Rc<Cell<f64>>,
 }
 
 impl WindowState {
@@ -55,8 +56,10 @@ impl WindowState {
     fn handle_message(&self, hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         match message {
             WM_CREATE => {
+                self.scale_factor.replace(get_scale_factor_for_window(hwnd));
+
                 {
-                    self.handler.borrow_mut().init(Handle::new(hwnd));
+                    self.handler.borrow_mut().init(Handle::new(hwnd, self.scale_factor.clone()));
                 }
 
                 unsafe {
@@ -114,7 +117,9 @@ impl WindowState {
                     renderer.resize(width, height).unwrap();
                 }
 
-                let window_event = WindowEvent::Resize { new_size: [width, height].into() };
+                let new_size: Size = [width, height].into();
+                let new_size = new_size.scale(self.scale_factor.get());
+                let window_event = WindowEvent::Resize { new_size };
                 self.publish_event(hwnd, window_event);
                 unsafe { InvalidateRect(hwnd, None, false) };
                 Some(LRESULT(0))
@@ -142,6 +147,8 @@ impl WindowState {
             WM_MOUSEMOVE => {
                 let phys_pos = point_from_lparam(lparam);
                 let position: Point = phys_pos.into();
+                let scale_factor = self.scale_factor.get();
+                let position = position.map(|x| x / scale_factor);
                 let last_mouse_pos = self.last_mouse_pos.replace(Some(phys_pos));
 
                 if let Some(last_mouse_pos) = last_mouse_pos {
@@ -238,14 +245,21 @@ impl WindowState {
             },
 
             WM_SETCURSOR => {
-                let pos = get_message_pos(hwnd);
-                if let Some(cursor) = self.handler.borrow_mut().get_cursor(pos.into()) {
+                let pos: Point = get_message_pos(hwnd).into();
+                let pos = pos.scale(self.scale_factor.get());
+                if let Some(cursor) = self.handler.borrow_mut().get_cursor(pos) {
                     unsafe { SetCursor(get_cursor(cursor)) };
                     Some(LRESULT(0))
                 } else {
                     None
                 }
             },
+
+            WM_DPICHANGED => {
+                self.scale_factor.replace(get_scale_factor_for_window(hwnd));
+                self.publish_event(hwnd, WindowEvent::ScaleFactorChanged { scale_factor: self.scale_factor.get() });                
+                Some(LRESULT(0))
+            }
 
             _ => None
         }
@@ -260,6 +274,7 @@ impl WindowState {
         };
 
         let position: Point = [loword(lparam) as i16, hiword(lparam) as i16].into();
+        let position = position.scale(1.0 / self.scale_factor.get());
 
         match message {
             WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN => 
@@ -328,7 +343,8 @@ impl Window {
             handler: RefCell::new(Box::new(handler)),
             last_mouse_pos: RefCell::new(None),
             ticks_per_second,
-            current_key_event: RefCell::new(None)
+            current_key_event: RefCell::new(None),
+            scale_factor: Rc::new(Cell::new(1.0))
         });
 
         let hwnd = unsafe {
@@ -397,6 +413,16 @@ fn has_wm_char_message(hwnd: HWND, last_flags: KeyFlags) -> bool {
             flags.scan_code == last_flags.scan_code
         })
         .is_some()
+}
+
+const BASE_DPI: u32 = 96;
+fn dpi_to_scale_factor(dpi: u32) -> f64 {
+    dpi as f64 / BASE_DPI as f64
+}
+
+fn get_scale_factor_for_window(hwnd: HWND) -> f64 {
+    let dpi = unsafe { GetDpiForWindow(hwnd) };
+    dpi_to_scale_factor(dpi)
 }
 
 unsafe extern "system" fn wndproc(hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {

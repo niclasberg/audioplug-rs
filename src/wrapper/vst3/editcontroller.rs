@@ -6,12 +6,12 @@ use vst3_com::vst::{kRootUnitId, ParameterFlags};
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
 use vst3_sys::{IID, VST3, c_void};
-use vst3_sys::vst::{IComponentHandler, IConnectionPoint, IEditController, IHostApplication, IMessage, ParameterInfo, String128};
+use vst3_sys::vst::{IComponentHandler, IConnectionPoint, IEditController, IMessage, ParameterInfo, String128};
 
 use vst3_sys as vst3_com;
 
 use crate::app::{AppState, HostHandle};
-use crate::param::{NormalizedValue, ParamRef, ParameterId, Params, PlainValue};
+use crate::param::{AnyParameterMap, NormalizedValue, ParamRef, ParameterId, ParameterMap, Params, PlainValue};
 use crate::{platform, Editor};
 
 use super::plugview::PlugView;
@@ -45,7 +45,8 @@ pub struct EditController<E: Editor> {
     host_context: Cell<Option<VstPtr<dyn IUnknown>>>,
     peer_connection: Cell<Option<VstPtr<dyn IConnectionPoint>>>,
     executor: Rc<platform::Executor>,
-	is_editing_parameters_from_gui: Rc<Cell<bool>>
+	is_editing_parameters_from_gui: Rc<Cell<bool>>,
+    parameters: Rc<ParameterMap<E::Parameters>>
 }
 
 impl<E: Editor> EditController<E> {
@@ -53,10 +54,11 @@ impl<E: Editor> EditController<E> {
 
     pub fn new() -> Box<Self> {
         let executor = Rc::new(platform::Executor::new().unwrap());
-		let app_state = Rc::new(RefCell::new(AppState::new(E::Parameters::default(), executor.clone())));
+        let parameters = Rc::new(ParameterMap::new(E::Parameters::default()));
+		let app_state = Rc::new(RefCell::new(AppState::new(parameters.clone(), executor.clone())));
 		let editor = Rc::new(RefCell::new(E::new()));
 		let is_editing_parameters = Rc::new(Cell::new(false));
-        Self::allocate(app_state, editor, Cell::new(None), Cell::new(None), executor, is_editing_parameters)
+        Self::allocate(app_state, editor, Cell::new(None), Cell::new(None), executor, is_editing_parameters, parameters)
     }
 
     pub fn create_instance() -> *mut c_void {
@@ -82,8 +84,7 @@ impl<E: Editor> IEditController for EditController<E> {
     }
 
     unsafe fn get_parameter_info(&self, param_index: i32, info: *mut ParameterInfo) -> tresult {
-        let app_state = RefCell::borrow(&self.app_state);
-		let Some(param_ref) = app_state.parameters().get_by_index(param_index as usize) else { return kInvalidArgument };
+		let Some(param_ref) = self.parameters.get_by_index(param_index as usize) else { return kInvalidArgument };
 
         let info = &mut *info;
 
@@ -107,8 +108,7 @@ impl<E: Editor> IEditController for EditController<E> {
     unsafe fn get_param_string_by_value(&self, id: u32, value_normalized: f64, string: *mut tchar) -> tresult {
         // The string is actually a String128, it's mistyped in vst3-sys
         let string = string as *mut String128;
-        let app_state = RefCell::borrow(&self.app_state);
-		let Some(param_ref) = app_state.parameters().get_by_id(ParameterId::new(id)) else { return kInvalidArgument };
+		let Some(param_ref) = self.parameters.get_by_id(ParameterId::new(id)) else { return kInvalidArgument };
         let Some(value) = NormalizedValue::from_f64(value_normalized) else { return kInvalidArgument };
         let value_str = param_ref.info().string_from_value(value);
 
@@ -117,8 +117,7 @@ impl<E: Editor> IEditController for EditController<E> {
     }
 
     unsafe fn get_param_value_by_string(&self, id: u32, string: *const tchar, value_normalized: *mut f64) -> tresult {
-        let app_state = RefCell::borrow(&self.app_state);
-		let Some(param_ref) = app_state.parameters().get_by_id(ParameterId::new(id)) else { return kInvalidArgument };
+		let Some(param_ref) = self.parameters.get_by_id(ParameterId::new(id)) else { return kInvalidArgument };
         
         let len = (0..).take_while(|&i| unsafe { *string.offset(i) } != 0).count();
         let slice = unsafe { std::slice::from_raw_parts(string as *mut u16, len) };
@@ -131,21 +130,18 @@ impl<E: Editor> IEditController for EditController<E> {
     }
 
     unsafe fn normalized_param_to_plain(&self, id: u32, value_normalized: f64) -> f64 {
-        let app_state = RefCell::borrow(&self.app_state);
 		let value_normalized = unsafe { NormalizedValue::from_f64_unchecked(value_normalized) };
-		app_state.parameters().get_by_id(ParameterId::new(id))
+		self.parameters.get_by_id(ParameterId::new(id))
 			.map_or(0.0, |param| param.denormalize(value_normalized).into())
     }
 
     unsafe fn plain_param_to_normalized(&self, id: u32, plain_value: f64) -> f64 {
-        let app_state = RefCell::borrow(&self.app_state);
-		app_state.parameters().get_by_id(ParameterId::new(id))
+		self.parameters.get_by_id(ParameterId::new(id))
         	.map_or(0.0, |param| param.normalize(PlainValue::new(plain_value)).into())
     }
 
     unsafe fn get_param_normalized(&self, id: u32) -> f64 {
-        let app_state = RefCell::borrow(&self.app_state);
-        app_state.parameters().get_by_id(ParameterId::new(id))
+        self.parameters.get_by_id(ParameterId::new(id))
 			.map_or(0.0, |p| p.normalized_value().into())
     }
 
@@ -178,7 +174,7 @@ impl<E: Editor> IEditController for EditController<E> {
     }
 
     unsafe fn create_view(&self, _name: FIDString) -> *mut c_void {
-        PlugView::create_instance(self.app_state.clone(), self.editor.clone())
+        PlugView::create_instance(self.app_state.clone(), self.editor.clone(), self.parameters.clone())
     }
 }
 

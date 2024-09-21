@@ -1,9 +1,9 @@
 use atomic_refcell::AtomicRefCell;
-use vst3_com::vst::{IComponent, SymbolicSampleSizes, MediaTypes, BusDirections, BusTypes, BusType, BusFlags, kEmpty, kMono, kStereo};
+use vst3_com::vst::{IComponent, SymbolicSampleSizes, MediaTypes, BusDirections, BusTypes, BusFlags, kEmpty, kMono, kStereo};
 use vst3_sys::{VST3, IID};
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
-use vst3_sys::vst::{BusDirection, BusInfo, EventTypes, IAudioProcessor, IConnectionPoint, IEventList, IMessage, IParamValueQueue, IParameterChanges, IoMode, MediaType, ProcessData, ProcessModes, ProcessSetup, RoutingInfo, SpeakerArrangement};
+use vst3_sys::vst::{BusDirection, BusInfo, EventTypes, IAudioProcessor, IConnectionPoint, IEventList, IMessage, IParamValueQueue, IParameterChanges, IoMode, MediaType, ProcessData, ProcessModes, ProcessSetup, RoutingInfo, SpeakerArrangement, String128};
 use std::cell::RefCell;
 use std::ffi::c_void;
 use std::mem::MaybeUninit;
@@ -131,38 +131,40 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
             return kResultOk;
         }
 
-		let mut midi_buffer = self.midi_buffer.borrow_mut();
-		midi_buffer.reset();
-		if let Some(input_events) = data.input_events.upgrade() {
-			let event_count = input_events.get_event_count();
-			let mut event = MaybeUninit::uninit();
-			for i in 0..event_count {
-				if input_events.get_event(i, event.as_mut_ptr()) != kResultOk {
-					continue;
-				}
-				let event = event.assume_init();
+        let mut midi_buffer = self.midi_buffer.borrow_mut();
+        if P::ACCEPTS_MIDI {
+            midi_buffer.reset();
+            if let Some(input_events) = data.input_events.upgrade() {
+                let event_count = input_events.get_event_count();
+                let mut event = MaybeUninit::uninit();
+                for i in 0..event_count {
+                    if input_events.get_event(i, event.as_mut_ptr()) != kResultOk {
+                        continue;
+                    }
+                    let event = event.assume_init();
 
-				match event.type_ {
-					NOTE_ON_EVENT => {
-						let note_on_event = &event.event.note_on;
-						midi_buffer.push(NoteEvent::NoteOn { 
-							channel: note_on_event.channel, 
-							sample_offset: event.sample_offset, 
-							pitch: note_on_event.pitch 
-						});
-					},
-					NOTE_OFF_EVENT => {
-						let note_off_event = &event.event.note_off;
-						midi_buffer.push(NoteEvent::NoteOn { 
-							channel: note_off_event.channel, 
-							sample_offset: event.sample_offset, 
-							pitch: note_off_event.pitch 
-						});
-					},
-					_ => {}
-				}
-			}
-		}
+                    match event.type_ {
+                        NOTE_ON_EVENT => {
+                            let note_on_event = &event.event.note_on;
+                            midi_buffer.push(NoteEvent::NoteOn { 
+                                channel: note_on_event.channel, 
+                                sample_offset: event.sample_offset, 
+                                pitch: note_on_event.pitch 
+                            });
+                        },
+                        NOTE_OFF_EVENT => {
+                            let note_off_event = &event.event.note_off;
+                            midi_buffer.push(NoteEvent::NoteOn { 
+                                channel: note_off_event.channel, 
+                                sample_offset: event.sample_offset, 
+                                pitch: note_off_event.pitch 
+                            });
+                        },
+                        _ => {}
+                    }
+                }
+            }
+        }
 
         let input = AudioBuffer::from_ptr((*data.inputs).buffers as *const *mut _, (*data.inputs).num_channels as usize, data.num_samples as usize);
         let mut output = AudioBuffer::from_ptr((*data.outputs).buffers as *const *mut _, (*data.outputs).num_channels as usize, data.num_samples as usize);
@@ -210,11 +212,12 @@ impl<P: Plugin> IComponent for Vst3Plugin<P> {
 
     unsafe fn get_bus_count(&self, type_: MediaType, dir: BusDirection) -> i32 {
         if type_ == MediaTypes::kAudio as MediaType {
-            if dir == BusDirections::kInput as BusDirection {
-                1
-            } else {
-                1
-            }
+            P::AUDIO_LAYOUT.iter().fold(0, |acc, layout|
+                if dir == BusDirections::kInput as BusDirection {
+                    acc + if layout.main_input.is_some() { 1 } else { 0 }
+                } else {
+                    acc + if layout.main_output.is_some() { 1 } else { 0 }
+                })
         } else if type_ == MediaTypes::kEvent as MediaType {
             if (dir == BusDirections::kInput as BusDirection && P::ACCEPTS_MIDI) ||  
                 (dir == BusDirections::kOutput as BusDirection && P::PRODUCES_MIDI) {
@@ -252,7 +255,7 @@ impl<P: Plugin> IComponent for Vst3Plugin<P> {
 					info.direction = dir;
 					info.media_type = type_;
 					strcpyw(bus.name, &mut info.name);
-					info.bus_type = BusTypes::kMain as BusType;
+					info.bus_type = BusTypes::kMain as vst3_sys::vst::BusType;
 					info.flags = BusFlags::kDefaultActive as u32;
 					kResultOk
 				} else {
@@ -265,7 +268,7 @@ impl<P: Plugin> IComponent for Vst3Plugin<P> {
 					info.direction = INPUT;
 					info.media_type = EVENT;
 					strcpyw("MIDI in", &mut info.name);
-					info.bus_type = BusTypes::kMain as BusType;
+					info.bus_type = BusTypes::kMain as vst3_sys::vst::BusType;
 					info.flags = BusFlags::kDefaultActive as u32;
 					kResultOk
 				} else if dir == OUTPUT && P::PRODUCES_MIDI {
@@ -273,7 +276,7 @@ impl<P: Plugin> IComponent for Vst3Plugin<P> {
 					info.direction = OUTPUT;
 					info.media_type = EVENT;
 					strcpyw("MIDI out", &mut info.name);
-					info.bus_type = BusTypes::kMain as BusType;
+					info.bus_type = BusTypes::kMain as vst3_sys::vst::BusType;
 					info.flags = BusFlags::kDefaultActive as u32;
 
 					kResultOk

@@ -1,6 +1,6 @@
-use std::{any::Any, collections::VecDeque, ops::DerefMut, rc::{Rc, Weak}};
+use std::{any::Any, collections::{HashSet, VecDeque}, ops::DerefMut, rc::{Rc, Weak}};
 use slotmap::{Key, SecondaryMap, SlotMap};
-use crate::{core::{Point, Rectangle}, param::{AnyParameter, AnyParameterMap, NormalizedValue, ParamRef, ParameterId, Params, PlainValue}, platform};
+use crate::{core::{Point, Rectangle}, param::{AnyParameter, AnyParameterMap, NormalizedValue, ParamRef, ParameterId, PlainValue}, platform};
 
 use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, layout_window, memo::{Memo, MemoState}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, ParamContext, ParamEditor, Runtime, Scope, SignalContext, SignalGet, SignalGetContext, Widget, WindowId};
 use super::NodeId;
@@ -34,12 +34,17 @@ impl Task {
             },
             Task::UpdateBinding { widget_id, f } => {
                 if let Some(f) = f.upgrade() {
-                    f(&mut app_state.runtime, app_state.widgets[*widget_id].deref_mut(), &mut app_state.widget_data[*widget_id]);
-					app_state.merge_widget_flags(*widget_id);
+                    // Widget might have been removed
+                    if let Some(widget) = app_state.widgets.get_mut(*widget_id) {
+                        f(&mut app_state.runtime, widget.deref_mut(), &mut app_state.widget_data[*widget_id]);
+					    app_state.merge_widget_flags(*widget_id);
+                    }
                 }
             },
 			Task::InvalidateRect { window_id, rect } => {
-				app_state.window(*window_id).handle.invalidate(*rect);
+                if let Some(window) = app_state.windows.get(*window_id) {
+                    window.handle.invalidate(*rect);
+                }
 			}
         }
     }
@@ -54,7 +59,7 @@ pub struct AppState {
     windows: SlotMap<WindowId, WindowState>,
     pub(super) widget_data: SlotMap<WidgetId, WidgetData>,
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
-    widget_bindings: SecondaryMap<NodeId, WidgetId>,
+    widget_bindings: SecondaryMap<WidgetId, HashSet<NodeId>>,
     pub(super) mouse_capture_widget: Option<WidgetId>,
     pub(super) focus_widget: Option<WidgetId>,
     pub(super) runtime: Runtime,
@@ -63,7 +68,7 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(parameters: impl Params + Any, executor: Rc<platform::Executor>) -> Self {
+    pub fn new(parameters: Rc<dyn AnyParameterMap>, executor: Rc<platform::Executor>) -> Self {
         Self {
             widget_data: Default::default(),
             widgets: Default::default(),
@@ -77,10 +82,6 @@ impl AppState {
         }
     }
 
-    pub fn set_host_handle(&mut self, host_handle: Option<Box<dyn HostHandle>>) {
-        self.host_handle = host_handle;
-    }
-
 	pub fn parameters(&self) -> &dyn AnyParameterMap {
 		self.runtime.parameters.as_ref()
 	}
@@ -89,6 +90,20 @@ impl AppState {
         let state = SignalState::new(value);
         let id = self.runtime.create_signal_node(state);
         Signal::new(id)
+    }
+
+    fn add_widget_binding(&mut self, widget_id: WidgetId, node_id: NodeId) {
+        self.widget_bindings.entry(widget_id).unwrap()
+            .and_modify(|bindings| { bindings.insert(node_id); })
+            .or_default();
+    }
+
+    fn clear_widget_bindings(&mut self, widget_id: WidgetId) {
+        if let Some(bindings) = self.widget_bindings.remove(widget_id) {
+            for node_id in bindings {
+                self.runtime.remove_node(node_id);
+            }
+        }
     }
 
     pub fn create_memo<T: PartialEq + 'static>(&mut self, f: impl Fn(&mut Self) -> T + 'static) -> Memo<T> {
@@ -115,11 +130,13 @@ impl AppState {
 		match source_id {
 			SourceId::None => false,
 			SourceId::Parameter(source_id) => {
-				self.runtime.create_parameter_binding_node(source_id, create_state());
+				let node_id = self.runtime.create_parameter_binding_node(source_id, create_state());
+                self.add_widget_binding(widget_id, node_id);
 				true
 			},
 			SourceId::Node(source_id) => {
-				self.runtime.create_binding_node(source_id, create_state());
+				let node_id = self.runtime.create_binding_node(source_id, create_state());
+                self.add_widget_binding(widget_id, node_id);
 				true
 			}
 		}
@@ -130,6 +147,11 @@ impl AppState {
         self.runtime.notify(&id);
     }
 
+    pub(crate) fn set_host_handle(&mut self, host_handle: Option<Box<dyn HostHandle>>) {
+        self.host_handle = host_handle;
+    }
+
+    #[allow(dead_code)]
 	pub(crate) fn set_plain_parameter_value_from_host(&mut self, id: ParameterId, value: PlainValue) -> bool {
 		let Some(param_ref) = self.runtime.parameters.get_by_id(id) else { return false };
 		param_ref.internal_set_value_plain(value);
@@ -145,12 +167,11 @@ impl AppState {
     }
 
     pub fn add_window<W: Widget + 'static>(&mut self, handle: platform::Handle, f: impl FnOnce(&mut BuildContext<W>) -> W) -> WindowId {
-		let window_id = self.windows.insert_with_key(|window_id| {
+		let window_id = self.windows.insert(
             WindowState {
                 handle,
                 root_widget: WidgetId::null()
-            }
-        });
+            });
 
 		let widget_id = self.widget_data.insert_with_key(|id| {
 			WidgetData::new(window_id, id)
@@ -164,11 +185,6 @@ impl AppState {
         }
         
 		window_id
-    }
-
-    pub fn remove_window(&mut self, id: WindowId) {
-        let window = self.windows.remove(id).expect("Window not found");
-        self.remove_widget(window.root_widget);
     }
 
     /// Add a new widget
@@ -191,10 +207,16 @@ impl AppState {
         id
     }
 
+    pub fn remove_window(&mut self, id: WindowId) {
+        let window = self.windows.remove(id).expect("Window not found");
+        self.remove_widget(window.root_widget);
+    }
+
     /// Remove a widget and all of its children and associated signals
     pub fn remove_widget(&mut self, id: WidgetId) {
         let mut widget_data = self.widget_data.remove(id).unwrap();
         self.widgets.remove(id).expect("Widget already removed");
+        self.clear_widget_bindings(id);
 
         // Must be removed from the children of the parent
         if !widget_data.parent_id.is_null() {
@@ -207,6 +229,7 @@ impl AppState {
         while let Some(id) = children_to_remove.pop() {
             let widget_data = self.widget_data.remove(id).unwrap();
             self.widgets.remove(id).expect("Widget already removed");
+            self.clear_widget_bindings(id);
 
             children_to_remove.extend(widget_data.children.into_iter());
         }
@@ -218,6 +241,13 @@ impl AppState {
 
     pub fn widget_mut(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
         WidgetMut::new(&mut *self.widgets[id], &mut self.widget_data[id], &mut self.runtime.pending_tasks)
+    }
+
+    pub fn with_widget_mut<R>(&mut self, id: WidgetId, f: impl FnOnce(&mut Self, &mut dyn Widget) -> R) -> R {
+        let Some(mut widget) = self.widgets.remove(id) else { panic!("Widget does not exist") };
+        let value = f(self, widget.as_mut());
+        self.widgets.insert(id, widget);
+        value
     }
 
     pub fn widget_has_focus(&self, id: WidgetId) -> bool {

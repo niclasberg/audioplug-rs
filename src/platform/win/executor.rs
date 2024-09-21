@@ -1,5 +1,5 @@
-use std::{collections::VecDeque, future::Future, ops::Deref, os::raw::c_void, rc::Rc, sync::{mpsc::{self, Receiver, Sender}, Once}};
-use async_task::{self, Schedule, Task, Runnable};
+use std::{future::Future, ops::Deref, rc::Rc, sync::{mpsc::{self, Receiver, Sender}, Once}};
+use async_task::{self, Task, Runnable};
 
 use windows::{core::{w, Result, PCWSTR}, Win32::{Foundation::{HWND, LPARAM, LRESULT, WPARAM}, System::LibraryLoader::GetModuleHandleW, UI::WindowsAndMessaging::{CreateWindowExW, DefWindowProcW, GetWindowLongPtrW, PostMessageA, RegisterClassW, SetWindowLongPtrW, CREATESTRUCTW, CW_USEDEFAULT, GWLP_USERDATA, HWND_MESSAGE, WINDOW_EX_STYLE, WINDOW_STYLE, WM_NCCREATE, WM_NCDESTROY, WM_USER, WNDCLASSW}}};
 
