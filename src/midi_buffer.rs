@@ -9,7 +9,9 @@ pub struct MidiBuffer {
 
 impl MidiBuffer {
 	pub fn new(capacity: usize) -> Self {
-		let events: Vec<_> = vec![MaybeUninit::uninit(); capacity];
+		let events: Vec<_> = std::iter::repeat_with(MaybeUninit::uninit)
+			.take(capacity)
+			.collect();
 		Self {
 			events: events.into_boxed_slice(),
 			tail_index: 0
@@ -24,7 +26,7 @@ impl MidiBuffer {
 		if self.tail_index >= self.events.len() {
 			return false;
 		}
-		self.events[self.tail_index] = event;
+		self.events[self.tail_index] = MaybeUninit::new(event);
 		self.tail_index += 1;
 		true
 	}
