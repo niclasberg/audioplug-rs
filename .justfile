@@ -13,6 +13,7 @@ _bundle_vst name target_dir: (_build name)
     md {{target_dir}}/{{name}}.vst3/Contents/Resources -Force
     md {{target_dir}}/{{name}}.vst3/Contents/x86_64-win -Force
     cp target/debug/{{name}}.dll {{target_dir}}/{{name}}.vst3/Contents/x86_64-win/{{name}}.vst3
+    cp target/debug/{{name}}.pdb {{target_dir}}/{{name}}.vst3/Contents/x86_64-win/{{name}}.pdb
 
 [macos]
 _bundle_vst name target_dir: (_build name)

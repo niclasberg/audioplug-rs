@@ -10,7 +10,7 @@ use std::mem::MaybeUninit;
 
 use vst3_sys as vst3_com;
 
-use crate::midi::NoteEvent;
+use crate::midi::{Note, NoteEvent};
 use crate::midi_buffer::MidiBuffer;
 use crate::param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap};
 use crate::{Plugin, AudioBuffer, ProcessContext};
@@ -127,7 +127,8 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
 			}
         }
 
-        if data.inputs.is_null() || data.outputs.is_null() {
+        // Parameter flush
+        if data.num_samples == 0 {
             return kResultOk;
         }
 
@@ -149,7 +150,7 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
                             midi_buffer.push(NoteEvent::NoteOn { 
                                 channel: note_on_event.channel, 
                                 sample_offset: event.sample_offset, 
-                                pitch: note_on_event.pitch 
+                                note: Note::from_midi(note_on_event.pitch as _)
                             });
                         },
                         NOTE_OFF_EVENT => {
@@ -157,7 +158,7 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
                             midi_buffer.push(NoteEvent::NoteOn { 
                                 channel: note_off_event.channel, 
                                 sample_offset: event.sample_offset, 
-                                pitch: note_off_event.pitch 
+                                note: Note::from_midi(note_off_event.pitch as _)
                             });
                         },
                         _ => {}
@@ -166,8 +167,17 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
             }
         }
 
-        let input = AudioBuffer::from_ptr((*data.inputs).buffers as *const *mut _, (*data.inputs).num_channels as usize, data.num_samples as usize);
-        let mut output = AudioBuffer::from_ptr((*data.outputs).buffers as *const *mut _, (*data.outputs).num_channels as usize, data.num_samples as usize);
+        let input = if data.inputs.is_null() { 
+            AudioBuffer::empty() 
+        } else {
+            AudioBuffer::from_ptr((*data.inputs).buffers as *const *mut _, (*data.inputs).num_channels as usize, data.num_samples as usize)
+        };
+
+        let mut output = if data.outputs.is_null() {
+            AudioBuffer::empty()
+        } else {
+            AudioBuffer::from_ptr((*data.outputs).buffers as *const *mut _, (*data.outputs).num_channels as usize, data.num_samples as usize)
+        };
 
         let context = ProcessContext {
             input: &input,

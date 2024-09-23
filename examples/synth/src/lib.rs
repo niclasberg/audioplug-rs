@@ -1,14 +1,17 @@
-use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, AudioLayout, Bus, ChannelType, GenericEditor, Plugin};
+use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, midi::Note, AudioLayout, Bus, ChannelType, GenericEditor, Plugin};
 use params::SynthParams;
 
 mod views;
 mod params;
 
-struct SynthPlugin;
+struct SynthPlugin {
+    current_note: Option<Note>
+}
+
 impl Plugin for SynthPlugin {
     const NAME: &'static str = "Synth";
-    const VENDOR: &'static str = "Vendor";
-    const URL: &'static str = "https://github.com/niclasberg";
+    const VENDOR: &'static str = "Audioplug";
+    const URL: &'static str = "https://github.com/niclasberg/audioplug-rs";
     const EMAIL: &'static str = "some@email.com";
     const AUDIO_LAYOUT: &'static [AudioLayout] = &[
         AudioLayout {
@@ -22,15 +25,21 @@ impl Plugin for SynthPlugin {
     type Parameters = SynthParams;
 
     fn new() -> Self {
-        Self
+        Self {
+            current_note: None
+        }
     }
 
     fn prepare(&mut self, _sample_rate: f64, _max_buffer_size: usize) {
         
     }
 
-    fn process(&mut self, _context: audioplug::ProcessContext, _parameters: &Self::Parameters) {
+    fn process(&mut self, context: audioplug::ProcessContext, _parameters: &Self::Parameters) {
         
+    }
+
+    fn reset(&mut self) {
+        self.current_note = None;
     }
     
     fn tail_time(&self) -> std::time::Duration {

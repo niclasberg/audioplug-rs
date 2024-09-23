@@ -5,7 +5,7 @@ pub mod core;
 mod editor;
 mod event;
 mod keyboard;
-mod midi;
+pub mod midi;
 mod midi_buffer;
 pub mod param;
 pub mod platform;
@@ -13,6 +13,7 @@ mod plugin;
 mod text;
 mod theme;
 pub mod view;
+pub mod util;
 pub mod wrapper;
 
 pub use app::App;

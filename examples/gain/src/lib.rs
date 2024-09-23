@@ -50,8 +50,8 @@ struct MyPlugin {
 
 impl Plugin for MyPlugin {
     const NAME: &'static str = "My Gain Plugin";
-    const VENDOR: &'static str = "Some vendor";
-    const URL: &'static str = "www.example.com";
+    const VENDOR: &'static str = "Audioplug";
+    const URL: &'static str = "https://github.com/niclasberg/audioplug-rs";
     const EMAIL: &'static str = "niclasbrg@gmail.com";
     const AUDIO_LAYOUT: &'static [AudioLayout] = &[
 		AudioLayout {
