@@ -1,11 +1,30 @@
-use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, midi::Note, AudioLayout, Bus, ChannelType, GenericEditor, Plugin};
+use core::f32;
+
+use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, midi::{Note, NoteEvent}, AudioLayout, Bus, ChannelType, GenericEditor, Plugin};
 use params::SynthParams;
 
 mod views;
 mod params;
 
+struct Voice {
+    note: Note, 
+    ang_freq: f32,
+    t: f32
+}
+
+impl Voice {
+    pub fn new(note: Note) -> Self {
+        Self {
+            note, 
+            t: 0.0, 
+            ang_freq:  note.frequency_hz() * f32::consts::TAU
+        }
+    }
+}
+
 struct SynthPlugin {
-    current_note: Option<Note>
+    active_voice: Option<Voice>,
+    dt: f32
 }
 
 impl Plugin for SynthPlugin {
@@ -26,20 +45,40 @@ impl Plugin for SynthPlugin {
 
     fn new() -> Self {
         Self {
-            current_note: None
+            active_voice: None,
+            dt: 0.0
         }
     }
 
-    fn prepare(&mut self, _sample_rate: f64, _max_buffer_size: usize) {
-        
+    fn prepare(&mut self, sample_rate: f64, _max_buffer_size: usize) {
+        self.dt = 1.0 / sample_rate as f32;
     }
 
     fn process(&mut self, context: audioplug::ProcessContext, _parameters: &Self::Parameters) {
+        if let Some(voice) = &mut self.active_voice {
+            for sample in context.output.channel_mut(0).iter_mut() {
+                *sample = f32::sin(voice.ang_freq * voice.t);
+                voice.t += self.dt;
+            } 
+        } else {
+            for sample in context.output.channel_mut(0).iter_mut() {
+                *sample = 0.0;
+            } 
+        }
         
     }
 
+    fn process_midi(&mut self, _context: &mut audioplug::MidiProcessContext, _parameters: &Self::Parameters, event: audioplug::midi::NoteEvent) {
+        match event {
+            NoteEvent::NoteOn { note, .. } => { self.active_voice.replace(Voice::new(note)); },
+            NoteEvent::NoteOff { note, .. } => if self.active_voice.as_ref().is_some_and(|voice| voice.note == note) {
+                self.active_voice = None;
+            },
+        }
+    }
+
     fn reset(&mut self) {
-        self.current_note = None;
+        self.active_voice = None;
     }
     
     fn tail_time(&self) -> std::time::Duration {

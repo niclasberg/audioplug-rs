@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::midi_buffer::MidiBuffer;
+use crate::midi::NoteEvent;
 use crate::param::Params;
 use crate::{AudioLayout, AudioBuffer};
 use crate::editor::Editor;
@@ -26,8 +26,11 @@ impl PluginInfo {
 pub struct ProcessContext<'a> {
     pub input: &'a AudioBuffer,
     pub output: &'a mut AudioBuffer,
-	pub midi_input: &'a MidiBuffer,
 	pub rendering_offline: bool,
+}
+
+pub struct MidiProcessContext {
+
 }
 
 pub trait Plugin {
@@ -57,6 +60,8 @@ pub trait Plugin {
 
     /// 
     fn process(&mut self, context: ProcessContext, parameters: &Self::Parameters);
+
+    fn process_midi(&mut self, _context: &mut MidiProcessContext, _parameters: &Self::Parameters, _event: NoteEvent) {}
 
     /// Called when the plugin should reset internal buffers and voices (???)
     fn reset(&mut self) {}

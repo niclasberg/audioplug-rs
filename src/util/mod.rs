@@ -1,3 +1,3 @@
-mod note;
+mod bounded_vec;
 
-pub use note::*;
+pub use bounded_vec::*;

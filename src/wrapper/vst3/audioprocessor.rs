@@ -11,9 +11,8 @@ use std::mem::MaybeUninit;
 use vst3_sys as vst3_com;
 
 use crate::midi::{Note, NoteEvent};
-use crate::midi_buffer::MidiBuffer;
 use crate::param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap};
-use crate::{Plugin, AudioBuffer, ProcessContext};
+use crate::{AudioBuffer, MidiProcessContext, Plugin, ProcessContext};
 use super::editcontroller::EditController;
 use super::util::strcpyw;
 
@@ -23,8 +22,7 @@ const NOTE_OFF_EVENT: u16 = EventTypes::kNoteOffEvent as u16;
 #[VST3(implements(IComponent, IAudioProcessor, IConnectionPoint))]
 pub struct Vst3Plugin<P: Plugin> {
     plugin: AtomicRefCell<P>,
-    parameters: ParameterMap<P::Parameters> ,
-	midi_buffer: RefCell<MidiBuffer>
+    parameters: ParameterMap<P::Parameters>
 }
 
 impl<P: Plugin> Vst3Plugin<P> {
@@ -32,7 +30,7 @@ impl<P: Plugin> Vst3Plugin<P> {
 
     pub fn new() -> Box<Self> {
 		let parameters = ParameterMap::new(P::Parameters::default());
-        Self::allocate(AtomicRefCell::new(P::new()), parameters, RefCell::new(MidiBuffer::new(1024)))
+        Self::allocate(AtomicRefCell::new(P::new()), parameters)
     }
 
     pub fn create_instance() -> *mut c_void {
@@ -96,7 +94,7 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
     // Called with true before processing starts, and false after. Can be called from both UI and 
     // realtime thread
     unsafe fn set_processing(&self, state: TBool) -> tresult {
-        if state != 0 {
+        if state == 0 {
             self.plugin.borrow_mut().reset();
         }
         kResultOk
@@ -132,9 +130,27 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
             return kResultOk;
         }
 
-        let mut midi_buffer = self.midi_buffer.borrow_mut();
+        let input = if data.inputs.is_null() { 
+            AudioBuffer::empty() 
+        } else {
+            AudioBuffer::from_ptr((*data.inputs).buffers as *mut *mut _, (*data.inputs).num_channels as usize, data.num_samples as usize)
+        };
+
+        let mut output = if data.outputs.is_null() {
+            AudioBuffer::empty()
+        } else {
+            AudioBuffer::from_ptr((*data.outputs).buffers as *mut *mut _, (*data.outputs).num_channels as usize, data.num_samples as usize)
+        };
+
+        let context = ProcessContext {
+            input: &input,
+            output: &mut output,
+			rendering_offline: data.process_mode == ProcessModes::kOffline as i32
+        };
+
+        let mut plugin = self.plugin.borrow_mut();
         if P::ACCEPTS_MIDI {
-            midi_buffer.reset();
+            let mut context = MidiProcessContext{};
             if let Some(input_events) = data.input_events.upgrade() {
                 let event_count = input_events.get_event_count();
                 let mut event = MaybeUninit::uninit();
@@ -147,19 +163,22 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
                     match event.type_ {
                         NOTE_ON_EVENT => {
                             let note_on_event = &event.event.note_on;
-                            midi_buffer.push(NoteEvent::NoteOn { 
+                            let ev = NoteEvent::NoteOn { 
                                 channel: note_on_event.channel, 
                                 sample_offset: event.sample_offset, 
                                 note: Note::from_midi(note_on_event.pitch as _)
-                            });
+                            };
+                            
+                            plugin.process_midi(&mut context, self.parameters.parameters_ref(), ev);
                         },
                         NOTE_OFF_EVENT => {
                             let note_off_event = &event.event.note_off;
-                            midi_buffer.push(NoteEvent::NoteOn { 
+                            let ev = NoteEvent::NoteOn { 
                                 channel: note_off_event.channel, 
                                 sample_offset: event.sample_offset, 
                                 note: Note::from_midi(note_off_event.pitch as _)
-                            });
+                            };
+                            plugin.process_midi(&mut context, self.parameters.parameters_ref(), ev);
                         },
                         _ => {}
                     }
@@ -167,26 +186,7 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
             }
         }
 
-        let input = if data.inputs.is_null() { 
-            AudioBuffer::empty() 
-        } else {
-            AudioBuffer::from_ptr((*data.inputs).buffers as *const *mut _, (*data.inputs).num_channels as usize, data.num_samples as usize)
-        };
-
-        let mut output = if data.outputs.is_null() {
-            AudioBuffer::empty()
-        } else {
-            AudioBuffer::from_ptr((*data.outputs).buffers as *const *mut _, (*data.outputs).num_channels as usize, data.num_samples as usize)
-        };
-
-        let context = ProcessContext {
-            input: &input,
-            output: &mut output,
-			rendering_offline: data.process_mode == ProcessModes::kOffline as i32,
-			midi_input: &midi_buffer
-        };
-
-        self.plugin.borrow_mut().process(context, self.parameters.parameters_ref());
+        plugin.process(context, self.parameters.parameters_ref());
 
         /*if let Some(output_param_changes) = data.output_param_changes.upgrade() {
             output_param_changes.add_parameter_data(id, index)

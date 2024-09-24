@@ -6,7 +6,6 @@ mod editor;
 mod event;
 mod keyboard;
 pub mod midi;
-mod midi_buffer;
 pub mod param;
 pub mod platform;
 mod plugin;

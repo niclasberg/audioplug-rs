@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 pub struct AudioBuffer {
     num_channels: usize,
     num_samples: usize,
-    channel_samples: *const *mut f32
+    channel_samples: *mut *mut f32
 }
 
 impl AudioBuffer {
@@ -17,7 +17,7 @@ impl AudioBuffer {
         }
     }
 
-    pub unsafe fn from_ptr(channel_samples: *const *mut f32, num_channels: usize, num_samples: usize) -> Self {
+    pub unsafe fn from_ptr(channel_samples: *mut *mut f32, num_channels: usize, num_samples: usize) -> Self {
         Self { num_channels, num_samples, channel_samples }
     }
 
@@ -25,7 +25,7 @@ impl AudioBuffer {
 		Self {
 			num_channels: 0,
 			num_samples: 0,
-			channel_samples: std::ptr::null()
+			channel_samples: std::ptr::null_mut()
 		}
 	}
 
