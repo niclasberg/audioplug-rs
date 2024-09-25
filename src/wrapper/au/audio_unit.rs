@@ -3,7 +3,7 @@ use std::{marker::PhantomData, mem::MaybeUninit, ops::Deref, sync::OnceLock};
 use block2::RcBlock;
 use objc2::{__extern_class_impl_traits, msg_send, msg_send_id, mutability::Mutable, rc::Retained, runtime::{AnyClass, AnyObject, Bool, ClassBuilder, Sel}, sel, ClassType, Encoding, RefEncode};
 use objc2_foundation::{NSArray, NSError, NSIndexSet, NSInteger, NSNumber, NSObject, NSTimeInterval};
-use crate::{midi_buffer::MidiBuffer, param::{AnyParameterMap, ParameterId, ParameterMap, PlainValue}, platform::audio_toolbox::{AUParameter, AUValue}, AudioBuffer, Plugin, ProcessContext};
+use crate::{param::{AnyParameterMap, ParameterId, ParameterMap, PlainValue}, platform::audio_toolbox::{AUParameter, AUValue}, AudioBuffer, Plugin, ProcessContext};
 use crate::platform::mac::audio_toolbox::{AUAudioUnitBusArray, AUParameterTree, AUInternalRenderRcBlock, AUAudioUnit, AUAudioUnitBus, AUAudioUnitBusType, AudioUnitRenderActionFlags, AUAudioFrameCount, AURenderEvent, AURenderPullInputBlock, AudioComponentDescription, AUInternalRenderBlock, AudioComponentInstantiationOptions, AUAudioUnitStatus, AUAudioUnitViewConfiguration};
 use crate::platform::mac::av_foundation::AVAudioFormat;
 use crate::platform::mac::core_audio::{AudioBufferList, AudioTimeStamp};
@@ -23,8 +23,7 @@ struct Wrapper<P: Plugin> {
 	channel_capabilities: Retained<NSArray<NSNumber>>,
 	internal_render_block: Option<AUInternalRenderRcBlock>,
 	max_frames_to_render: usize,
-	rendering_offline: bool,
-	midi_buffer: MidiBuffer
+	rendering_offline: bool
 }
 
 unsafe impl<P: Plugin> RefEncode for Wrapper<P> {
@@ -80,8 +79,7 @@ impl<P: Plugin + 'static> Wrapper<P> {
 			channel_capabilities,
 			internal_render_block: None,
 			max_frames_to_render: 1024,
-			rendering_offline: false,
-			midi_buffer: MidiBuffer::new(1024)
+			rendering_offline: false
 		}
 	}
 
@@ -100,8 +98,7 @@ impl<P: Plugin + 'static> Wrapper<P> {
         let context = ProcessContext {
             input: &input,
             output: &mut output,
-			rendering_offline: self.rendering_offline,
-			midi_input: &self.midi_buffer
+			rendering_offline: self.rendering_offline
         };
 
         self.plugin.process(context, self.parameters.parameters_ref());	

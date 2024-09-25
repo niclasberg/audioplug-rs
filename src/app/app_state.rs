@@ -156,6 +156,7 @@ impl AppState {
 		let Some(param_ref) = self.runtime.parameters.get_by_id(id) else { return false };
 		param_ref.internal_set_value_plain(value);
 		self.runtime.notify_parameter_subscribers(id);
+		self.run_effects();
         true
     }
 
@@ -163,6 +164,7 @@ impl AppState {
         let Some(param_ref) = self.runtime.parameters.get_by_id(id) else { return false };
 		param_ref.internal_set_value_normalized(value);
 		self.runtime.notify_parameter_subscribers(id);
+		self.run_effects();
         true
     }
 
