@@ -1,13 +1,13 @@
 use crate::param::ParameterId;
 use super::{signal::MappedSignal, Memo, NodeId, ParamSignal, Signal, SignalGet, SignalGetContext};
 
-pub(super) trait MappedAccessor<T>: CloneMappedAccessor<T> {
+pub trait MappedAccessor<T>: CloneMappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;
     fn get_ref(&self, ctx: &mut dyn SignalGetContext) -> T;
     fn get_ref_untracked(&self, ctx: &dyn SignalGetContext) -> T;
 }
 
-pub(super) trait CloneMappedAccessor<T> {
+pub trait CloneMappedAccessor<T> {
     fn box_clone(&self) -> Box<dyn MappedAccessor<T>>;
 }
 
@@ -26,7 +26,7 @@ impl<T> Clone for Box<dyn MappedAccessor<T>> {
     }
 }
 
-pub(super) enum SourceId {
+pub enum SourceId {
 	None,
 	Parameter(ParameterId),
 	Node(NodeId)

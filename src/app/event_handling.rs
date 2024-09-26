@@ -8,7 +8,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             layout_window(app_state, window_id);
             invalidate_window(app_state, window_id);
 			return;
-        }
+        },
         WindowEvent::Mouse(mouse_event) => {
             match mouse_event {
                 MouseEvent::Down { position, .. } => {
@@ -39,7 +39,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                 let mut ctx = MouseEventContext::new(id, app_state, true);
                 ctx.dispatch(mouse_event);
             }
-        }
+        },
         WindowEvent::Key(key_event) => {
             let mut event_status = EventStatus::Ignored;
             if let Some(focus_widget) = app_state.window(window_id).focus_widget {
@@ -56,11 +56,11 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                     _ => {}
                 }
             }
-        }
+        },
         WindowEvent::Unfocused => {
             set_focus_widget(app_state, window_id, None);
         },
-        WindowEvent::Animation(frame) => {
+        WindowEvent::Animation(_) => {
 
         },
         _ => {}
@@ -106,25 +106,6 @@ pub fn set_mouse_capture_widget(app_state: &mut AppState, new_capture_widget: Op
         }
     }
 }
-
-
-/*fn find_focus_view_at(position: Point, widget_node: &WidgetNode) -> Option<IdPath> {
-    if !widget_node.data().global_bounds().contains(position) {
-        return None;
-    }
-
-    let child_focus_view = (0..widget_node.widget.child_count())
-        .rev()
-        .find_map(|i| find_focus_view_at(position, widget_node.widget.get_child(i)));
-
-    if child_focus_view.is_some() {
-        child_focus_view
-    } else if widget_node.data().flag_is_set(ViewFlags::FOCUSABLE) {
-        Some(widget_node.data().id_path().clone())
-    } else {
-        None
-    }
-}*/
 
 pub struct MouseEventContext<'a> {
     id: WidgetId, 
