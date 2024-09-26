@@ -6,7 +6,7 @@ use vst3_com::vst::{kRootUnitId, ParameterFlags};
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
 use vst3_sys::{IID, VST3, c_void};
-use vst3_sys::vst::{IComponentHandler, IConnectionPoint, IEditController, IMessage, ParameterInfo, String128};
+use vst3_sys::vst::{IComponentHandler, IConnectionPoint, IEditController, IMessage, IUnitInfo, ParameterInfo, ProgramListInfo, String128, UnitInfo};
 
 use vst3_sys as vst3_com;
 
@@ -38,7 +38,7 @@ impl HostHandle for VST3HostHandle {
     }
 }
 
-#[VST3(implements(IEditController, IConnectionPoint))]
+#[VST3(implements(IEditController, IConnectionPoint, IUnitInfo))]
 pub struct EditController<E: Editor> {
     app_state: Rc<RefCell<AppState>>,
     editor: Rc<RefCell<E>>,
@@ -50,7 +50,7 @@ pub struct EditController<E: Editor> {
 }
 
 impl<E: Editor> EditController<E> {
-    pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 14] };
+    pub const CID: IID = IID { data: [3, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 14] };
 
     pub fn new() -> Box<Self> {
         let executor = Rc::new(platform::Executor::new().unwrap());
@@ -219,5 +219,55 @@ impl<E: Editor> IConnectionPoint for EditController<E> {
 
 	unsafe fn notify(&self, _message: SharedVstPtr<dyn IMessage>) -> tresult {
 		kResultOk
+	}
+}
+
+impl<E: Editor> IUnitInfo for EditController<E> {
+	unsafe fn get_unit_count(&self) -> i32 {
+		todo!()
+	}
+
+	unsafe fn get_unit_info(&self,unit_index:i32,info: *mut UnitInfo) -> tresult {
+		todo!()
+	}
+
+	unsafe fn get_program_list_count(&self) -> i32 {
+		0
+	}
+
+	unsafe fn get_program_list_info(&self, list_index:i32, info: *mut ProgramListInfo) -> tresult {
+		todo!()
+	}
+
+	unsafe fn get_program_name(&self,list_id: i32,program_index: i32, name: *mut u16) -> tresult {
+		todo!()
+	}
+
+	unsafe fn get_program_info(&self, list_id: i32, program_index: i32, attribute_id: *const u8, attribute_value: *mut u16) -> tresult {
+		todo!()
+	}
+
+	unsafe fn has_program_pitch_names(&self, id:i32, index:i32) -> tresult {
+		kResultFalse
+	}
+
+	unsafe fn get_program_pitch_name(&self, id: i32, index: i32, pitch: i16, name: *mut u16,) -> tresult {
+		kNotImplemented
+	}
+
+	unsafe fn get_selected_unit(&self) -> i32 {
+		todo!()
+	}
+
+	unsafe fn select_unit(&self,id:i32) -> tresult {
+		todo!()
+	}
+
+	unsafe fn get_unit_by_bus(&self,type_:i32,dir:i32,bus_index:i32,channel:i32,unit_id: *mut i32,) -> tresult {
+		todo!()
+	}
+
+	unsafe fn set_unit_program_data(&self,list_or_unit:i32,program_idx:i32,data:SharedVstPtr<dyn IBStream> ,) -> tresult {
+		todo!()
 	}
 }

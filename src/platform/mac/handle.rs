@@ -18,6 +18,12 @@ impl Handle {
 		self.view.load().map(|view| view.bounds().into()).unwrap_or_default()
 	}
 
+	pub fn invalidate_window(&self) {
+		if let Some(view) = self.view.load() {
+			unsafe { view.setNeedsDisplay(true) }
+		}
+	}
+
 	pub fn invalidate(&self, rect: Rectangle) {
 		if let Some(view) = self.view.load() {
 			unsafe { view.setNeedsDisplayInRect(rect.into()) }

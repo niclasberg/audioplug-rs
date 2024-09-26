@@ -23,6 +23,11 @@ impl PluginInfo {
     }
 }
 
+pub struct Preset<P: Params> {
+	name: String,
+	parameters: P
+}
+
 pub struct ProcessContext<'a> {
     pub input: &'a AudioBuffer,
     pub output: &'a mut AudioBuffer,
@@ -65,6 +70,10 @@ pub trait Plugin {
 
     /// Called when the plugin should reset internal buffers and voices (???)
     fn reset(&mut self) {}
+
+	fn presets(&self) -> Vec<Preset<Self::Parameters>> {
+		Vec::new()
+	}
 
     /// Length of the tail of the signal from the plugin. This can be thought of as the 
     /// time it takes for the plugin to go silent when no more input is given. A good example

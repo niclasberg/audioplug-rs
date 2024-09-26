@@ -3,8 +3,7 @@ use vst3_com::vst::{IComponent, SymbolicSampleSizes, MediaTypes, BusDirections, 
 use vst3_sys::{VST3, IID};
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
-use vst3_sys::vst::{BusDirection, BusInfo, EventTypes, IAudioProcessor, IConnectionPoint, IEventList, IMessage, IParamValueQueue, IParameterChanges, IoMode, MediaType, ProcessData, ProcessModes, ProcessSetup, RoutingInfo, SpeakerArrangement, String128};
-use std::cell::RefCell;
+use vst3_sys::vst::{BusDirection, BusInfo, EventTypes, IAudioProcessor, IConnectionPoint, IEventList, IMessage, IParamValueQueue, IParameterChanges, IoMode, MediaType, ProcessData, ProcessModes, ProcessSetup, RoutingInfo, SpeakerArrangement};
 use std::ffi::c_void;
 use std::mem::MaybeUninit;
 
@@ -26,7 +25,7 @@ pub struct Vst3Plugin<P: Plugin> {
 }
 
 impl<P: Plugin> Vst3Plugin<P> {
-    pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] };
+    pub const CID: IID = IID { data: [3, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] };
 
     pub fn new() -> Box<Self> {
 		let parameters = ParameterMap::new(P::Parameters::default());
@@ -173,7 +172,7 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
                         },
                         NOTE_OFF_EVENT => {
                             let note_off_event = &event.event.note_off;
-                            let ev = NoteEvent::NoteOn { 
+                            let ev = NoteEvent::NoteOff { 
                                 channel: note_off_event.channel, 
                                 sample_offset: event.sample_offset, 
                                 note: Note::from_midi(note_off_event.pitch as _)

@@ -47,8 +47,7 @@ impl Window {
 	pub fn attach(handle: AppKitWindowHandle, widget: impl WindowHandler + 'static) -> Result<Self, Error> {
 		let mtm = MainThreadMarker::new().unwrap();
 		let parent = unsafe { &*(handle.ns_view.as_ptr() as *mut NSView) };
-		let frame = parent.frame();
-		let view = View::new(mtm, widget, Some(frame));
+		let view = View::new(mtm, widget, None);
 		unsafe { 
 			parent.addSubview(&view);
 			view.setNeedsDisplay(true);
@@ -70,6 +69,20 @@ impl Window {
 				}
 			},
 		}
+	}
+
+	pub fn size(&self) -> Result<Rectangle<i32>, Error> {
+		let frame = match self {
+			Window::OSWindow(view, _) => Ok(view.frame()),
+			Window::AttachedToView(view) => {
+				if let Some(view) = view.load() {
+					Ok(view.frame())
+				} else {
+					Err(Error)
+				}
+			},
+		}?;
+		todo!()
 	}
 }
 

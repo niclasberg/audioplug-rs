@@ -185,7 +185,9 @@ impl AppState {
             let widget = f(&mut BuildContext::new(widget_id, self));
             self.widgets.insert(widget_id, Box::new(widget));
         }
-        
+
+		layout_window(self, window_id);
+
 		window_id
     }
 

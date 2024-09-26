@@ -14,7 +14,7 @@ pub fn render_window(app_state: &mut AppState, window_id: WindowId, renderer: &m
 
 pub fn invalidate_window(app_state: &AppState, window_id: WindowId) {
     let handle = &app_state.window(window_id).handle;
-    handle.invalidate(handle.global_bounds())
+    handle.invalidate_window()
 }
 
 pub fn invalidate_widget(app_state: &AppState, widget_id: WidgetId) {
