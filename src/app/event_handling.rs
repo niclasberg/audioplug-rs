@@ -29,6 +29,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             if let Some(capture_view) = app_state.mouse_capture_widget {
                 let mut ctx = MouseEventContext::new(capture_view, app_state, false);
                 ctx.dispatch(mouse_event);
+                app_state.run_effects();
                 
                 match mouse_event {
                     MouseEvent::Up { .. } => set_mouse_capture_widget(app_state, None),
@@ -38,6 +39,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                 let id = app_state.window(window_id).root_widget;
                 let mut ctx = MouseEventContext::new(id, app_state, true);
                 ctx.dispatch(mouse_event);
+                app_state.run_effects();
             }
         },
         WindowEvent::Key(key_event) => {
@@ -45,6 +47,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             if let Some(focus_widget) = app_state.window(window_id).focus_widget {
                 let mut ctx = EventContext::new(focus_widget, app_state);
                 event_status = ctx.dispatch_key_event(key_event.clone());
+                app_state.run_effects();
             }
 
             if event_status == EventStatus::Ignored {
@@ -66,8 +69,6 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         _ => {}
     };
 
-	app_state.run_effects();
-
     /*if app_state.widget_data_ref(self.state.root_widget()).layout_requested() {
         self.do_layout(&mut handle);
     }*/
@@ -80,6 +81,7 @@ pub fn set_focus_widget(app_state: &mut AppState, window_id: WindowId, new_focus
         if let Some(old_focus_widget) = app_state.window(window_id).focus_widget {
             let mut ctx = EventContext::new(old_focus_widget, app_state);
             ctx.dispatch_status_updated(StatusChange::FocusLost);
+            app_state.run_effects();
         }
 
         app_state.window_mut(window_id).focus_widget = new_focus_widget;
@@ -87,6 +89,7 @@ pub fn set_focus_widget(app_state: &mut AppState, window_id: WindowId, new_focus
         if let Some(focus_gained_widget) = new_focus_widget {
             let mut ctx = EventContext::new(focus_gained_widget, app_state);
             ctx.dispatch_status_updated(StatusChange::FocusGained);
+            app_state.run_effects();
         }
     }
 }
@@ -96,6 +99,7 @@ pub fn set_mouse_capture_widget(app_state: &mut AppState, new_capture_widget: Op
         if let Some(old_mouse_capture_widget) = app_state.mouse_capture_widget {
             let mut ctx = EventContext::new(old_mouse_capture_widget, app_state);
             ctx.dispatch_status_updated(StatusChange::MouseCaptureLost);
+            app_state.run_effects();
         }
 
         app_state.mouse_capture_widget = new_capture_widget;
@@ -103,6 +107,7 @@ pub fn set_mouse_capture_widget(app_state: &mut AppState, new_capture_widget: Op
         if let Some(new_capture_widget) = new_capture_widget {
             let mut ctx = EventContext::new(new_capture_widget, app_state);
             ctx.dispatch_status_updated(StatusChange::MouseCaptured);
+            app_state.run_effects();
         }
     }
 }
