@@ -21,7 +21,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                             true
                         }
                     });
-                    set_focus_widget(app_state, new_focus_view);
+                    set_focus_widget(app_state, window_id, new_focus_view);
                 }
                 _ => {}
             };
@@ -42,7 +42,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         }
         WindowEvent::Key(key_event) => {
             let mut event_status = EventStatus::Ignored;
-            if let Some(focus_widget) = app_state.focus_widget {
+            if let Some(focus_widget) = app_state.window(window_id).focus_widget {
                 let mut ctx = EventContext::new(focus_widget, app_state);
                 event_status = ctx.dispatch_key_event(key_event.clone());
             }
@@ -50,7 +50,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             if event_status == EventStatus::Ignored {
                 match key_event {
                     KeyEvent::KeyDown { key, modifiers, .. } => match key {
-                        Key::Escape if modifiers.is_empty() => set_focus_widget(app_state, None),
+                        Key::Escape if modifiers.is_empty() => set_focus_widget(app_state, window_id, None),
                         _ => {}
                     },
                     _ => {}
@@ -58,7 +58,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             }
         }
         WindowEvent::Unfocused => {
-            set_focus_widget(app_state, None);
+            set_focus_widget(app_state, window_id, None);
         },
         WindowEvent::Animation(frame) => {
 
@@ -73,16 +73,16 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
     }*/
 }
 
-pub fn set_focus_widget(app_state: &mut AppState, new_focus_widget: Option<WidgetId>) {
-    if new_focus_widget != app_state.focus_widget {
-        println!("Focus change {:?}, {:?}", app_state.focus_widget, new_focus_widget);
+pub fn set_focus_widget(app_state: &mut AppState, window_id: WindowId, new_focus_widget: Option<WidgetId>) {
+    if new_focus_widget != app_state.window(window_id).focus_widget {
+        println!("Focus change {:?}, {:?}", app_state.window(window_id).focus_widget, new_focus_widget);
 
-        if let Some(old_focus_widget) = app_state.focus_widget {
+        if let Some(old_focus_widget) = app_state.window(window_id).focus_widget {
             let mut ctx = EventContext::new(old_focus_widget, app_state);
             ctx.dispatch_status_updated(StatusChange::FocusLost);
         }
 
-        app_state.focus_widget = new_focus_widget;
+        app_state.window_mut(window_id).focus_widget = new_focus_widget;
 
         if let Some(focus_gained_widget) = new_focus_widget {
             let mut ctx = EventContext::new(focus_gained_widget, app_state);
@@ -230,26 +230,6 @@ impl<'a> EventContext<'a> {
 
     pub fn app_state_mut(&mut self) -> &mut AppState {
         &mut self.app_state
-    }
-
-    /*pub(crate) fn with_child<'d, T>(&mut self, widget_data: &'d mut WidgetData, f: impl FnOnce(&mut EventContext<'d, '_, '_>) -> T) -> T {
-        let (value, flags) = {
-            let mut ctx = EventContext { 
-                widget_data,
-                window_state: self.window_state,
-                handle: self.handle,
-                app_state: self.app_state
-            };
-            let value = f(&mut ctx);
-            (value, ctx.view_flags())
-        };
-
-        self.widget_data.flags |= flags & (WidgetFlags::NEEDS_LAYOUT | WidgetFlags::NEEDS_RENDER);
-		value
-    }*/
-
-    pub fn take_focus(&mut self) {
-        self.app_state.focus_widget = Some(self.id)
     }
 
     pub fn request_layout(&mut self) {

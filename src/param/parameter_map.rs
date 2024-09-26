@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap, rc::Rc};
+use std::{any::Any, collections::HashMap};
 
 use super::{ParamRef, ParameterId};
 
@@ -7,6 +7,13 @@ pub type ParameterGetterAny<P> = fn(&P) -> &dyn Any;
 
 pub trait Params: Default + 'static {
     const PARAMS: &'static [(ParameterGetter<Self>, ParameterGetterAny<Self>)];
+
+	fn param_ref_iter<'s>(&'s self) -> ParamIter<'s, Self> {
+		ParamIter {
+			parameters: &self,
+			inner_iter: Self::PARAMS.iter()
+		}
+	}
 }
 
 impl Params for () {
@@ -34,10 +41,6 @@ impl<'a, P: Params> Iterator for ParamIter<'a, P> {
 		self.inner_iter.next().map(|getter|
 			getter.0(&self.parameters))
 	}
-}
-
-struct Getters {
-
 }
 
 pub struct ParameterMap<P: Params> {
@@ -68,10 +71,7 @@ impl<P: Params> ParameterMap<P> {
 	}
 
 	pub fn iter<'s>(&'s self) -> ParamIter<'s, P> {
-		ParamIter {
-			parameters: &self.parameters,
-			inner_iter: P::PARAMS.iter()
-		}
+		self.parameters.param_ref_iter()
 	}
 }
 

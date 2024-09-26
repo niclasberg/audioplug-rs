@@ -105,4 +105,12 @@ impl Widget for Box<dyn Widget> {
     fn cursor(&self) -> Option<Cursor> {
         self.deref().cursor()
     }
+
+    fn inner_widget(&self) -> Option<&dyn Widget> {
+		Some(self.deref())
+	}
+
+    fn inner_widget_mut(&mut self) -> Option<&mut dyn Widget> {
+        Some(self.deref_mut())
+    }
 }

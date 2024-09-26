@@ -72,7 +72,7 @@ impl Plugin for SynthPlugin {
         match event {
             NoteEvent::NoteOn { note, .. } => { self.active_voice.replace(Voice::new(note)); },
             NoteEvent::NoteOff { note, .. } => if self.active_voice.as_ref().is_some_and(|voice| voice.note == note) {
-                self.active_voice = None;
+                self.active_voice.take();
             },
         }
     }

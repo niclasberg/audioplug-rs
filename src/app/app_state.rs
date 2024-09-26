@@ -53,6 +53,7 @@ impl Task {
 pub(super) struct WindowState {
     pub(super) handle: platform::Handle,
     pub(super) root_widget: WidgetId,
+    pub(super) focus_widget: Option<WidgetId>,
 }
 
 pub struct AppState {
@@ -61,7 +62,6 @@ pub struct AppState {
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
     widget_bindings: SecondaryMap<WidgetId, HashSet<NodeId>>,
     pub(super) mouse_capture_widget: Option<WidgetId>,
-    pub(super) focus_widget: Option<WidgetId>,
     pub(super) runtime: Runtime,
     host_handle: Option<Box<dyn HostHandle>>,
     executor: Rc<platform::Executor>
@@ -75,7 +75,6 @@ impl AppState {
             widget_bindings: Default::default(),
             windows: Default::default(),
             mouse_capture_widget: None,
-            focus_widget: None,
             runtime: Runtime::new(parameters),
             host_handle: None,
             executor
@@ -172,7 +171,8 @@ impl AppState {
 		let window_id = self.windows.insert(
             WindowState {
                 handle,
-                root_widget: WidgetId::null()
+                root_widget: WidgetId::null(),
+                focus_widget: None,
             });
 
 		let widget_id = self.widget_data.insert_with_key(|id| {
@@ -253,7 +253,8 @@ impl AppState {
     }
 
     pub fn widget_has_focus(&self, id: WidgetId) -> bool {
-        self.focus_widget.as_ref()
+        self.window(self.widget_data_ref(id).window_id)
+            .focus_widget.as_ref()
             .is_some_and(|focus_widget_id| *focus_widget_id == id)
     }
 
@@ -300,6 +301,10 @@ impl AppState {
 
     pub(super) fn window(&self, id: WindowId) -> &WindowState {
         self.windows.get(id).expect("Window handle not found")
+    }
+
+    pub(super) fn window_mut(&mut self, id: WindowId) -> &mut WindowState {
+        self.windows.get_mut(id).expect("Window handle not found")
     }
 
     pub fn get_window_id_for_widget(&self, widget_id: WidgetId) -> WindowId {

@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{app::AppContext, core::{Color, Point, Rectangle, Size}, param::Params, view::{AnyView, Fill, View}};
+use crate::{app::AppContext, core::{Color, Point, Rectangle, Size}, param::{AnyParameter, ParamRef, Params}, view::{AnyView, Column, Fill, Label, ParameterSlider, Row, View}};
 
 pub trait Editor: 'static {
 	type Parameters: Params;
@@ -23,7 +23,23 @@ impl<P: Params> Editor for GenericEditor<P> {
 		Self { _phantom: PhantomData }
 	}
 	
-    fn view(&self, _ctx: &mut AppContext, _parameters: &P) -> AnyView {
-        Rectangle::new(Point::ZERO, Size::new(200.0, 200.0)).fill(Color::RED).as_any()
+    fn view(&self, _ctx: &mut AppContext, parameters: &P) -> AnyView {
+		let mut views: Vec<AnyView> = Vec::new();
+		for param in parameters.param_ref_iter() {
+			match param {
+				ParamRef::Float(p) => {
+					let view = Row::new((
+						Label::new(p.info().name()),
+						ParameterSlider::new(p).as_any(),
+					));
+					views.push(view.as_any());
+				},
+				ParamRef::Int(_) => todo!(),
+				ParamRef::StringList(_) => todo!(),
+				ParamRef::ByPass(_) => todo!(),
+				ParamRef::Bool(_) => todo!(),
+			}
+		}
+        Column::new(views).as_any()
     }
 }

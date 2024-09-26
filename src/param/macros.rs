@@ -10,7 +10,7 @@ macro_rules! params {
 
 		impl $crate::param::Params for $name {
 			const PARAMS: &'static [(fn(&Self) -> $crate::param::ParamRef, fn(&Self) -> &dyn std::any::Any)] = &[
-				$((|this| this.$fname.as_param_ref(), |this| this.$fname.as_any()),)*
+				$((|this| $crate::param::Parameter::as_param_ref(&this.$fname), |this| $crate::param::Parameter::as_any(&this.$fname)),)*
 			];
 		}
 	}
