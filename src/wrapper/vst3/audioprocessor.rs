@@ -11,22 +11,19 @@ use vst3_sys as vst3_com;
 
 use crate::midi::{Note, NoteEvent};
 use crate::param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap};
-use crate::{AudioBuffer, MidiProcessContext, Plugin, ProcessContext};
-use super::editcontroller::EditController;
+use crate::{AudioBuffer, MidiProcessContext, ProcessContext, VST3Plugin};
 use super::util::strcpyw;
 
 const NOTE_ON_EVENT: u16 = EventTypes::kNoteOnEvent as u16;
 const NOTE_OFF_EVENT: u16 = EventTypes::kNoteOffEvent as u16;
 
 #[VST3(implements(IComponent, IAudioProcessor, IConnectionPoint))]
-pub struct Vst3Plugin<P: Plugin> {
+pub struct AudioProcessor<P: VST3Plugin> {
     plugin: AtomicRefCell<P>,
     parameters: ParameterMap<P::Parameters>
 }
 
-impl<P: Plugin> Vst3Plugin<P> {
-    pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] };
-
+impl<P: VST3Plugin> AudioProcessor<P> {
     pub fn new() -> Box<Self> {
 		let parameters = ParameterMap::new(P::Parameters::default());
         Self::allocate(AtomicRefCell::new(P::new()), parameters)
@@ -37,7 +34,7 @@ impl<P: Plugin> Vst3Plugin<P> {
     }
 }
 
-impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
+impl<P: VST3Plugin> IAudioProcessor for AudioProcessor<P> {
     unsafe fn set_bus_arrangements(&self, _inputs: *mut SpeakerArrangement, _num_ins: i32, _outputs: *mut SpeakerArrangement, _num_outs: i32) -> tresult {
         // From the VST3 docs, we can do the following:
         // 1. Accept the provided speaker arrangement, adjust the bus:es and return true
@@ -199,7 +196,7 @@ impl<P: Plugin> IAudioProcessor for Vst3Plugin<P> {
     }
 }
 
-impl<P: Plugin> IPluginBase for Vst3Plugin<P> {
+impl<P: VST3Plugin> IPluginBase for AudioProcessor<P> {
     unsafe fn initialize(&self, _context: *mut c_void) -> tresult {
         kResultOk
     }
@@ -209,9 +206,9 @@ impl<P: Plugin> IPluginBase for Vst3Plugin<P> {
     }
 }
 
-impl<P: Plugin> IComponent for Vst3Plugin<P> {
+impl<P: VST3Plugin> IComponent for AudioProcessor<P> {
     unsafe fn get_controller_class_id(&self, tuid: *mut IID) -> tresult {
-        *tuid = EditController::<P::Editor>::CID;
+        *tuid = IID { data: P::EDITOR_UUID };
         kResultOk
     }
 
@@ -328,7 +325,7 @@ impl<P: Plugin> IComponent for Vst3Plugin<P> {
     }
 }
 
-impl<P: Plugin> IConnectionPoint for Vst3Plugin<P> {
+impl<P: VST3Plugin> IConnectionPoint for AudioProcessor<P> {
     unsafe fn connect(&self, _other: SharedVstPtr<dyn IConnectionPoint>) -> tresult {
 		// TODO: We will need some way to share messages between the plugin and the editor.
 		// For instance, FFT data. Says in the VST3 docs that this API should not be called from the 

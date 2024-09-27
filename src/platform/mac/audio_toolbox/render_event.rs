@@ -1,5 +1,7 @@
 use objc2::{Encode, Encoding, RefEncode};
 
+use crate::platform::core_audio::OSStatus;
+
 use super::cf_enum;
 
 type AUEventSampleTime = i64;
@@ -12,11 +14,11 @@ type AUAudioFrameCount = u32;
 ///	Common header for an AURenderEvent.
 pub struct AURenderEventHeader {
 	/// The next event in a linked list of events.
-	next: *mut AURenderEvent,		
+	pub next: *mut AURenderEvent,		
 	/// The sample time at which the event is scheduled to occur.
-	event_sample_time: AUEventSampleTime,
+	pub event_sample_time: AUEventSampleTime,
 	/// The type of the event.
-	event_type: AURenderEventType,
+	pub event_type: AURenderEventType,
 	/// Must be 0.
 	reserved: u8
 }
@@ -28,11 +30,11 @@ unsafe impl Encode for AURenderEventHeader {
 cf_enum!(
 	#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 	pub enum AURenderEventType: u8 {
-		AURenderEventParameter		= 1,
-		AURenderEventParameterRamp	= 2,
-		AURenderEventMIDI			= 8,
-		AURenderEventMIDISysEx		= 9,
-		AURenderEventMIDIEventList  = 10
+		Parameter		= 1,
+		ParameterRamp	= 2,
+		MIDI			= 8,
+		MIDISysEx		= 9,
+		MIDIEventList  = 10
 	}
 );
 
@@ -103,10 +105,35 @@ pub struct AUMIDIEventList {
 
 #[repr(C)]
 pub union AURenderEvent {
-	head: AURenderEventHeader,
-	parameter: AUParameterEvent,
-	midi: AUMIDIEvent,
-	midi_events_list: AUMIDIEventList,
+	pub head: AURenderEventHeader,
+	pub parameter: AUParameterEvent,
+	pub midi: AUMIDIEvent,
+	pub midi_events_list: AUMIDIEventList,
+}
+
+impl AURenderEvent {
+	pub fn for_each(&self, mut on_parameter: impl FnMut(&AUParameterEvent), mut on_midi: impl FnMut(&AUMIDIEvent), mut on_midi_event_list: impl FnMut(&AUMIDIEventList)) {
+		let mut head = self as *const Self;
+		while !head.is_null() {
+			let ev = unsafe { &*head };
+			let header = unsafe { ev.head };
+			
+			match header.event_type {
+				AURenderEventType::Parameter | AURenderEventType::ParameterRamp => {
+					on_parameter(&unsafe { ev.parameter })
+				},
+				AURenderEventType::MIDI => {
+					on_midi(&unsafe { ev.midi })
+				},
+				AURenderEventType::MIDIEventList => {
+					on_midi_event_list(&unsafe {ev.midi_events_list})
+				},
+				_ => { }
+			}
+
+			head = unsafe { ev.head }.next;
+		}
+	}
 }
 
 unsafe impl Encode for AURenderEvent {

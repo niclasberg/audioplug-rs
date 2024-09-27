@@ -5,7 +5,7 @@ use vst3_com::VstPtr;
 use vst3_com::vst::{kRootUnitId, ParameterFlags};
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
-use vst3_sys::{IID, VST3, c_void};
+use vst3_sys::{VST3, c_void};
 use vst3_sys::vst::{IComponentHandler, IConnectionPoint, IEditController, IMessage, IUnitInfo, ParameterInfo, ProgramListInfo, String128, UnitInfo};
 
 use vst3_sys as vst3_com;
@@ -50,8 +50,6 @@ pub struct EditController<E: Editor> {
 }
 
 impl<E: Editor> EditController<E> {
-    pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 14] };
-
     pub fn new() -> Box<Self> {
         let executor = Rc::new(platform::Executor::new().unwrap());
         let parameters = Rc::new(ParameterMap::new(E::Parameters::default()));
@@ -87,8 +85,9 @@ impl<E: Editor> IEditController for EditController<E> {
 		let Some(param_ref) = self.parameters.get_by_index(param_index as usize) else { return kInvalidArgument };
 
         let info = &mut *info;
+		let parameter_id = param_ref.id();
 
-		info.id = param_ref.id().into();
+		info.id = parameter_id.into();
 		info.flags = match param_ref {
 			ParamRef::ByPass(_) => ParameterFlags::kCanAutomate as i32 | ParameterFlags::kIsBypass as i32,
 			ParamRef::Int(_) => ParameterFlags::kCanAutomate as i32,
@@ -100,7 +99,7 @@ impl<E: Editor> IEditController for EditController<E> {
 		strcpyw(param_ref.name(), &mut info.short_title);
 		strcpyw(param_ref.name(), &mut info.title);
 		info.step_count = param_ref.step_count() as i32;
-		info.unit_id = kRootUnitId;
+		info.unit_id = self.parameters.get_group_id(parameter_id).map(i32::from).unwrap_or(kRootUnitId);
 		strcpyw("unit", &mut info.units);
 		kResultOk
     }
@@ -227,7 +226,7 @@ impl<E: Editor> IUnitInfo for EditController<E> {
 		0
 	}
 
-	unsafe fn get_unit_info(&self,unit_index:i32,info: *mut UnitInfo) -> tresult {
+	unsafe fn get_unit_info(&self, unit_index: i32, info: *mut UnitInfo) -> tresult {
 		kInvalidArgument
 	}
 
@@ -239,7 +238,7 @@ impl<E: Editor> IUnitInfo for EditController<E> {
 		kNotImplemented
 	}
 
-	unsafe fn get_program_name(&self,list_id: i32,program_index: i32, name: *mut u16) -> tresult {
+	unsafe fn get_program_name(&self, list_id: i32, program_index: i32, name: *mut u16) -> tresult {
 		kNotImplemented
 	}
 
@@ -247,7 +246,7 @@ impl<E: Editor> IUnitInfo for EditController<E> {
 		kNotImplemented
 	}
 
-	unsafe fn has_program_pitch_names(&self, id:i32, index:i32) -> tresult {
+	unsafe fn has_program_pitch_names(&self, id: i32, index: i32) -> tresult {
 		kResultFalse
 	}
 

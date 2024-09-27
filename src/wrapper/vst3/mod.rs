@@ -5,5 +5,5 @@ mod audioprocessor;
 mod util;
 mod editcontroller;
 
-pub use audioprocessor::Vst3Plugin;
+pub use audioprocessor::AudioProcessor;
 pub use factory::Factory;

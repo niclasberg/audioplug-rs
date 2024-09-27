@@ -89,9 +89,21 @@ impl<P: Plugin + 'static> Wrapper<P> {
 		_frame_count: AUAudioFrameCount, 
 		_output_bus_number: NSInteger, 
 		_output_data: *mut AudioBufferList, 
-		_realtime_event_list_head: *const AURenderEvent, 
+		realtime_event_list_head: *const AURenderEvent, 
 		_pull_input_block: Option<&AURenderPullInputBlock>
 	) {
+		let event_list = unsafe {&*realtime_event_list_head};
+		event_list.for_each(
+			|parameter|  {
+
+			}, 
+			|midi| {
+
+			}, 
+			|midi_event_list| {
+
+			});
+
 		let input = AudioBuffer::empty();
         let mut output = AudioBuffer::empty();
 

@@ -4,24 +4,27 @@ use std::marker::PhantomData;
 use vst3_sys::{VST3, IID};
 use vst3_sys::base::{IPluginFactory, PFactoryInfo, PClassInfo, tresult, FactoryFlags, kResultOk, kInvalidArgument, ClassCardinality, kResultFalse};
 use vst3_sys as vst3_com;
-use crate::Plugin;
+use crate::{Plugin, VST3Plugin};
 use super::editcontroller::EditController;
 
-use super::Vst3Plugin;
+use super::AudioProcessor;
 use super::util::strcpy;
 
 #[VST3(implements(IPluginFactory))]
-pub struct Factory<P: Plugin> {
+pub struct Factory<P: VST3Plugin> {
     _phantom: PhantomData<P>,
 }
 
-impl<P: Plugin> Factory<P> {
+impl<P: VST3Plugin> Factory<P> {
+	const EDITOR_CID: IID = IID { data: P::EDITOR_UUID };
+	const PROCESSOR_CID: IID = IID { data: P::PROCESSOR_UUID };
+
     pub fn new() -> Box<Self> {
         Self::allocate(PhantomData)
     }
 }
 
-impl<P: Plugin> IPluginFactory for Factory<P> {
+impl<P: VST3Plugin> IPluginFactory for Factory<P> {
     unsafe fn get_factory_info(&self, info: *mut PFactoryInfo) -> tresult {
         if info.is_null() {
             return kInvalidArgument;
@@ -48,13 +51,13 @@ impl<P: Plugin> IPluginFactory for Factory<P> {
         match index {
             0 => {
                 strcpy(P::NAME, &mut info.name);
-                info.cid = Vst3Plugin::<P>::CID;
+                info.cid = Self::PROCESSOR_CID;
                 info.cardinality = ClassCardinality::kManyInstances as i32;
                 strcpy("Audio Module Class", &mut info.category);
                 kResultOk
             },
             1 => {
-                info.cid = EditController::<P::Editor>::CID;
+                info.cid = Self::EDITOR_CID;
                 strcpy((P::NAME.to_owned() + " edit controller").as_str(), &mut info.name);
                 strcpy("Component Controller Class", &mut info.category);
                 info.cardinality = ClassCardinality::kManyInstances as i32;
@@ -69,17 +72,16 @@ impl<P: Plugin> IPluginFactory for Factory<P> {
         if cid.is_null() || obj.is_null() {
             return kInvalidArgument;
         }
+		let cid = &*cid;
 
-        match *cid {
-            Vst3Plugin::<P>::CID => {
-                *obj = Vst3Plugin::<P>::create_instance();
-                kResultOk
-            },
-            EditController::<P::Editor>::CID => {
-                *obj = EditController::<P::Editor>::create_instance();
-                kResultOk
-            }
-            _ => kResultFalse,
-        }
+		if *cid == Self::PROCESSOR_CID {
+			*obj = AudioProcessor::<P>::create_instance();
+            kResultOk
+		} else if *cid == Self::EDITOR_CID {
+			*obj = EditController::<P::Editor>::create_instance();
+            kResultOk
+		} else {
+			kResultFalse
+		}
     }
 }

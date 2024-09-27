@@ -1,6 +1,6 @@
 use std::{any::Any, collections::HashMap};
 
-use super::{ParamRef, ParameterId};
+use super::{GroupId, ParamRef, ParameterId};
 
 pub type ParameterGetter<P> = fn(&P) -> ParamRef;
 pub type ParameterGetterAny<P> = fn(&P) -> &dyn Any;
@@ -23,6 +23,7 @@ impl Params for () {
 /// A collection of parameters. Supports getting parameters by index and id
 pub trait AnyParameterMap: 'static {
 	fn get_by_id<'s>(&'s self, id: ParameterId) -> Option<ParamRef<'s>>;
+	fn get_group_id(&self, id: ParameterId) -> Option<GroupId>;
 	fn get_by_id_as_any(&self, id: ParameterId) -> Option<&dyn Any>;
 	fn get_by_index(&self, index: usize) -> Option<ParamRef>;
 	fn count(&self) -> usize;
@@ -80,6 +81,10 @@ impl<P: Params> AnyParameterMap for ParameterMap<P> {
 		self.getters_map.get(&id).map(|getter| {
 			getter(&self.parameters)
 		}) 
+	}
+
+	fn get_group_id(&self, _id: ParameterId) -> Option<GroupId> {
+		None
 	}
 
 	fn get_by_id_as_any(&self, id: ParameterId) -> Option<&dyn Any> {

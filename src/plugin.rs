@@ -88,3 +88,8 @@ pub trait Plugin {
 		0
 	}
 }
+
+pub trait VST3Plugin: Plugin {
+	const PROCESSOR_UUID: [u8; 16];
+	const EDITOR_UUID: [u8; 16];
+}

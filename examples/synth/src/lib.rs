@@ -1,6 +1,6 @@
 use core::f32;
 
-use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, midi::{Note, NoteEvent}, param::Parameter, AudioLayout, Bus, ChannelType, GenericEditor, Plugin};
+use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, midi::{Note, NoteEvent}, param::Parameter, AudioLayout, Bus, ChannelType, GenericEditor, Plugin, VST3Plugin};
 use params::SynthParams;
 
 mod views;
@@ -88,6 +88,11 @@ impl Plugin for SynthPlugin {
     fn latency_samples(&self) -> usize {
         0
     }
+}
+
+impl VST3Plugin for SynthPlugin {
+	const PROCESSOR_UUID: [u8; 16] = *b"audioplugsynthpc";
+	const EDITOR_UUID: [u8; 16] = *b"audioplugsynthed";
 }
 
 audioplug_vst3_plugin!(SynthPlugin);

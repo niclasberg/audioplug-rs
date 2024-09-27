@@ -3,6 +3,7 @@ use std::{any::{Any, TypeId}, fmt::Display};
 mod bool;
 mod float;
 mod int;
+mod group;
 mod string_list;
 mod bypass;
 mod macros;
@@ -11,6 +12,7 @@ mod parameter_map;
 pub use bool::{BoolParameter, BoolParameterInfo};
 pub use bypass::ByPassParameter;
 pub use float::{FloatParameter, FloatParameterInfo, FloatRange};
+pub use group::ParameterGroup;
 pub use int::{IntParameter, IntParameterInfo, IntRange};
 pub use string_list::StringListParameter;
 pub use parameter_map::{ParameterMap, AnyParameterMap, Params, ParameterGetter};
@@ -35,7 +37,7 @@ pub enum Unit {
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Clone, Copy, Hash)]
-pub struct ParameterId(u32);
+pub struct ParameterId(pub u32);
 
 impl ParameterId {
     pub fn new(id: u32) -> Self {
@@ -51,6 +53,27 @@ impl From<ParameterId> for u32 {
 
 impl From<ParameterId> for u64 {
 	fn from(value: ParameterId) -> Self {
+		value.0.into()
+	}
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Clone, Copy, Hash)]
+pub struct GroupId(pub u32);
+
+impl From<GroupId> for i32 {
+    fn from(value: GroupId) -> Self {
+        value.0 as _
+    }
+}
+
+impl From<GroupId> for u32 {
+    fn from(value: GroupId) -> Self {
+        value.0
+    }
+}
+
+impl From<GroupId> for u64 {
+	fn from(value: GroupId) -> Self {
 		value.0.into()
 	}
 }

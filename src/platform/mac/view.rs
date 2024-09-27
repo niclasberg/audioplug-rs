@@ -21,6 +21,11 @@ pub struct Ivars {
 	tracking_area: RefCell<Option<Id<NSTrackingArea>>>
 }
 
+// There is a problem in objc2 that we need to address. If we have two different plugins
+// in different dylibs and we try to instantiate a view for both, then they will both
+// try to register the class with the objc runtime. This will panic. We could version mark
+// the class name, and if the class already is registered, we could just look it up.
+// We cannot use declare_class! in that case, but have to write the boilerplate ourselves.
 declare_class!(
 	pub struct View;
 
@@ -28,7 +33,7 @@ declare_class!(
 		#[inherits(NSResponder, NSObject)]
 		type Super = NSView;
 		type Mutability = mutability::MainThreadOnly;
-		const NAME: &'static str = "View";
+		const NAME: &'static str = "AudioPlugView";
 	}
 
 	impl DeclaredClass for View {

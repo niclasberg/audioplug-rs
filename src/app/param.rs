@@ -41,12 +41,14 @@ impl<P: AnyParameter> ParamEditor<P> {
 
 	pub fn set_value_normalized(&self, ctx: &mut impl ParamContext, value: NormalizedValue) {
 		let param_ref = ctx.get_parameter_ref(self.id).unwrap();
+		param_ref.internal_set_value_normalized(value);
 		let info = param_ref.info();
 		ctx.host_handle().perform_edit(info, value);
 	}
 
 	pub fn set_value_plain(&self, ctx: &mut impl ParamContext, value: PlainValue) {
 		let param_ref = ctx.get_parameter_ref(self.id).unwrap();
+		param_ref.internal_set_value_plain(value);
 		let info = param_ref.info();
 		let value = info.normalize(value);
 		ctx.host_handle().perform_edit(info, value);
