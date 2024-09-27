@@ -1,6 +1,6 @@
 use core::f32;
 
-use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, midi::{Note, NoteEvent}, AudioLayout, Bus, ChannelType, GenericEditor, Plugin};
+use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, midi::{Note, NoteEvent}, param::Parameter, AudioLayout, Bus, ChannelType, GenericEditor, Plugin};
 use params::SynthParams;
 
 mod views;
@@ -54,10 +54,10 @@ impl Plugin for SynthPlugin {
         self.dt = 1.0 / sample_rate as f32;
     }
 
-    fn process(&mut self, context: audioplug::ProcessContext, _parameters: &Self::Parameters) {
+    fn process(&mut self, context: audioplug::ProcessContext, parameters: &Self::Parameters) {
         if let Some(voice) = &mut self.active_voice {
             for sample in context.output.channel_mut(0).iter_mut() {
-                *sample = f32::sin(voice.ang_freq * voice.t);
+                *sample = parameters.amplitude.value() as f32 * f32::sin(voice.ang_freq * voice.t);
                 voice.t += self.dt;
             } 
         } else {

@@ -2,7 +2,7 @@ use audioplug::{param::{FloatParameter, FloatRange, ParameterId}, params};
 
 params!(
     pub struct SynthParams {
-        amplitude: FloatParameter
+        pub amplitude: FloatParameter
     }
 );
 

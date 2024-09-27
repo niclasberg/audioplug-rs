@@ -25,7 +25,7 @@ pub struct Vst3Plugin<P: Plugin> {
 }
 
 impl<P: Plugin> Vst3Plugin<P> {
-    pub const CID: IID = IID { data: [3, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] };
+    pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] };
 
     pub fn new() -> Box<Self> {
 		let parameters = ParameterMap::new(P::Parameters::default());

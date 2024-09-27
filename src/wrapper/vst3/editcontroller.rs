@@ -50,7 +50,7 @@ pub struct EditController<E: Editor> {
 }
 
 impl<E: Editor> EditController<E> {
-    pub const CID: IID = IID { data: [3, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 14] };
+    pub const CID: IID = IID { data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 14] };
 
     pub fn new() -> Box<Self> {
         let executor = Rc::new(platform::Executor::new().unwrap());
@@ -224,27 +224,27 @@ impl<E: Editor> IConnectionPoint for EditController<E> {
 
 impl<E: Editor> IUnitInfo for EditController<E> {
 	unsafe fn get_unit_count(&self) -> i32 {
-		todo!()
+		0
 	}
 
 	unsafe fn get_unit_info(&self,unit_index:i32,info: *mut UnitInfo) -> tresult {
-		todo!()
+		kInvalidArgument
 	}
 
 	unsafe fn get_program_list_count(&self) -> i32 {
 		0
 	}
 
-	unsafe fn get_program_list_info(&self, list_index:i32, info: *mut ProgramListInfo) -> tresult {
-		todo!()
+	unsafe fn get_program_list_info(&self, list_index: i32, info: *mut ProgramListInfo) -> tresult {
+		kNotImplemented
 	}
 
 	unsafe fn get_program_name(&self,list_id: i32,program_index: i32, name: *mut u16) -> tresult {
-		todo!()
+		kNotImplemented
 	}
 
 	unsafe fn get_program_info(&self, list_id: i32, program_index: i32, attribute_id: *const u8, attribute_value: *mut u16) -> tresult {
-		todo!()
+		kNotImplemented
 	}
 
 	unsafe fn has_program_pitch_names(&self, id:i32, index:i32) -> tresult {
@@ -256,18 +256,18 @@ impl<E: Editor> IUnitInfo for EditController<E> {
 	}
 
 	unsafe fn get_selected_unit(&self) -> i32 {
-		todo!()
+		0
 	}
 
 	unsafe fn select_unit(&self,id:i32) -> tresult {
-		todo!()
+		kResultFalse
 	}
 
 	unsafe fn get_unit_by_bus(&self,type_:i32,dir:i32,bus_index:i32,channel:i32,unit_id: *mut i32,) -> tresult {
-		todo!()
+		kNotImplemented
 	}
 
 	unsafe fn set_unit_program_data(&self,list_or_unit:i32,program_idx:i32,data:SharedVstPtr<dyn IBStream> ,) -> tresult {
-		todo!()
+		kNotImplemented
 	}
 }

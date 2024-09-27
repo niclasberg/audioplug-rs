@@ -34,6 +34,10 @@ impl Handle {
         Self { hwnd, scale_factor }
     }
 
+    pub fn invalidate_window(&self) {
+		let _ = unsafe { InvalidateRect(self.hwnd, None, false) };
+	}
+
     pub fn invalidate(&self, rect: Rectangle) {
         let rect = rect.scale(1.0 / self.scale_factor.get());
         let rect = RECT {
@@ -42,7 +46,7 @@ impl Handle {
             right: rect.right().ceil() as i32, 
             bottom: rect.bottom().ceil() as i32
         };
-        unsafe { InvalidateRect(self.hwnd, Some(&rect as _), false) };
+        let _ = unsafe { InvalidateRect(self.hwnd, Some(&rect as _), false) };
     }
 
     pub fn global_bounds(&self) -> Rectangle {
