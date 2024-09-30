@@ -1,4 +1,4 @@
-use super::{group::{AnyParameterGroup, ParamGroup}, BoolParameter, ByPassParameter, FloatParameter, IntParameter, ParamRef, ParameterGroup, StringListParameter};
+use super::{group::AnyParameterGroup, BoolParameter, ByPassParameter, FloatParameter, IntParameter, ParamRef, ParameterGroup, StringListParameter};
 
 #[macro_export] 
 macro_rules! params {
@@ -7,30 +7,34 @@ macro_rules! params {
 	) => {
 		$(#[$struct_meta])*
         $sv struct $name {
-            $($fv $fname: $ftype,)*
+            $(
+				$fv $fname: $ftype
+			),*
         }
 
 		impl $crate::param::ParameterTraversal for $name {
-			fn visit<V: ParamVisitor>(&self, visitor: &V) -> V::Value {
-				$($crate::param::VisitParameter::visit(&this.$fname, visitor),)*
+			fn visit<V: $crate::param::ParamVisitor>(&self, visitor: &mut V) {
+				$(
+					$crate::param::ParameterTraversal::visit(&self.$fname, visitor);
+				)*
 			}
 		}
 	}
 }
 
 pub trait ParamVisitor {
-	fn bool_parameter(&self, p: &BoolParameter);
-	fn bypass_parameter(&self, p: &ByPassParameter);
-	fn float_parameter(&self, p: &FloatParameter);
-	fn int_parameter(&self, p: &IntParameter);
-	fn string_list_parameter(&self, p: &StringListParameter);
-	fn group<P: ParamGroup>(&self, group: &ParameterGroup<P>);
+	fn bool_parameter(&mut self, p: &BoolParameter);
+	fn bypass_parameter(&mut self, p: &ByPassParameter);
+	fn float_parameter(&mut self, p: &FloatParameter);
+	fn int_parameter(&mut self, p: &IntParameter);
+	fn string_list_parameter(&mut self, p: &StringListParameter);
+	fn group<P: ParameterTraversal>(&mut self, group: &ParameterGroup<P>);
 }
 
 pub trait ParameterTraversal {
-	fn visit<V: ParamVisitor>(&self, visitor: &V);
+	fn visit<V: ParamVisitor>(&self, visitor: &mut V);
 }
 
 impl ParameterTraversal for () {
-	fn visit<V: super::param_lens::ParamVisitor>(&self, _visitor: &V) {}
+	fn visit<V: super::param_lens::ParamVisitor>(&self, _visitor: &mut V) {}
 }

@@ -114,7 +114,7 @@ impl<P: VST3Plugin> IAudioProcessor for AudioProcessor<P> {
 						let mut value = 0.0;
 						let mut sample_offset = 0;
 						if data.get_point(point_count - 1, &mut sample_offset as *mut _, &mut value as *mut _) == kResultOk {
-							param_ref.internal_set_value_normalized(NormalizedValue::from_f64_unchecked(value));
+							param_ref.set_value_normalized(NormalizedValue::from_f64_unchecked(value));
 						}
 					}
 				}

@@ -23,6 +23,10 @@ impl AnyParameter for StringListParameter {
 	fn set_value_normalized(&self, value: NormalizedValue) {
 		todo!()
 	}
+
+	fn as_param_ref(&self) -> ParamRef {
+		ParamRef::StringList(&self)
+	}
 }
 
 impl Parameter<usize> for StringListParameter {
@@ -32,10 +36,6 @@ impl Parameter<usize> for StringListParameter {
 	
 	fn set_value(&self, value: usize) {
 		self.index.replace(value);
-	}
-
-	fn as_param_ref(&self) -> ParamRef {
-		ParamRef::StringList(&self)
 	}
 
 	fn as_any(&self) -> &dyn Any {

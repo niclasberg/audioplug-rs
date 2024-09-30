@@ -1,6 +1,6 @@
 use std::{any::Any, cell::Cell};
 
-use super::{AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue};
+use super::{AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, ParameterTraversal, PlainValue};
 
 pub struct IntParameter {
     info: IntParameterInfo,
@@ -35,6 +35,10 @@ impl AnyParameter for IntParameter {
 	fn set_value_normalized(&self, _value: NormalizedValue) {
 		todo!()
 	}
+	
+	fn as_param_ref(&self) -> ParamRef {
+        ParamRef::Int(self)
+    }
 }
 
 impl Parameter<i64> for IntParameter {
@@ -45,13 +49,15 @@ impl Parameter<i64> for IntParameter {
 	fn set_value(&self, value: i64) {
         self.value.replace(value);
     }
-	
-	fn as_param_ref(&self) -> ParamRef {
-        ParamRef::Int(self)
-    }
 
 	fn as_any(&self) -> &dyn Any {
 		self
+	}
+}
+
+impl ParameterTraversal for IntParameter {
+	fn visit<V: super::ParamVisitor>(&self, visitor: &mut V) {
+		visitor.int_parameter(self);
 	}
 }
 

@@ -83,6 +83,7 @@ impl<E: Editor> IEditController for EditController<E> {
 
     unsafe fn get_parameter_info(&self, param_index: i32, info: *mut ParameterInfo) -> tresult {
 		let Some(param_ref) = self.parameters.get_by_index(param_index as usize) else { return kInvalidArgument };
+		let param_ref = param_ref.as_param_ref();
 
         let info = &mut *info;
 		let parameter_id = param_ref.id();
@@ -131,12 +132,12 @@ impl<E: Editor> IEditController for EditController<E> {
     unsafe fn normalized_param_to_plain(&self, id: u32, value_normalized: f64) -> f64 {
 		let value_normalized = unsafe { NormalizedValue::from_f64_unchecked(value_normalized) };
 		self.parameters.get_by_id(ParameterId::new(id))
-			.map_or(0.0, |param| param.denormalize(value_normalized).into())
+			.map_or(0.0, |param| param.info().denormalize(value_normalized).into())
     }
 
     unsafe fn plain_param_to_normalized(&self, id: u32, plain_value: f64) -> f64 {
 		self.parameters.get_by_id(ParameterId::new(id))
-        	.map_or(0.0, |param| param.normalize(PlainValue::new(plain_value)).into())
+        	.map_or(0.0, |param| param.info().normalize(PlainValue::new(plain_value)).into())
     }
 
     unsafe fn get_param_normalized(&self, id: u32) -> f64 {

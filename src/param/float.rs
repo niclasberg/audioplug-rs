@@ -1,6 +1,6 @@
 use std::{any::Any, cell::Cell};
 
-use super::{AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, ParseError, PlainValue};
+use super::{AnyParameter, NormalizedValue, ParamRef, ParamVisitor, Parameter, ParameterId, ParameterInfo, ParameterTraversal, ParseError, PlainValue};
 
 pub struct FloatParameter {
     info: FloatParameterInfo,
@@ -49,6 +49,10 @@ impl AnyParameter for FloatParameter {
 	fn set_value_normalized(&self, value: NormalizedValue) {
 		self.value.replace(self.info.denormalize(value).0);
 	}
+
+	fn as_param_ref(&self) -> ParamRef {
+        ParamRef::Float(self)
+    }
 }
 
 impl Parameter<f64> for FloatParameter {
@@ -60,12 +64,14 @@ impl Parameter<f64> for FloatParameter {
 		self.value.replace(value);
 	}
 
-	fn as_param_ref(&self) -> ParamRef {
-        ParamRef::Float(self)
-    }
-
     fn as_any(&self) -> &dyn Any {
 		self
+	}
+}
+
+impl ParameterTraversal for FloatParameter {
+	fn visit<V: ParamVisitor>(&self, visitor: &mut V) {
+		visitor.float_parameter(self)
 	}
 }
 

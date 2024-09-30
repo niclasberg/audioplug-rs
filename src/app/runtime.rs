@@ -253,7 +253,7 @@ impl SignalGetContext for Runtime {
     }
     
     fn get_parameter_ref_untracked(&self, parameter_id: ParameterId) -> ParamRef {
-        self.parameters.get_by_id(parameter_id).expect("Invalid parameter id")
+        self.parameters.get_by_id(parameter_id).expect("Invalid parameter id").as_param_ref()
     }
 }
 

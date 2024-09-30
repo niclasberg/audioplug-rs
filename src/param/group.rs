@@ -1,25 +1,33 @@
-use super::{param_lens::{ParamVisitor, ParameterTraversal}, GroupId,  ParameterId};
+use std::ops::Deref;
 
-pub trait ParamGroup: ParameterTraversal {
-	fn new_with_offset(offset: ParameterId) -> Self;
-}
+use super::{param_lens::{ParamVisitor, ParameterTraversal}, GroupId,  ParameterId};
 
 pub trait AnyParameterGroup {
 	fn id(&self) -> GroupId;
 	fn name(&self) -> &'static str;
 }
 
-pub struct ParameterGroup<P: ParamGroup> {
+pub struct ParameterGroup<P: ParameterTraversal> {
 	id: GroupId,
 	name: &'static str,
 	children: P
 }
 
-impl<P: ParamGroup> ParameterGroup<P> {
+impl<P: ParameterTraversal> ParameterGroup<P> {
+	pub fn new(id: GroupId, name: &'static str, children: P) -> Self {
+		Self {
+			id,
+			name, 
+			children
+		}
+	}
 
+	pub fn children(&self) -> &P {
+		&self.children
+	}
 }
 
-impl<P: ParamGroup> AnyParameterGroup for ParameterGroup<P> {
+impl<P: ParameterTraversal> AnyParameterGroup for ParameterGroup<P> {
 	fn id(&self) -> GroupId {
 		self.id
 	}
@@ -29,8 +37,16 @@ impl<P: ParamGroup> AnyParameterGroup for ParameterGroup<P> {
 	}
 }
 
-impl<P: ParamGroup> ParameterTraversal for ParameterGroup<P> {
-	fn visit<V: ParamVisitor>(&self, visitor: &V) -> V::Value {
-		visitor.parameter_group(self)
+impl<P: ParameterTraversal> ParameterTraversal for ParameterGroup<P> {
+	fn visit<V: ParamVisitor>(&self, visitor: &mut V) {
+		visitor.group(self)
+	}
+}
+
+impl<P: ParameterTraversal> Deref for ParameterGroup<P> {
+	type Target = P;
+
+	fn deref(&self) -> &Self::Target {
+		&self.children
 	}
 }

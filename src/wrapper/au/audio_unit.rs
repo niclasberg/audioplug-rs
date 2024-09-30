@@ -3,7 +3,7 @@ use std::{marker::PhantomData, mem::MaybeUninit, ops::Deref, sync::OnceLock};
 use block2::RcBlock;
 use objc2::{__extern_class_impl_traits, msg_send, msg_send_id, mutability::Mutable, rc::Retained, runtime::{AnyClass, AnyObject, Bool, ClassBuilder, Sel}, sel, ClassType, Encoding, RefEncode};
 use objc2_foundation::{NSArray, NSError, NSIndexSet, NSInteger, NSNumber, NSObject, NSTimeInterval};
-use crate::{param::{AnyParameterMap, ParameterId, ParameterMap, PlainValue}, platform::audio_toolbox::{AUParameter, AUValue}, AudioBuffer, Plugin, ProcessContext};
+use crate::{param::{AnyParameterMap, ParameterId, ParameterMap, PlainValue, Params}, platform::audio_toolbox::{AUParameter, AUValue}, AudioBuffer, Plugin, ProcessContext};
 use crate::platform::mac::audio_toolbox::{AUAudioUnitBusArray, AUParameterTree, AUInternalRenderRcBlock, AUAudioUnit, AUAudioUnitBus, AUAudioUnitBusType, AudioUnitRenderActionFlags, AUAudioFrameCount, AURenderEvent, AURenderPullInputBlock, AudioComponentDescription, AUInternalRenderBlock, AudioComponentInstantiationOptions, AUAudioUnitStatus, AUAudioUnitViewConfiguration};
 use crate::platform::mac::av_foundation::AVAudioFormat;
 use crate::platform::mac::core_audio::{AudioBufferList, AudioTimeStamp};
@@ -33,7 +33,7 @@ unsafe impl<P: Plugin> RefEncode for Wrapper<P> {
 impl<P: Plugin + 'static> Wrapper<P> {
 	pub fn new(audio_unit: &mut AUAudioUnit) -> Self {
 		let plugin = P::new();
-		let parameters = ParameterMap::new(P::Parameters::default());
+		let parameters = ParameterMap::new(P::Parameters::new());
 		let parameter_tree = super::utils::create_parameter_tree(&parameters);
 
 		let format = unsafe {
@@ -133,7 +133,7 @@ impl<P: Plugin + 'static> Wrapper<P> {
 				let p = unsafe { &*p };
 				let id = ParameterId::new(p.address() as _);
 				if let Some(param_ref) = this.parameters.get_by_id(id) {
-					param_ref.internal_set_value_plain(PlainValue::new(value as _));
+					param_ref.set_value_plain(PlainValue::new(value as _));
 				}
 			});
 		(*this).parameter_tree.setImplementorValueObserver(&value_observer);

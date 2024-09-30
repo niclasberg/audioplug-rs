@@ -32,6 +32,10 @@ impl AnyParameter for BoolParameter {
     fn set_value_normalized(&self, value: NormalizedValue) {
         self.value.replace(value.into());
     }
+
+	fn as_param_ref(&self) -> ParamRef {
+		ParamRef::Bool(&self)
+	}
 }
 
 impl Parameter<bool> for BoolParameter {
@@ -46,14 +50,10 @@ impl Parameter<bool> for BoolParameter {
 	fn set_value(&self, value: bool) {
 		self.value.replace(value);
 	}
-
-	fn as_param_ref(&self) -> ParamRef {
-		ParamRef::Bool(&self)
-	}
 }
 
 impl ParameterTraversal for BoolParameter {
-	fn visit<V: ParamVisitor>(&self, visitor: &V) {
+	fn visit<V: ParamVisitor>(&self, visitor: &mut V) {
 		visitor.bool_parameter(self)
 	}
 }

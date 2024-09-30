@@ -153,7 +153,7 @@ impl AppState {
     #[allow(dead_code)]
 	pub(crate) fn set_plain_parameter_value_from_host(&mut self, id: ParameterId, value: PlainValue) -> bool {
 		let Some(param_ref) = self.runtime.parameters.get_by_id(id) else { return false };
-		param_ref.internal_set_value_plain(value);
+		param_ref.set_value_plain(value);
 		self.runtime.notify_parameter_subscribers(id);
 		self.run_effects();
         true
@@ -161,7 +161,7 @@ impl AppState {
 
     pub(crate) fn set_normalized_parameter_value_from_host(&mut self, id: ParameterId, value: NormalizedValue) -> bool {
         let Some(param_ref) = self.runtime.parameters.get_by_id(id) else { return false };
-		param_ref.internal_set_value_normalized(value);
+		param_ref.set_value_normalized(value);
 		self.runtime.notify_parameter_subscribers(id);
 		self.run_effects();
         true
@@ -375,6 +375,6 @@ impl ParamContext for AppState {
     }
     
     fn get_parameter_ref<'a>(&'a self, id: ParameterId) -> Option<ParamRef<'a>> {
-        self.runtime.parameters.get_by_id(id)
+        self.runtime.parameters.get_by_id(id).map(|p| p.as_param_ref())
     }
 }

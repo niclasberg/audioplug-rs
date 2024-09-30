@@ -151,12 +151,16 @@ pub trait AnyParameter: Any {
 		self.info().normalize(self.plain_value())
 	}
     fn set_value_normalized(&self, value: NormalizedValue);
+	fn set_value_plain(&self, value: PlainValue) {
+		self.set_value_normalized(self.info().normalize(value));
+	}
 	fn as_signal_plain(&self) -> ParamSignal<PlainValue> where Self: Sized {
 		ParamSignal::new_plain(self)
 	}
 	fn as_signal_normalized(&self) -> ParamSignal<NormalizedValue> where Self: Sized {
 		ParamSignal::new_normalized(self)
 	}
+	fn as_param_ref(&self) -> ParamRef;
 }
 
 pub trait Parameter<T>: AnyParameter {
@@ -164,7 +168,6 @@ pub trait Parameter<T>: AnyParameter {
 	fn set_value(&self, value: T);
 	
     fn as_any(&self) -> &dyn Any;
-    fn as_param_ref(&self) -> ParamRef;
 	fn as_signal(&self) -> ParamSignal<T> where Self: Sized {
 		ParamSignal::new(self)
 	}

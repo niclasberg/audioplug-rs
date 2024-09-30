@@ -33,6 +33,10 @@ impl AnyParameter for ByPassParameter {
 	fn set_value_normalized(&self, value: NormalizedValue) {
 		self.value.replace(value.into());
 	}
+
+	fn as_param_ref(&self) -> ParamRef {
+		ParamRef::ByPass(&self)
+	}
 }
 
 impl Parameter<bool> for ByPassParameter {
@@ -42,10 +46,6 @@ impl Parameter<bool> for ByPassParameter {
 	
 	fn set_value(&self, value: bool) {
 		self.value.replace(value);
-	}
-
-	fn as_param_ref(&self) -> ParamRef {
-		ParamRef::ByPass(&self)
 	}
 
 	fn as_any(&self) -> &dyn Any {
