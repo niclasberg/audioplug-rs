@@ -1,5 +1,5 @@
 use std::{any::Any, cell::Cell};
-use super::{AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, ParseError, PlainValue};
+use super::{param_lens::ParameterTraversal, AnyParameter, NormalizedValue, ParamRef, ParamVisitor, Parameter, ParameterId, ParameterInfo, ParseError, PlainValue};
 
 pub struct BoolParameter {
     info: BoolParameterInfo,
@@ -35,10 +35,6 @@ impl AnyParameter for BoolParameter {
 }
 
 impl Parameter<bool> for BoolParameter {
-	fn as_param_ref(&self) -> ParamRef {
-		ParamRef::Bool(&self)
-	}
-
 	fn as_any(&self) -> &dyn Any {
 		self
 	}
@@ -49,6 +45,16 @@ impl Parameter<bool> for BoolParameter {
 	
 	fn set_value(&self, value: bool) {
 		self.value.replace(value);
+	}
+
+	fn as_param_ref(&self) -> ParamRef {
+		ParamRef::Bool(&self)
+	}
+}
+
+impl ParameterTraversal for BoolParameter {
+	fn visit<V: ParamVisitor>(&self, visitor: &V) {
+		visitor.bool_parameter(self)
 	}
 }
 

@@ -1,5 +1,5 @@
 use audioplug::core::{Color, Size};
-use audioplug::param::{BoolParameter, FloatParameter, FloatRange, Parameter, ParameterId};
+use audioplug::param::{BoolParameter, FloatParameter, FloatRange, Parameter, ParameterId, Params};
 use audioplug::view::{AnyView, Column, Label, ParameterSlider, View};
 use audioplug::app::AppContext;
 use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, params, AudioLayout, Bus, ChannelType, Editor, Plugin, ProcessContext, VST3Plugin};
@@ -11,8 +11,8 @@ params!(
 	}
 );
 
-impl Default for MyPluginParams {
-    fn default() -> Self {
+impl Params for MyPluginParams {
+    fn new() -> Self {
         Self {
             enabled: BoolParameter::new(ParameterId::new(1), "Enabled", true),
             gain: FloatParameter::new(ParameterId::new(2), "Gain")

@@ -10,7 +10,7 @@ use std::mem::MaybeUninit;
 use vst3_sys as vst3_com;
 
 use crate::midi::{Note, NoteEvent};
-use crate::param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap};
+use crate::param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap, Params};
 use crate::{AudioBuffer, MidiProcessContext, ProcessContext, VST3Plugin};
 use super::util::strcpyw;
 
@@ -25,7 +25,7 @@ pub struct AudioProcessor<P: VST3Plugin> {
 
 impl<P: VST3Plugin> AudioProcessor<P> {
     pub fn new() -> Box<Self> {
-		let parameters = ParameterMap::new(P::Parameters::default());
+		let parameters = ParameterMap::new(P::Parameters::new());
         Self::allocate(AtomicRefCell::new(P::new()), parameters)
     }
 

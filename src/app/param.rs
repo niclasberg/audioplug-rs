@@ -7,7 +7,6 @@ use super::{HostHandle, SignalGet, SignalGetContext};
 pub trait ParamContext {
 	fn host_handle(&self) -> &dyn HostHandle;
 	fn get_parameter_ref<'a>(&'a self, id: ParameterId) -> Option<ParamRef<'a>>;
-	fn get_parameter_as<'a, P: AnyParameter>(&'a self, param: &ParamEditor<P>) -> &'a P;
 }
 
 pub struct ParamEditor<P> {

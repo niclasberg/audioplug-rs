@@ -374,14 +374,6 @@ impl ParamContext for AppState {
         host_handle.as_ref()
     }
     
-    fn get_parameter_as<'a, P: AnyParameter>(&'a self, param: &ParamEditor<P>) -> &'a P {
-        if let Some(p) = self.runtime.parameters.get_by_id_as_any(param.id) {
-            p.downcast_ref().expect("Parameter had wrong type")
-        } else {
-            unreachable!()
-        }
-    }
-    
     fn get_parameter_ref<'a>(&'a self, id: ParameterId) -> Option<ParamRef<'a>> {
         self.runtime.parameters.get_by_id(id)
     }

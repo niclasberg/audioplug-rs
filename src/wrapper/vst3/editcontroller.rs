@@ -52,7 +52,7 @@ pub struct EditController<E: Editor> {
 impl<E: Editor> EditController<E> {
     pub fn new() -> Box<Self> {
         let executor = Rc::new(platform::Executor::new().unwrap());
-        let parameters = Rc::new(ParameterMap::new(E::Parameters::default()));
+        let parameters = Rc::new(ParameterMap::new(E::Parameters::new()));
 		let app_state = Rc::new(RefCell::new(AppState::new(parameters.clone(), executor.clone())));
 		let editor = Rc::new(RefCell::new(E::new()));
 		let is_editing_parameters = Rc::new(Cell::new(false));
@@ -78,7 +78,7 @@ impl<E: Editor> IEditController for EditController<E> {
     }
 
     unsafe fn get_parameter_count(&self) -> i32 {
-        E::Parameters::PARAMS.len() as i32
+        self.parameters.count() as i32
     }
 
     unsafe fn get_parameter_info(&self, param_index: i32, info: *mut ParameterInfo) -> tresult {

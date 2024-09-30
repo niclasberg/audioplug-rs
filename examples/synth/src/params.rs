@@ -1,4 +1,4 @@
-use audioplug::{param::{FloatParameter, FloatRange, ParameterId}, params};
+use audioplug::{param::{FloatParameter, FloatRange, ParameterId, Params}, params};
 
 params!(
     pub struct SynthParams {
@@ -6,8 +6,8 @@ params!(
     }
 );
 
-impl Default for SynthParams {
-    fn default() -> Self {
+impl Params for SynthParams {
+    fn new() -> Self {
         Self {  
             amplitude: FloatParameter::new(ParameterId::new(1), "Amplitude")
                 .with_range(FloatRange::Linear { min: 0.0, max: 1.0 })

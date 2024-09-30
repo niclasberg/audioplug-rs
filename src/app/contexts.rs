@@ -69,10 +69,6 @@ impl<'s, W: Widget> ParamContext for BuildContext<'s, W> {
     fn get_parameter_ref<'a>(&'a self, id: crate::param::ParameterId) -> Option<crate::param::ParamRef<'a>> {
         self.app_state.get_parameter_ref(id)
     }
-
-    fn get_parameter_as<'a, P: crate::param::AnyParameter>(&'a self, param: &super::ParamEditor<P>) -> &'a P {
-        self.app_state.get_parameter_as(param)
-    }
 }
 
 
