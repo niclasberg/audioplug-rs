@@ -25,8 +25,8 @@ impl FloatParameter {
         self.value.replace(value);
     }
 
-    pub fn with_range(mut self, range: FloatRange) -> Self {
-        self.info.range = range;
+    pub fn with_range(mut self, range: impl Into<FloatRange>) -> Self {
+        self.info.range = range.into();
         self
     }
 

@@ -1,6 +1,6 @@
-use std::{any::Any, cell::Cell};
+use std::{any::Any, cell::Cell, ops::{Range, RangeInclusive}};
 
-use super::{AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, ParameterTraversal, PlainValue};
+use super::{AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, ParameterTraversal, ParseError, PlainValue};
 
 pub struct IntParameter {
     info: IntParameterInfo,
@@ -17,8 +17,8 @@ impl IntParameter {
         }
     }
 
-    pub fn with_range(mut self, range: IntRange) -> Self {
-        self.info.range = range;
+    pub fn with_range(mut self, range: impl Into<IntRange>) -> Self {
+        self.info.range = range.into();
         self
     }
 }
@@ -29,11 +29,15 @@ impl AnyParameter for IntParameter {
 	}
 
 	fn plain_value(&self) -> PlainValue {
-		todo!()
+		PlainValue::new(self.value.get() as _)
 	}
 
-	fn set_value_normalized(&self, _value: NormalizedValue) {
-		todo!()
+	fn set_value_normalized(&self, value: NormalizedValue) {
+		self.set_value_plain(self.info.denormalize(value));
+	}
+
+	fn set_value_plain(&self, value: PlainValue) {
+		self.value.replace(value.0.round() as _);
 	}
 	
 	fn as_param_ref(&self) -> ParamRef {
@@ -116,18 +120,32 @@ impl ParameterInfo for IntParameterInfo {
 		self.range.steps()
 	}
 	
-	fn value_from_string(&self, str: &str) -> Result<NormalizedValue, super::ParseError> {
-		todo!()
+	fn value_from_string(&self, str: &str) -> Result<NormalizedValue, ParseError> {
+		let plain_value = str.parse().map_err(|_| ParseError)?;
+		Ok(self.normalize(PlainValue::new(plain_value)))
 	}
 
 	fn string_from_value(&self, value: NormalizedValue) -> String {
-		todo!()
+		let plain_value = self.denormalize(value);
+		plain_value.0.to_string()
 	}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum IntRange {
     Linear { min: i64, max: i64 }
+}
+
+impl From<Range<i64>> for IntRange {
+	fn from(value: Range<i64>) -> Self {
+		Self::Linear { min: value.start, max: value.end+1 }
+	}
+}
+
+impl From<RangeInclusive<i64>> for IntRange {
+	fn from(value: RangeInclusive<i64>) -> Self {
+		Self::Linear { min: *value.start(), max: *value.end() }
+	}
 }
 
 impl IntRange {

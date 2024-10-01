@@ -1,7 +1,7 @@
-use std::{future::Future, ops::Deref, rc::Rc, sync::{mpsc::{self, Receiver, Sender}, Once}};
+use std::{future::Future, mem::MaybeUninit, ops::Deref, rc::Rc, sync::{mpsc::{self, Receiver, Sender}, Once}};
 use async_task::{self, Task, Runnable};
 
-use windows::{core::{w, Result, PCWSTR}, Win32::{Foundation::{HWND, LPARAM, LRESULT, WPARAM}, System::LibraryLoader::GetModuleHandleW, UI::WindowsAndMessaging::{CreateWindowExW, DefWindowProcW, GetWindowLongPtrW, PostMessageA, RegisterClassW, SetWindowLongPtrW, CREATESTRUCTW, CW_USEDEFAULT, GWLP_USERDATA, HWND_MESSAGE, WINDOW_EX_STYLE, WINDOW_STYLE, WM_NCCREATE, WM_NCDESTROY, WM_USER, WNDCLASSW}}};
+use windows::{core::{w, Result, PCWSTR}, Win32::{Foundation::{HWND, LPARAM, LRESULT, WPARAM}, System::LibraryLoader::GetModuleHandleW, UI::WindowsAndMessaging::{CreateWindowExW, DefWindowProcW, GetClassInfoW, GetWindowLongPtrW, PostMessageA, RegisterClassW, SetWindowLongPtrW, CREATESTRUCTW, CW_USEDEFAULT, GWLP_USERDATA, HWND_MESSAGE, WINDOW_EX_STYLE, WINDOW_STYLE, WM_NCCREATE, WM_NCDESTROY, WM_USER, WNDCLASSW}}};
 
 const WINDOW_CLASS: PCWSTR = w!("executor_window");
 static REGISTER_WINDOW_CLASS: Once = Once::new();
@@ -50,6 +50,15 @@ impl Executor {
     pub fn new() -> Result<Self> {
         let instance = unsafe { GetModuleHandleW(None)? };
         REGISTER_WINDOW_CLASS.call_once(|| {
+            {
+                // See if the window class already has been registered
+                let mut class = MaybeUninit::uninit();
+                let result = unsafe { GetClassInfoW(instance, WINDOW_CLASS, class.as_mut_ptr())};
+                if result.is_ok() {
+                    return;
+                }
+            }
+
             let class = WNDCLASSW {
                 lpszClassName: WINDOW_CLASS,
                 hInstance: instance.into(),

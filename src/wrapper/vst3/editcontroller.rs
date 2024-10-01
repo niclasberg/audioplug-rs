@@ -224,11 +224,20 @@ impl<E: Editor> IConnectionPoint for EditController<E> {
 
 impl<E: Editor> IUnitInfo for EditController<E> {
 	unsafe fn get_unit_count(&self) -> i32 {
-		0
+		self.parameters.groups_count() as _
 	}
 
 	unsafe fn get_unit_info(&self, unit_index: i32, info: *mut UnitInfo) -> tresult {
-		kInvalidArgument
+        let Some(group) = self.parameters.get_group_by_index(unit_index as _) else { return kInvalidArgument };
+		
+        if info.is_null() {
+            return kInvalidArgument;
+        }
+
+        let mut info = &mut *info;
+        info.
+
+        kResultOk
 	}
 
 	unsafe fn get_program_list_count(&self) -> i32 {

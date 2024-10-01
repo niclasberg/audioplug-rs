@@ -31,7 +31,7 @@ pub trait ParamVisitor {
 	fn group<P: ParameterTraversal>(&mut self, group: &ParameterGroup<P>);
 }
 
-pub trait ParameterTraversal {
+pub trait ParameterTraversal: 'static {
 	fn visit<V: ParamVisitor>(&self, visitor: &mut V);
 }
 
