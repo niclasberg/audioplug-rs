@@ -257,6 +257,9 @@ extern_methods!(
 			dependentParameters: &NSArray<NSNumber>
 		) -> Retained<AUParameter>;
 
+		#[method_id(createGroupWithIdentifier:name:children:)]
+		#[allow(non_snake_case)]
+		pub fn createGroupWithIdentifier(identifier: &NSString, name: &NSString, children: &NSArray<AUParameterNode>) -> Retained<AUParameterGroup>;
 
 		#[method_id(createTreeWithChildren:)]
 		#[allow(non_snake_case)]

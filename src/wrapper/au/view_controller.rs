@@ -51,7 +51,7 @@ pub struct ViewController<P: Plugin> {
 impl<P: Plugin + 'static> ViewController<P> {
 	pub fn new() -> Self {
 		let executor = Rc::new(platform::Executor::new().unwrap());
-		let parameters = Rc::new(ParameterMap::new(P::Parameters::new()));
+		let parameters = ParameterMap::new(P::Parameters::new());
 		let app_state =  Rc::new(RefCell::new(AppState::new(parameters.clone(), executor)));
 		let editor = Rc::new(RefCell::new(P::Editor::new()));
 		let parameter_observer = {

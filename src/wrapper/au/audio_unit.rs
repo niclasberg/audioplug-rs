@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, mem::MaybeUninit, ops::Deref, sync::OnceLock};
+use std::{marker::PhantomData, mem::MaybeUninit, ops::Deref, rc::Rc, sync::OnceLock};
 
 use block2::RcBlock;
 use objc2::{__extern_class_impl_traits, msg_send, msg_send_id, mutability::Mutable, rc::Retained, runtime::{AnyClass, AnyObject, Bool, ClassBuilder, Sel}, sel, ClassType, Encoding, RefEncode};
@@ -14,7 +14,7 @@ const DEFAULT_SAMPLE_RATE: f64 = 44100.0;
 
 struct Wrapper<P: Plugin> {
 	plugin: P,
-    parameters: ParameterMap<P::Parameters>,
+    parameters: Rc<ParameterMap<P::Parameters>>,
 	inputs: Retained<AUAudioUnitBusArray>,
 	outputs: Retained<AUAudioUnitBusArray>,
 	input_buffer: BusBuffer,

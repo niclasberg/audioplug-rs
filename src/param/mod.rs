@@ -6,17 +6,17 @@ mod int;
 mod group;
 mod string_list;
 mod bypass;
-mod param_lens;
+mod traversal;
 mod parameter_map;
 mod param_ref;
 
 pub use bool::{BoolParameter, BoolParameterInfo};
 pub use bypass::ByPassParameter;
 pub use float::{FloatParameter, FloatParameterInfo, FloatRange};
-pub use group::ParameterGroup;
+pub use group::{ParameterGroup, AnyParameterGroup};
 pub use int::{IntParameter, IntParameterInfo, IntRange};
 pub use string_list::StringListParameter;
-pub use param_lens::{ParamVisitor, ParameterTraversal};
+pub use traversal::{ParamVisitor, ParameterTraversal};
 pub use parameter_map::{ParameterMap, AnyParameterMap, Params};
 pub use param_ref::ParamRef;
 

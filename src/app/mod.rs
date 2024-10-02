@@ -53,7 +53,7 @@ pub struct App {
 impl App {
     pub fn new() -> Self {
         let executor = Rc::new(platform::Executor::new().unwrap());
-        let parameters = Rc::new(ParameterMap::new(()));
+        let parameters = ParameterMap::new(());
         Self::new_with_app_state(Rc::new(RefCell::new(AppState::new(parameters, executor))))
     }
 

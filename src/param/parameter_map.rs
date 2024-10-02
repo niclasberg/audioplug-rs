@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use crate::param::ParamVisitor;
 
-use super::{group::AnyParameterGroup, param_lens::ParameterTraversal, AnyParameter, GroupId, ParamRef, ParameterId};
+use super::{group::AnyParameterGroup, traversal::ParameterTraversal, AnyParameter, GroupId, ParamRef, ParameterId};
 
 
 pub trait Params: ParameterTraversal {
@@ -16,14 +16,14 @@ impl Params for () {
 }
 
 pub struct ParamIter<'a> {
-	inner_iter: std::slice::Iter<'a, *const dyn AnyParameter>
+	inner_iter: std::slice::Iter<'a, (Option<GroupId>, *const dyn AnyParameter)>
 }
 
 impl<'a> Iterator for ParamIter<'a> {
 	type Item = ParamRef<'a>;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		self.inner_iter.next().map(|p| unsafe { &**p }.as_param_ref() )
+		self.inner_iter.next().map(|&(_, p)| unsafe { &*p }.as_param_ref() )
 	}
 }
 
@@ -85,29 +85,30 @@ impl<'a> ParamVisitor for GatherParamPtrsVisitor<'a> {
 }
 
 pub struct ParameterMap<P: Params> {
-	parameters: Box<P>,
+	parameters: P,
 	params_vec: Vec<(Option<GroupId>, *const dyn AnyParameter)>,
 	params_map: HashMap<ParameterId, *const dyn AnyParameter>,
 	groups_vec: Vec<(Option<GroupId>, *const dyn AnyParameterGroup)>,
 }
 
 impl<P: Params> ParameterMap<P> {
-	pub fn new(parameters: P) -> Self {
+	pub fn new(parameters: P) -> Rc<Self> {
 		// Construct the instance first, so that parameters is moved into the correct memory location
-		let mut this = Self {
-			parameters: Box::new(parameters),
+		let mut this = Rc::new(Self {
+			parameters: parameters,
 			params_vec: Vec::new(),
 			params_map: HashMap::new(),
 			groups_vec: Vec::new()
-		};
+		});
 
+		let this_ref = Rc::get_mut(&mut this).unwrap();
 		let mut visitor = GatherParamPtrsVisitor {
 			current_group_id: None,
-			params_vec: &mut this.params_vec,
-			params_map: &mut this.params_map,
-			groups_vec: &mut this.groups_vec
+			params_vec: &mut this_ref.params_vec,
+			params_map: &mut this_ref.params_map,
+			groups_vec: &mut this_ref.groups_vec
 		};
-		this.parameters.visit(&mut visitor);
+		this_ref.parameters.visit(&mut visitor);
 
 		this
 	}

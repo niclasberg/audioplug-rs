@@ -32,8 +32,8 @@ impl Params for SynthParams {
             amplitude: FloatParameter::new(ParameterId::new(1), "Amplitude")
                 .with_range(FloatRange::Linear { min: 0.0, max: 1.0 })
                 .with_default(0.8),
-			oscillator1: ParameterGroup::new(GroupId(0), "Oscillator 1", OscillatorParams::new(10)),
-			oscillator2: ParameterGroup::new(GroupId(1), "Oscillator 2", OscillatorParams::new(20))
+			oscillator1: ParameterGroup::new(GroupId(1), "Oscillator 1", OscillatorParams::new(10)),
+			oscillator2: ParameterGroup::new(GroupId(2), "Oscillator 2", OscillatorParams::new(20))
         }
     }
 }

@@ -6,7 +6,7 @@ use vst3_com::vst::{kRootUnitId, ParameterFlags};
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
 use vst3_sys::{VST3, c_void};
-use vst3_sys::vst::{IComponentHandler, IConnectionPoint, IEditController, IMessage, IUnitInfo, ParameterInfo, ProgramListInfo, String128, UnitInfo};
+use vst3_sys::vst::{kNoParentUnitId, kNoProgramListId, IComponentHandler, IConnectionPoint, IEditController, IMessage, IUnitInfo, ParameterInfo, ProgramListInfo, String128, UnitInfo};
 
 use vst3_sys as vst3_com;
 
@@ -52,7 +52,7 @@ pub struct EditController<E: Editor> {
 impl<E: Editor> EditController<E> {
     pub fn new() -> Box<Self> {
         let executor = Rc::new(platform::Executor::new().unwrap());
-        let parameters = Rc::new(ParameterMap::new(E::Parameters::new()));
+        let parameters = ParameterMap::new(E::Parameters::new());
 		let app_state = Rc::new(RefCell::new(AppState::new(parameters.clone(), executor.clone())));
 		let editor = Rc::new(RefCell::new(E::new()));
 		let is_editing_parameters = Rc::new(Cell::new(false));
@@ -235,14 +235,17 @@ impl<E: Editor> IUnitInfo for EditController<E> {
 
         if unit_index == 0 {
             info.id = kRootUnitId;
+			info.parent_unit_id = kNoParentUnitId;
+			info.program_list_id = kNoProgramListId;
             strcpyw("Root unit", &mut info.name);
 
             kResultOk
         } else {
             let Some((parent_group_id, group)) = self.parameters.get_group_by_index(unit_index as _) else { return kInvalidArgument };
-
             info.id = group.id().0 as _;
-            //info.parent_unit_id 
+			info.parent_unit_id = parent_group_id.map(|id| id.0 as i32).unwrap_or(kRootUnitId);
+			info.program_list_id = kNoProgramListId;
+            strcpyw(group.name(), &mut info.name);
 
             kResultOk
         }
@@ -276,8 +279,8 @@ impl<E: Editor> IUnitInfo for EditController<E> {
 		0
 	}
 
-	unsafe fn select_unit(&self,id:i32) -> tresult {
-		kResultFalse
+	unsafe fn select_unit(&self, _id: i32) -> tresult {
+		kResultOk
 	}
 
 	unsafe fn get_unit_by_bus(&self,type_:i32,dir:i32,bus_index:i32,channel:i32,unit_id: *mut i32,) -> tresult {

@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use super::{param_lens::{ParamVisitor, ParameterTraversal}, GroupId};
+use super::{traversal::{ParamVisitor, ParameterTraversal}, GroupId};
 
 pub trait AnyParameterGroup: 'static {
 	fn id(&self) -> GroupId;

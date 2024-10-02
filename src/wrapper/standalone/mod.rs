@@ -42,7 +42,7 @@ impl<P: Plugin> StandaloneApp<P> {
     pub fn new(parameter_updates: Producer<ParameterUpdate>, executor: Rc<platform::Executor>) -> Self {
         let app_inner = Rc::new(RefCell::new(AppInner { parameter_updates }));
         let host_handle = StandaloneHostHandle { app_inner: app_inner.clone() };
-        let parameters = Rc::new(ParameterMap::new(P::Parameters::new()));
+        let parameters = ParameterMap::new(P::Parameters::new());
         let mut app_state = AppState::new(parameters, executor);
         app_state.set_host_handle(Some(Box::new(host_handle)));
 

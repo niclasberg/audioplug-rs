@@ -127,7 +127,7 @@ impl ParameterInfo for IntParameterInfo {
 
 	fn string_from_value(&self, value: NormalizedValue) -> String {
 		let plain_value = self.denormalize(value);
-		plain_value.0.to_string()
+		plain_value.0.round().to_string()
 	}
 }
 
@@ -181,7 +181,7 @@ impl IntRange {
 
     pub fn steps(&self) -> usize {
         match self {
-            IntRange::Linear { min, max } => (max - min + 1) as usize,
+            IntRange::Linear { min, max } => (max - min).abs() as usize,
         }
     }
 }

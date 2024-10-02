@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{app::AppContext, core::Size, param::{AnyParameter, ParamRef, Params}, view::{AnyView, Column, Label, ParameterSlider, Row, View}};
+use crate::{app::AppContext, core::Size, param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params}, view::{AnyView, Column, Label, ParameterSlider, Row, View}};
 
 pub trait Editor: 'static {
 	type Parameters: Params;
@@ -10,6 +10,59 @@ pub trait Editor: 'static {
 	fn min_size(&self) -> Option<Size> { None }
 	fn max_size(&self) -> Option<Size> { None }
 	fn prefered_size(&self) -> Option<Size> { None }
+}
+
+struct CreateParameterViewsVisitor {
+	views: Vec<AnyView>
+}
+
+impl CreateParameterViewsVisitor {
+	pub fn new() -> Self {
+		Self {
+			views: Vec::new()
+		}
+	}
+}
+
+impl ParamVisitor for CreateParameterViewsVisitor {
+	fn bool_parameter(&mut self, p: &crate::param::BoolParameter) {
+		
+	}
+
+	fn bypass_parameter(&mut self, p: &crate::param::ByPassParameter) {
+		
+	}
+
+	fn float_parameter(&mut self, p: &crate::param::FloatParameter) {
+		let view = Row::new((
+			Label::new(p.info().name()),
+			ParameterSlider::new(p).as_any(),
+		));
+		self.views.push(view.as_any());
+	}
+
+	fn int_parameter(&mut self, p: &crate::param::IntParameter) {
+		let view = Row::new((
+			Label::new(p.info().name()),
+			ParameterSlider::new(p).as_any(),
+		));
+		self.views.push(view.as_any());
+	}
+
+	fn string_list_parameter(&mut self, p: &crate::param::StringListParameter) {
+		
+	}
+
+	fn group<P: ParameterTraversal>(&mut self, group: &crate::param::ParameterGroup<P>) {
+		let mut child_visitor = Self::new();
+		group.children().visit(&mut child_visitor);
+
+		let mut views = Vec::new();
+		views.push(Label::new(group.name()).as_any());
+		views.extend(child_visitor.views);
+		let group_view = Column::new(views);
+		self.views.push(group_view.as_any());
+	}
 }
 
 pub struct GenericEditor<P> {
@@ -24,7 +77,8 @@ impl<P: Params> Editor for GenericEditor<P> {
 	}
 	
     fn view(&self, _ctx: &mut AppContext, parameters: &P) -> AnyView {
-		let mut views: Vec<AnyView> = Vec::new();
+		let mut visitor = CreateParameterViewsVisitor::new();
+		parameters.visit(&mut visitor);
 		/*for param in parameters.visit() {
 			match param {
 				ParamRef::Float(p) => {
@@ -40,6 +94,6 @@ impl<P: Params> Editor for GenericEditor<P> {
 				ParamRef::Bool(_) => todo!(),
 			}
 		}*/
-        Column::new(views).as_any()
+        Column::new(visitor.views).as_any()
     }
 }

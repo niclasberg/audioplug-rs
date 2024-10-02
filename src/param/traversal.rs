@@ -1,4 +1,4 @@
-use super::{group::AnyParameterGroup, BoolParameter, ByPassParameter, FloatParameter, IntParameter, ParamRef, ParameterGroup, StringListParameter};
+use super::{BoolParameter, ByPassParameter, FloatParameter, IntParameter, ParameterGroup, StringListParameter};
 
 #[macro_export] 
 macro_rules! params {
@@ -36,5 +36,5 @@ pub trait ParameterTraversal: 'static {
 }
 
 impl ParameterTraversal for () {
-	fn visit<V: super::param_lens::ParamVisitor>(&self, _visitor: &mut V) {}
+	fn visit<V: ParamVisitor>(&self, _visitor: &mut V) {}
 }

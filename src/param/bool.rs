@@ -1,5 +1,5 @@
 use std::{any::Any, cell::Cell};
-use super::{param_lens::ParameterTraversal, AnyParameter, NormalizedValue, ParamRef, ParamVisitor, Parameter, ParameterId, ParameterInfo, ParseError, PlainValue};
+use super::{traversal::ParameterTraversal, AnyParameter, NormalizedValue, ParamRef, ParamVisitor, Parameter, ParameterId, ParameterInfo, ParseError, PlainValue};
 
 pub struct BoolParameter {
     info: BoolParameterInfo,

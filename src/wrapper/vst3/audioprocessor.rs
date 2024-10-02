@@ -6,6 +6,7 @@ use vst3_sys::utils::SharedVstPtr;
 use vst3_sys::vst::{BusDirection, BusInfo, EventTypes, IAudioProcessor, IConnectionPoint, IEventList, IMessage, IParamValueQueue, IParameterChanges, IoMode, MediaType, ProcessData, ProcessModes, ProcessSetup, RoutingInfo, SpeakerArrangement};
 use std::ffi::c_void;
 use std::mem::MaybeUninit;
+use std::rc::Rc;
 
 use vst3_sys as vst3_com;
 
@@ -20,7 +21,7 @@ const NOTE_OFF_EVENT: u16 = EventTypes::kNoteOffEvent as u16;
 #[VST3(implements(IComponent, IAudioProcessor, IConnectionPoint))]
 pub struct AudioProcessor<P: VST3Plugin> {
     plugin: AtomicRefCell<P>,
-    parameters: ParameterMap<P::Parameters>
+    parameters: Rc<ParameterMap<P::Parameters>>,
 }
 
 impl<P: VST3Plugin> AudioProcessor<P> {

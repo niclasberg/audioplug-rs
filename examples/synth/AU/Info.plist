@@ -7,15 +7,15 @@
 	<key>CFBundleDisplayName</key>
 	<string>InstrumentDemoAppExtensionOSX</string>
 	<key>CFBundleExecutable</key>
-	<string>gain</string>
+	<string>synth</string>
 	<key>CFBundleIconFile</key>
 	<string>icon</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.github.niclasberg.audioplug-rs.gain</string>
+	<string>com.github.niclasberg.audioplug-rs.synth</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>gain</string>
+	<string>synth</string>
 	<key>CFBundlePackageType</key>
 	<string>XPC!</string>
 	<key>CFBundleShortVersionString</key>
@@ -30,21 +30,21 @@
 			<array>
 				<dict>
 					<key>description</key>
-					<string>AudioPlug gain example</string>
+					<string>AudioPlug synth example</string>
 					<key>manufacturer</key>
 					<string>Nibe</string>
 					<key>name</key>
-					<string>AudioPlug gain</string>
+					<string>AudioPlug synth</string>
 					<key>sandboxSafe</key>
 					<true/>
 					<key>subtype</key>
 					<string>demo</string>
 					<key>tags</key>
 					<array>
-						<string>Effect</string>
+						<string>Synthesizer</string>
 					</array>
 					<key>type</key>
-					<string>aufx</string>
+					<string>aumu</string>
 					<key>version</key>
 					<integer>67072</integer>
 					<key>factoryFunction</key>
