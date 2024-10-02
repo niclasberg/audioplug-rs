@@ -241,7 +241,7 @@ impl<E: Editor> IUnitInfo for EditController<E> {
 
             kResultOk
         } else {
-            let Some((parent_group_id, group)) = self.parameters.get_group_by_index(unit_index as _) else { return kInvalidArgument };
+            let Some((parent_group_id, group)) = self.parameters.get_group_by_index((unit_index as usize) - 1) else { return kInvalidArgument };
             info.id = group.id().0 as _;
 			info.parent_unit_id = parent_group_id.map(|id| id.0 as i32).unwrap_or(kRootUnitId);
 			info.program_list_id = kNoProgramListId;
