@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::param::ParamVisitor;
 
-use super::{group::AnyParameterGroup, param_lens::ParameterTraversal, AnyParameter, ParamRef, ParameterId};
+use super::{group::AnyParameterGroup, param_lens::ParameterTraversal, AnyParameter, GroupId, ParamRef, ParameterId};
 
 
 pub trait Params: ParameterTraversal {
@@ -30,31 +30,26 @@ impl<'a> Iterator for ParamIter<'a> {
 /// A collection of parameters. Supports getting parameters by index and id
 pub trait AnyParameterMap: 'static {
 	fn get_by_id(&self, id: ParameterId) -> Option<&dyn AnyParameter>;
-	fn get_group_index_for_param(&self, id: ParameterId) -> Option<usize>;
-	fn get_by_index(&self, index: usize) -> Option<&dyn AnyParameter>;
+	fn get_by_index(&self, index: usize) -> Option<(Option<GroupId>, &dyn AnyParameter)>;
 	fn count(&self) -> usize;
 	fn parameter_ids(&self) -> Vec<ParameterId>;
-	fn get_group_by_index(&self, index: usize) -> Option<&dyn AnyParameterGroup>;
+	fn get_group_by_index(&self, index: usize) -> Option<(Option<GroupId>, &dyn AnyParameterGroup)>;
 	fn groups_count(&self) -> usize;
 }
 
 struct GatherParamPtrsVisitor<'a> {
-	current_group_id: Option<usize>,
-	params_vec: &'a mut Vec<*const dyn AnyParameter>,
+	current_group_id: Option<GroupId>,
+	params_vec: &'a mut Vec<(Option<GroupId>, *const dyn AnyParameter)>,
 	params_map: &'a mut HashMap<ParameterId, *const dyn AnyParameter>,
-	params_group_ids: &'a mut HashMap<ParameterId, usize>,
-	groups_vec: &'a mut Vec<*const dyn AnyParameterGroup>
+	groups_vec: &'a mut Vec<(Option<GroupId>, *const dyn AnyParameterGroup)>,
 }
 
 impl<'a> GatherParamPtrsVisitor<'a> {
 	fn add_param_ptr(&mut self, p: &dyn AnyParameter) {
 		let id = p.info().id();
 		let param_ptr = p as *const dyn AnyParameter;
-		self.params_vec.push(param_ptr);
+		self.params_vec.push((self.current_group_id, param_ptr));
 		self.params_map.insert(id, param_ptr);
-		if let Some(group_id) = self.current_group_id {
-			self.params_group_ids.insert(id, group_id);
-		}
 	}
 }
 
@@ -80,9 +75,10 @@ impl<'a> ParamVisitor for GatherParamPtrsVisitor<'a> {
 	}
 
 	fn group<P: ParameterTraversal>(&mut self, group: &super::ParameterGroup<P>) {
+		self.groups_vec.push((self.current_group_id, group as *const _));
+
 		let old_group_id = self.current_group_id;
-		self.current_group_id = Some(self.groups_vec.len());
-		self.groups_vec.push(group as *const _);
+		self.current_group_id = Some(group.id());
 		group.children().visit(self);
 		self.current_group_id = old_group_id;
 	}
@@ -90,10 +86,9 @@ impl<'a> ParamVisitor for GatherParamPtrsVisitor<'a> {
 
 pub struct ParameterMap<P: Params> {
 	parameters: Box<P>,
-	params_vec: Vec<*const dyn AnyParameter>,
+	params_vec: Vec<(Option<GroupId>, *const dyn AnyParameter)>,
 	params_map: HashMap<ParameterId, *const dyn AnyParameter>,
-	params_group_ids: HashMap<ParameterId, usize>,
-	groups_vec: Vec<*const dyn AnyParameterGroup>,
+	groups_vec: Vec<(Option<GroupId>, *const dyn AnyParameterGroup)>,
 }
 
 impl<P: Params> ParameterMap<P> {
@@ -103,7 +98,6 @@ impl<P: Params> ParameterMap<P> {
 			parameters: Box::new(parameters),
 			params_vec: Vec::new(),
 			params_map: HashMap::new(),
-			params_group_ids: HashMap::new(),
 			groups_vec: Vec::new()
 		};
 
@@ -111,7 +105,6 @@ impl<P: Params> ParameterMap<P> {
 			current_group_id: None,
 			params_vec: &mut this.params_vec,
 			params_map: &mut this.params_map,
-			params_group_ids: &mut this.params_group_ids,
 			groups_vec: &mut this.groups_vec
 		};
 		this.parameters.visit(&mut visitor);
@@ -136,14 +129,9 @@ impl<P: Params> AnyParameterMap for ParameterMap<P> {
 			.map(|&p| unsafe { &*p} ) 
 	}
 
-	fn get_group_index_for_param(&self, id: ParameterId) -> Option<usize> {
-		self.params_group_ids.get(&id)
-			.map(|group_id| *group_id)
-	}
-
-	fn get_by_index(&self, index: usize) -> Option<&dyn AnyParameter> {
+	fn get_by_index(&self, index: usize) -> Option<(Option<GroupId>, &dyn AnyParameter)> {
 		self.params_vec.get(index)
-			.map(|&p| unsafe { &*p }) 
+			.map(|&(group_id, p)| (group_id, unsafe { &*p })) 
 	}
 
 	fn count(&self) -> usize {
@@ -160,8 +148,8 @@ impl<P: Params> AnyParameterMap for ParameterMap<P> {
 		self.groups_vec.len()
 	}
 
-	fn get_group_by_index(&self, index: usize) -> Option<&dyn AnyParameterGroup> {
+	fn get_group_by_index(&self, index: usize) -> Option<(Option<GroupId>, &dyn AnyParameterGroup)> {
 		self.groups_vec.get(index)
-			.map(|&g| unsafe { &*g })
+			.map(|&(group_id, g)| (group_id, unsafe { &*g }))
 	}
 }

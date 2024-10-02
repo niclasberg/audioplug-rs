@@ -82,7 +82,7 @@ impl<E: Editor> IEditController for EditController<E> {
     }
 
     unsafe fn get_parameter_info(&self, param_index: i32, info: *mut ParameterInfo) -> tresult {
-		let Some(param_ref) = self.parameters.get_by_index(param_index as usize) else { return kInvalidArgument };
+		let Some((group_id, param_ref)) = self.parameters.get_by_index(param_index as usize) else { return kInvalidArgument };
 		let param_ref = param_ref.as_param_ref();
 
         let info = &mut *info;
@@ -100,7 +100,7 @@ impl<E: Editor> IEditController for EditController<E> {
 		strcpyw(param_ref.name(), &mut info.short_title);
 		strcpyw(param_ref.name(), &mut info.title);
 		info.step_count = param_ref.step_count() as i32;
-		info.unit_id = self.parameters.get_group_id(parameter_id).map(i32::from).unwrap_or(kRootUnitId);
+		info.unit_id = group_id.map(i32::from).unwrap_or(kRootUnitId);
 		strcpyw("unit", &mut info.units);
 		kResultOk
     }
@@ -224,20 +224,28 @@ impl<E: Editor> IConnectionPoint for EditController<E> {
 
 impl<E: Editor> IUnitInfo for EditController<E> {
 	unsafe fn get_unit_count(&self) -> i32 {
-		self.parameters.groups_count() as _
+		1 + self.parameters.groups_count() as i32
 	}
 
-	unsafe fn get_unit_info(&self, unit_index: i32, info: *mut UnitInfo) -> tresult {
-        let Some(group) = self.parameters.get_group_by_index(unit_index as _) else { return kInvalidArgument };
-		
+	unsafe fn get_unit_info(&self, unit_index: i32, info: *mut UnitInfo) -> tresult {           
         if info.is_null() {
             return kInvalidArgument;
         }
+        let info = &mut *info;
 
-        let mut info = &mut *info;
-        info.
+        if unit_index == 0 {
+            info.id = kRootUnitId;
+            strcpyw("Root unit", &mut info.name);
 
-        kResultOk
+            kResultOk
+        } else {
+            let Some((parent_group_id, group)) = self.parameters.get_group_by_index(unit_index as _) else { return kInvalidArgument };
+
+            info.id = group.id().0 as _;
+            //info.parent_unit_id 
+
+            kResultOk
+        }
 	}
 
 	unsafe fn get_program_list_count(&self) -> i32 {
