@@ -1,9 +1,11 @@
-use std::sync::mpsc::channel;
-
 use objc2::{rc::Retained, ClassType};
 use objc2_foundation::NSInteger;
 
-use crate::platform::{audio_toolbox::{AUAudioFrameCount, AUAudioUnitBus, AUAudioUnitStatus, AURenderPullInputBlock, AudioUnitRenderActionFlags}, av_foundation::AVAudioFormat, core_audio};
+use crate::platform::{audio_toolbox::{AUAudioFrameCount, AUAudioUnitBus, AUAudioUnitBusArray, AUAudioUnitStatus, AURenderPullInputBlock, AudioUnitRenderActionFlags}, av_foundation::AVAudioFormat, core_audio};
+
+pub struct BusBuffers {
+	au_buffers: Retained<AUAudioUnitBusArray>,
+}
 
 pub struct BusBuffer {
 	channel_count: usize,

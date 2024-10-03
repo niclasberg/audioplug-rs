@@ -1,8 +1,9 @@
 use std::cell::RefCell;
 
+use objc2::ffi::YES;
 use objc2_app_kit::{NSEvent, NSResponder, NSTrackingArea, NSTrackingAreaOptions, NSView, NSViewFrameDidChangeNotification};
-use objc2_foundation::{CGRect, MainThreadMarker, NSNotificationCenter, NSRect};
-use objc2::rc::{Id, Weak};
+use objc2_foundation::{CGRect, MainThreadMarker, NSNotificationCenter, NSRect, NSTimer};
+use objc2::rc::{Retained, Weak};
 use objc2::runtime::{NSObject, NSObjectProtocol};
 use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 
@@ -10,6 +11,7 @@ use crate::core::{Color, Point};
 use crate::event::{MouseButton, KeyEvent, MouseEvent};
 use crate::platform::mac::keyboard::{key_from_code, get_modifiers};
 use crate::platform::WindowEvent;
+use crate::AnimationFrame;
 use super::{RendererRef, Handle};
 use crate::platform::WindowHandler;
 
@@ -18,7 +20,8 @@ use super::core_graphics::CGColor;
 
 pub struct Ivars {
     handler: RefCell<Box<dyn WindowHandler>>,
-	tracking_area: RefCell<Option<Id<NSTrackingArea>>>
+	tracking_area: RefCell<Option<Retained<NSTrackingArea>>>,
+	timer: RefCell<Option<Retained<NSTimer>>>,
 }
 
 // There is a problem in objc2 that we need to address. If we have two different plugins
@@ -131,10 +134,15 @@ declare_class!(
 			
 			let renderer = RendererRef::new(context, rect);
 
-			self.ivars().handler.borrow_mut().render(
-				rect.into(),
-				renderer
-			);
+			self.ivars().handler.borrow_mut().render(rect.into(), renderer);
+		}
+
+		#[method(onAnimationTimer)]
+		fn on_animation_timer(&self) {
+			let animation_frame = AnimationFrame {
+				timestamp: 0.0
+			};
+			self.dispatch_event(WindowEvent::Animation(animation_frame));
 		}
 	}
 
@@ -142,14 +150,14 @@ declare_class!(
 );
 
 impl View {
-	pub(crate) fn new(mtm: MainThreadMarker, handler: impl WindowHandler + 'static, frame: Option<NSRect>) -> Id<Self> {
+	pub(crate) fn new(mtm: MainThreadMarker, handler: impl WindowHandler + 'static, frame: Option<NSRect>) -> Retained<Self> {
 		let handler = RefCell::new(Box::new(handler));
 		let tracking_area = RefCell::new(None);
 
 		let this = mtm.alloc();
-		let this = this.set_ivars(Ivars { handler, tracking_area });
+		let this = this.set_ivars(Ivars { handler, tracking_area, timer: RefCell::new(None) });
 
-		let this: Id<Self> = if let Some(frame) = frame {
+		let this: Retained<Self> = if let Some(frame) = frame {
 			unsafe { msg_send_id![super(this), initWithFrame: frame] }
 		} else {
 			unsafe { msg_send_id![super(this), init] }
@@ -167,6 +175,18 @@ impl View {
         }
 
 		this.ivars().handler.borrow_mut().init(Handle::new(Weak::from_retained(&this)));
+
+		// Initialize animation timer
+		let timer = unsafe {
+			NSTimer::scheduledTimerWithTimeInterval_target_selector_userInfo_repeats(
+				1.0 / 60.0, 
+				&this, 
+				sel!(onAnimationTimer), 
+				None, 
+				true)
+		};
+
+		this.ivars().timer.replace(Some(timer));
 		this
 	}
 

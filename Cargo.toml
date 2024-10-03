@@ -63,6 +63,7 @@ objc2-foundation = { version = "0.2.2", features = [
 	"NSEnumerator",
 	"NSIndexSet",
 	"NSString",
+	"NSTimer",
 	"NSThread",
 ] }
 objc2-app-kit = { version = "0.2.2", features = [
