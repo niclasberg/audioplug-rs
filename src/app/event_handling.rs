@@ -1,6 +1,6 @@
 use crate::{app::StatusChange, core::{Cursor, Rectangle}, keyboard::Key, platform::WindowEvent, KeyEvent, MouseEvent};
 
-use super::{animation::drive_animations, invalidate_window, layout_window, render::invalidate_widget, widget_node::WidgetFlags, AppState, EventStatus, WidgetId, WindowId};
+use super::{animation::{drive_animations, request_animation_frame}, invalidate_window, layout::request_layout, layout_window, render::invalidate_widget, widget_node::WidgetFlags, AppState, EventStatus, WidgetId, WindowId};
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
@@ -68,10 +68,6 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         },
         _ => {}
     };
-
-    /*if app_state.widget_data_ref(self.state.root_widget()).layout_requested() {
-        self.do_layout(&mut handle);
-    }*/
 }
 
 pub fn set_focus_widget(app_state: &mut AppState, window_id: WindowId, new_focus_widget: Option<WidgetId>) {
@@ -136,6 +132,10 @@ impl<'a> MouseEventContext<'a> {
         status
     }
 
+	pub fn has_focus(&self) -> bool {
+        self.app_state.widget_has_focus(self.id)
+    }
+
     pub fn app_state(&self) -> &AppState {
         &self.app_state
     }
@@ -173,9 +173,17 @@ impl<'a> MouseEventContext<'a> {
         self.app_state.mouse_capture_widget = Some(self.id)
     }
 
+	pub fn request_layout(&mut self) {
+        request_layout(&mut self.app_state, self.id);
+    }
+
     pub fn request_render(&mut self) {
         invalidate_widget(&self.app_state, self.id);
     }
+
+	pub fn request_animation(&mut self) {
+		request_animation_frame(&mut self.app_state, self.id)
+	}
 
     pub fn bounds(&self) -> Rectangle {
         self.app_state.widget_data_ref(self.id).global_bounds()
@@ -210,6 +218,10 @@ impl<'a> EventContext<'a> {
         self.app_state.widget_data_ref(self.id).global_bounds()
     }
 
+	pub fn has_focus(&self) -> bool {
+        self.app_state.widget_has_focus(self.id)
+    }
+
     pub fn app_state(&self) -> &AppState {
         &self.app_state
     }
@@ -219,8 +231,12 @@ impl<'a> EventContext<'a> {
     }
 
     pub fn request_layout(&mut self) {
-        self.app_state.widget_data_mut(self.id).set_flag(WidgetFlags::NEEDS_LAYOUT);
+        request_layout(&mut self.app_state, self.id);
     }
+
+	pub fn request_animation(&mut self) {
+		request_animation_frame(&mut self.app_state, self.id)
+	}
 
     pub fn request_render(&mut self) {
         invalidate_widget(&self.app_state, self.id);

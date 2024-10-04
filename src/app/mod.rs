@@ -20,8 +20,9 @@ mod window;
 use std::{any::Any, cell::RefCell, rc::Rc};
 
 pub use accessor::Accessor;
+pub use animation::AnimationContext;
 pub(crate) use app_state::AppState;
-pub use contexts::BuildContext;
+pub use contexts::{BuildContext, AppContext};
 pub use event_handling::{EventContext, MouseEventContext, handle_window_event};
 pub use host_handle::HostHandle;
 pub use layout::{LayoutContext, layout_window};
@@ -32,7 +33,7 @@ pub use runtime::*;
 pub use signal::Signal;
 pub use widget::{EventStatus, StatusChange, Widget};
 pub use widget_node::{WidgetData, WidgetRef, WidgetMut, WidgetId};
-pub use window::{AppContext, Window};
+pub use window::Window;
 #[cfg(target_os  ="macos")]
 pub(crate) use window::MyHandler;
 

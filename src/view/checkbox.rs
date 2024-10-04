@@ -1,4 +1,4 @@
-use crate::{app::{Accessor, BuildContext, RenderContext, Widget, WidgetMut}, core::{Color, Shape}};
+use crate::{app::{Accessor, BuildContext, EventStatus, MouseEventContext, RenderContext, Widget, WidgetMut}, core::{Color, Shape}, MouseEvent};
 
 use super::View;
 
@@ -38,6 +38,11 @@ pub struct CheckboxWidget {
 impl Widget for CheckboxWidget {
 	fn debug_label(&self) -> &'static str {
 		"Checkbox"
+	}
+
+	fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
+		
+		EventStatus::Handled
 	}
 
     fn measure(&self, _style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, _available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {

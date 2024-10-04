@@ -5,9 +5,10 @@ use super::View;
 pub struct Slider {
     min: f64,
     max: f64,
-    on_drag_start: Option<Box<dyn Fn()>>, 
-    on_drag_end: Option<Box<dyn Fn()>>, 
-    on_value_changed: Option<Box<dyn Fn(&mut AppState, f64)>>
+	value: Option<Accessor<f64>>,
+    on_drag_start: Option<Box<dyn Fn(&mut AppState)>>, 
+    on_drag_end: Option<Box<dyn Fn(&mut AppState)>>, 
+    on_value_changed: Option<Box<dyn Fn(&mut AppState, f64)>>,
 }
 
 impl Slider {
@@ -15,6 +16,7 @@ impl Slider {
         Self { 
             min: 0.0, 
             max: 1.0, 
+			value: None,
             on_drag_start: None,
             on_drag_end: None,
             on_value_changed: None 
@@ -26,7 +28,22 @@ impl Slider {
         self
     }
 
-    pub fn with_range(mut self, min: f64, max: f64) -> Self {
+	pub fn on_drag_start(mut self, f: impl Fn(&mut AppState) + 'static) -> Self {
+		self.on_drag_start = Some(Box::new(f));
+		self
+	}
+
+	pub fn on_drag_end(mut self, f: impl Fn(&mut AppState) + 'static) -> Self {
+		self.on_drag_end = Some(Box::new(f));
+		self
+	}
+
+	pub fn value(mut self, value: impl Into<Accessor<f64>>) -> Self {
+		self.value = Some(value.into());
+		self
+	}
+
+    pub fn range(mut self, min: f64, max: f64) -> Self {
         self.min = min;
         self.max = max;
         self
@@ -42,8 +59,19 @@ impl View for Slider {
             size: taffy::Size { width: taffy::Dimension::Auto, height: taffy::Dimension::Length(10.0) },
             ..Default::default()
         });
+
+		let position_normalized = if let Some(value) = self.value {
+			let position = ctx.get_and_track(value, move |value, mut widget| {
+				widget.position_normalized = normalize_value(widget.min, widget.max, *value);
+				widget.request_render();
+			});
+			normalize_value(self.min, self.max, position)
+		} else {
+			0.0
+		};
+
         SliderWidget {
-            position_normalized: 0.4,
+            position_normalized,
             state: State::Idle,
             min: self.min,
             max: self.max, 
@@ -52,6 +80,10 @@ impl View for Slider {
             on_value_changed: self.on_value_changed
         }
     }
+}
+
+fn normalize_value(min: f64, max: f64, value: f64) -> f64 {
+	((value - min) / (max - min)).clamp(0.0, 1.0)
 }
 
 pub struct ParameterSlider<P: AnyParameter> {
@@ -76,11 +108,15 @@ impl<P: AnyParameter> View for ParameterSlider<P> {
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         let editor = self.editor;
         let slider = Slider::new()
-            .with_range(editor.info(ctx).min_value().into(), editor.info(ctx).max_value().into())
+            .range(editor.info(ctx).min_value().into(), editor.info(ctx).max_value().into())
+			.on_drag_start(move |cx| {
+				editor.begin_edit(cx);
+			})
+			.on_drag_end(move |cx| {
+				editor.end_edit(cx);
+			})
             .on_value_changed(move |cx, value| {
-                editor.begin_edit(cx);
                 editor.set_value_plain(cx, PlainValue::new(value));
-                editor.end_edit(cx);
             });
 
 		let normalized_position = ctx.get_and_track(self.signal, |value, mut widget| {
@@ -100,8 +136,8 @@ pub struct SliderWidget {
     state: State,
     min: f64,
     max: f64,
-    on_drag_start: Option<Box<dyn Fn()>>, 
-    on_drag_end: Option<Box<dyn Fn()>>, 
+    on_drag_start: Option<Box<dyn Fn(&mut AppState)>>, 
+    on_drag_end: Option<Box<dyn Fn(&mut AppState)>>, 
     on_value_changed: Option<Box<dyn Fn(&mut AppState, f64)>>
 }
 
@@ -154,7 +190,7 @@ impl Widget for SliderWidget {
 					ctx.capture_mouse();
 					ctx.request_render();
 					if let Some(f) = self.on_drag_start.as_ref() {
-						f();
+						f(ctx.app_state_mut());
 					}
 					self.state = State::Dragging;
 				}
@@ -187,7 +223,7 @@ impl Widget for SliderWidget {
                 if button == MouseButton::LEFT {
                     if self.state == State::Dragging {
                         if let Some(f) = self.on_drag_end.as_ref() {
-                            f()
+                            f(ctx.app_state_mut())
                         }
                     }
                     ctx.request_render();
@@ -246,7 +282,7 @@ impl Widget for SliderWidget {
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {
-        let bounds = ctx.global_bounds();
+        let bounds = ctx.content_bounds();
         let center = bounds.center();
         let width = bounds.width();
         let knob_color = match self.state {

@@ -1,8 +1,8 @@
 use std::{any::{Any, TypeId}, ops::{Deref, DerefMut}};
 
-use crate::{core::Cursor, KeyEvent, MouseEvent};
+use crate::{core::Cursor, AnimationFrame, KeyEvent, MouseEvent};
 
-use super::{EventContext, MouseEventContext, RenderContext};
+use super::{animation::AnimationContext, EventContext, MouseEventContext, RenderContext};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum EventStatus {
@@ -31,7 +31,7 @@ pub trait Widget: Any {
 
     fn status_updated(&mut self, _event: StatusChange, _ctx: &mut EventContext) {}
     
-    fn animation_frame(&mut self) {}
+    fn animation_frame(&mut self, _frame: AnimationFrame, _ctx: &mut AnimationContext) {}
 
     fn cursor(&self) -> Option<Cursor> {
         None

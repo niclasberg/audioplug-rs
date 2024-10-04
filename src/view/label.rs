@@ -73,7 +73,7 @@ impl Widget for TextWidget {
 
     fn render(&mut self, ctx: &mut RenderContext) {
 		let mut text_layout = self.text_layout.borrow_mut();
-        text_layout.set_max_size(ctx.global_bounds().size());
-        ctx.draw_text(&text_layout, ctx.global_bounds().top_left())
+        text_layout.set_max_size(ctx.content_bounds().size());
+        ctx.draw_text(&text_layout, ctx.content_bounds().top_left())
     }
 }

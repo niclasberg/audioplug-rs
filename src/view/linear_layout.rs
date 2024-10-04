@@ -19,7 +19,7 @@ impl<VS: ViewSequence> Column<VS> {
         }
     }
 
-    pub fn with_alignment(mut self, alignment: Alignment) -> Self {
+    pub fn align(mut self, alignment: Alignment) -> Self {
         self.alignment = alignment;
         self
     }
@@ -68,7 +68,7 @@ impl<VS: ViewSequence> Row<VS> {
         self
     }
 
-    pub fn with_spacing(mut self, spacing: f64) -> Self {
+    pub fn spacing(mut self, spacing: f64) -> Self {
         self.spacing = spacing;
         self
     }

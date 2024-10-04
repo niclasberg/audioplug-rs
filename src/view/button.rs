@@ -67,11 +67,11 @@ impl Widget for ButtonWidget {
                 if self.mouse_down {
                     self.mouse_down = false;
                     if ctx.bounds().contains(position) {
-                        ctx.request_render();
                         if let Some(f) = self.click_fn.as_ref() {
                             f(ctx.app_state_mut());
                         }
                     }
+					ctx.request_render();
                 }
                 EventStatus::Handled
             },

@@ -1,8 +1,8 @@
-use std::cell::RefCell;
+use std::cell::{Cell, OnceCell, RefCell};
 
 use objc2::ffi::YES;
 use objc2_app_kit::{NSEvent, NSResponder, NSTrackingArea, NSTrackingAreaOptions, NSView, NSViewFrameDidChangeNotification};
-use objc2_foundation::{CGRect, MainThreadMarker, NSNotificationCenter, NSRect, NSTimer};
+use objc2_foundation::{CGRect, MainThreadMarker, NSDate, NSNotificationCenter, NSRect, NSTimer};
 use objc2::rc::{Retained, Weak};
 use objc2::runtime::{NSObject, NSObjectProtocol};
 use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
@@ -22,6 +22,7 @@ pub struct Ivars {
     handler: RefCell<Box<dyn WindowHandler>>,
 	tracking_area: RefCell<Option<Retained<NSTrackingArea>>>,
 	timer: RefCell<Option<Retained<NSTimer>>>,
+	animation_start: OnceCell<Retained<NSDate>>,
 }
 
 // There is a problem in objc2 that we need to address. If we have two different plugins
@@ -137,10 +138,14 @@ declare_class!(
 			self.ivars().handler.borrow_mut().render(rect.into(), renderer);
 		}
 
-		#[method(onAnimationTimer)]
-		fn on_animation_timer(&self) {
+		#[method(onAnimationTimer:)]
+		fn on_animation_timer(&self, _timer: &NSTimer) {
+			let animation_start = self.ivars().animation_start.get_or_init(|| {
+				unsafe { NSDate::now() }
+			});
+
 			let animation_frame = AnimationFrame {
-				timestamp: 0.0
+				timestamp: -unsafe { animation_start.timeIntervalSinceNow() }
 			};
 			self.dispatch_event(WindowEvent::Animation(animation_frame));
 		}
@@ -155,7 +160,7 @@ impl View {
 		let tracking_area = RefCell::new(None);
 
 		let this = mtm.alloc();
-		let this = this.set_ivars(Ivars { handler, tracking_area, timer: RefCell::new(None) });
+		let this = this.set_ivars(Ivars { handler, tracking_area, timer: RefCell::new(None), animation_start: OnceCell::new() });
 
 		let this: Retained<Self> = if let Some(frame) = frame {
 			unsafe { msg_send_id![super(this), initWithFrame: frame] }
@@ -181,7 +186,7 @@ impl View {
 			NSTimer::scheduledTimerWithTimeInterval_target_selector_userInfo_repeats(
 				1.0 / 60.0, 
 				&this, 
-				sel!(onAnimationTimer), 
+				sel!(onAnimationTimer:), 
 				None, 
 				true)
 		};

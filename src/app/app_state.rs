@@ -375,8 +375,4 @@ impl ParamContext for AppState {
         let Some(host_handle) = self.host_handle.as_ref() else { panic!("Host handle not set") };
         host_handle.as_ref()
     }
-    
-    fn get_parameter_ref<'a>(&'a self, id: ParameterId) -> Option<ParamRef<'a>> {
-        self.runtime.parameters.get_by_id(id).map(|p| p.as_param_ref())
-    }
 }

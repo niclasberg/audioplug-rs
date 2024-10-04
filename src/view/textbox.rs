@@ -1,5 +1,5 @@
 use std::ops::Range;
-use crate::{app::{AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Cursor, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, MouseEvent};
+use crate::{app::{AnimationContext, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Cursor, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, MouseEvent};
 use unicode_segmentation::{UnicodeSegmentation, GraphemeCursor};
 
 use super::View;
@@ -420,20 +420,29 @@ impl Widget for TextBoxWidget {
             },
             _ => EventStatus::Ignored
         }
-        /*Event::AnimationFrame { timestamp } => {
-            if timestamp - self.last_cursor_timestamp > CURSOR_DELAY_SECONDS {
-                self.cursor_on = !self.cursor_on;
-                ctx.request_render();
-                self.last_cursor_timestamp = timestamp;
-            }
-        }*/
     }
+
+	fn animation_frame(&mut self, frame: crate::AnimationFrame, ctx: &mut AnimationContext) {
+		if ctx.has_focus() {
+			if frame.timestamp - self.last_cursor_timestamp > CURSOR_DELAY_SECONDS {
+				self.cursor_on = !self.cursor_on;
+				ctx.request_render();
+				self.last_cursor_timestamp = frame.timestamp;
+			}
+			ctx.request_animation();
+		}
+	}
 
 	fn status_updated(&mut self, event: StatusChange, ctx: &mut EventContext) {
         match event {
-            StatusChange::FocusGained | StatusChange::FocusLost => {
+            StatusChange::FocusGained => {
+				ctx.request_animation();
                 ctx.request_render();
             },
+			StatusChange::FocusLost => {
+				self.cursor_on = false;
+				ctx.request_render();
+			},
             _ => {}
         }
 	}

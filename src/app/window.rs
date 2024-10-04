@@ -1,17 +1,14 @@
-use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use raw_window_handle::RawWindowHandle;
 
-use crate::app::{handle_window_event, render_window, AppState, Runtime, Signal, SignalGetContext, WindowId};
+use crate::app::{handle_window_event, render_window, AppState, WindowId};
 use crate::core::{Cursor, Point, Rectangle};
-use crate::param::{ParamRef, ParameterId};
 use crate::platform::{WindowEvent, WindowHandler};
 use crate::view::View;
 use crate::{platform, App};
-
-use super::{NodeId, SignalContext};
+use super::AppContext;
 
 struct PreInit<F>(F);
 struct Constructed(WindowId);
@@ -37,15 +34,8 @@ where
     fn initialize(self, app_state: &mut AppState, handle: platform::Handle) -> Self {
         match self {
             WindowState::PreInit(PreInit(view_factory)) => {
-				let window_id = app_state.add_window(handle, move |mut build_ctx| {
-					let view = {
-						let mut app_context = AppContext {
-							app_state: &mut build_ctx.app_state,
-						};
-						view_factory(&mut app_context)
-					};
-		
-					view.build(&mut build_ctx)
+				let window_id = app_state.add_window(handle, move |build_ctx| {
+					build_ctx.build_with(view_factory)
 				});
                 Self::Initialized(Constructed(window_id))
             }
@@ -122,48 +112,6 @@ impl<F> Drop for MyHandler<F> {
                 app_state.remove_window(window_id);
             }
         }
-    }
-}
-
-pub struct AppContext<'a> {
-    app_state: &'a mut AppState,
-}
-
-impl<'a> AppContext<'a> {
-    pub fn create_signal<T: Any>(&mut self, value: T) -> Signal<T> {
-        self.app_state.create_signal(value)
-    }
-
-    pub fn create_effect(&mut self, f: impl Fn(&mut Runtime) + 'static) {
-        self.app_state.create_effect(f)
-    }
-
-	pub fn app_state(&self) -> &AppState {
-		&self.app_state
-	}
-}
-
-impl<'b> SignalGetContext for AppContext<'b> {
-    fn get_signal_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any {
-        self.app_state.get_signal_value_ref_untracked(signal_id)
-    }
-
-    fn get_signal_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
-        self.app_state.get_signal_value_ref(signal_id)
-    }
-	
-	fn get_parameter_ref_untracked(&self, parameter_id: ParameterId) -> ParamRef {
-		self.app_state.get_parameter_ref_untracked(parameter_id)
-	}
-	
-	fn get_parameter_ref(&mut self, parameter_id: ParameterId) -> ParamRef {
-		self.app_state.get_parameter_ref(parameter_id)
-	}
-}
-
-impl<'b> SignalContext for AppContext<'b> {
-    fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
-        self.app_state.set_signal_value(signal, value)
     }
 }
 

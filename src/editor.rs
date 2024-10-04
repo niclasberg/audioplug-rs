@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{app::AppContext, core::Size, param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params}, view::{AnyView, Column, Label, ParameterSlider, Row, View}};
+use crate::{app::AppContext, core::Size, param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params}, view::{AnyView, Column, Container, Label, ParameterSlider, Row, View}};
 
 pub trait Editor: 'static {
 	type Parameters: Params;
@@ -57,11 +57,12 @@ impl ParamVisitor for CreateParameterViewsVisitor {
 		let mut child_visitor = Self::new();
 		group.children().visit(&mut child_visitor);
 
-		let mut views = Vec::new();
-		views.push(Label::new(group.name()).as_any());
-		views.extend(child_visitor.views);
-		let group_view = Column::new(views);
-		self.views.push(group_view.as_any());
+		let view = Column::new((
+			Label::new(group.name()),
+			Column::new(child_visitor.views)
+				.padding_left(20.0)
+		)).padding_top(10.0);
+		self.views.push(view.as_any());
 	}
 }
 
