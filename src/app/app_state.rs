@@ -54,6 +54,7 @@ pub(super) struct WindowState {
     pub(super) handle: platform::Handle,
     pub(super) root_widget: WidgetId,
     pub(super) focus_widget: Option<WidgetId>,
+    pub(super) requested_animations: HashSet<WidgetId>
 }
 
 pub struct AppState {
@@ -173,6 +174,7 @@ impl AppState {
                 handle,
                 root_widget: WidgetId::null(),
                 focus_widget: None,
+                requested_animations: HashSet::new(),
             });
 
 		let widget_id = self.widget_data.insert_with_key(|id| {

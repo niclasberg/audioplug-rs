@@ -1,6 +1,6 @@
 use crate::{app::StatusChange, core::{Cursor, Rectangle}, keyboard::Key, platform::WindowEvent, KeyEvent, MouseEvent};
 
-use super::{invalidate_window, layout_window, render::invalidate_widget, widget_node::WidgetFlags, AppState, EventStatus, WidgetId, WindowId};
+use super::{animation::drive_animations, invalidate_window, layout_window, render::invalidate_widget, widget_node::WidgetFlags, AppState, EventStatus, WidgetId, WindowId};
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
@@ -63,8 +63,8 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         WindowEvent::Unfocused => {
             set_focus_widget(app_state, window_id, None);
         },
-        WindowEvent::Animation(_) => {
-
+        WindowEvent::Animation(animation_frame) => {
+            drive_animations(app_state, window_id, animation_frame);
         },
         _ => {}
     };
