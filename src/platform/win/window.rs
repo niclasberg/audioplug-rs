@@ -3,9 +3,10 @@ use std::{cell::{Cell, RefCell}, marker::PhantomData, mem::MaybeUninit, rc::Rc, 
 use windows::{core::{w, Error, Result, PCWSTR}, 
     Win32::{
         Foundation::*, Graphics::Gdi::{self, InvalidateRect, ScreenToClient}, System::{LibraryLoader::GetModuleHandleW, Performance}, UI::{HiDpi::GetDpiForWindow, Input::{KeyboardAndMouse::{TrackMouseEvent, VIRTUAL_KEY}, *}, WindowsAndMessaging::*}}};
+use KeyboardAndMouse::{ReleaseCapture, SetCapture};
 
 use super::{com, cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, Handle, Renderer};
-use crate::{core::{Color, Point, Rectangle, Size}, event::{AnimationFrame, KeyEvent, MouseEvent}, keyboard::Key, platform::{WindowEvent, WindowHandler}};
+use crate::{core::{Color, Point, Rectangle, Size}, event::{AnimationFrame, KeyEvent, MouseEvent}, keyboard::Key, platform::{WindowEvent, WindowHandler}, MouseButtons};
 use crate::event::MouseButton;
 
 const WINDOW_CLASS: PCWSTR = w!("my_window");
@@ -46,6 +47,7 @@ struct WindowState {
     ticks_per_second: f64,
     current_key_event: RefCell<Option<TmpKeyEvent>>,
     scale_factor: Rc<Cell<f64>>,
+    captured_mouse_buttons: RefCell<MouseButtons>,
 }
 
 impl WindowState {
@@ -139,8 +141,28 @@ impl WindowState {
             WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP | 
             WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK => {
                 let mouse_event = self.get_mouse_event(message, wparam, lparam);
+                if let MouseEvent::Down { button, .. } = mouse_event {
+                    if self.captured_mouse_buttons.borrow().is_empty() {
+                        unsafe { SetCapture(hwnd) };
+                    }
+                    self.captured_mouse_buttons.borrow_mut().insert(button);
+                } else if let MouseEvent::Up { button, .. } = mouse_event {
+                    self.captured_mouse_buttons.borrow_mut().remove(button);
+                    if self.captured_mouse_buttons.borrow().is_empty() {
+                        drop(unsafe { ReleaseCapture() });
+                    }
+                }
 
                 self.publish_event(hwnd, WindowEvent::Mouse(mouse_event));
+                Some(LRESULT(0))
+            },
+
+            WM_CAPTURECHANGED => {
+                if !self.captured_mouse_buttons.borrow().is_empty() {
+                    self.captured_mouse_buttons.borrow_mut().clear();
+                    self.publish_event(hwnd, WindowEvent::MouseCaptureEnded);
+                }
+                
                 Some(LRESULT(0))
             },
 
@@ -273,7 +295,7 @@ impl WindowState {
             _ => unreachable!()
         };
 
-        let position: Point = [loword(lparam) as i16, hiword(lparam) as i16].into();
+        let position: Point = point_from_lparam(lparam).into();
         let position = position.scale(1.0 / self.scale_factor.get());
 
         match message {
@@ -344,7 +366,8 @@ impl Window {
             last_mouse_pos: RefCell::new(None),
             ticks_per_second,
             current_key_event: RefCell::new(None),
-            scale_factor: Rc::new(Cell::new(1.0))
+            scale_factor: Rc::new(Cell::new(1.0)),
+            captured_mouse_buttons: Default::default(),
         });
 
         let hwnd = unsafe {
@@ -383,7 +406,7 @@ fn hiword(lparam: LPARAM) -> u16 {
 }
 
 fn point_from_lparam(lparam: LPARAM) -> Point<i32> {
-    Point::new(loword(lparam) as i32, hiword(lparam) as i32)
+    Point::new((lparam.0 & 0xFFFF) as i16 as i32, ((lparam.0 >> 16) & 0xFFFF) as i16 as i32)
 }
 
 fn get_message_pos(hwnd: HWND) -> Point<i32> {

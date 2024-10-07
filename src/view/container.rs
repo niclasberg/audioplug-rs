@@ -1,4 +1,4 @@
-use crate::app::{AppContext, BuildContext, Widget};
+use crate::app::{ViewContext, BuildContext, Widget};
 
 use super::View;
 
@@ -8,7 +8,7 @@ pub struct Container<F> {
 
 impl<V, F> Container<F> where 
 	V: View,
-	F: FnOnce(&mut AppContext) -> V 
+	F: FnOnce(&mut ViewContext) -> V 
 {
 	pub fn new(view_factory: F) -> Self {
 		Self {
@@ -19,7 +19,7 @@ impl<V, F> Container<F> where
 
 impl<V, F> View for Container<F> where 
 	V: View,
-	F: FnOnce(&mut AppContext) -> V
+	F: FnOnce(&mut ViewContext) -> V
 {
 	type Element = ContainerWidget;
 

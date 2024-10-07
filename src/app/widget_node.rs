@@ -138,6 +138,10 @@ impl WidgetData {
         f(&mut self.style);
         self
     }
+
+    pub fn is_hidden(&self) -> bool {
+        self.style.display == taffy::Display::None
+    }
 }
 
 pub struct WidgetRef<'a, W: 'a + Widget + ?Sized> {

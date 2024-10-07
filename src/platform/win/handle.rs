@@ -10,6 +10,7 @@ use windows::Win32::Foundation::{HWND, RECT, HGLOBAL, HANDLE};
 use windows::Win32::System::Memory::GMEM_MOVEABLE;
 use windows::Win32::System::{DataExchange, Memory};
 use windows::Win32::Graphics::Gdi::InvalidateRect;
+use windows::Win32::UI::Input::KeyboardAndMouse::{ReleaseCapture, SetCapture};
 use crate::core::Rectangle;
 
 use super::util::get_client_rect;
@@ -54,7 +55,7 @@ impl Handle {
         rect.scale(1.0 / self.scale_factor.get())
     }
 
-    pub fn set_clipboard(&self, string: &str) -> Result<()>{
+    pub fn set_clipboard(&self, string: &str) -> Result<()> {
         unsafe { DataExchange::OpenClipboard(self.hwnd) }?;
         let _close_clipboard = ScopeExit(|| unsafe { CloseClipboard().expect("Error while closing clipboard") });
         unsafe { DataExchange::EmptyClipboard() }?;

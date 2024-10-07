@@ -20,6 +20,7 @@ pub enum WindowEvent {
     MouseExit,
     Animation(AnimationFrame),
     Mouse(MouseEvent),
+    MouseCaptureEnded,
     Key(KeyEvent),
     ScaleFactorChanged {
         scale_factor: f64

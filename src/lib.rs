@@ -19,5 +19,5 @@ pub use app::App;
 pub use audio_buffer::*;
 pub use audiolayout::*;
 pub use editor::*;
-pub use event::{AnimationFrame, KeyEvent, MouseButton, MouseEvent};
+pub use event::{AnimationFrame, KeyEvent, MouseButton, MouseButtons, MouseEvent};
 pub use plugin::*;

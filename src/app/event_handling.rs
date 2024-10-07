@@ -36,10 +36,17 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                     _ => {}
                 }
             } else {
-                let id = app_state.window(window_id).root_widget;
-                let mut ctx = MouseEventContext::new(id, app_state, true);
-                ctx.dispatch(mouse_event);
+                let new_mouse_capture_widget = {
+                    let id = app_state.window(window_id).root_widget;
+                    let mut ctx = MouseEventContext::new(id, app_state, true);
+                    ctx.dispatch(mouse_event);
+                    ctx.new_mouse_capture_widget
+                };
                 app_state.run_effects();
+
+                if new_mouse_capture_widget.is_some() {
+                    set_mouse_capture_widget(app_state, new_mouse_capture_widget);
+                }
             }
         },
         WindowEvent::Key(key_event) => {
@@ -53,7 +60,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             if event_status == EventStatus::Ignored {
                 match key_event {
                     KeyEvent::KeyDown { key, modifiers, .. } => match key {
-                        Key::Escape if modifiers.is_empty() => set_focus_widget(app_state, window_id, None),
+                        //Key::Escape if modifiers.is_empty() => set_focus_widget(app_state, window_id, None),
                         _ => {}
                     },
                     _ => {}
@@ -65,6 +72,9 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         },
         WindowEvent::Animation(animation_frame) => {
             drive_animations(app_state, window_id, animation_frame);
+        },
+        WindowEvent::MouseCaptureEnded => {
+            set_mouse_capture_widget(app_state, None);
         },
         _ => {}
     };
@@ -90,6 +100,15 @@ pub fn set_focus_widget(app_state: &mut AppState, window_id: WindowId, new_focus
     }
 }
 
+pub fn clear_focus_and_mouse_capture(app_state: &mut AppState, widget_id: WidgetId) {
+    if app_state.mouse_capture_widget == Some(widget_id) {
+        set_mouse_capture_widget(app_state, None);
+    }
+
+    let window_id = app_state.get_window_id_for_widget(widget_id);
+
+}
+
 pub fn set_mouse_capture_widget(app_state: &mut AppState, new_capture_widget: Option<WidgetId>) {
     if new_capture_widget != app_state.mouse_capture_widget {
         if let Some(old_mouse_capture_widget) = app_state.mouse_capture_widget {
@@ -112,6 +131,7 @@ pub struct MouseEventContext<'a> {
     id: WidgetId, 
     app_state: &'a mut AppState,
     can_propagate: bool,
+    new_mouse_capture_widget: Option<WidgetId>,
 }
 
 impl<'a> MouseEventContext<'a> {
@@ -119,7 +139,8 @@ impl<'a> MouseEventContext<'a> {
         Self {
             id, 
             app_state,
-            can_propagate
+            can_propagate,
+            new_mouse_capture_widget: None
         }
     }   
 
@@ -170,7 +191,7 @@ impl<'a> MouseEventContext<'a> {
     }
 
     pub fn capture_mouse(&mut self) {
-        self.app_state.mouse_capture_widget = Some(self.id)
+        self.new_mouse_capture_widget = Some(self.id);
     }
 
 	pub fn request_layout(&mut self) {

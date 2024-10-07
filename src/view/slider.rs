@@ -212,6 +212,7 @@ impl Widget for SliderWidget {
                     },
                     State::Dragging => {
                         let normalized_position = ((position.x - ctx.bounds().left()) / ctx.bounds().width()).clamp(0.0, 1.0);
+                        println!("{}", normalized_position);
                         if self.set_position(ctx.app_state_mut(), normalized_position) {
                             ctx.request_render();
                         }

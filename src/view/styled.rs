@@ -84,7 +84,8 @@ pub struct Styled<V> {
 	min_width: DimensionAccessor,
 	max_width: DimensionAccessor,
 	min_height: DimensionAccessor,
-	max_height: DimensionAccessor
+	max_height: DimensionAccessor,
+	hidden: Option<Accessor<bool>>,
 }
 
 impl<V: View> Styled<V> {
@@ -100,7 +101,8 @@ impl<V: View> Styled<V> {
 			min_width: DimensionAccessor::None,
 			max_width: DimensionAccessor::None,
 			min_height: DimensionAccessor::None,
-			max_height: DimensionAccessor::None
+			max_height: DimensionAccessor::None,
+			hidden: None
 		}
 	}
 
@@ -271,6 +273,8 @@ impl<V: View> View for Styled<V> {
 		self.min_height.apply(ctx, |style, value| style.min_size.height = value);
 		self.max_height.apply(ctx, |style, value| style.max_size.height = value);
 
+
+		
 		widget
 	}
 }

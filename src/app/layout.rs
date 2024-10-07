@@ -23,6 +23,10 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
     invalidate_window(app_state, window_id);
 }
 
+pub fn hide_widget(app_state: &mut AppState, widget_id: WidgetId) {
+    
+}
+
 pub(super) fn request_layout(app_state: &mut AppState, widget_id: WidgetId) {
 	app_state.widget_data_mut(widget_id).set_flag(WidgetFlags::NEEDS_LAYOUT);
 	app_state.merge_widget_flags(widget_id);

@@ -8,7 +8,7 @@ use crate::core::{Cursor, Point, Rectangle};
 use crate::platform::{WindowEvent, WindowHandler};
 use crate::view::View;
 use crate::{platform, App};
-use super::AppContext;
+use super::ViewContext;
 
 struct PreInit<F>(F);
 struct Constructed(WindowId);
@@ -21,7 +21,7 @@ enum WindowState<F> {
 
 impl<F, V> WindowState<F>
 where
-	F: FnOnce(&mut AppContext) -> V,
+	F: FnOnce(&mut ViewContext) -> V,
 	V: View,
 {
     fn window_id(&self) -> WindowId {
@@ -51,7 +51,7 @@ pub(crate) struct MyHandler<F> {
 
 impl<F, V> MyHandler<F>
 where 
-	F: FnOnce(&mut AppContext) -> V,
+	F: FnOnce(&mut ViewContext) -> V,
 	V: View,
 {
     pub fn new(app_state: Rc<RefCell<AppState>>, view_factory: F) -> Self{
@@ -66,7 +66,7 @@ where
 
 impl<F, V> WindowHandler for MyHandler<F>
 where 
-	F: FnOnce(&mut AppContext) -> V,
+	F: FnOnce(&mut ViewContext) -> V,
 	V: View,
 {
     fn init(&mut self, handle: platform::Handle) {
@@ -120,7 +120,7 @@ pub struct Window(platform::Window);
 impl Window {
     pub fn open<F, V>(app: &mut App, view_factory: F) -> Self
     where
-        F: FnOnce(&mut AppContext) -> V + 'static,
+        F: FnOnce(&mut ViewContext) -> V + 'static,
         V: View,
     {
         let handler = MyHandler::new(app.state.clone(), view_factory);
@@ -133,7 +133,7 @@ impl Window {
         view_factory: F,
     ) -> Self
     where
-        F: FnOnce(&mut AppContext) -> V + 'static,
+        F: FnOnce(&mut ViewContext) -> V + 'static,
         V: View,
     {
         let handler = MyHandler::new(app_state, view_factory);

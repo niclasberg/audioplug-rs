@@ -47,6 +47,10 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
         self.app_state.widget_has_focus(self.id)
     }
 
+    pub fn has_mouse_capture(&self) -> bool {
+        self.app_state.widget_has_captured_mouse(self.id)
+    }
+
     pub fn fill(&mut self, shape: impl Into<Shape>, color: impl Into<Color>) {
 		let color = color.into();
         match shape.into() {

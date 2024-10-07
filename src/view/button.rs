@@ -89,6 +89,12 @@ impl Widget for ButtonWidget {
                 self.is_hot = false;
                 ctx.request_render();
             },
+            StatusChange::MouseCaptureLost => {
+                if self.mouse_down {
+                    self.mouse_down = false;
+                    ctx.request_render();
+                }
+            },
             _ => {}
         }
     }

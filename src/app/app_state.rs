@@ -262,6 +262,10 @@ impl AppState {
             .is_some_and(|focus_widget_id| *focus_widget_id == id)
     }
 
+    pub fn widget_has_captured_mouse(&self, widget_id: WidgetId) -> bool {
+        self.mouse_capture_widget.is_some_and(|id| id == widget_id)
+    }
+
     pub fn widget_data_ref(&self, id: WidgetId) -> &WidgetData {
         self.widget_data.get(id).expect("Widget data not found")
     }

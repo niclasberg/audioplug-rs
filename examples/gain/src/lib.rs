@@ -1,7 +1,7 @@
 use audioplug::core::{Color, Size};
 use audioplug::param::{BoolParameter, FloatParameter, FloatRange, Parameter, ParameterId, Params};
 use audioplug::view::{AnyView, Column, Label, ParameterSlider, View};
-use audioplug::app::AppContext;
+use audioplug::app::ViewContext;
 use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, params, AudioLayout, Bus, ChannelType, Editor, Plugin, ProcessContext, VST3Plugin};
 
 params!(
@@ -34,7 +34,7 @@ impl Editor for MyEditor {
 		Some(Size::new(540.0, 480.0))
 	}
 
-    fn view(&self, _ctx: &mut AppContext, parameters: &MyPluginParams) -> AnyView {
+    fn view(&self, _ctx: &mut ViewContext, parameters: &MyPluginParams) -> AnyView {
         Column::new((
             Label::new("Gain").with_color(Color::BLUE),
             ParameterSlider::new(&parameters.gain)
