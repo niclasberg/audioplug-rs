@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use objc2::{Encode, Encoding, RefEncode};
 
 use crate::platform::core_audio::OSStatus;
@@ -20,7 +22,7 @@ pub struct AURenderEventHeader {
 	/// The type of the event.
 	pub event_type: AURenderEventType,
 	/// Must be 0.
-	reserved: u8
+	pub reserved: u8
 }
 
 unsafe impl Encode for AURenderEventHeader {
@@ -42,19 +44,19 @@ cf_enum!(
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AUParameterEvent {
 	/// The next event in a linked list of events.
-	next: *mut AURenderEvent,		
+	pub next: *mut AURenderEvent,		
 	/// The sample time at which the event is scheduled to occur.
-	event_sample_time: AUEventSampleTime,
+	pub event_sample_time: AUEventSampleTime,
 	/// AURenderEventParameter or AURenderEventParameterRamp.
-	event_type: AURenderEventType,
+	pub event_type: AURenderEventType,
 	/// Must be 0.
-	reserved: [u8; 3],					
+	pub reserved: [u8; 3],					
 	/// If greater than 0, the event is a parameter ramp; should be 0 for a non-ramped event.
-	ramp_duration_sample_frames: AUAudioFrameCount,
+	pub ramp_duration_sample_frames: AUAudioFrameCount,
 	/// The parameter to change.								
-	parameter_address: AUParameterAddress,
+	pub parameter_address: AUParameterAddress,
 	/// If ramped, the parameter value at the end of the ramp; for a non-ramped event, the new value.
-	value: AUValue,				
+	pub value: AUValue,				
 }
 
 unsafe impl Encode for AUParameterEvent {
@@ -70,19 +72,19 @@ unsafe impl RefEncode for AUParameterEvent {
 /// Describes a single scheduled MIDI event.
 pub struct AUMIDIEvent {
 	/// The next event in a linked list of events.
-	next: *mut AURenderEvent,		
+	pub next: *mut AURenderEvent,		
 	/// The sample time at which the event is scheduled to occur.
-	event_sample_time: AUEventSampleTime,
+	pub event_sample_time: AUEventSampleTime,
 	/// AURenderEventMIDI or AURenderEventMIDISysEx.
-	event_type: AURenderEventType,
+	pub event_type: AURenderEventType,
 	/// Must be 0.
-	reserved: u8,
+	pub reserved: u8,
 	/// The number of valid MIDI bytes in the data field. 1, 2 or 3 for most MIDI events, but can be longer for system-exclusive (sys-ex) events.
-	length: u16,
+	pub length: u16,
 	/// The virtual cable number.
-	cable: u8,
+	pub cable: u8,
 	/// The bytes of the MIDI event. Running status will not be used.
-	data: [u8; 3]
+	pub data: [u8; 3]
 }
 
 #[repr(C)]
@@ -90,15 +92,15 @@ pub struct AUMIDIEvent {
 /// Describes a single scheduled MIDIEventList.
 pub struct AUMIDIEventList {
 	/// The next event in a linked list of events.
-	next: *mut AURenderEvent,		
+	pub next: *mut AURenderEvent,		
 	/// The sample time at which the event is scheduled to occur.
-	event_sample_time: AUEventSampleTime,
+	pub event_sample_time: AUEventSampleTime,
 	/// AURenderEventMIDI or AURenderEventMIDISysEx.
-	event_type: AURenderEventType,			
+	pub event_type: AURenderEventType,			
 	/// Must be 0.
-	reserved: u8,			
+	pub reserved: u8,			
 	/// The virtual cable number.
-	cable: u8,				
+	pub cable: u8,				
 	// A structure containing UMP packets.
 	//eventList: MIDIEventList			
 }
@@ -109,31 +111,6 @@ pub union AURenderEvent {
 	pub parameter: AUParameterEvent,
 	pub midi: AUMIDIEvent,
 	pub midi_events_list: AUMIDIEventList,
-}
-
-impl AURenderEvent {
-	pub fn for_each(&self, mut on_parameter: impl FnMut(&AUParameterEvent), mut on_midi: impl FnMut(&AUMIDIEvent), mut on_midi_event_list: impl FnMut(&AUMIDIEventList)) {
-		let mut head = self as *const Self;
-		while !head.is_null() {
-			let ev = unsafe { &*head };
-			let header = unsafe { ev.head };
-			
-			match header.event_type {
-				AURenderEventType::Parameter | AURenderEventType::ParameterRamp => {
-					on_parameter(&unsafe { ev.parameter })
-				},
-				AURenderEventType::MIDI => {
-					on_midi(&unsafe { ev.midi })
-				},
-				AURenderEventType::MIDIEventList => {
-					on_midi_event_list(&unsafe {ev.midi_events_list})
-				},
-				_ => { }
-			}
-
-			head = unsafe { ev.head }.next;
-		}
-	}
 }
 
 unsafe impl Encode for AURenderEvent {

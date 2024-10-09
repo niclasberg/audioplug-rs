@@ -1,5 +1,7 @@
 use super::cf_enum;
 
+pub type MIDITimeStamp = u64;
+
 cf_enum!(
 	pub enum MIDIProtocolID: i32 {
 		MIDI_1_0 = 1,
@@ -7,8 +9,16 @@ cf_enum!(
 	}
 );
 
+#[repr(C)]
 pub struct MIDIEventList {
-	protocol: MIDIProtocolID,
-	num_packets: u32,
-	//packet: *mut MIDIEventPacket,
+	pub protocol: MIDIProtocolID,
+	pub num_packets: u32,
+	pub packets: *mut MIDIEventPacket,
+}
+
+#[repr(C)]
+pub struct MIDIEventPacket {
+	pub time_stamp: MIDITimeStamp,
+	pub word_count: u32,
+	pub words: [u32; 64],
 }

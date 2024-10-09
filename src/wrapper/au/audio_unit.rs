@@ -3,7 +3,7 @@ use std::{marker::PhantomData, mem::MaybeUninit, ops::Deref, rc::Rc, sync::OnceL
 use block2::RcBlock;
 use objc2::{__extern_class_impl_traits, msg_send, msg_send_id, mutability::Mutable, rc::Retained, runtime::{AnyClass, AnyObject, Bool, ClassBuilder, Sel}, sel, ClassType, Encoding, RefEncode};
 use objc2_foundation::{NSArray, NSError, NSIndexSet, NSInteger, NSNumber, NSObject, NSTimeInterval};
-use crate::{param::{AnyParameterMap, ParameterId, ParameterMap, PlainValue, Params}, platform::audio_toolbox::{AUParameter, AUValue}, AudioBuffer, Plugin, ProcessContext};
+use crate::{param::{AnyParameterMap, ParameterId, ParameterMap, Params, PlainValue}, platform::audio_toolbox::{AUParameter, AURenderEventType, AUValue}, AudioBuffer, Plugin, ProcessContext};
 use crate::platform::mac::audio_toolbox::{AUAudioUnitBusArray, AUParameterTree, AUInternalRenderRcBlock, AUAudioUnit, AUAudioUnitBus, AUAudioUnitBusType, AudioUnitRenderActionFlags, AUAudioFrameCount, AURenderEvent, AURenderPullInputBlock, AudioComponentDescription, AUInternalRenderBlock, AudioComponentInstantiationOptions, AUAudioUnitStatus, AUAudioUnitViewConfiguration};
 use crate::platform::mac::av_foundation::AVAudioFormat;
 use crate::platform::mac::core_audio::{AudioBufferList, AudioTimeStamp};
@@ -92,17 +92,29 @@ impl<P: Plugin + 'static> Wrapper<P> {
 		realtime_event_list_head: *const AURenderEvent, 
 		_pull_input_block: Option<&AURenderPullInputBlock>
 	) {
-		let event_list = unsafe {&*realtime_event_list_head};
-		event_list.for_each(
-			|parameter|  {
-
-			}, 
-			|midi| {
-
-			}, 
-			|midi_event_list| {
-
-			});
+		let mut event_list = realtime_event_list_head;
+		while !event_list.is_null() {
+			let header = unsafe { &(&*event_list).head };
+			//let ev_timestamp = header.event_sample_time;
+			match header.event_type {
+				AURenderEventType::Parameter | AURenderEventType::ParameterRamp => {
+					let parameter_event = unsafe { &(&*event_list).parameter };
+					let param_id = ParameterId::new(parameter_event.parameter_address as _);
+					if let Some(param_ref) = self.parameters.get_by_id(param_id) {
+						param_ref.set_value_plain(PlainValue::new(parameter_event.value as _));
+					}
+				},
+				AURenderEventType::MIDI => {
+					//let midi_event = unsafe { &(&*event_list).midi };
+					
+				},
+				AURenderEventType::MIDIEventList => {
+					//let midi_event_list = unsafe { &(&*event_list).midi_events_list };
+				},
+				_ => {}
+			}
+			event_list = header.next;
+		}
 
 		let input = AudioBuffer::empty();
         let mut output = AudioBuffer::empty();
