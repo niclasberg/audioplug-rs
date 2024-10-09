@@ -212,7 +212,6 @@ impl Widget for SliderWidget {
                     },
                     State::Dragging => {
                         let normalized_position = ((position.x - ctx.bounds().left()) / ctx.bounds().width()).clamp(0.0, 1.0);
-                        println!("{}", normalized_position);
                         if self.set_position(ctx.app_state_mut(), normalized_position) {
                             ctx.request_render();
                         }
@@ -227,6 +226,7 @@ impl Widget for SliderWidget {
                             f(ctx.app_state_mut())
                         }
                     }
+                    ctx.release_capture();
                     ctx.request_render();
                     self.state = if self.knob_shape(ctx.bounds()).hit_test(position) {
                         State::KnobHover
@@ -277,6 +277,14 @@ impl Widget for SliderWidget {
         match event {
             StatusChange::FocusGained | StatusChange::FocusLost => {
                 ctx.request_render()
+            },
+            StatusChange::MouseCaptureLost => {
+                if self.state == State::Dragging {
+                    self.state = State::Idle;
+                    if let Some(f) = self.on_drag_end.as_ref() {
+                        f(ctx.app_state_mut())
+                    }
+                }
             },
             _ => {}
         }

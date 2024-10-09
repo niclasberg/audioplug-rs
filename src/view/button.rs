@@ -64,6 +64,7 @@ impl Widget for ButtonWidget {
                 EventStatus::Handled
             },
             MouseEvent::Up { button, position } if button == MouseButton::LEFT => {
+                ctx.release_capture();
                 if self.mouse_down {
                     self.mouse_down = false;
                     if ctx.bounds().contains(position) {

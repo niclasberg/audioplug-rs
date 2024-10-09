@@ -38,7 +38,7 @@ pub struct MidiProcessContext {
 
 }
 
-pub trait Plugin {
+pub trait Plugin: Send {
     /// Name of the plugin
     const NAME: &'static str;
     /// Name of the plugin vendor
