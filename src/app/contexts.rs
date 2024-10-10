@@ -37,16 +37,16 @@ impl<'a, W: Widget> BuildContext<'a, W> {
         }
     }
 
-    pub fn add_child<V: View>(&mut self, view: V) {
+    pub fn add_child<V: View>(&mut self, view: V) -> WidgetId {
         self.app_state.add_widget(self.id, move |ctx| -> V::Element {
             view.build(ctx)
-        });
+        })
     }
 
-	pub fn add_child_with<V: View>(&mut self, view_factory: impl FnOnce(&mut ViewContext) -> V) {
+	pub fn add_child_with<V: View>(&mut self, view_factory: impl FnOnce(&mut ViewContext) -> V) -> WidgetId {
 		self.app_state.add_widget(self.id, move |ctx| -> V::Element {
             ctx.build_with(view_factory)
-        });
+        })
 	}
 
     pub(crate) fn build<V: View>(&mut self, view: V) -> V::Element {
