@@ -51,12 +51,12 @@ impl<P: VST3Plugin> IAudioProcessor for AudioProcessor<P> {
             return kInvalidArgument;
         }
 
-        let bus_option = P::AUDIO_LAYOUT.get(index as usize).and_then(|audio_layout| {
+        let bus_option = (index == 0).then(|| {
             if dir == BusDirections::kInput as i32 {
-                audio_layout.main_input.as_ref()
+                P::AUDIO_LAYOUT.main_input.as_ref()
             } else {
-                audio_layout.main_output.as_ref()
-            }});
+                P::AUDIO_LAYOUT.main_output.as_ref()
+            }}).flatten();
 
         if let Some(bus) = bus_option {
             *arr = match bus.channel {
@@ -219,12 +219,11 @@ impl<P: VST3Plugin> IComponent for AudioProcessor<P> {
 
     unsafe fn get_bus_count(&self, type_: MediaType, dir: BusDirection) -> i32 {
         if type_ == MediaTypes::kAudio as MediaType {
-            P::AUDIO_LAYOUT.iter().fold(0, |acc, layout|
-                if dir == BusDirections::kInput as BusDirection {
-                    acc + if layout.main_input.is_some() { 1 } else { 0 }
-                } else {
-                    acc + if layout.main_output.is_some() { 1 } else { 0 }
-                })
+			if dir == BusDirections::kInput as BusDirection {
+				if P::AUDIO_LAYOUT.main_input.is_some() { 1 } else { 0 }
+			} else {
+				if P::AUDIO_LAYOUT.main_output.is_some() { 1 } else { 0 }
+			}
         } else if type_ == MediaTypes::kEvent as MediaType {
             if (dir == BusDirections::kInput as BusDirection && P::ACCEPTS_MIDI) ||  
                 (dir == BusDirections::kOutput as BusDirection && P::PRODUCES_MIDI) {
@@ -250,12 +249,12 @@ impl<P: VST3Plugin> IComponent for AudioProcessor<P> {
 
 		match type_ {
 			AUDIO => {
-				let matched_bus = P::AUDIO_LAYOUT.get(index as usize)
-					.and_then(|layout| match dir {
-						INPUT => layout.main_input.as_ref(),
-						OUTPUT => layout.main_output.as_ref(),
-						_ => None,
-					});
+				let matched_bus = (index == 0).then(||
+						match dir {
+							INPUT => P::AUDIO_LAYOUT.main_input.as_ref(),
+							OUTPUT => P::AUDIO_LAYOUT.main_output.as_ref(),
+							_ => None,
+						}).flatten();
 
 				if let Some(bus) = matched_bus {
 					info.channel_count = bus.channel.size() as i32;

@@ -23,3 +23,10 @@ pub struct AudioLayout {
     pub main_input: Option<Bus>,
     pub main_output: Option<Bus>,
 }
+
+impl AudioLayout {
+	pub const EMPTY: Self = Self {
+		main_input: None,
+		main_output: None,
+	};
+}

@@ -46,7 +46,7 @@ pub trait Plugin: Send {
     /// URL of the plugin vendor
     const URL: &'static str;
     const EMAIL: &'static str;
-    const AUDIO_LAYOUT: &'static [AudioLayout];
+    const AUDIO_LAYOUT: AudioLayout;
     /// Type of editor (a.k.a. user interface) for the plugin. 
     type Editor: Editor<Parameters = Self::Parameters>;
     type Parameters: Params;

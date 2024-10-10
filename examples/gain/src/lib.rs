@@ -53,12 +53,10 @@ impl Plugin for MyPlugin {
     const VENDOR: &'static str = "Audioplug";
     const URL: &'static str = "https://github.com/niclasberg/audioplug-rs";
     const EMAIL: &'static str = "niclasbrg@gmail.com";
-    const AUDIO_LAYOUT: &'static [AudioLayout] = &[
-		AudioLayout {
-			main_input: Some(Bus { name: "Stereo Input", channel: ChannelType::Stereo }),
-			main_output: Some(Bus { name: "Stereo Output", channel: ChannelType::Stereo })
-		}
-	];
+    const AUDIO_LAYOUT: AudioLayout = AudioLayout {
+		main_input: Some(Bus { name: "Stereo Input", channel: ChannelType::Stereo }),
+		main_output: Some(Bus { name: "Stereo Output", channel: ChannelType::Stereo })
+	};
     type Editor = MyEditor;
     type Parameters = MyPluginParams;
 

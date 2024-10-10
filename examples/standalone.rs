@@ -1,4 +1,4 @@
-use audioplug::{Plugin, GenericEditor};
+use audioplug::{AudioLayout, GenericEditor, Plugin};
 use audioplug::wrapper::standalone::{standalone_main, AudioProcessor};
 
 struct TestPlugin {
@@ -10,7 +10,7 @@ impl Plugin for TestPlugin {
     const VENDOR: &'static str = "test";
     const URL: &'static str = "www.test.com";
     const EMAIL: &'static str = "test@test.com";
-    const AUDIO_LAYOUT: &'static [audioplug::AudioLayout] = &[];
+    const AUDIO_LAYOUT: AudioLayout = AudioLayout::EMPTY;
     type Editor = GenericEditor<()>;
     type Parameters = ();
 

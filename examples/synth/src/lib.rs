@@ -32,12 +32,10 @@ impl Plugin for SynthPlugin {
     const VENDOR: &'static str = "Audioplug";
     const URL: &'static str = "https://github.com/niclasberg/audioplug-rs";
     const EMAIL: &'static str = "some@email.com";
-    const AUDIO_LAYOUT: &'static [AudioLayout] = &[
-        AudioLayout {
-            main_input: None,
-            main_output: Some(Bus { name: "Stereo Output", channel: ChannelType::Stereo })
-        }
-    ];
+    const AUDIO_LAYOUT: AudioLayout = AudioLayout {
+		main_input: None,
+		main_output: Some(Bus { name: "Stereo Output", channel: ChannelType::Stereo })
+    };
     const ACCEPTS_MIDI: bool = true;
 
     type Editor = GenericEditor<SynthParams>;

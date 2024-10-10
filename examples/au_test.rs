@@ -1,5 +1,5 @@
 use std::sync::atomic::AtomicBool;
-use audioplug::{GenericEditor, Plugin};
+use audioplug::{AudioLayout, GenericEditor, Plugin};
 
 static IS_DONE: AtomicBool = AtomicBool::new(false);
 
@@ -12,7 +12,7 @@ impl Plugin for TestPlugin {
     const VENDOR: &'static str = "test";
     const URL: &'static str = "www.test.com";
     const EMAIL: &'static str = "test@test.com";
-    const AUDIO_LAYOUT: &'static [audioplug::AudioLayout] = &[];
+    const AUDIO_LAYOUT: AudioLayout = AudioLayout::EMPTY;
     type Editor = GenericEditor<()>;
     type Parameters = ();
 
