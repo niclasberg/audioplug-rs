@@ -112,31 +112,6 @@ pub trait SignalGet {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct Map<S, F> {
-    source: S,
-    f: F,
-}
-
-impl<B, S: SignalGet, F> SignalGet for Map<S, F>
-where
-    F: Fn(&S::Value) -> B,
-{
-    type Value = B;
-
-    fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-        f(&self.source.with_ref(cx, |x| (self.f)(x)))
-    }
-
-    fn with_ref_untracked<R>(
-        &self,
-        cx: &dyn SignalGetContext,
-        f: impl FnOnce(&Self::Value) -> R,
-    ) -> R {
-        f(&self.source.with_ref_untracked(cx, |x| (self.f)(x)))
-    }
-}
-
 pub trait SignalSet {
     type Value;
 

@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::ops::{Add, Mul, Sub};
 
-use super::Point;
+use super::{Interpolate, Point};
 use super::Size;
 use super::Vector;
 
@@ -170,6 +170,17 @@ impl<T: Default> Default for Rectangle<T> {
 	fn default() -> Self {
 		Self { x: Default::default(), y: Default::default(), width: Default::default(), height: Default::default() }
 	}
+}
+
+impl<T: Interpolate> Interpolate for Rectangle<T> {
+    fn lerp(&self, other: &Self, scalar: f64) -> Self {
+        Self {
+            height: self.height.lerp(&other.height, scalar),
+            width: self.width.lerp(&other.width, scalar),
+            x: self.x.lerp(&other.x, scalar),
+            y: self.y.lerp(&other.y, scalar)
+        }
+    }
 }
 
 #[cfg(test)]

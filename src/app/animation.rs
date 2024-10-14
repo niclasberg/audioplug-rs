@@ -1,6 +1,6 @@
 use crate::AnimationFrame;
 
-use super::{layout::request_layout, render::invalidate_widget, widget_node::WidgetFlags, AppState, WidgetId, WindowId};
+use super::{layout::request_layout, render::invalidate_widget, AppState, NodeId, WidgetId, WindowId};
 
 pub(super) fn drive_animations(app_state: &mut AppState, window_id: WindowId, animation_frame: AnimationFrame) {
     let requested_animations = std::mem::take(&mut app_state.window_mut(window_id).requested_animations);
@@ -46,4 +46,9 @@ impl<'a> AnimationContext<'a> {
     pub fn request_layout(&mut self) {
 		request_layout(&mut self.app_state, self.id);
     }
+}
+
+pub struct AnimationState {
+	signal_id: NodeId,
+
 }

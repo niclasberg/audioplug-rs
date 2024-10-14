@@ -1,3 +1,4 @@
+mod animation;
 pub mod app;
 mod audio_buffer;
 mod audiolayout;
@@ -11,8 +12,8 @@ pub mod platform;
 mod plugin;
 mod text;
 mod theme;
-pub mod view;
 pub mod util;
+pub mod view;
 pub mod wrapper;
 
 pub use app::App;

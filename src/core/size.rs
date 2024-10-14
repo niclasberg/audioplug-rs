@@ -2,6 +2,8 @@ use std::ops::{Add, Mul, Div, Sub};
 
 use num::Zero;
 
+use super::Interpolate;
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Size<T = f64> {
     pub width: T,
@@ -130,6 +132,15 @@ impl<T: Default> Default for Size<T> {
 	fn default() -> Self {
 		Self { width: Default::default(), height: Default::default() }
 	}
+}
+
+impl<T: Interpolate> Interpolate for Size<T> {
+    fn lerp(&self, other: &Self, scalar: f64) -> Self {
+        Self {
+            width: self.width.lerp(&other.width, scalar),
+            height: self.height.lerp(&other.height, scalar),
+        }
+    }
 }
 
 #[cfg(test)]

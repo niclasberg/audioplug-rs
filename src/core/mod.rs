@@ -13,6 +13,7 @@ mod shape;
 mod axis;
 mod taffy_compat;
 mod cursor;
+mod interpolation;
 
 pub use color::Color;
 pub use point::Point;
@@ -28,3 +29,4 @@ pub use shape::*;
 pub use axis::Axis;
 pub use cursor::Cursor;
 pub use length::Length;
+pub use interpolation::Interpolate;

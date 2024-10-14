@@ -1,6 +1,6 @@
 use std::ops::{Add, Sub};
 
-use super::{Vector, Size};
+use super::{Interpolate, Size, Vector};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Point<T = f64> {
@@ -105,4 +105,13 @@ impl<T: Default> Default for Point<T> {
 	fn default() -> Self {
 		Self { x: Default::default(), y: Default::default() }
 	}
+}
+
+impl<T: Interpolate> Interpolate for Point<T> {
+    fn lerp(&self, other: &Self, scalar: f64) -> Self {
+        Self {
+            x: self.x.lerp(&other.x, scalar),
+            y: self.y.lerp(&other.y, scalar),
+        }
+    }
 }

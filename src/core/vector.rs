@@ -1,4 +1,4 @@
-use super::{Point, Size};
+use super::{Interpolate, Point, Size};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Vector {
@@ -23,5 +23,14 @@ impl From<Point> for Vector {
 impl From<Size> for Vector {
     fn from(value: Size) -> Self {
         Vector::new(value.width, value.height)
+    }
+}
+
+impl Interpolate for Vector {
+    fn lerp(&self, other: &Self, scalar: f64) -> Self {
+        Self {
+            x: self.x.lerp(&other.x, scalar),
+            y: self.y.lerp(&other.y, scalar),
+        }
     }
 }
