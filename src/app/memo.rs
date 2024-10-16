@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{NodeId, AppState, SignalGetContext, SignalGet};
+use super::{accessor::SourceId, AppState, NodeId, SignalGet, SignalGetContext};
 
 
 #[derive(Clone, Copy)]
@@ -20,6 +20,10 @@ impl<T> Memo<T> {
 
 impl<T: 'static> SignalGet for Memo<T> {
     type Value = T;
+
+	fn get_source_id(&self) -> SourceId {
+		SourceId::Node(self.id)
+	}
 
     fn with_ref<R>(&self, _ctx: &mut dyn SignalGetContext, _f: impl FnOnce(&Self::Value) -> R) -> R {
         //f(ctx.get_memo_value_ref(self))

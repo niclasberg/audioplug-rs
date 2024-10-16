@@ -2,7 +2,7 @@ use std::{any::Any, marker::PhantomData};
 
 use crate::param::{AnyParameter, NormalizedValue, Parameter, ParameterId, ParameterInfo, PlainValue};
 
-use super::{HostHandle, SignalGet, SignalGetContext};
+use super::{accessor::SourceId, HostHandle, SignalGet, SignalGetContext};
 
 pub trait ParamContext: SignalGetContext {
 	fn host_handle(&self) -> &dyn HostHandle;
@@ -92,6 +92,10 @@ impl ParamSignal<NormalizedValue> {
 
 impl<T: Any> SignalGet for ParamSignal<T> {
 	type Value = T;
+
+	fn get_source_id(&self) -> SourceId {
+		SourceId::Parameter(self.id)
+	}
 
 	fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
 		let param_ref = cx.get_parameter_ref(self.id);

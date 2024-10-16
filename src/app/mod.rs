@@ -17,9 +17,10 @@ mod widget;
 mod widget_node;
 mod window;
 
-use std::{any::Any, cell::RefCell, rc::Rc};
+use std::{any::Any, cell::RefCell, marker::PhantomData, rc::Rc};
 
 pub use accessor::Accessor;
+use accessor::SourceId;
 pub use animation::AnimationContext;
 pub(crate) use app_state::AppState;
 pub use contexts::{BuildContext, ViewContext};
@@ -87,6 +88,8 @@ pub trait UntrackedSignalContext {}
 pub trait SignalGet {
     type Value;
 
+	fn get_source_id(&self) -> SourceId;
+
     /// Map the current value using `f` and subscribe to changes
     fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R;
 
@@ -109,6 +112,78 @@ pub trait SignalGet {
         Self::Value: Clone,
     {
         self.with_ref_untracked(cx, Self::Value::clone)
+    }
+
+	fn map<R, F: Fn(&Self::Value) -> R>(self, f: F) -> Mapped<S, R, F> {
+        Mapped {
+            parent: self,
+            f,
+            _marker: PhantomData,
+        }
+    }
+}
+
+
+#[derive(Clone, Copy)]
+pub struct Mapped<S, T, R, F> {
+    parent: S,
+    f: F,
+    _marker: PhantomData<fn(&T) -> R>
+}
+
+impl<S, T, R, F> SignalGet for Mapped<S, T, R, F> 
+where
+	S: SignalGet<Value = T>,
+    T: Any,
+    F: Fn(&T) -> R
+{
+    type Value = R;
+
+	fn get_source_id(&self) -> SourceId {
+        SourceId::Node(self.parent.id)
+    }
+
+    fn with_ref<R2>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R2) -> R2 {
+        f(&self.parent.with_ref(cx, |x| (self.f)(x)))
+    }
+
+    fn with_ref_untracked<R2>(&self, cx: &dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R2) -> R2 {
+        f(&self.parent.with_ref_untracked(cx, |x| (self.f)(x)))
+    }
+
+	fn get(&self, cx: &mut dyn SignalGetContext) -> Self::Value 
+	where 
+		Self::Value: Clone 
+	{
+		self.parent.with_ref(cx, |x| (self.f)(x))
+	}
+
+	fn map<R2, G: Fn(&Self::Value) -> R2>(self, g: G) -> Mapped<S, T, R2, impl Fn(&T) -> R2> {
+        let f = move |x: &T| g(&(self.f)(x));
+        Mapped {
+            parent: self.parent,
+            f,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<T, B, F> MappedAccessor<B> for MappedSignal<T, B, F> 
+where
+    T: Any + Clone,
+    B: Any + Clone,
+    F: Fn(&T) -> B + Clone + 'static
+{
+    fn get_source_id(&self) -> SourceId {
+        SourceId::Node(self.parent.id)
+    }
+
+    fn get_ref(&self, ctx: &mut dyn SignalGetContext) -> B {
+        self.parent.with_ref(ctx, &self.f)
+    }
+
+    fn get_ref_untracked(&self, ctx: &dyn SignalGetContext) -> B {
+        self.parent.with_ref_untracked(ctx, &self.f)
     }
 }
 

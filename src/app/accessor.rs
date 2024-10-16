@@ -1,5 +1,5 @@
 use crate::param::ParameterId;
-use super::{signal::MappedSignal, Memo, NodeId, ParamSignal, Signal, SignalGet, SignalGetContext};
+use super::{Mapped, Memo, NodeId, ParamSignal, Signal, SignalGet, SignalGetContext};
 
 pub trait MappedAccessor<T>: CloneMappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;
@@ -41,18 +41,6 @@ pub enum Accessor<T> {
     Mapped(Box<dyn MappedAccessor<T>>)
 }
 
-impl<T> Accessor<T> {
-    pub(super) fn get_source_id(&self) -> SourceId {
-        match self {
-            Accessor::Signal(signal) => SourceId::Node(signal.id),
-            Accessor::Memo(memo) => SourceId::Node(memo.id),
-			Accessor::Parameter(param) => SourceId::Parameter(param.id),
-            Accessor::Const(_) => SourceId::None,
-            Accessor::Mapped(mapped) => mapped.get_source_id()
-        }
-    }
-}
-
 impl<T> From<Signal<T>> for Accessor<T> {
     fn from(value: Signal<T>) -> Self {
         Self::Signal(value)
@@ -71,11 +59,12 @@ impl<T> From<ParamSignal<T>> for Accessor<T> {
 	}
 }
 
-impl<T, R, F> From<MappedSignal<T, R, F>> for Accessor<R> 
+impl<S, R, F> From<Mapped<S, R, F>> for Accessor<S::Value> 
 where
-    MappedSignal<T, R, F>: MappedAccessor<R> + 'static
+	S: SignalGet,
+    Mapped<S, R, F>: MappedAccessor<R> + 'static
 {
-    fn from(value: MappedSignal<T, R, F>) -> Self {
+    fn from(value: Mapped<S, R, F>) -> Self {
         Self::Mapped(Box::new(value))
     }
 }
@@ -94,6 +83,16 @@ impl From<&str> for Accessor<String> {
 
 impl<T: 'static> SignalGet for Accessor<T> {
     type Value = T;
+
+	fn get_source_id(&self) -> SourceId {
+		match self {
+			Accessor::Signal(signal) => SourceId::Node(signal.id),
+            Accessor::Memo(memo) => SourceId::Node(memo.id),
+			Accessor::Parameter(param) => SourceId::Parameter(param.id),
+            Accessor::Const(_) => SourceId::None,
+            Accessor::Mapped(mapped) => mapped.get_source_id()
+		}
+	}
 
     fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         match self {

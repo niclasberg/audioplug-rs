@@ -4,7 +4,7 @@ use slotmap::{SecondaryMap, SlotMap};
 
 use crate::param::{AnyParameterMap, ParamRef, ParameterId};
 
-use super::{app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::SignalState, Memo, NodeId, Signal, SignalContext, SignalGetContext, WidgetId};
+use super::{animation::AnimationState, app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::SignalState, Memo, NodeId, Signal, SignalContext, SignalGetContext, WidgetId};
 
 struct Node {
     node_type: NodeType,
@@ -34,7 +34,8 @@ enum NodeType {
     Signal(SignalState),
     Memo(MemoState),
     Effect(EffectState),
-    Binding(BindingState)
+    Binding(BindingState),
+	Animation(AnimationState)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -224,6 +225,9 @@ impl Runtime {
                 };
 				self.pending_tasks.push_back(task);
             },
+			NodeType::Animation(_) => {
+
+			},
             NodeType::Memo(_) => todo!(),
             NodeType::Signal(_) => unreachable!(),
         }

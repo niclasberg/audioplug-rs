@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use crate::AnimationFrame;
 
 use super::{layout::request_layout, render::invalidate_widget, AppState, NodeId, WidgetId, WindowId};
@@ -48,7 +50,6 @@ impl<'a> AnimationContext<'a> {
     }
 }
 
-pub struct AnimationState {
-	signal_id: NodeId,
-
+pub(super) struct AnimationState {
+	pub(super) value: Box<dyn Any>
 }
