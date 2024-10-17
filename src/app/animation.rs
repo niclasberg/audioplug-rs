@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, marker::PhantomData};
 
 use crate::AnimationFrame;
 
@@ -53,3 +53,9 @@ impl<'a> AnimationContext<'a> {
 pub(super) struct AnimationState {
 	pub(super) value: Box<dyn Any>
 }
+
+pub struct Animation<T> {
+	id: NodeId,
+	_phantom: PhantomData<*const T>
+}
+

@@ -1,4 +1,4 @@
-use taffy::{LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree};
+use taffy::{LayoutBlockContainer, LayoutFlexboxContainer, LayoutGridContainer, LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree};
 
 use crate::core::Point;
 
@@ -93,8 +93,50 @@ impl<'a> PrintTree for LayoutContext<'a> {
 	}
 }
 
+impl<'a> LayoutBlockContainer for LayoutContext<'a> {
+    type BlockContainerStyle<'b> = &'b taffy::Style where Self: 'b;
+    type BlockItemStyle<'b> = &'b taffy::Style where Self: 'b;
+
+    fn get_block_container_style(&self, node_id: taffy::NodeId) -> Self::BlockContainerStyle<'_> {
+        &self.app_state.widget_data[node_id.into()].style
+    }
+
+    fn get_block_child_style(&self, child_node_id: taffy::NodeId) -> Self::BlockItemStyle<'_> {
+        &self.app_state.widget_data[child_node_id.into()].style
+    }
+}
+
+impl<'a> LayoutFlexboxContainer for LayoutContext<'a> {
+    type FlexboxContainerStyle<'b> = &'b taffy::Style where Self: 'b;
+    type FlexboxItemStyle<'b> = &'b taffy::Style  where Self: 'b;
+
+    fn get_flexbox_container_style(&self, node_id: taffy::NodeId) -> Self::FlexboxContainerStyle<'_> {
+        &self.app_state.widget_data[node_id.into()].style
+    }
+
+    fn get_flexbox_child_style(&self, child_node_id: taffy::NodeId) -> Self::FlexboxItemStyle<'_> {
+        &self.app_state.widget_data[child_node_id.into()].style
+    }
+}
+
+impl<'a> LayoutGridContainer for LayoutContext<'a> {
+    type GridContainerStyle<'b> = &'b taffy::Style where Self: 'b;
+    type GridItemStyle<'b> = &'b taffy::Style where Self: 'b;
+
+    fn get_grid_container_style(&self, node_id: taffy::NodeId) -> Self::GridContainerStyle<'_> {
+        &self.app_state.widget_data[node_id.into()].style
+    }
+
+    fn get_grid_child_style(&self, child_node_id: taffy::NodeId) -> Self::GridItemStyle<'_> {
+        &self.app_state.widget_data[child_node_id.into()].style
+    }
+}
+
 impl<'a> LayoutPartialTree for LayoutContext<'a> {
-    fn get_style(&self, node_id: taffy::NodeId) -> &taffy::Style {
+    type CoreContainerStyle<'b> = &'b taffy::Style where Self : 'b;
+    type CacheMut<'b> = &'b mut taffy::Cache where Self : 'b;
+    
+    fn get_core_container_style(&self, node_id: taffy::NodeId) -> Self::CoreContainerStyle<'_> {
         &self.app_state.widget_data[node_id.into()].style
     }
 
@@ -122,7 +164,7 @@ impl<'a> LayoutPartialTree for LayoutContext<'a> {
         }
         
         taffy::compute_cached_layout(self, node_id, inputs, |tree, node, inputs| {
-            let display_mode = tree.get_style(node).display;
+            let display_mode = tree.get_core_container_style(node).display;
             let has_children = tree.child_count(node) > 0;
 
             // Dispatch to a layout algorithm based on the node's display style and whether the node has children or not.

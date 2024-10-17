@@ -27,7 +27,6 @@ impl<T> Clone for Box<dyn MappedAccessor<T>> {
 }
 
 pub enum SourceId {
-	None,
 	Parameter(ParameterId),
 	Node(NodeId)
 }
@@ -39,6 +38,28 @@ pub enum Accessor<T> {
 	Parameter(ParamSignal<T>),
     Const(T),
     Mapped(Box<dyn MappedAccessor<T>>)
+}
+
+impl<T: 'static> Accessor<T> {
+    pub fn get_source_id(&self) -> Option<SourceId> {
+		match self {
+			Accessor::Signal(signal) => Some(SourceId::Node(signal.id)),
+            Accessor::Memo(memo) => Some(SourceId::Node(memo.id)),
+			Accessor::Parameter(param) => Some(SourceId::Parameter(param.id)),
+            Accessor::Const(_) => None,
+            Accessor::Mapped(mapped) => Some(mapped.get_source_id())
+		}
+	}
+
+    pub fn with_ref<R>(&self, cx: &dyn SignalGetContext, f: impl FnOnce(&T) -> R) -> R {
+        match self {
+            Accessor::Signal(signal) => signal.with_ref_untracked(cx, f),
+            Accessor::Memo(memo) => memo.with_ref_untracked(cx, f),
+            Accessor::Const(value) => f(value),
+			Accessor::Parameter(param) => param.with_ref_untracked(cx, f),
+            Accessor::Mapped(mapped) => f(&mapped.get_ref_untracked(cx))
+        }
+    }
 }
 
 impl<T> From<Signal<T>> for Accessor<T> {
@@ -59,12 +80,12 @@ impl<T> From<ParamSignal<T>> for Accessor<T> {
 	}
 }
 
-impl<S, R, F> From<Mapped<S, R, F>> for Accessor<S::Value> 
+impl<S, T, R, F> From<Mapped<S, T, R, F>> for Accessor<R> 
 where
 	S: SignalGet,
-    Mapped<S, R, F>: MappedAccessor<R> + 'static
+    Mapped<S, T, R, F>: MappedAccessor<R> + 'static
 {
-    fn from(value: Mapped<S, R, F>) -> Self {
+    fn from(value: Mapped<S, T, R, F>) -> Self {
         Self::Mapped(Box::new(value))
     }
 }
@@ -78,39 +99,5 @@ impl<T> From<T> for Accessor<T> {
 impl From<&str> for Accessor<String> {
     fn from(value: &str) -> Self {
         Self::Const(value.to_string())
-    }
-}
-
-impl<T: 'static> SignalGet for Accessor<T> {
-    type Value = T;
-
-	fn get_source_id(&self) -> SourceId {
-		match self {
-			Accessor::Signal(signal) => SourceId::Node(signal.id),
-            Accessor::Memo(memo) => SourceId::Node(memo.id),
-			Accessor::Parameter(param) => SourceId::Parameter(param.id),
-            Accessor::Const(_) => SourceId::None,
-            Accessor::Mapped(mapped) => mapped.get_source_id()
-		}
-	}
-
-    fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-        match self {
-            Accessor::Signal(signal) => signal.with_ref(cx, f),
-            Accessor::Memo(memo) => memo.with_ref(cx, f),
-            Accessor::Const(value) => f(value),
-			Accessor::Parameter(param) => param.with_ref(cx, f),
-            Accessor::Mapped(mapped) => f(&mapped.get_ref(cx))
-        }
-    }
-
-    fn with_ref_untracked<R>(&self, cx: &dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-        match self {
-            Accessor::Signal(signal) => signal.with_ref_untracked(cx, f),
-            Accessor::Memo(memo) => memo.with_ref_untracked(cx, f),
-            Accessor::Const(value) => f(value),
-			Accessor::Parameter(param) => param.with_ref_untracked(cx, f),
-            Accessor::Mapped(mapped) => f(&mapped.get_ref_untracked(cx))
-        }
     }
 }

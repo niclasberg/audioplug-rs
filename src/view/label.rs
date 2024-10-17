@@ -14,7 +14,7 @@ impl Label {
         Self { text: str.into(), color: Accessor::Const(Color::BLACK ) }
     }
 
-	pub fn with_color(mut self, color: impl Into<Accessor<Color>>) -> Self {
+	pub fn color(mut self, color: impl Into<Accessor<Color>>) -> Self {
 		self.color = color.into();
 		self
 	}

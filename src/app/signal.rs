@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{accessor::{MappedAccessor, SourceId}, NodeId, SignalContext, SignalGet, SignalGetContext, SignalSet};
+use super::{accessor::SourceId, NodeId, SignalContext, SignalCreator, SignalGet, SignalGetContext, SignalSet};
 
 #[derive(Clone, Copy)]
 pub struct Signal<T> {
@@ -9,7 +9,9 @@ pub struct Signal<T> {
 }
 
 impl<T: Any> Signal<T> {
-    pub(super) fn new(id: NodeId) -> Self {
+    pub fn new(cx: &mut impl SignalCreator, value: T) -> Self {
+        let state = SignalState::new(value);
+        let id = cx.create_signal_node(state);
         Self {
             id,
             _marker: PhantomData
@@ -43,18 +45,18 @@ impl<T: 'static> SignalGet for Signal<T> {
     }
 
     fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&T) -> R) -> R {
-        let value = cx.get_signal_value_ref(self.id).downcast_ref().expect("Signal had wrong type");
+        let value = cx.get_node_value_ref(self.id).downcast_ref().expect("Signal had wrong type");
         f(value)
     }
 
     fn with_ref_untracked<R>(&self, cx: &dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-        let value = cx.get_signal_value_ref_untracked(self.id).downcast_ref().expect("Signal had wrong type");
+        let value = cx.get_node_value_ref_untracked(self.id).downcast_ref().expect("Signal had wrong type");
         f(value)
     }
 }
 
 
-pub(super) struct SignalState  {
+pub struct SignalState  {
 	pub(super) value: Box<dyn Any>
 }
 

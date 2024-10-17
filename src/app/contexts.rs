@@ -2,7 +2,7 @@ use std::{any::Any, marker::PhantomData};
 
 use crate::{param::{ParamRef, ParameterId}, view::View};
 
-use super::{widget_node::{WidgetFlags, WidgetId, WidgetMut}, Accessor, AppState, NodeId, ParamContext, Runtime, Signal, SignalContext, SignalGet, SignalGetContext, Widget};
+use super::{effect::EffectState, widget_node::{WidgetFlags, WidgetId, WidgetMut}, Accessor, AppState, Memo, MemoContext, NodeId, ParamContext, Runtime, Signal, SignalContext, SignalCreator, SignalGet, SignalGetContext, Widget};
 
 pub struct BuildContext<'a, W: Widget> {
     id: WidgetId,
@@ -20,7 +20,7 @@ impl<'a, W: Widget> BuildContext<'a, W> {
     }
 
     pub fn get_and_track<T: Clone + 'static>(&mut self, accessor: Accessor<T>, f: impl Fn(&T, WidgetMut<'_, W>) + 'static) -> T {
-        let value = accessor.get_untracked(self.app_state);
+        let value = accessor.with_ref(self.app_state, T::clone);
         self.app_state.create_binding(accessor, self.id, f);
         value
     }
@@ -82,12 +82,12 @@ impl<'s, W: Widget> ParamContext for BuildContext<'s, W> {
 }
 
 impl<'b, W: Widget> SignalGetContext for BuildContext<'b, W> {
-    fn get_signal_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any {
-        self.app_state.get_signal_value_ref_untracked(signal_id)
+    fn get_node_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any {
+        self.app_state.get_node_value_ref_untracked(signal_id)
     }
 
-    fn get_signal_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
-        self.app_state.get_signal_value_ref(signal_id)
+    fn get_node_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
+        self.app_state.get_node_value_ref(signal_id)
     }
 	
 	fn get_parameter_ref_untracked(&self, parameter_id: ParameterId) -> ParamRef {
@@ -104,26 +104,32 @@ pub struct ViewContext<'a> {
 }
 
 impl<'a> ViewContext<'a> {
-    pub fn create_signal<T: Any>(&mut self, value: T) -> Signal<T> {
-        self.app_state.create_signal(value)
-    }
-
-    pub fn create_effect(&mut self, f: impl Fn(&mut Runtime) + 'static) {
-        self.app_state.create_effect(f)
-    }
-
 	pub fn app_state(&self) -> &AppState {
 		&self.app_state
 	}
 }
 
-impl<'b> SignalGetContext for ViewContext<'b> {
-    fn get_signal_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any {
-        self.app_state.get_signal_value_ref_untracked(signal_id)
+impl<'a> SignalCreator for ViewContext<'a> {
+    fn create_signal_node(&mut self, state: super::signal::SignalState) -> NodeId {
+        self.app_state.create_signal_node(state)
     }
 
-    fn get_signal_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
-        self.app_state.get_signal_value_ref(signal_id)
+    fn create_effect_node(&mut self, state: EffectState) -> NodeId {
+        self.app_state.create_effect_node(state)
+    }
+    
+    fn create_memo_node(&mut self, state: super::memo::MemoState) -> NodeId {
+        self.app_state.create_memo_node(state)
+    }
+}
+
+impl<'b> SignalGetContext for ViewContext<'b> {
+    fn get_node_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any {
+        self.app_state.get_node_value_ref_untracked(signal_id)
+    }
+
+    fn get_node_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
+        self.app_state.get_node_value_ref(signal_id)
     }
 	
 	fn get_parameter_ref_untracked(&self, parameter_id: ParameterId) -> ParamRef {

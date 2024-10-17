@@ -1,8 +1,8 @@
 use std::{any::Any, collections::{HashSet, VecDeque}, ops::DerefMut, rc::{Rc, Weak}};
 use slotmap::{Key, SecondaryMap, SlotMap};
-use crate::{core::{Point, Rectangle}, param::{AnyParameter, AnyParameterMap, NormalizedValue, ParamRef, ParameterId, PlainValue}, platform};
+use crate::{core::{Point, Rectangle}, param::{AnyParameterMap, NormalizedValue, ParamRef, ParameterId, PlainValue}, platform};
 
-use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, layout_window, memo::{Memo, MemoState}, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, ParamContext, ParamEditor, Runtime, Scope, SignalContext, SignalGet, SignalGetContext, Widget, WindowId};
+use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, effect::EffectContext, layout_window, memo::MemoState, widget_node::{WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef}, Accessor, HostHandle, ParamContext, Runtime, SignalContext, SignalCreator, SignalGetContext, Widget, WindowId};
 use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
@@ -10,7 +10,7 @@ use super::effect::EffectState;
 pub(super) enum Task {
     RunEffect {
         id: NodeId,
-        f: Weak<Box<dyn Fn(&mut Runtime)>>
+        f: Weak<Box<dyn Fn(&mut EffectContext)>>
     },
 	UpdateBinding {
 		widget_id: WidgetId,
@@ -26,11 +26,10 @@ impl Task {
     pub(super) fn run(&self, app_state: &mut AppState) {
         match self {
             Task::RunEffect { id, f } => {
-                app_state.runtime.with_scope(Scope::Effect(*id), |cx| {
-                    if let Some(f) = f.upgrade() {
-                        f(cx)
-                    }
-                })
+                if let Some(f) = f.upgrade() {
+                    let mut cx = EffectContext { effect_id: *id, runtime: &mut app_state.runtime };
+                    f(&mut cx)
+                }
             },
             Task::UpdateBinding { widget_id, f } => {
                 if let Some(f) = f.upgrade() {
@@ -86,10 +85,34 @@ impl AppState {
 		self.runtime.parameters.as_ref()
 	}
 
-    pub fn create_signal<T: Any>(&mut self, value: T) -> Signal<T> {
-        let state = SignalState::new(value);
-        let id = self.runtime.create_signal_node(state);
-        Signal::new(id)
+    pub fn create_binding<T: 'static, W: Widget + 'static>(&mut self, accessor: Accessor<T>, widget_id: WidgetId, f: impl Fn(&T, WidgetMut<'_, W>) + 'static) -> bool {
+        if let Some(source_id) = accessor.get_source_id() {
+            let state = BindingState::new(widget_id, move |ctx, widget, data| {
+                let tasks = accessor.with_ref(ctx, |value| {
+                    let mut tasks = VecDeque::new();
+                    let widget: &mut W = widget.downcast_mut().expect("Could not cast widget");
+                    let node = WidgetMut::new(widget, data, &mut tasks);
+                    f(value, node);
+                    tasks
+                });
+                ctx.pending_tasks.extend(tasks.into_iter());
+            });
+
+            let node_id = match source_id {
+                SourceId::Parameter(source_id) => {
+                    self.runtime.create_parameter_binding_node(source_id, state)
+                },
+                SourceId::Node(source_id) => {
+                    self.runtime.create_binding_node(source_id, state)
+                }
+            };
+
+            self.add_widget_binding(widget_id, node_id);
+
+            true
+        } else {
+            false
+        }
     }
 
     fn add_widget_binding(&mut self, widget_id: WidgetId, node_id: NodeId) {
@@ -104,47 +127,6 @@ impl AppState {
                 self.runtime.remove_node(node_id);
             }
         }
-    }
-
-    pub fn create_memo<T: PartialEq + 'static>(&mut self, f: impl Fn(&mut Self) -> T + 'static) -> Memo<T> {
-        let state = MemoState::new(move |cx| Box::new(f(cx)));
-        let id = self.runtime.create_memo_node(state);
-        Memo::new(id)
-    }
-
-    pub fn create_binding<T: 'static, W: Widget + 'static>(&mut self, accessor: Accessor<T>, widget_id: WidgetId, f: impl Fn(&T, WidgetMut<'_, W>) + 'static) -> bool {
-		let source_id = accessor.get_source_id();
-		let create_state = move || -> BindingState {
-			BindingState::new(widget_id, move |ctx, widget, data| {
-				let tasks = accessor.with_ref(ctx, |value| {
-					let mut tasks = VecDeque::new();
-					let widget: &mut W = widget.downcast_mut().expect("Could not cast widget");
-					let node = WidgetMut::new(widget, data, &mut tasks);
-					f(value, node);
-					tasks
-				});
-				ctx.pending_tasks.extend(tasks.into_iter());
-			})
-		};
-
-		match source_id {
-			SourceId::None => false,
-			SourceId::Parameter(source_id) => {
-				let node_id = self.runtime.create_parameter_binding_node(source_id, create_state());
-                self.add_widget_binding(widget_id, node_id);
-				true
-			},
-			SourceId::Node(source_id) => {
-				let node_id = self.runtime.create_binding_node(source_id, create_state());
-                self.add_widget_binding(widget_id, node_id);
-				true
-			}
-		}
-    }
-
-    pub fn create_effect(&mut self, f: impl Fn(&mut Runtime) + 'static) {
-        let id = self.runtime.create_effect_node(EffectState::new(f));
-        self.runtime.notify(&id);
     }
 
     pub(crate) fn set_host_handle(&mut self, host_handle: Option<Box<dyn HostHandle>>) {
@@ -351,12 +333,12 @@ impl AppState {
 }
 
 impl SignalGetContext for AppState {
-    fn get_signal_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any {
-        self.runtime.get_signal_value_ref_untracked(signal_id)
+    fn get_node_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any {
+        self.runtime.get_node_value_ref_untracked(signal_id)
     }
 
-    fn get_signal_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
-        self.runtime.get_signal_value_ref(signal_id)
+    fn get_node_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
+        self.runtime.get_node_value_ref(signal_id)
     }
 	
 	fn get_parameter_ref_untracked(&self, parameter_id: ParameterId) -> ParamRef {
@@ -378,5 +360,19 @@ impl ParamContext for AppState {
     fn host_handle(&self) -> &dyn HostHandle {
         let Some(host_handle) = self.host_handle.as_ref() else { panic!("Host handle not set") };
         host_handle.as_ref()
+    }
+}
+
+impl SignalCreator for AppState {
+    fn create_memo_node(&mut self, state: MemoState) -> NodeId {
+        self.runtime.create_memo_node(state)
+    }
+
+    fn create_effect_node(&mut self, state: EffectState) -> NodeId {
+        self.runtime.create_effect_node(state)
+    }
+    
+    fn create_signal_node(&mut self, state: SignalState) -> NodeId {
+        self.runtime.create_signal_node(state)
     }
 }

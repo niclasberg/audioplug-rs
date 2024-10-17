@@ -20,18 +20,21 @@ mod window;
 use std::{any::Any, cell::RefCell, marker::PhantomData, rc::Rc};
 
 pub use accessor::Accessor;
-use accessor::SourceId;
+use accessor::{MappedAccessor, SourceId};
 pub use animation::AnimationContext;
 pub(crate) use app_state::AppState;
 pub use contexts::{BuildContext, ViewContext};
+use effect::EffectState;
 pub use event_handling::{EventContext, MouseEventContext, handle_window_event};
 pub use host_handle::HostHandle;
 pub use layout::{LayoutContext, layout_window};
-pub use memo::Memo;
+use memo::MemoState;
+pub use memo::{Memo, MemoContext};
 pub use param::{ParamContext, ParamEditor, ParamSignal};
 pub use render::{RenderContext, render_window, invalidate_window};
 pub use runtime::*;
 pub use signal::Signal;
+use signal::SignalState;
 pub use widget::{EventStatus, StatusChange, Widget};
 pub use widget_node::{WidgetData, WidgetRef, WidgetMut, WidgetId};
 pub use window::Window;
@@ -73,8 +76,8 @@ impl App {
 }
 
 pub trait SignalGetContext {
-    fn get_signal_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any;
-    fn get_signal_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any;
+    fn get_node_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any;
+    fn get_node_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any;
     fn get_parameter_ref_untracked<'a>(&'a self, parameter_id: ParameterId) -> ParamRef<'a>;
     fn get_parameter_ref<'a>(&'a mut self, parameter_id: ParameterId) -> ParamRef<'a>;
 }
@@ -114,7 +117,10 @@ pub trait SignalGet {
         self.with_ref_untracked(cx, Self::Value::clone)
     }
 
-	fn map<R, F: Fn(&Self::Value) -> R>(self, f: F) -> Mapped<S, R, F> {
+	fn map<R, F: Fn(&Self::Value) -> R>(self, f: F) -> Mapped<Self, Self::Value, R, F> 
+    where   
+        Self: Sized
+    {
         Mapped {
             parent: self,
             f,
@@ -140,7 +146,7 @@ where
     type Value = R;
 
 	fn get_source_id(&self) -> SourceId {
-        SourceId::Node(self.parent.id)
+        self.parent.get_source_id()
     }
 
     fn with_ref<R2>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R2) -> R2 {
@@ -157,25 +163,17 @@ where
 	{
 		self.parent.with_ref(cx, |x| (self.f)(x))
 	}
-
-	fn map<R2, G: Fn(&Self::Value) -> R2>(self, g: G) -> Mapped<S, T, R2, impl Fn(&T) -> R2> {
-        let f = move |x: &T| g(&(self.f)(x));
-        Mapped {
-            parent: self.parent,
-            f,
-            _marker: PhantomData,
-        }
-    }
 }
 
-impl<T, B, F> MappedAccessor<B> for MappedSignal<T, B, F> 
+impl<S, T, B, F> MappedAccessor<B> for Mapped<S, T, B, F> 
 where
+    S: SignalGet<Value = T> + Clone + 'static,
     T: Any + Clone,
     B: Any + Clone,
     F: Fn(&T) -> B + Clone + 'static
 {
     fn get_source_id(&self) -> SourceId {
-        SourceId::Node(self.parent.id)
+        SignalGet::get_source_id(self)
     }
 
     fn get_ref(&self, ctx: &mut dyn SignalGetContext) -> B {
@@ -200,4 +198,10 @@ pub trait SignalSet {
 
     /// Set the current value, notifies subscribers
     fn update(&self, cx: &mut impl SignalContext, f: impl FnOnce(&mut Self::Value));
+}
+
+pub trait SignalCreator {
+    fn create_signal_node(&mut self, state: SignalState) -> NodeId;
+    fn create_memo_node(&mut self, state: MemoState) -> NodeId;
+    fn create_effect_node(&mut self, state: EffectState) -> NodeId;
 }

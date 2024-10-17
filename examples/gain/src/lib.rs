@@ -1,7 +1,7 @@
 use audioplug::core::{Color, Size};
 use audioplug::param::{BoolParameter, FloatParameter, FloatRange, Parameter, ParameterId, Params};
 use audioplug::view::{AnyView, Column, Label, ParameterSlider, View};
-use audioplug::app::ViewContext;
+use audioplug::app::{SignalGet, ViewContext};
 use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, params, AudioLayout, Bus, ChannelType, Editor, Plugin, ProcessContext, VST3Plugin};
 
 params!(
@@ -35,8 +35,12 @@ impl Editor for MyEditor {
 	}
 
     fn view(&self, _ctx: &mut ViewContext, parameters: &MyPluginParams) -> AnyView {
+        let text = parameters.enabled.as_signal()
+            .map(|value| if *value { "Enabled" } else { "Disabled"}.to_string());
+        
         Column::new((
-            Label::new("Gain").with_color(Color::BLUE),
+            Label::new(text),
+            Label::new("Gain").color(Color::BLUE),
             ParameterSlider::new(&parameters.gain)
         ))
 		.padding(10.0)

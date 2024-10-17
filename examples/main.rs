@@ -1,8 +1,7 @@
 use std::path::Path;
-
-use audioplug::app::{SignalGet, SignalSet, Window};
-use audioplug::core::{Color, Size, Alignment, Rectangle, Point};
-use audioplug::view::{Button, Checkbox, Column, Fill, Image, Label, Row, Slider, TextBox, View};
+use audioplug::app::{Memo, Signal, SignalGet, SignalSet, Window};
+use audioplug::core::{Color, Alignment};
+use audioplug::view::{Button, Checkbox, Column, Image, Label, Row, Slider, TextBox, View};
 use audioplug::App;
 
 fn main() {
@@ -10,11 +9,19 @@ fn main() {
     //println!("name: {}, id: {}", device.name()?, device.id()?);
 
     let mut app = App::new();
-    let _ = Window::open(&mut app, |ctx| {  
-        let checkbox_enabled = ctx.create_signal(false);
-        let text = ctx.create_signal("".to_string());
-        let slider_value = ctx.create_signal(100.0);
-        
+    let _ = Window::open(&mut app, |cx| {  
+        let checkbox_enabled = Signal::new(cx, false);
+        let text = Signal::new(cx, "".to_string());
+        let slider_value = Signal::new(cx, 100.0);
+
+        let memo_test = Memo::new(cx, move |cx| {
+            if checkbox_enabled.get(cx) {
+                slider_value.get(cx) * 10.0
+            } else {
+                0.0
+            }
+        });
+
         Column::new((
             Label::new(text.clone()),
 			Row::new((
@@ -22,7 +29,7 @@ fn main() {
 				Slider::new()
                     .range(1.0, 500.0)
 					.value(slider_value)
-                    .on_value_changed(move |ctx, value| slider_value.set(ctx, value))
+                    .on_value_changed(move |cx, value| slider_value.set(cx, value))
 			)).spacing(5.0),
             Row::new((
 				Label::new("Checkbox"),
@@ -43,7 +50,7 @@ fn main() {
                     .height(slider_value)
             )),
             Row::new((
-                Label::new("Text input").with_color(Color::BLUE),
+                Label::new("Text input").color(Color::BLUE),
                 TextBox::new()
                     .on_input(move |cx, str| text.set(cx, str.to_string()))
             )).spacing(5.0)
