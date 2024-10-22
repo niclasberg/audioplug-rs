@@ -15,6 +15,7 @@ pub(super) enum Task {
 	UpdateBinding {
 		widget_id: WidgetId,
     	f: Weak<Box<dyn Fn(&mut Runtime, &mut dyn Widget, &mut WidgetData)>>,
+        node_id: NodeId,
 	},
 	InvalidateRect {
 		window_id: WindowId,
@@ -28,10 +29,11 @@ impl Task {
             Task::RunEffect { id, f } => {
                 if let Some(f) = f.upgrade() {
                     let mut cx = EffectContext { effect_id: *id, runtime: &mut app_state.runtime };
-                    f(&mut cx)
+                    f(&mut cx);
+                    app_state.runtime.mark_node_as_clean(*id);                    
                 }
             },
-            Task::UpdateBinding { widget_id, f } => {
+            Task::UpdateBinding { widget_id, f, node_id } => {
                 if let Some(f) = f.upgrade() {
                     // Widget might have been removed
                     if let Some(widget) = app_state.widgets.get_mut(*widget_id) {
@@ -39,6 +41,7 @@ impl Task {
 					    app_state.merge_widget_flags(*widget_id);
                     }
                 }
+                app_state.runtime.mark_node_as_clean(*node_id);
             },
 			Task::InvalidateRect { window_id, rect } => {
                 if let Some(window) = app_state.windows.get(*window_id) {
@@ -63,12 +66,11 @@ pub struct AppState {
     widget_bindings: SecondaryMap<WidgetId, HashSet<NodeId>>,
     pub(super) mouse_capture_widget: Option<WidgetId>,
     pub(super) runtime: Runtime,
-    host_handle: Option<Box<dyn HostHandle>>,
-    executor: Rc<platform::Executor>
+    host_handle: Option<Box<dyn HostHandle>>
 }
 
 impl AppState {
-    pub fn new(parameters: Rc<dyn AnyParameterMap>, executor: Rc<platform::Executor>) -> Self {
+    pub fn new(parameters: Rc<dyn AnyParameterMap>) -> Self {
         Self {
             widget_data: Default::default(),
             widgets: Default::default(),
@@ -76,8 +78,7 @@ impl AppState {
             windows: Default::default(),
             mouse_capture_widget: None,
             runtime: Runtime::new(parameters),
-            host_handle: None,
-            executor
+            host_handle: None
         }
     }
 
@@ -107,18 +108,14 @@ impl AppState {
                 }
             };
 
-            self.add_widget_binding(widget_id, node_id);
+            self.widget_bindings.entry(widget_id).unwrap()
+                .and_modify(|bindings| { bindings.insert(node_id); })
+                .or_default();
 
             true
         } else {
             false
         }
-    }
-
-    fn add_widget_binding(&mut self, widget_id: WidgetId, node_id: NodeId) {
-        self.widget_bindings.entry(widget_id).unwrap()
-            .and_modify(|bindings| { bindings.insert(node_id); })
-            .or_default();
     }
 
     fn clear_widget_bindings(&mut self, widget_id: WidgetId) {
@@ -333,10 +330,6 @@ impl AppState {
 }
 
 impl SignalGetContext for AppState {
-    fn get_node_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any {
-        self.runtime.get_node_value_ref_untracked(signal_id)
-    }
-
     fn get_node_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
         self.runtime.get_node_value_ref(signal_id)
     }
@@ -352,7 +345,7 @@ impl SignalGetContext for AppState {
 
 impl SignalContext for AppState {
     fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
-        self.runtime.set_signal_value(signal, value)
+        self.runtime.set_signal_value(signal, value);
     }
 }
 

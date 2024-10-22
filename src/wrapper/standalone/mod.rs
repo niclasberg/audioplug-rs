@@ -39,11 +39,11 @@ pub struct StandaloneApp<P: Plugin> {
 }
 
 impl<P: Plugin> StandaloneApp<P> {
-    pub fn new(parameter_updates: Producer<ParameterUpdate>, executor: Rc<platform::Executor>) -> Self {
+    pub fn new(parameter_updates: Producer<ParameterUpdate>, _executor: Rc<platform::Executor>) -> Self {
         let app_inner = Rc::new(RefCell::new(AppInner { parameter_updates }));
         let host_handle = StandaloneHostHandle { app_inner: app_inner.clone() };
         let parameters = ParameterMap::new(P::Parameters::new());
-        let mut app_state = AppState::new(parameters, executor);
+        let mut app_state = AppState::new(parameters);
         app_state.set_host_handle(Some(Box::new(host_handle)));
 
         let state = Rc::new(RefCell::new(app_state));

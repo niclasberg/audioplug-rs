@@ -1,4 +1,4 @@
-use audioplug::{param::{FloatParameter, FloatRange, GroupId, IntParameter, IntRange, ParameterGroup, ParameterId, Params}, params};
+use audioplug::{param::{FloatParameter, FloatRange, GroupId, IntParameter, ParameterGroup, ParameterId, Params}, params};
 
 params!(
 	pub struct OscillatorParams {

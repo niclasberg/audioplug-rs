@@ -102,12 +102,6 @@ impl<T: Any> SignalGet for ParamSignal<T> {
 		let value = param_ref.value_as().unwrap();
 		f(&value)
 	}
-
-	fn with_ref_untracked<R>(&self, cx: &dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-		let param_ref = cx.get_parameter_ref_untracked(self.id);
-		let value = param_ref.value_as().unwrap();
-		f(&value)
-	}
 	
 	fn get(&self, cx: &mut dyn SignalGetContext) -> Self::Value where Self::Value: Clone {
 		let param_ref = cx.get_parameter_ref_untracked(self.id);

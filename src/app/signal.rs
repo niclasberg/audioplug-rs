@@ -19,7 +19,7 @@ impl<T: Any> Signal<T> {
     }
 
     pub fn update(&self, cx: &mut impl SignalContext, f: impl Fn(&T) -> T) {
-        let new_value = self.with_ref_untracked(cx, f);
+        let new_value = self.with_ref(cx, f);
         self.set(cx, new_value);
     }
 }
@@ -46,11 +46,6 @@ impl<T: 'static> SignalGet for Signal<T> {
 
     fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&T) -> R) -> R {
         let value = cx.get_node_value_ref(self.id).downcast_ref().expect("Signal had wrong type");
-        f(value)
-    }
-
-    fn with_ref_untracked<R>(&self, cx: &dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-        let value = cx.get_node_value_ref_untracked(self.id).downcast_ref().expect("Signal had wrong type");
         f(value)
     }
 }

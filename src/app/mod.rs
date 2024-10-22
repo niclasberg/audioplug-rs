@@ -24,7 +24,7 @@ use accessor::{MappedAccessor, SourceId};
 pub use animation::AnimationContext;
 pub(crate) use app_state::AppState;
 pub use contexts::{BuildContext, ViewContext};
-use effect::EffectState;
+pub use effect::{Effect, EffectState};
 pub use event_handling::{EventContext, MouseEventContext, handle_window_event};
 pub use host_handle::HostHandle;
 pub use layout::{LayoutContext, layout_window};
@@ -58,9 +58,8 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        let executor = Rc::new(platform::Executor::new().unwrap());
         let parameters = ParameterMap::new(());
-        Self::new_with_app_state(Rc::new(RefCell::new(AppState::new(parameters, executor))))
+        Self::new_with_app_state(Rc::new(RefCell::new(AppState::new(parameters))))
     }
 
     pub fn new_with_app_state(state: Rc<RefCell<AppState>>) -> Self {
@@ -76,7 +75,6 @@ impl App {
 }
 
 pub trait SignalGetContext {
-    fn get_node_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any;
     fn get_node_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any;
     fn get_parameter_ref_untracked<'a>(&'a self, parameter_id: ParameterId) -> ParamRef<'a>;
     fn get_parameter_ref<'a>(&'a mut self, parameter_id: ParameterId) -> ParamRef<'a>;
@@ -102,19 +100,6 @@ pub trait SignalGet {
         Self::Value: Clone,
     {
         self.with_ref(cx, Self::Value::clone)
-    }
-
-    fn with_ref_untracked<R>(
-        &self,
-        cx: &dyn SignalGetContext,
-        f: impl FnOnce(&Self::Value) -> R,
-    ) -> R;
-
-    fn get_untracked(&self, cx: &dyn SignalGetContext) -> Self::Value
-    where
-        Self::Value: Clone,
-    {
-        self.with_ref_untracked(cx, Self::Value::clone)
     }
 
 	fn map<R, F: Fn(&Self::Value) -> R>(self, f: F) -> Mapped<Self, Self::Value, R, F> 
@@ -153,10 +138,6 @@ where
         f(&self.parent.with_ref(cx, |x| (self.f)(x)))
     }
 
-    fn with_ref_untracked<R2>(&self, cx: &dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R2) -> R2 {
-        f(&self.parent.with_ref_untracked(cx, |x| (self.f)(x)))
-    }
-
 	fn get(&self, cx: &mut dyn SignalGetContext) -> Self::Value 
 	where 
 		Self::Value: Clone 
@@ -178,10 +159,6 @@ where
 
     fn get_ref(&self, ctx: &mut dyn SignalGetContext) -> B {
         self.parent.with_ref(ctx, &self.f)
-    }
-
-    fn get_ref_untracked(&self, ctx: &dyn SignalGetContext) -> B {
-        self.parent.with_ref_untracked(ctx, &self.f)
     }
 }
 

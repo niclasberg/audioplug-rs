@@ -53,7 +53,7 @@ impl<E: Editor> EditController<E> {
     pub fn new() -> Box<Self> {
         let executor = Rc::new(platform::Executor::new().unwrap());
         let parameters = ParameterMap::new(E::Parameters::new());
-		let app_state = Rc::new(RefCell::new(AppState::new(parameters.clone(), executor.clone())));
+		let app_state = Rc::new(RefCell::new(AppState::new(parameters.clone())));
 		let editor = Rc::new(RefCell::new(E::new()));
 		let is_editing_parameters = Rc::new(Cell::new(false));
         Self::allocate(app_state, editor, Cell::new(None), Cell::new(None), executor, is_editing_parameters, parameters)

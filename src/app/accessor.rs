@@ -4,7 +4,6 @@ use super::{Mapped, Memo, NodeId, ParamSignal, Signal, SignalGet, SignalGetConte
 pub trait MappedAccessor<T>: CloneMappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;
     fn get_ref(&self, ctx: &mut dyn SignalGetContext) -> T;
-    fn get_ref_untracked(&self, ctx: &dyn SignalGetContext) -> T;
 }
 
 pub trait CloneMappedAccessor<T> {
@@ -26,6 +25,7 @@ impl<T> Clone for Box<dyn MappedAccessor<T>> {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum SourceId {
 	Parameter(ParameterId),
 	Node(NodeId)
@@ -51,13 +51,13 @@ impl<T: 'static> Accessor<T> {
 		}
 	}
 
-    pub fn with_ref<R>(&self, cx: &dyn SignalGetContext, f: impl FnOnce(&T) -> R) -> R {
+    pub fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&T) -> R) -> R {
         match self {
-            Accessor::Signal(signal) => signal.with_ref_untracked(cx, f),
-            Accessor::Memo(memo) => memo.with_ref_untracked(cx, f),
+            Accessor::Signal(signal) => signal.with_ref(cx, f),
+            Accessor::Memo(memo) => memo.with_ref(cx, f),
             Accessor::Const(value) => f(value),
-			Accessor::Parameter(param) => param.with_ref_untracked(cx, f),
-            Accessor::Mapped(mapped) => f(&mapped.get_ref_untracked(cx))
+			Accessor::Parameter(param) => param.with_ref(cx, f),
+            Accessor::Mapped(mapped) => f(&mapped.get_ref(cx))
         }
     }
 }

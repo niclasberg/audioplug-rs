@@ -82,10 +82,6 @@ impl<'s, W: Widget> ParamContext for BuildContext<'s, W> {
 }
 
 impl<'b, W: Widget> SignalGetContext for BuildContext<'b, W> {
-    fn get_node_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any {
-        self.app_state.get_node_value_ref_untracked(signal_id)
-    }
-
     fn get_node_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
         self.app_state.get_node_value_ref(signal_id)
     }
@@ -115,7 +111,10 @@ impl<'a> SignalCreator for ViewContext<'a> {
     }
 
     fn create_effect_node(&mut self, state: EffectState) -> NodeId {
-        self.app_state.create_effect_node(state)
+        let id = self.app_state.create_effect_node(state);
+        // Run the effect directly
+        self.app_state.run_effects();
+        id
     }
     
     fn create_memo_node(&mut self, state: super::memo::MemoState) -> NodeId {
@@ -124,10 +123,6 @@ impl<'a> SignalCreator for ViewContext<'a> {
 }
 
 impl<'b> SignalGetContext for ViewContext<'b> {
-    fn get_node_value_ref_untracked<'a>(&'a self, signal_id: NodeId) -> &'a dyn Any {
-        self.app_state.get_node_value_ref_untracked(signal_id)
-    }
-
     fn get_node_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
         self.app_state.get_node_value_ref(signal_id)
     }

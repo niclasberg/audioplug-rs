@@ -1,8 +1,8 @@
 use std::{any::Any, collections::{HashMap, HashSet, VecDeque}, rc::Rc};
 use indexmap::IndexSet;
-use slotmap::{SecondaryMap, SlotMap};
+use slotmap::{Key, SecondaryMap, SlotMap};
 use crate::param::{AnyParameterMap, ParamRef, ParameterId};
-use super::{animation::AnimationState, app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::SignalState, Memo, MemoContext, NodeId, Signal, SignalContext, SignalCreator, SignalGetContext, WidgetId};
+use super::{accessor::SourceId, animation::AnimationState, app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::SignalState, MemoContext, NodeId, Signal, SignalContext, SignalCreator, SignalGet, SignalGetContext};
 
 struct Node {
     node_type: NodeType,
@@ -19,17 +19,18 @@ struct Node {
     }
 }*/
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
 enum NodeState {
     /// Reactive value is valid, no need to recompute
-    Clean,
+    Clean = 0,
     /// Reactive value might be stale, check parent nodes to decide whether to recompute
-    Check,
+    Check = 1,
     /// Reactive value is invalid, parents have changed, value needs to be recomputed
-    Dirty
+    Dirty = 2
 }
 
 enum NodeType {
+    TmpRemoved,
     Signal(SignalState),
     Memo(MemoState),
     Effect(EffectState),
@@ -37,65 +38,35 @@ enum NodeType {
 	Animation(AnimationState)
 }
 
-pub struct Runtime {
-    nodes: SlotMap<NodeId, Node>,
+pub struct SubscriberMap {
     pub(super) sources: SecondaryMap<NodeId, IndexSet<NodeId>>,
     pub(super) observers: SecondaryMap<NodeId, IndexSet<NodeId>>,
-    pub(super) pending_tasks: VecDeque<Task>,
-    pub(super) parameters: Rc<dyn AnyParameterMap>,
 	parameter_subscriptions: HashMap<ParameterId, IndexSet<NodeId>>,
 	parameter_dependencies: SecondaryMap<NodeId, IndexSet<ParameterId>>,
 }
 
-impl Runtime {
-    pub fn new(parameter_map: Rc<dyn AnyParameterMap>) -> Self {
-		let parameter_ids = parameter_map.parameter_ids();
-    
-        let mut this = Self { 
-            nodes: Default::default(), 
-            sources: Default::default(), 
-            observers: Default::default(),
-            pending_tasks: Default::default(),
-            parameters: parameter_map,
-			parameter_subscriptions: Default::default(),
-			parameter_dependencies: Default::default(),
-        };
-
-		for parameter_id in parameter_ids {
-			this.parameter_subscriptions.insert(parameter_id, IndexSet::new());
+impl SubscriberMap {
+    fn new(parameter_ids: &Vec<ParameterId>) -> Self {
+        let mut parameter_subscriptions = HashMap::new();
+		for &parameter_id in parameter_ids {
+            parameter_subscriptions.insert(parameter_id, IndexSet::new());
 		}
 
-		this
+        Self {
+            sources: Default::default(), 
+            observers: Default::default(), 
+            parameter_subscriptions, 
+            parameter_dependencies: Default::default() 
+        }
     }
 
-    pub(super) fn create_binding_node(&mut self, source_id: NodeId, state: BindingState) -> NodeId {
-        let id = self.create_node(NodeType::Binding(state), NodeState::Clean);
-        self.add_subscription(source_id, id);
-        id
+    pub fn insert_node(&mut self, node_id: NodeId) {
+        self.sources.insert(node_id, IndexSet::new());
+        self.observers.insert(node_id, IndexSet::new());
+		self.parameter_dependencies.insert(node_id, IndexSet::new());
     }
 
-    pub(super) fn create_animation_node(&mut self, source_id: NodeId, state: AnimationState) -> NodeId {
-        let id = self.create_node(NodeType::Animation(state), NodeState::Check);
-        self.add_subscription(source_id, id);
-        id
-    }
-
-	pub(super) fn create_parameter_binding_node(&mut self, source_id: ParameterId, state: BindingState) -> NodeId {
-        let id = self.create_node(NodeType::Binding(state), NodeState::Clean);
-        self.add_parameter_subscription(source_id, id);
-        id
-    }
-
-    fn create_node(&mut self, node_type: NodeType, state: NodeState) -> NodeId {
-        let node = Node { node_type, state };
-        let id = self.nodes.insert(node);
-        self.sources.insert(id, IndexSet::new());
-        self.observers.insert(id, IndexSet::new());
-		self.parameter_dependencies.insert(id, IndexSet::new());
-        id
-    }
-
-    pub(crate) fn remove_node(&mut self, id: NodeId) {
+    pub fn remove_node(&mut self, id: NodeId) {
         // Remove the node's subscriptions to other nodes
         let observers = self.observers.remove(id).expect("Missing observers for node");
         for node_id in observers {
@@ -113,7 +84,77 @@ impl Runtime {
 		for parameter_id in parameter_dependencies {
             self.parameter_subscriptions.get_mut(&parameter_id).expect("Missing parameter subscription").swap_remove(&id);
         }
+    }
 
+    pub fn clear_node_sources(&mut self, node_id: NodeId) {
+        let sources = self.sources.get_mut(node_id).expect("Missing sources for node");
+        for node_id in sources.drain(..) {
+            self.observers[node_id].swap_remove(&node_id);
+        }
+    }
+
+    pub fn add_parameter_subscription(&mut self, source_id: ParameterId, observer_id: NodeId) {
+        self.parameter_subscriptions.get_mut(&source_id).unwrap().insert(observer_id);
+        self.parameter_dependencies[observer_id].insert(source_id);
+	}
+
+	pub fn add_node_subscription(&mut self, source_id: NodeId, observer_id: NodeId) {
+        self.sources[observer_id].insert(source_id);
+        self.observers[source_id].insert(observer_id);
+	}
+
+    pub fn remove_subscription(&mut self, source_id: NodeId, observer_id: NodeId) {
+        self.sources[source_id].swap_remove(&observer_id);
+        self.observers[observer_id].swap_remove(&source_id);
+    }
+}
+
+pub struct Runtime {
+    nodes: SlotMap<NodeId, Node>,
+    pub(super) subscriptions: SubscriberMap,
+    pub(super) pending_tasks: VecDeque<Task>,
+    pub(super) parameters: Rc<dyn AnyParameterMap>,
+    scratch_buffer: VecDeque<NodeId>
+}
+
+impl Runtime {
+    pub fn new(parameter_map: Rc<dyn AnyParameterMap>) -> Self {    
+        Self { 
+            nodes: Default::default(), 
+            subscriptions: SubscriberMap::new(&parameter_map.parameter_ids()),
+            pending_tasks: Default::default(),
+            parameters: parameter_map,
+            scratch_buffer: Default::default(),
+        }
+    }
+
+    pub(super) fn create_binding_node(&mut self, source_id: NodeId, state: BindingState) -> NodeId {
+        let id = self.create_node(NodeType::Binding(state), NodeState::Clean);
+        self.subscriptions.add_node_subscription(source_id, id);
+        id
+    }
+
+    pub(super) fn create_animation_node(&mut self, source_id: NodeId, state: AnimationState) -> NodeId {
+        let id = self.create_node(NodeType::Animation(state), NodeState::Check);
+        self.subscriptions.add_node_subscription(source_id, id);
+        id
+    }
+
+	pub(super) fn create_parameter_binding_node(&mut self, source_id: ParameterId, state: BindingState) -> NodeId {
+        let id = self.create_node(NodeType::Binding(state), NodeState::Clean);
+        self.subscriptions.add_parameter_subscription(source_id, id);
+        id
+    }
+
+    fn create_node(&mut self, node_type: NodeType, state: NodeState) -> NodeId {
+        let node = Node { node_type, state };
+        let id = self.nodes.insert(node);
+        self.subscriptions.insert_node(id);
+        id
+    }
+
+    pub fn remove_node(&mut self, id: NodeId) {
+        self.subscriptions.remove_node(id);
         self.nodes.remove(id).expect("Missing node");
     }
 
@@ -127,51 +168,53 @@ impl Runtime {
                 },
                 _ => unreachable!()
             }
-            signal.state = NodeState::Dirty;
         }
-
-        let mut subscribers = std::mem::take(&mut self.sources[signal.id]);
-        subscribers.iter().for_each(|subscriber| {
-            self.notify(subscriber);
-        });
-        std::mem::swap(&mut subscribers, &mut self.sources[signal.id]);
+        
+        let mut observers = std::mem::take(&mut self.scratch_buffer);
+        observers.clear();
+        observers.extend(self.subscriptions.observers[signal.id].iter());
+        self.notify_source_changed(observers);
     }
 
-    fn propagate_node_update(&mut self, node_id: NodeId) {
-        // Traverse the graph in depth-first order, marking direct children of the node 
-        // as Dirty, and the grand-children as Check
-        let mut stack = vec![];
-
-        // Mark direct children as dirty
+    pub(super) fn notify_source_changed(&mut self, mut nodes_to_notify: VecDeque<NodeId>) {
+        let mut nodes_to_check = HashSet::new();
+        
         {
-            let mut observers = std::mem::take(&mut self.observers[node_id]);
-            for &observer_id in observers.iter() {
-                self.nodes[observer_id].state = NodeState::Dirty;
-                stack.push(observer_id);
+            let direct_child_count = nodes_to_notify.len();
+            let mut i = 0;
+            while let Some(node_id) = nodes_to_notify.pop_front() {
+                // Mark direct nodes as Dirty and grand-children as Check
+                let new_state = if i < direct_child_count { NodeState::Dirty } else { NodeState::Check };
+                let node = self.nodes.get_mut(node_id).expect("Node has been removed");
+                if node.state < new_state {
+                    node.state = new_state;
+                    match &node.node_type {
+                        NodeType::Effect(_) | NodeType::Binding(_) | NodeType::Animation(_) => {
+                            nodes_to_check.insert(node_id);
+                        },
+                        _ => {}
+                    }
+                    nodes_to_notify.extend(self.subscriptions.observers[node_id].iter());
+                }
+                i += 1;
             }
-            std::mem::swap(&mut observers, &mut self.observers[node_id]);
         }
 
-        let mut current = 0;
-        while current < stack.len() {
-            let node_id = stack[current];
-            for child in self.observers[node_id].iter() {
-                
-            }
-        }
-    }
+        // Swap back the scratch buffer. Saves us from having to reallocate
+        std::mem::swap(&mut self.scratch_buffer, &mut nodes_to_notify);
 
-    fn mark_observers_dirty(&mut self, node_id: NodeId) {
-        let mut observers = std::mem::take(&mut self.observers[node_id]);
-        for &observer_id in observers.iter() {
-            self.nodes[observer_id].state = NodeState::Dirty;
+        for node_id in nodes_to_check {
+            self.update_if_necessary(node_id);
         }
-        std::mem::swap(&mut observers, &mut self.observers[node_id]);
     }
 
     fn update_if_necessary(&mut self, node_id: NodeId) {
+        if self.nodes[node_id].state == NodeState::Clean {
+            return;
+        }
+
         if self.nodes[node_id].state == NodeState::Check {
-            for source_id in self.sources[node_id].clone() {
+            for source_id in self.subscriptions.sources[node_id].clone() {
                 self.update_if_necessary(source_id);
                 if self.nodes[node_id].state == NodeState::Dirty {
                     break;
@@ -180,63 +223,64 @@ impl Runtime {
         }
 
         if self.nodes[node_id].state == NodeState::Dirty {
-            // Update
+            let mut node_type = std::mem::replace(&mut self.nodes[node_id].node_type, NodeType::TmpRemoved);
+            match &mut node_type {
+                NodeType::Effect(effect) => {
+                    // Clear the sources, they will be re-populated while running the effect function
+                    self.subscriptions.clear_node_sources(node_id);
+                    let task = Task::RunEffect { 
+                        id: node_id, 
+                        f: Rc::downgrade(&effect.f)
+                    };
+                    self.pending_tasks.push_back(task);
+                },
+                NodeType::Binding(BindingState { widget_id, f }) => {
+                    let task = Task::UpdateBinding { 
+                        widget_id: widget_id.clone(),
+                        f: Rc::downgrade(&f),
+                        node_id
+                    };
+                    self.pending_tasks.push_back(task);
+                },
+                NodeType::Animation(_) => {
+    
+                },
+                NodeType::Memo(memo) => {
+                    // Clear the sources, they will be re-populated while running the memo function
+                    self.subscriptions.clear_node_sources(node_id);
+                    let mut cx = MemoContext { memo_id: node_id, runtime: self };
+                    if memo.eval(&mut cx) {
+                        for &observer_id in self.subscriptions.observers[node_id].iter() {
+                            self.nodes[observer_id].state = NodeState::Dirty;
+                        }
+                    }
+                },
+                NodeType::Signal(_) => panic!("Signals cannot depend on other reactive nodes"),
+                NodeType::TmpRemoved => panic!("Circular dependency?")
+            }
+            std::mem::swap(&mut self.nodes[node_id].node_type, &mut node_type);
         }
 
         self.nodes[node_id].state = NodeState::Clean;
     }
 
-	pub(super) fn add_parameter_subscription(&mut self, source_id: ParameterId, observer_id: NodeId) {
-        self.parameter_subscriptions.get_mut(&source_id).unwrap().insert(observer_id);
-        self.parameter_dependencies[observer_id].insert(source_id);
-	}
-
 	pub(super) fn notify_parameter_subscribers(&mut self, source_id: ParameterId) {
-		let subscribers = self.parameter_subscriptions.remove(&source_id).unwrap();
-        subscribers.iter().for_each(|subscriber| {
-            self.notify(subscriber);
-        });
-        self.parameter_subscriptions.insert(source_id, subscribers);
+        let mut nodes_to_notify = std::mem::take(&mut self.scratch_buffer);
+        nodes_to_notify.clear();
+        nodes_to_notify.extend(self.subscriptions.parameter_subscriptions.get_mut(&source_id).unwrap().iter());
+        self.notify_source_changed(nodes_to_notify);
 	}
 
-	pub(super) fn add_subscription(&mut self, source_id: NodeId, observer_id: NodeId) {
-        self.sources[observer_id].insert(source_id);
-        self.observers[source_id].insert(observer_id);
-	}
-
-    pub(super) fn remove_subscription(&mut self, source_id: NodeId, observer_id: NodeId) {
-        self.sources[source_id].swap_remove(&observer_id);
-        self.observers[observer_id].swap_remove(&source_id);
+    pub fn get_signal_value_ref(&self, signal_id: NodeId) -> &dyn Any {
+        let node = self.nodes.get(signal_id).expect("Node not found");
+        match &node.node_type {
+            NodeType::Signal(signal) => signal.value.as_ref(),
+            _ => unreachable!()
+        }
     }
 
-    pub(super) fn notify(&mut self, node_id: &NodeId) {
-        let node = self.nodes.get_mut(*node_id).expect("Node has been removed");
-        match &mut node.node_type {
-            NodeType::Effect(effect) => {
-                let task = Task::RunEffect { 
-                    id: *node_id, 
-                    f: Rc::downgrade(&effect.f)
-                };
-				self.pending_tasks.push_back(task);
-            },
-            NodeType::Binding(BindingState { widget_id, f }) => {
-				let task = Task::UpdateBinding { 
-                    widget_id: widget_id.clone(),
-                    f: Rc::downgrade(&f)
-                };
-				self.pending_tasks.push_back(task);
-            },
-			NodeType::Animation(_) => {
-
-			},
-            NodeType::Memo(memo) => {
-                /*let _new_value = {
-                    let mut ctx = MemoContext { memo_id: *node_id, runtime: self };
-                    (memo.f)(&mut ctx)
-                };*/
-            },
-            NodeType::Signal(_) => unreachable!(),
-        }
+    pub(super) fn mark_node_as_clean(&mut self, node_id: NodeId) {
+        self.nodes[node_id].state = NodeState::Clean;
     }
 
     pub(super) fn take_tasks(&mut self) -> VecDeque<Task> {
@@ -245,16 +289,14 @@ impl Runtime {
 }
 
 impl SignalGetContext for Runtime {
-    fn get_node_value_ref_untracked<'a>(&'a self, node_id: NodeId) -> &'a dyn Any {
+    fn get_node_value_ref<'a>(&'a mut self, node_id: NodeId) -> &'a dyn Any {
+        self.update_if_necessary(node_id);
         let node = self.nodes.get(node_id).expect("Node not found");
         match &node.node_type {
             NodeType::Signal(signal) => signal.value.as_ref(),
+            NodeType::Memo(memo) => memo.value.as_ref().expect("Memo should have been evaluated before accessed").as_ref(),
             _ => unreachable!()
         }
-    }
-
-    fn get_node_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
-        self.get_node_value_ref_untracked(signal_id)
     }
 	
 	fn get_parameter_ref_untracked(&self, parameter_id: ParameterId) -> ParamRef {
@@ -278,11 +320,14 @@ impl SignalCreator for Runtime {
     }
 
     fn create_memo_node(&mut self, state: MemoState) -> NodeId {
-        self.create_node(NodeType::Memo(state), NodeState::Check)
+        self.create_node(NodeType::Memo(state), NodeState::Dirty)
     }
 
     fn create_effect_node(&mut self, state: EffectState) -> NodeId {
-        self.create_node(NodeType::Effect(state), NodeState::Clean)
+        let f = Rc::downgrade(&state.f);
+        let id = self.create_node(NodeType::Effect(state), NodeState::Dirty);
+        self.pending_tasks.push_back(Task::RunEffect { id, f });
+        id
     }
 }
 

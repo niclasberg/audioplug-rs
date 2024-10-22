@@ -1,5 +1,5 @@
 use std::path::Path;
-use audioplug::app::{Memo, Signal, SignalGet, SignalSet, Window};
+use audioplug::app::{Effect, Memo, Signal, SignalGet, SignalSet, Window};
 use audioplug::core::{Color, Alignment};
 use audioplug::view::{Button, Checkbox, Column, Image, Label, Row, Slider, TextBox, View};
 use audioplug::App;
@@ -14,12 +14,10 @@ fn main() {
         let text = Signal::new(cx, "".to_string());
         let slider_value = Signal::new(cx, 100.0);
 
-        let memo_test = Memo::new(cx, move |cx| {
-            if checkbox_enabled.get(cx) {
-                slider_value.get(cx) * 10.0
-            } else {
-                0.0
-            }
+        Effect::new_with_state(cx, move |cx, cnt| {
+            let cnt = cnt.unwrap_or(0);
+            println!("Cnt: {}, Slider value: {}, enabled: {}", cnt, slider_value.get(cx), checkbox_enabled.get(cx));
+            cnt + 1
         });
 
         Column::new((
@@ -39,7 +37,7 @@ fn main() {
                 Label::new("Button"),
                 Button::new(Label::new("Filled"))
                     .on_click(move |ctx| {
-                        let current = checkbox_enabled.get_untracked(ctx);
+                        let current = checkbox_enabled.get(ctx);
                         checkbox_enabled.set(ctx, !current)
                     })
             )).spacing(5.0),

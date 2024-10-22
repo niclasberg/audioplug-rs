@@ -1,4 +1,4 @@
-use std::{any::Any, marker::PhantomData};
+use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
 use super::{accessor::SourceId, NodeId, Runtime, SignalCreator, SignalGet, SignalGetContext};
 
@@ -8,13 +8,9 @@ pub struct MemoContext<'a> {
 }
 
 impl<'b> SignalGetContext for MemoContext<'b> {
-    fn get_node_value_ref_untracked<'a>(&'a self, node_id: NodeId) -> &'a dyn Any {
-        self.runtime.get_node_value_ref_untracked(node_id)
-    }
-
     fn get_node_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
-        self.runtime.add_subscription(signal_id, self.memo_id);
-        self.runtime.get_node_value_ref_untracked(signal_id)
+        self.runtime.subscriptions.add_node_subscription(signal_id, self.memo_id);
+        self.runtime.get_node_value_ref(signal_id)
     }
 
     fn get_parameter_ref_untracked<'a>(&'a self, parameter_id: crate::param::ParameterId) -> crate::param::ParamRef<'a> {
@@ -22,7 +18,7 @@ impl<'b> SignalGetContext for MemoContext<'b> {
     }
 
     fn get_parameter_ref<'a>(&'a mut self, parameter_id: crate::param::ParameterId) -> crate::param::ParamRef<'a> {
-        self.runtime.add_parameter_subscription(parameter_id, self.memo_id);
+        self.runtime.subscriptions.add_parameter_subscription(parameter_id, self.memo_id);
         self.runtime.get_parameter_ref_untracked(parameter_id)
     }
 }
@@ -33,9 +29,26 @@ pub struct Memo<T> {
     _marker: PhantomData<fn() -> T>
 }
 
-impl<T: 'static> Memo<T> {
+impl<T: 'static + PartialEq> Memo<T> {
     pub fn new(cx: &mut impl SignalCreator, f: impl Fn(&mut MemoContext) -> T + 'static) -> Self {
-        let state = MemoState::new(move |cx| Box::new(f(cx)));
+        let state = MemoState {
+            f: Box::new(move |cx, value| {
+                let new_value = f(cx);
+                if let Some(value) = value {
+                    let value = value.deref_mut().downcast_mut::<T>().unwrap();
+                    if *value != new_value {
+                        *value = new_value;
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    *value = Some(Box::new(new_value));
+                    true
+                }
+            }),
+            value: None
+        };
         let id = cx.create_memo_node(state);
 
         Self {
@@ -52,54 +65,65 @@ impl<T: 'static> SignalGet for Memo<T> {
 		SourceId::Node(self.id)
 	}
 
-    fn with_ref<R>(&self, _ctx: &mut dyn SignalGetContext, _f: impl FnOnce(&Self::Value) -> R) -> R {
-        //f(ctx.get_memo_value_ref(self))
-        todo!()
-    }
-
-    fn with_ref_untracked<R>(&self, _ctx: &dyn SignalGetContext, _f: impl FnOnce(&Self::Value) -> R) -> R {
-        //f(ctx.get_memo_value_ref_untracked(self))
-        todo!()
+    fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+        let value = cx.get_node_value_ref(self.id).downcast_ref().expect("Memo had wrong type");
+        f(value)
     }
 }
 
 pub struct MemoState {
-	pub(super) f: Box<dyn Fn(&mut MemoContext) -> Box<dyn Any>>,
+	pub(super) f: Box<dyn Fn(&mut MemoContext, &mut Option<Box<dyn Any>>) -> bool>,
 	pub(super) value: Option<Box<dyn Any>>,
 }
 
 impl MemoState {
-    pub fn new<F>(f: F) -> Self
-    where
-        F: Fn(&mut MemoContext) -> Box<dyn Any> + 'static
-    {
-        Self {
-            f: Box::new(f),
-            value: None
-        }
+    pub fn eval(&mut self, cx: &mut MemoContext) -> bool {
+        (self.f)(cx, &mut self.value)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{app::{Signal, SignalSet}, param::ParameterMap};
-
+    use std::{cell::Cell, rc::Rc};
+    use crate::{app::{AppState, Effect, Signal, SignalSet}, param::ParameterMap};
     use super::*;
 
-    fn with_runtime(f: impl FnOnce(&mut Runtime)) {
-        let mut cx = Runtime::new(ParameterMap::new(()));
+    fn with_appstate(f: impl FnOnce(&mut AppState)) {
+        let mut cx = AppState::new(ParameterMap::new(()));
         f(&mut cx);
     }
 
     #[test]
     fn memo() {
-        with_runtime(|cx| {
+        with_appstate(|cx| {
             let signal = Signal::new(cx, 1);
             let memo = Memo::new(cx, move |cx| signal.get(cx) * 2);
             assert_eq!(memo.get(cx), 2);
             signal.set(cx, 2);
             assert_eq!(memo.get(cx), 4);
+            signal.set(cx, 3);
+            assert_eq!(memo.get(cx), 6);
         });
     }
 
+    #[test]
+    fn effect_in_diamond_should_run_once() {
+        with_appstate(|cx| {
+            let signal = Signal::new(cx, 1);
+            let memo1 = Memo::new(cx, move |cx| signal.get(cx) * 2);
+            let memo2 = Memo::new(cx, move |cx| signal.get(cx) * 3);
+
+            let call_count = Rc::new(Cell::new(0));
+            let _call_count = call_count.clone();
+            Effect::new(cx, move |cx| {
+                _call_count.replace(_call_count.get() + 1);
+                let _ = memo1.get(cx) + memo2.get(cx);
+            });
+            cx.run_effects();
+        
+            signal.set(cx, 2);
+            cx.run_effects();
+            assert_eq!(call_count.get(), 2);
+        });
+    }
 }
