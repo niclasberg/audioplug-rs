@@ -52,7 +52,7 @@ impl<P: Plugin + 'static> ViewController<P> {
 	pub fn new() -> Self {
 		let executor = Rc::new(platform::Executor::new().unwrap());
 		let parameters = ParameterMap::new(P::Parameters::new());
-		let app_state =  Rc::new(RefCell::new(AppState::new(parameters.clone(), executor)));
+		let app_state =  Rc::new(RefCell::new(AppState::new(parameters.clone())));
 		let editor = Rc::new(RefCell::new(P::Editor::new()));
 		let parameter_observer = {
 			let weak_app_state = Rc::downgrade(&app_state);

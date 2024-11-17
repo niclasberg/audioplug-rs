@@ -1,3 +1,4 @@
+mod border;
 mod color;
 mod point;
 mod rectangle;
@@ -15,6 +16,7 @@ mod taffy_compat;
 mod cursor;
 mod interpolation;
 
+pub use border::Border;
 pub use color::Color;
 pub use point::Point;
 pub use rectangle::Rectangle;

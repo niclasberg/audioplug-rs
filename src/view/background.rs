@@ -1,10 +1,23 @@
-use crate::{app::{Accessor, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Cursor}, KeyEvent, MouseEvent};
+use crate::{app::{Accessor, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Border, Color, Cursor}, KeyEvent, MouseEvent};
 
 use super::View;
 
 pub struct Background<V: View> {
     pub(super) view: V,
-    pub(super) color: Accessor<Color>,
+    pub(super) fill: Option<Accessor<Color>>,
+	pub(super) border: Option<Accessor<Border>>,
+}
+
+impl<V: View> Background<V> {
+	fn background(mut self, color: impl Into<Accessor<Color>>) -> Self {
+        self.fill = Some(color.into());
+		self
+    }
+
+	fn border(mut self, border: impl Into<Accessor<Border>>) -> Self {
+        self.border = Some(border.into());
+		self
+    }
 }
 
 impl<V: View> View for Background<V> {
@@ -13,18 +26,36 @@ impl<V: View> View for Background<V> {
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         let widget = ctx.build(self.view);
 
-		let color = ctx.get_and_track(self.color, |value, mut widget| {
-			widget.color = *value;
-			widget.request_render();
+		let fill = self.fill.map(|fill| {
+			ctx.get_and_track(fill, |value, mut widget| {
+				widget.fill = Some(*value);
+				widget.request_render();
+			})
 		});
 
-        BackgroundWidget { widget, color }
+		let border = self.border.map(|border| {
+			ctx.get_and_track(border, |value, mut widget| {
+				if !widget.border.is_some_and(|border| border.color == value.color) {
+					widget.request_render();
+				}
+				widget.border = Some(*value);
+			})
+		});
+
+		if let Some(border) = border {
+			ctx.update_style(|style| {
+				
+			});
+		}
+
+        BackgroundWidget { widget, fill, border }
     }
 }
 
 pub struct BackgroundWidget<W> {
     widget: W,
-    color: Color,
+    fill: Option<Color>,
+	border: Option<Border>,
 }
 
 impl<W: Widget> Widget for BackgroundWidget<W> {
@@ -49,7 +80,13 @@ impl<W: Widget> Widget for BackgroundWidget<W> {
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {
-        ctx.fill(ctx.local_bounds(), self.color);
+		if let Some(fill) = self.fill {
+			ctx.fill(ctx.local_bounds(), fill);
+		}
+		if let Some(border) = self.border {
+			ctx.stroke(ctx.local_bounds(), border.color, border.width as f32);
+		}
+        
         self.widget.render(ctx)
     }
 

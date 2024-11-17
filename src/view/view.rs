@@ -1,4 +1,4 @@
-use crate::{app::{Accessor, BuildContext, Widget}, core::Color};
+use crate::{app::{Accessor, BuildContext, Widget}, core::{Border, Color}};
 
 use super::{Background, Styled};
 
@@ -10,7 +10,11 @@ pub trait View: Sized {
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element;
 
     fn background(self, color: impl Into<Accessor<Color>>) -> Background<Self> {
-        Background { view: self, color: color.into() }
+        Background { view: self, fill: Some(color.into()), border: None }
+    }
+
+	fn border(self, border: impl Into<Accessor<Border>>) -> Background<Self> {
+        Background { view: self, fill: None, border: Some(border.into()) }
     }
 
 	fn padding(self, value: impl Into<Accessor<f64>>) -> Styled<Self> {

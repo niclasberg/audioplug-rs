@@ -1,6 +1,6 @@
 use std::path::Path;
 use audioplug::app::{Effect, Memo, Signal, SignalGet, SignalSet, Window};
-use audioplug::core::{Color, Alignment};
+use audioplug::core::{Alignment, Border, Color};
 use audioplug::view::{Button, Checkbox, Column, Image, Label, Row, Slider, TextBox, View};
 use audioplug::App;
 
@@ -21,7 +21,7 @@ fn main() {
         });
 
         Column::new((
-            Label::new(text.clone()),
+            Label::new(text.clone()).border(Border { color: Color::GREEN, width: 2.0 }),
 			Row::new((
 				Label::new("Slider"),
 				Slider::new()
