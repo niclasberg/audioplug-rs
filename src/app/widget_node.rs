@@ -144,6 +144,64 @@ impl WidgetData {
     }
 }
 
+impl taffy::CoreStyle for WidgetData {
+	fn box_generation_mode(&self) -> taffy::BoxGenerationMode {
+		self.style.box_generation_mode()
+	}
+
+	fn is_block(&self) -> bool {
+		self.style.is_block()
+	}
+
+	fn box_sizing(&self) -> taffy::BoxSizing {
+		self.style.box_sizing()
+	}
+
+	fn overflow(&self) -> taffy::Point<taffy::Overflow> {
+		self.style.overflow
+	}
+
+	fn scrollbar_width(&self) -> f32 {
+		self.style.scrollbar_width
+	}
+
+	fn position(&self) -> taffy::Position {
+		self.style.position
+	}
+
+	fn inset(&self) -> taffy::Rect<taffy::LengthPercentageAuto> {
+		self.style.inset
+	}
+
+	fn size(&self) -> taffy::Size<taffy::Dimension> {
+		self.style.size
+	}
+
+	fn min_size(&self) -> taffy::Size<taffy::Dimension> {
+		self.style.min_size
+	}
+
+	fn max_size(&self) -> taffy::Size<taffy::Dimension> {
+		self.style.max_size
+	}
+
+	fn aspect_ratio(&self) -> Option<f32> {
+		self.style.aspect_ratio
+	}
+
+	fn margin(&self) -> taffy::Rect<taffy::LengthPercentageAuto> {
+		self.style.margin
+	}
+
+	fn padding(&self) -> taffy::Rect<taffy::LengthPercentage> {
+		self.style.padding
+	}
+
+	fn border(&self) -> taffy::Rect<taffy::LengthPercentage> {
+		self.style.border
+	}
+}
+
 pub struct WidgetRef<'a, W: 'a + Widget + ?Sized> {
     pub(super) widget: &'a W,
     pub(super) data: &'a WidgetData

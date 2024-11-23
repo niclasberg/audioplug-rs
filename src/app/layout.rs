@@ -2,7 +2,7 @@ use taffy::{LayoutBlockContainer, LayoutFlexboxContainer, LayoutGridContainer, L
 
 use crate::core::Point;
 
-use super::{invalidate_window, widget_node::WidgetFlags, AppState, WidgetId, WindowId};
+use super::{invalidate_window, widget_node::WidgetFlags, AppState, WidgetData, WidgetId, WindowId};
 
 pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
     let (bounds, widget_id) = {
@@ -133,11 +133,11 @@ impl<'a> LayoutGridContainer for LayoutContext<'a> {
 }
 
 impl<'a> LayoutPartialTree for LayoutContext<'a> {
-    type CoreContainerStyle<'b> = &'b taffy::Style where Self : 'b;
+    type CoreContainerStyle<'b> = &'b WidgetData where Self : 'b;
     type CacheMut<'b> = &'b mut taffy::Cache where Self : 'b;
     
     fn get_core_container_style(&self, node_id: taffy::NodeId) -> Self::CoreContainerStyle<'_> {
-        &self.app_state.widget_data[node_id.into()].style
+        &self.app_state.widget_data[node_id.into()]
     }
 
     fn set_unrounded_layout(&mut self, node_id: taffy::NodeId, layout: &taffy::Layout) {
@@ -164,7 +164,7 @@ impl<'a> LayoutPartialTree for LayoutContext<'a> {
         }
         
         taffy::compute_cached_layout(self, node_id, inputs, |tree, node, inputs| {
-            let display_mode = tree.get_core_container_style(node).display;
+            let display_mode = tree.get_core_container_style(node).style.display;
             let has_children = tree.child_count(node) > 0;
 
             // Dispatch to a layout algorithm based on the node's display style and whether the node has children or not.
