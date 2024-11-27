@@ -17,10 +17,10 @@ vst3-sys = { git = "https://github.com/RustAudio/vst3-sys.git" }
 raw-window-handle = "0.6.2"
 unicode-segmentation = "1.12.0"
 slotmap = "1.0.7"
-taffy = "0.6.0"
+taffy = "0.6.2"
 rtrb = "0.3.1"
 midi-consts = "0.1.0"
-serde = "1.0.210"
+serde = "1.0.215"
 atomic_refcell = "0.1.13"
 indexmap = "2.6.0"
 

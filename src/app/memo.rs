@@ -30,12 +30,12 @@ pub struct Memo<T> {
 }
 
 impl<T: 'static + PartialEq> Memo<T> {
-    pub fn new(cx: &mut impl SignalCreator, f: impl Fn(&mut MemoContext) -> T + 'static) -> Self {
+    pub fn new(cx: &mut impl SignalCreator, f: impl Fn(&mut MemoContext, Option<&T>) -> T + 'static) -> Self {
         let state = MemoState {
             f: Box::new(move |cx, value| {
-                let new_value = f(cx);
                 if let Some(value) = value {
                     let value = value.deref_mut().downcast_mut::<T>().unwrap();
+                    let new_value = f(cx, Some(&value));
                     if *value != new_value {
                         *value = new_value;
                         true
@@ -43,6 +43,7 @@ impl<T: 'static + PartialEq> Memo<T> {
                         false
                     }
                 } else {
+                    let new_value = f(cx, None);
                     *value = Some(Box::new(new_value));
                     true
                 }
@@ -97,7 +98,7 @@ mod tests {
     fn memo() {
         with_appstate(|cx| {
             let signal = Signal::new(cx, 1);
-            let memo = Memo::new(cx, move |cx| signal.get(cx) * 2);
+            let memo = Memo::new(cx, move |cx, _| signal.get(cx) * 2);
             assert_eq!(memo.get(cx), 2);
             signal.set(cx, 2);
             assert_eq!(memo.get(cx), 4);
@@ -110,8 +111,8 @@ mod tests {
     fn effect_in_diamond_should_run_once() {
         with_appstate(|cx| {
             let signal = Signal::new(cx, 1);
-            let memo1 = Memo::new(cx, move |cx| signal.get(cx) * 2);
-            let memo2 = Memo::new(cx, move |cx| signal.get(cx) * 3);
+            let memo1 = Memo::new(cx, move |cx, _| signal.get(cx) * 2);
+            let memo2 = Memo::new(cx, move |cx, _| signal.get(cx) * 3);
 
             let call_count = Rc::new(Cell::new(0));
             let _call_count = call_count.clone();
