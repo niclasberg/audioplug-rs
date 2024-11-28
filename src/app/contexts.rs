@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use crate::{param::{ParamRef, ParameterId}, view::View};
+use crate::{param::{ParamRef, ParameterId}, style::Style, view::View};
 
 use super::{effect::EffectState, widget_node::{WidgetFlags, WidgetId, WidgetMut}, Accessor, AppState, Memo, MemoContext, NodeId, ParamContext, Runtime, Signal, SignalContext, SignalCreator, SignalGet, SignalGetContext, Widget};
 
@@ -66,11 +66,11 @@ impl<'a, W: Widget> BuildContext<'a, W> {
 		self.build(view)
 	}
 
-	pub fn set_style(&mut self, style: taffy::Style) {
+	pub fn set_style(&mut self, style: Style) {
 		self.app_state.widget_data_mut(self.id).style = style;
 	}
 
-	pub fn update_style(&mut self, f: impl FnOnce(&mut taffy::Style)) {
+	pub fn update_style(&mut self, f: impl FnOnce(&mut Style)) {
 		f(&mut self.app_state.widget_data_mut(self.id).style);
 	}
 }

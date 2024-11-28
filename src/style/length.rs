@@ -1,12 +1,18 @@
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Length {
 	Auto,
 	Px(f64),
 	Percent(f64)
 }
 
+impl Length {
+	pub const ZERO: Self = Self::Px(0.0);
+	pub const DEFAULT: Self = Self::Auto;
+}
+
 impl Default for Length {
 	fn default() -> Self {
-		Self::Auto
+		Self::DEFAULT
 	}
 }
 

@@ -1,4 +1,4 @@
-use crate::{app::{Accessor, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::Cursor};
+use crate::{app::{Accessor, BuildContext, Widget}, style::StyleBuilder};
 
 use super::View;
 
@@ -75,6 +75,7 @@ impl DimensionAccessor {
 
 pub struct Styled<V> {
 	view: V,
+	style_builder: StyleBuilder,
 	left: LengthPercentageAccessor,
 	right: LengthPercentageAccessor,
 	top: LengthPercentageAccessor,

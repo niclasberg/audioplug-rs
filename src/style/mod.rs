@@ -1,6 +1,12 @@
-use super::{Length, Size};
-use taffy::prelude::TaffyZero;
+mod style_builder;
+mod length;
+mod ui_rect;
+
+use crate::core::Size;
 pub use taffy::{FlexDirection, FlexWrap};
+pub use style_builder::StyleBuilder;
+pub use length::Length;
+pub use ui_rect::UiRect;
 
 pub enum Display {
 	Block,
@@ -36,6 +42,7 @@ pub struct Style {
 	pub max_size: Size<Length>,
 	pub display: Display,
 	pub aspect_ratio: Option<f64>,
+	pub padding: UiRect,
 }
 
 impl Default for Style {

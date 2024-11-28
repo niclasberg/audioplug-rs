@@ -3,7 +3,7 @@ use std::{collections::VecDeque, ops::{Deref, DerefMut}};
 use bitflags::bitflags;
 use slotmap::{new_key_type, Key, KeyData};
 
-use crate::core::{Point, Rectangle, Size};
+use crate::{core::{Point, Rectangle, Size}, style::Style};
 use super::{app_state::Task, Widget, WindowId};
 
 new_key_type! {
@@ -40,7 +40,7 @@ pub struct WidgetData {
     pub(super) window_id: WindowId,
     pub(super) parent_id: WidgetId,
     pub(super) children: Vec<WidgetId>,
-    pub(super) style: taffy::Style,
+    pub(super) style: Style,
     pub(super) cache: taffy::Cache,
     pub(super) layout: taffy::Layout,
     pub(super) flags: WidgetFlags,
@@ -134,72 +134,14 @@ impl WidgetData {
         self.origin
     }
 
-    pub fn with_style(mut self, f: impl Fn(&mut taffy::Style)) -> Self {
+    pub fn with_style(mut self, f: impl Fn(&mut Style)) -> Self {
         f(&mut self.style);
         self
     }
 
     pub fn is_hidden(&self) -> bool {
-        self.style.display == taffy::Display::None
+        self.style.hidden
     }
-}
-
-impl taffy::CoreStyle for WidgetData {
-	fn box_generation_mode(&self) -> taffy::BoxGenerationMode {
-		self.style.box_generation_mode()
-	}
-
-	fn is_block(&self) -> bool {
-		self.style.is_block()
-	}
-
-	fn box_sizing(&self) -> taffy::BoxSizing {
-		self.style.box_sizing()
-	}
-
-	fn overflow(&self) -> taffy::Point<taffy::Overflow> {
-		self.style.overflow
-	}
-
-	fn scrollbar_width(&self) -> f32 {
-		self.style.scrollbar_width
-	}
-
-	fn position(&self) -> taffy::Position {
-		self.style.position
-	}
-
-	fn inset(&self) -> taffy::Rect<taffy::LengthPercentageAuto> {
-		self.style.inset
-	}
-
-	fn size(&self) -> taffy::Size<taffy::Dimension> {
-		self.style.size
-	}
-
-	fn min_size(&self) -> taffy::Size<taffy::Dimension> {
-		self.style.min_size
-	}
-
-	fn max_size(&self) -> taffy::Size<taffy::Dimension> {
-		self.style.max_size
-	}
-
-	fn aspect_ratio(&self) -> Option<f32> {
-		self.style.aspect_ratio
-	}
-
-	fn margin(&self) -> taffy::Rect<taffy::LengthPercentageAuto> {
-		self.style.margin
-	}
-
-	fn padding(&self) -> taffy::Rect<taffy::LengthPercentage> {
-		self.style.padding
-	}
-
-	fn border(&self) -> taffy::Rect<taffy::LengthPercentage> {
-		self.style.border
-	}
 }
 
 pub struct WidgetRef<'a, W: 'a + Widget + ?Sized> {
@@ -282,7 +224,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
 		})
     }
 
-	pub fn update_style(&mut self, f: impl FnOnce(&mut taffy::Style)) {
+	pub fn update_style(&mut self, f: impl FnOnce(&mut Style)) {
 		f(&mut self.data.style);
 	}
 

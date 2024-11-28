@@ -12,6 +12,7 @@ pub mod platform;
 mod plugin;
 mod text;
 mod theme;
+pub mod style;
 pub mod util;
 pub mod view;
 pub mod wrapper;
