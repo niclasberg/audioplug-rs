@@ -1,6 +1,7 @@
 use taffy::style_helpers::FromLength;
 
 use crate::app::{BuildContext, RenderContext, Widget};
+use crate::style::{DisplayStyle, FlexStyle};
 use crate::view::{ViewSequence, View};
 use crate::core::Alignment;
 
@@ -79,6 +80,11 @@ impl<VS: ViewSequence> View for Row<VS> {
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         self.view_seq.build(ctx);
+		ctx.set_display_style(FlexStyle {
+			direction: FlexDi,
+			wrap: todo!(),
+			gap: todo!(),
+		});
 		ctx.set_style(taffy::Style {
             flex_direction: taffy::FlexDirection::Row,
             gap: taffy::Size::from_length(self.spacing as f32),

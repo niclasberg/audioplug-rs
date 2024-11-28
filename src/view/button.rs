@@ -1,4 +1,4 @@
-use crate::{app::{AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, style::{Display, Length, Style}, MouseEvent};
+use crate::{app::{AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, style::{Display, Length, Style, UiRect}, MouseEvent};
 
 use super::View;
 
@@ -24,9 +24,8 @@ impl<V: View> View for Button<V> {
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         ctx.set_focusable(true);
         ctx.add_child(self.child);
-		let padding = Length::Px(4.0);
 		ctx.set_style(Style {
-            padding: Rectangle { left: padding, right: padding, top: padding, bottom: padding },
+            padding: UiRect::all(Length::Px(4.0)),
             //justify_content: Some(taffy::JustifyContent::Center),
 			display: Display::Block,
             ..Default::default()

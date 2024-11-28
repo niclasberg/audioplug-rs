@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use crate::{param::{ParamRef, ParameterId}, style::Style, view::View};
+use crate::{param::{ParamRef, ParameterId}, style::{DisplayStyle, Style}, view::View};
 
 use super::{effect::EffectState, widget_node::{WidgetFlags, WidgetId, WidgetMut}, Accessor, AppState, Memo, MemoContext, NodeId, ParamContext, Runtime, Signal, SignalContext, SignalCreator, SignalGet, SignalGetContext, Widget};
 
@@ -68,6 +68,10 @@ impl<'a, W: Widget> BuildContext<'a, W> {
 
 	pub fn set_style(&mut self, style: Style) {
 		self.app_state.widget_data_mut(self.id).style = style;
+	}
+
+	pub fn set_display_style(&mut self, style: impl Into<DisplayStyle>) {
+		self.app_state.widget_data_mut(self.id).display_style = style.into();
 	}
 
 	pub fn update_style(&mut self, f: impl FnOnce(&mut Style)) {

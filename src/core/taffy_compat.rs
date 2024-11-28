@@ -1,4 +1,4 @@
-use super::{Point, Size};
+use super::{Point, Rectangle, Size};
 
 impl<T> From<taffy::Point<T>> for Point<T> {
     fn from(value: taffy::Point<T>) -> Self {
@@ -21,11 +21,11 @@ impl<T> From<taffy::Size<T>> for Size<T> {
     }
 }
 
-impl<T> Into<taffy::Size<T>> for Size<T> {
-    fn into(self) -> taffy::Size<T> {
+impl<U, T: Into<U>> Into<taffy::Size<U>> for Size<T> {
+    fn into(self) -> taffy::Size<U> {
         taffy::Size {
-            width: self.width,
-            height: self.height,
+            width: self.width.into(),
+            height: self.height.into(),
         }
     }
 }

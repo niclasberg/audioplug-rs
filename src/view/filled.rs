@@ -1,4 +1,4 @@
-use crate::{app::{BuildContext, RenderContext, Widget}, core::{Color, Rectangle, Shape}};
+use crate::{app::{BuildContext, RenderContext, Widget}, core::{Color, Rectangle, Shape, Size}, style::{Length, Style}};
 use super::View;
 
 
@@ -28,8 +28,8 @@ impl View for Filled {
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self { 
 		let bounds = self.shape.bounds();
-        ctx.set_style(taffy::Style {
-            size: taffy::Size { width: taffy::Dimension::Length(bounds.width() as f32), height: taffy::Dimension::Length(bounds.height() as f32) },
+        ctx.set_style(Style {
+            size: Size::new(Length::Px(bounds.width()), Length::Px(bounds.height())),
             ..Default::default()
         });
 

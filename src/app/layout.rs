@@ -1,6 +1,5 @@
 use taffy::{LayoutBlockContainer, LayoutFlexboxContainer, LayoutGridContainer, LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree};
-
-use crate::core::Point;
+use crate::{core::Point, style::{DisplayStyle, LayoutStyle}};
 
 use super::{invalidate_window, widget_node::WidgetFlags, AppState, WidgetData, WidgetId, WindowId};
 
@@ -60,8 +59,41 @@ impl<'a> Iterator for LayoutChildIter<'a> {
     }
 }
 
+enum LayoutAlgorithm {
+	Hidden,
+	Block,
+	Grid,
+	Flex, 
+	Leaf
+}
+
 pub struct LayoutContext<'a> {
 	app_state: &'a mut AppState
+}
+
+impl<'a> LayoutContext<'a> {
+	fn get_layout_style<'b>(&self, node_id: taffy::NodeId) -> LayoutStyle<'b> {
+		LayoutStyle { 
+			style: &self.app_state.widget_data[node_id.into()].style, 
+			display_style: &self.app_state.widget_data[node_id.into()].display_style,
+			scale_factor: todo!(), 
+			window_size: todo!() 
+		}
+	}
+
+	fn get_layout_algorithm(&self, node_id: taffy::NodeId) -> LayoutAlgorithm {
+		let data = &self.app_state.widget_data[node_id.into()];
+		if data.is_hidden() {
+			LayoutAlgorithm::Hidden
+		} else if data.children.len() == 0 {
+			LayoutAlgorithm::Leaf
+		} else {
+			match data.display_style {
+				DisplayStyle::Block => LayoutAlgorithm::Block,
+				DisplayStyle::Flex(_) => LayoutAlgorithm::Flex,
+			}
+		}
+	}
 }
 
 impl<'a> taffy::TraversePartialTree for LayoutContext<'a> {
@@ -94,50 +126,50 @@ impl<'a> PrintTree for LayoutContext<'a> {
 }
 
 impl<'a> LayoutBlockContainer for LayoutContext<'a> {
-    type BlockContainerStyle<'b> = &'b taffy::Style where Self: 'b;
-    type BlockItemStyle<'b> = &'b taffy::Style where Self: 'b;
+    type BlockContainerStyle<'b> = LayoutStyle<'b> where Self: 'b;
+    type BlockItemStyle<'b> = LayoutStyle<'b> where Self: 'b;
 
     fn get_block_container_style(&self, node_id: taffy::NodeId) -> Self::BlockContainerStyle<'_> {
-        &self.app_state.widget_data[node_id.into()].style
+        self.get_layout_style(node_id)
     }
 
     fn get_block_child_style(&self, child_node_id: taffy::NodeId) -> Self::BlockItemStyle<'_> {
-        &self.app_state.widget_data[child_node_id.into()].style
+        self.get_layout_style(child_node_id)
     }
 }
 
 impl<'a> LayoutFlexboxContainer for LayoutContext<'a> {
-    type FlexboxContainerStyle<'b> = &'b taffy::Style where Self: 'b;
-    type FlexboxItemStyle<'b> = &'b taffy::Style  where Self: 'b;
+    type FlexboxContainerStyle<'b> = LayoutStyle<'b> where Self: 'b;
+    type FlexboxItemStyle<'b> = LayoutStyle<'b>  where Self: 'b;
 
     fn get_flexbox_container_style(&self, node_id: taffy::NodeId) -> Self::FlexboxContainerStyle<'_> {
-        &self.app_state.widget_data[node_id.into()].style
+        self.get_layout_style(node_id)
     }
 
     fn get_flexbox_child_style(&self, child_node_id: taffy::NodeId) -> Self::FlexboxItemStyle<'_> {
-        &self.app_state.widget_data[child_node_id.into()].style
+        self.get_layout_style(child_node_id)
     }
 }
 
 impl<'a> LayoutGridContainer for LayoutContext<'a> {
-    type GridContainerStyle<'b> = &'b taffy::Style where Self: 'b;
-    type GridItemStyle<'b> = &'b taffy::Style where Self: 'b;
+    type GridContainerStyle<'b> = LayoutStyle<'b> where Self: 'b;
+    type GridItemStyle<'b> = LayoutStyle<'b> where Self: 'b;
 
     fn get_grid_container_style(&self, node_id: taffy::NodeId) -> Self::GridContainerStyle<'_> {
-        &self.app_state.widget_data[node_id.into()].style
+        self.get_layout_style(node_id)
     }
 
     fn get_grid_child_style(&self, child_node_id: taffy::NodeId) -> Self::GridItemStyle<'_> {
-        &self.app_state.widget_data[child_node_id.into()].style
+        self.get_layout_style(child_node_id)
     }
 }
 
 impl<'a> LayoutPartialTree for LayoutContext<'a> {
-    type CoreContainerStyle<'b> = &'b WidgetData where Self : 'b;
+    type CoreContainerStyle<'b> = LayoutStyle<'b> where Self : 'b;
     type CacheMut<'b> = &'b mut taffy::Cache where Self : 'b;
     
     fn get_core_container_style(&self, node_id: taffy::NodeId) -> Self::CoreContainerStyle<'_> {
-        &self.app_state.widget_data[node_id.into()]
+		self.get_layout_style(node_id)
     }
 
     fn set_unrounded_layout(&mut self, node_id: taffy::NodeId, layout: &taffy::Layout) {
@@ -164,25 +196,21 @@ impl<'a> LayoutPartialTree for LayoutContext<'a> {
         }
         
         taffy::compute_cached_layout(self, node_id, inputs, |tree, node, inputs| {
-            let display_mode = tree.get_core_container_style(node).style.display;
-            let has_children = tree.child_count(node) > 0;
-
-            // Dispatch to a layout algorithm based on the node's display style and whether the node has children or not.
-            match (display_mode, has_children) {
-                (taffy::Display::None, _) => taffy::compute_hidden_layout(tree, node),
-                (taffy::Display::Block, true) => taffy::compute_block_layout(tree, node, inputs),
-                (taffy::Display::Flex, true) => taffy::compute_flexbox_layout(tree, node, inputs),
-                (taffy::Display::Grid, true) => taffy::compute_grid_layout(tree, node, inputs),
-                (_, false) => {
+			match tree.get_layout_algorithm(node) {
+				LayoutAlgorithm::Hidden => taffy::compute_hidden_layout(tree, node),
+				LayoutAlgorithm::Block => taffy::compute_block_layout(tree, node, inputs),
+				LayoutAlgorithm::Grid => taffy::compute_grid_layout(tree, node, inputs),
+				LayoutAlgorithm::Flex => taffy::compute_flexbox_layout(tree, node, inputs),
+				LayoutAlgorithm::Leaf => {
                     let widget_id = node.into();
-                    let style = &tree.app_state.widget_data[widget_id].style;
+                    let style = tree.get_layout_style(node);
                     let widget = &tree.app_state.widgets[widget_id];
                     let measure_function = |known_dimensions, available_space| {
-                        widget.measure(style, known_dimensions, available_space)
+                        widget.measure(known_dimensions, available_space)
                     };
-                    taffy::compute_leaf_layout(inputs, style, measure_function)
-                }
-            }
+                    taffy::compute_leaf_layout(inputs, &style, measure_function)
+                },
+			}
         })
     }
 }

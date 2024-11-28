@@ -3,7 +3,7 @@ use std::{collections::VecDeque, ops::{Deref, DerefMut}};
 use bitflags::bitflags;
 use slotmap::{new_key_type, Key, KeyData};
 
-use crate::{core::{Point, Rectangle, Size}, style::Style};
+use crate::{core::{Point, Rectangle, Size}, style::{DisplayStyle, Style}};
 use super::{app_state::Task, Widget, WindowId};
 
 new_key_type! {
@@ -41,6 +41,7 @@ pub struct WidgetData {
     pub(super) parent_id: WidgetId,
     pub(super) children: Vec<WidgetId>,
     pub(super) style: Style,
+	pub(super) display_style: DisplayStyle,
     pub(super) cache: taffy::Cache,
     pub(super) layout: taffy::Layout,
     pub(super) flags: WidgetFlags,
@@ -55,6 +56,7 @@ impl WidgetData {
             parent_id: WidgetId::null(),
             children: Vec::new(),
             style: Default::default(),
+			display_style: Default::default(),
             cache: Default::default(),
             layout: Default::default(),
             flags: WidgetFlags::EMPTY,
@@ -138,6 +140,11 @@ impl WidgetData {
         f(&mut self.style);
         self
     }
+
+	pub fn with_display_style(mut self, f: impl Fn(&mut DisplayStyle)) -> Self {
+		f(&mut self.display_style);
+		self
+	}
 
     pub fn is_hidden(&self) -> bool {
         self.style.hidden
@@ -226,6 +233,10 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
 
 	pub fn update_style(&mut self, f: impl FnOnce(&mut Style)) {
 		f(&mut self.data.style);
+	}
+
+	pub fn update_display_style(&mut self, f: impl FnOnce(&mut DisplayStyle)) {
+		f(&mut self.data.display_style);
 	}
 
     pub fn layout_requested(&self) -> bool {

@@ -38,7 +38,7 @@ pub trait Widget: Any {
     }
 
     /// Measure the widget. This must be implemented for widgets that do not have any children
-    fn measure(&self, _style: &taffy::Style, _known_dimensions: taffy::Size<Option<f32>>, _available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
+    fn measure(&self, _known_dimensions: taffy::Size<Option<f32>>, _available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
         taffy::Size::ZERO
     }
 
@@ -94,8 +94,8 @@ impl Widget for Box<dyn Widget> {
         self.deref_mut().status_updated(event, ctx)
     }
 
-    fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
-        self.deref().measure(style, known_dimensions, available_space)
+    fn measure(&self, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
+        self.deref().measure(known_dimensions, available_space)
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {

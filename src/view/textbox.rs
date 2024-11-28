@@ -1,5 +1,5 @@
 use std::ops::Range;
-use crate::{app::{AnimationContext, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Cursor, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, text::TextLayout, MouseEvent};
+use crate::{app::{AnimationContext, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Cursor, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, style::{Length, Style, UiRect}, text::TextLayout, MouseEvent};
 use unicode_segmentation::{UnicodeSegmentation, GraphemeCursor};
 
 use super::View;
@@ -30,12 +30,9 @@ impl View for TextBox {
         ctx.set_focusable(true);
 
 		{
-			use taffy::prelude::*;
-			let border = LengthPercentage::Length(1.0);
-			let padding = LengthPercentage::Length(2.0);
-			ctx.set_style(taffy::Style {
-				padding: Rect { left: padding, right: padding, top: padding, bottom: padding }, 
-				border: Rect { left: border, right: border, top: border, bottom: border }, 
+			ctx.set_style(Style {
+				padding: UiRect::all(Length::Px(2.0)), 
+				border: UiRect::all(Length::Px(1.0)), 
 				..Default::default()
 			});
 		}

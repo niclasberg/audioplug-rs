@@ -1,4 +1,4 @@
-use crate::{app::{Accessor, BuildContext, EventStatus, MouseEventContext, RenderContext, Widget, WidgetMut}, core::{Color, Shape}, MouseEvent};
+use crate::{app::{Accessor, BuildContext, EventStatus, MouseEventContext, RenderContext, Widget, WidgetMut}, core::{Color, Shape, Size}, style::{Length, Style}, MouseEvent};
 
 use super::View;
 
@@ -22,14 +22,13 @@ impl View for Checkbox {
             (*widget).checked = *value;
 			widget.request_render();
         });
-		ctx.set_style(taffy::Style {
-            size: taffy::Size { width: taffy::Dimension::Length(20.0), height: taffy::Dimension::Length(10.0) },
+		ctx.set_style(Style {
+            size: Size::new(Length::Px(20.0), Length::Px(10.0)),
             ..Default::default()
         });
         CheckboxWidget { checked }
     }
 }
-
 
 pub struct CheckboxWidget {
     checked: bool,

@@ -1,4 +1,4 @@
-use crate::{app::{Accessor, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, param::{AnyParameter, NormalizedValue, PlainValue}, KeyEvent, MouseEvent};
+use crate::{app::{Accessor, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, param::{AnyParameter, NormalizedValue, PlainValue}, style::{Length, Style}, KeyEvent, MouseEvent};
 
 use super::View;
 
@@ -55,8 +55,8 @@ impl View for Slider {
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         ctx.set_focusable(true);
-		ctx.set_style(taffy::Style {
-            size: taffy::Size { width: taffy::Dimension::Auto, height: taffy::Dimension::Length(10.0) },
+		ctx.set_style(Style {
+            size: Size::new(Length::Auto, Length::Px(10.0)),
             ..Default::default()
         });
 

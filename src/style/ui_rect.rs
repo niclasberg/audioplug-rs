@@ -1,6 +1,7 @@
 use super::Length;
 
 /// Type used to define padding, margin and border
+#[derive(Debug, Copy, Clone)]
 pub struct UiRect {
     pub left: Length,
     pub right: Length,
@@ -31,4 +32,32 @@ impl UiRect {
             bottom: value,
         }
     }
+}
+
+impl Default for UiRect {
+	fn default() -> Self {
+		Self::DEFAULT
+	}
+}
+
+impl Into<taffy::Rect<taffy::LengthPercentage>> for UiRect {
+	fn into(self) -> taffy::Rect<taffy::LengthPercentage> {
+		taffy::Rect {
+			left: self.left.into(),
+			right: self.right.into(),
+			top: self.top.into(),
+			bottom: self.bottom.into(),
+		}
+	}
+}
+
+impl Into<taffy::Rect<taffy::LengthPercentageAuto>> for UiRect {
+	fn into(self) -> taffy::Rect<taffy::LengthPercentageAuto> {
+		taffy::Rect {
+			left: self.left.into(),
+			right: self.right.into(),
+			top: self.top.into(),
+			bottom: self.bottom.into(),
+		}
+	}
 }
