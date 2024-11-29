@@ -1,4 +1,4 @@
-use crate::{app::{Accessor, BuildContext, EventStatus, MouseEventContext, RenderContext, Widget, WidgetMut}, core::{Color, Shape, Size}, style::{Length, Style}, MouseEvent};
+use crate::{app::{Accessor, BuildContext, EventStatus, MouseEventContext, RenderContext, Widget, WidgetMut}, core::{Color, Shape, Size}, style::{DisplayStyle, Length, Measure, Style}, MouseEvent};
 
 use super::View;
 
@@ -34,22 +34,27 @@ pub struct CheckboxWidget {
     checked: bool,
 }
 
+impl Measure for CheckboxWidget {
+    fn measure(&self, _: &Style, width: Option<f64>, height: Option<f64>, _: taffy::AvailableSpace, _: taffy::AvailableSpace) -> Size<f64>  {
+        if let (Some(width), Some(height)) = (width, height) {
+            Size::new(width, height)
+        } else {
+            Size::ZERO
+        }
+    }
+}
+
 impl Widget for CheckboxWidget {
 	fn debug_label(&self) -> &'static str {
 		"Checkbox"
 	}
 
 	fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
-		
 		EventStatus::Handled
 	}
 
-    fn measure(&self, _style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, _available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
-        if let taffy::Size { width: Some(width), height: Some(height) } = known_dimensions {
-            taffy::Size { width, height }
-        } else {
-            taffy::Size::zero()
-        }
+    fn display_style(&self) -> DisplayStyle {
+        DisplayStyle::Leaf(self)
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {

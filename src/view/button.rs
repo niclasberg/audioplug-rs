@@ -1,4 +1,4 @@
-use crate::{app::{AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, style::{Display, Length, Style, UiRect}, MouseEvent};
+use crate::{app::{AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, style::{DisplayStyle, Length, Style, UiRect}, MouseEvent};
 
 use super::View;
 
@@ -26,8 +26,6 @@ impl<V: View> View for Button<V> {
         ctx.add_child(self.child);
 		ctx.set_style(Style {
             padding: UiRect::all(Length::Px(4.0)),
-            //justify_content: Some(taffy::JustifyContent::Center),
-			display: Display::Block,
             ..Default::default()
         });
 
@@ -131,5 +129,9 @@ impl Widget for ButtonWidget {
         ctx.stroke(shape, Color::BLACK, 1.0);
         
         ctx.render_children()
+    }
+
+    fn display_style(&self) -> DisplayStyle {
+        DisplayStyle::Block
     }
 }

@@ -1,4 +1,4 @@
-use crate::{app::{Accessor, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, param::{AnyParameter, NormalizedValue, PlainValue}, style::{Length, Style}, KeyEvent, MouseEvent};
+use crate::{app::{Accessor, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, param::{AnyParameter, NormalizedValue, PlainValue}, style::{Length, Measure, Style}, KeyEvent, MouseEvent};
 
 use super::View;
 
@@ -172,6 +172,25 @@ impl SliderWidget {
     }
 }
 
+impl Measure for SliderWidget {
+    fn measure(&self, 
+            style: &Style,
+            width: Option<f64>, 
+            height: Option<f64>, 
+            available_width: taffy::AvailableSpace, 
+            available_height: taffy::AvailableSpace) -> Size<f64> 
+    {
+        let width = width.unwrap_or(available_width.map(|x| match x {
+            taffy::AvailableSpace::Definite(x) => x,
+            taffy::AvailableSpace::MinContent => 5.0,
+            taffy::AvailableSpace::MaxContent => 100.0,
+        }));
+        let height = height.unwrap_or(5.0);
+
+        Size::new(width, height)
+    }
+}
+
 impl Widget for SliderWidget {
 	fn debug_label(&self) -> &'static str {
 		"Slider"
@@ -263,14 +282,6 @@ impl Widget for SliderWidget {
             },
             _ => EventStatus::Ignored
         }
-    }
-
-    fn measure(&self, _style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
-        known_dimensions.unwrap_or(available_space.map(|x| match x {
-            taffy::AvailableSpace::Definite(x) => x,
-            taffy::AvailableSpace::MinContent => 5.0,
-            taffy::AvailableSpace::MaxContent => 100.0,
-        }))
     }
 
     fn status_updated(&mut self, event: StatusChange, ctx: &mut EventContext) {

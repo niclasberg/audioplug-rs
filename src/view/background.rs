@@ -1,4 +1,4 @@
-use crate::{app::{Accessor, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Border, Color, Cursor}, KeyEvent, MouseEvent};
+use crate::{app::{Accessor, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Border, Color, Cursor}, style::DisplayStyle, KeyEvent, MouseEvent};
 
 use super::View;
 
@@ -90,8 +90,8 @@ impl<W: Widget> Widget for BackgroundWidget<W> {
         self.widget.render(ctx)
     }
 
-    fn measure(&self, style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
-        self.widget.measure(style, known_dimensions, available_space)
+    fn display_style(&self) -> DisplayStyle {
+        self.widget.display_style()   
     }
 
 	fn inner_widget(&self) -> Option<&dyn Widget> {

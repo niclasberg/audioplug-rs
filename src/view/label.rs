@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use crate::{app::{Accessor, BuildContext, RenderContext, Widget, WidgetMut}, core::{Color, Size}, text::TextLayout};
+use crate::{app::{Accessor, BuildContext, RenderContext, Widget, WidgetMut}, core::{Color, Size}, style::{DisplayStyle, Measure}, text::TextLayout};
 
 use super::View;
 
@@ -46,19 +46,21 @@ pub struct TextWidget {
 	color: Color
 }
 
-impl Widget for TextWidget {
-	fn debug_label(&self) -> &'static str {
-		"Label"
-	}
-
-    fn measure(&self, _style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
-        let width_constraint = known_dimensions.width.unwrap_or(match available_space.width {
+impl Measure for TextWidget {
+    fn measure(&self, 
+        style: &crate::style::Style,
+        width: Option<f64>, 
+        height: Option<f64>, 
+        available_width: taffy::AvailableSpace, 
+        available_height: taffy::AvailableSpace) -> Size
+    {
+        let width_constraint = width.unwrap_or(match available_width {
             taffy::AvailableSpace::MinContent => 0.0,
             taffy::AvailableSpace::MaxContent => f32::INFINITY,
             taffy::AvailableSpace::Definite(width) => width,
         }) as f64;
 
-        let height_constraint = known_dimensions.height.unwrap_or(match available_space.height {
+        let height_constraint = height.unwrap_or(match available_height {
             taffy::AvailableSpace::MinContent => f32::INFINITY,
             taffy::AvailableSpace::MaxContent => f32::INFINITY,
             taffy::AvailableSpace::Definite(height) => height,
@@ -69,6 +71,16 @@ impl Widget for TextWidget {
         let measured_size: taffy::Size<f32> = text_layout.measure().map(|x| x as f32).into();
         
         known_dimensions.unwrap_or(measured_size)
+    }
+}
+
+impl Widget for TextWidget {
+	fn debug_label(&self) -> &'static str {
+		"Label"
+	}
+
+    fn display_style(&self) -> DisplayStyle {
+        DisplayStyle::Leaf(self)
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {

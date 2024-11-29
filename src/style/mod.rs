@@ -4,16 +4,26 @@ mod ui_rect;
 mod layout_style;
 
 use crate::core::Size;
-pub use taffy::{FlexDirection, FlexWrap};
+pub use taffy::{FlexDirection, FlexWrap, Overflow};
 pub use style_builder::StyleBuilder;
 pub use length::Length;
 pub use ui_rect::UiRect;
 pub(crate) use layout_style::LayoutStyle;
 
-#[derive(Debug, Copy, Clone)]
-pub enum DisplayStyle {
+pub trait Measure {
+	fn measure(&self, 
+		style: &Style,
+		width: Option<f64>, 
+		height: Option<f64>, 
+		available_width: taffy::AvailableSpace, 
+		available_height: taffy::AvailableSpace) -> Size<f64>;
+}
+
+#[derive(Copy, Clone)]
+pub enum DisplayStyle<'a> {
 	Block,
-	Flex(FlexStyle)
+	Flex(&'a FlexStyle),
+	Leaf(&'a dyn Measure)
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -33,12 +43,6 @@ impl Default for FlexStyle {
 	}
 }
 
-impl Default for DisplayStyle {
-	fn default() -> Self {
-		Self::Flex(Default::default())
-	}
-}
-
 #[derive(Debug, Copy, Clone)]
 pub struct Style {
 	pub hidden: bool,
@@ -51,6 +55,8 @@ pub struct Style {
 	pub margin: UiRect,
 	pub inset: UiRect,
 	pub scrollbar_width: f64, 
+	pub overflow_x: Overflow,
+	pub overflow_y: Overflow
 }
 
 impl Default for Style {
@@ -66,6 +72,8 @@ impl Default for Style {
 			margin: UiRect::ZERO,
 			inset: UiRect::ZERO,
 			scrollbar_width: 5.0,
+			overflow_x: Overflow::Hidden,
+			overflow_y: Overflow::Hidden,
 		}
 	}
 }

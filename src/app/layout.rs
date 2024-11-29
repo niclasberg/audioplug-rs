@@ -1,4 +1,4 @@
-use taffy::{LayoutBlockContainer, LayoutFlexboxContainer, LayoutGridContainer, LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree};
+use taffy::{AvailableSpace, LayoutBlockContainer, LayoutFlexboxContainer, LayoutGridContainer, LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree};
 use crate::{core::Point, style::{DisplayStyle, LayoutStyle}};
 
 use super::{invalidate_window, widget_node::WidgetFlags, AppState, WidgetData, WidgetId, WindowId};
@@ -75,23 +75,9 @@ impl<'a> LayoutContext<'a> {
 	fn get_layout_style<'b>(&self, node_id: taffy::NodeId) -> LayoutStyle<'b> {
 		LayoutStyle { 
 			style: &self.app_state.widget_data[node_id.into()].style, 
-			display_style: &self.app_state.widget_data[node_id.into()].display_style,
+			display_style: self.app_state.widgets[node_id.into()].display_style(),
 			scale_factor: todo!(), 
 			window_size: todo!() 
-		}
-	}
-
-	fn get_layout_algorithm(&self, node_id: taffy::NodeId) -> LayoutAlgorithm {
-		let data = &self.app_state.widget_data[node_id.into()];
-		if data.is_hidden() {
-			LayoutAlgorithm::Hidden
-		} else if data.children.len() == 0 {
-			LayoutAlgorithm::Leaf
-		} else {
-			match data.display_style {
-				DisplayStyle::Block => LayoutAlgorithm::Block,
-				DisplayStyle::Flex(_) => LayoutAlgorithm::Flex,
-			}
 		}
 	}
 }
@@ -151,7 +137,7 @@ impl<'a> LayoutFlexboxContainer for LayoutContext<'a> {
     }
 }
 
-impl<'a> LayoutGridContainer for LayoutContext<'a> {
+/*impl<'a> LayoutGridContainer for LayoutContext<'a> {
     type GridContainerStyle<'b> = LayoutStyle<'b> where Self: 'b;
     type GridItemStyle<'b> = LayoutStyle<'b> where Self: 'b;
 
@@ -162,7 +148,7 @@ impl<'a> LayoutGridContainer for LayoutContext<'a> {
     fn get_grid_child_style(&self, child_node_id: taffy::NodeId) -> Self::GridItemStyle<'_> {
         self.get_layout_style(child_node_id)
     }
-}
+}*/
 
 impl<'a> LayoutPartialTree for LayoutContext<'a> {
     type CoreContainerStyle<'b> = LayoutStyle<'b> where Self : 'b;
@@ -196,21 +182,30 @@ impl<'a> LayoutPartialTree for LayoutContext<'a> {
         }
         
         taffy::compute_cached_layout(self, node_id, inputs, |tree, node, inputs| {
-			match tree.get_layout_algorithm(node) {
-				LayoutAlgorithm::Hidden => taffy::compute_hidden_layout(tree, node),
-				LayoutAlgorithm::Block => taffy::compute_block_layout(tree, node, inputs),
-				LayoutAlgorithm::Grid => taffy::compute_grid_layout(tree, node, inputs),
-				LayoutAlgorithm::Flex => taffy::compute_flexbox_layout(tree, node, inputs),
-				LayoutAlgorithm::Leaf => {
-                    let widget_id = node.into();
-                    let style = tree.get_layout_style(node);
-                    let widget = &tree.app_state.widgets[widget_id];
-                    let measure_function = |known_dimensions, available_space| {
-                        widget.measure(known_dimensions, available_space)
-                    };
-                    taffy::compute_leaf_layout(inputs, &style, measure_function)
-                },
-			}
+            if tree.app_state.widget_data[node_id.into()].is_hidden() {
+                taffy::compute_hidden_layout(tree, node)
+            } else {
+                let display_style = tree.app_state.widgets[node.into()].display_style();
+                match display_style {
+                    DisplayStyle::Block => taffy::compute_block_layout(tree, node, inputs),
+                    DisplayStyle::Flex(_) => taffy::compute_flexbox_layout(tree, node, inputs),
+                    DisplayStyle::Leaf(measure) => {
+                        let style = &tree.app_state.widget_data[node.into()].style;    
+                        let measure_function = |known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<AvailableSpace>| {
+                            let size = measure.measure(&style, 
+                                known_dimensions.width.map(|x| x as _), 
+                                known_dimensions.height.map(|x| x as _), 
+                                available_space.width, 
+                                available_space.height);
+                            taffy::Size {
+                                width: size.width as _,
+                                height: size.height as _,
+                            }
+                        };
+                        taffy::compute_leaf_layout(inputs, &tree.get_layout_style(node_id), measure_function)
+                    },  
+                } 
+            }
         })
     }
 }

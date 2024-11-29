@@ -70,10 +70,6 @@ impl<'a, W: Widget> BuildContext<'a, W> {
 		self.app_state.widget_data_mut(self.id).style = style;
 	}
 
-	pub fn set_display_style(&mut self, style: impl Into<DisplayStyle>) {
-		self.app_state.widget_data_mut(self.id).display_style = style.into();
-	}
-
 	pub fn update_style(&mut self, f: impl FnOnce(&mut Style)) {
 		f(&mut self.app_state.widget_data_mut(self.id).style);
 	}

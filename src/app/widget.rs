@@ -1,6 +1,6 @@
 use std::{any::{Any, TypeId}, ops::{Deref, DerefMut}};
 
-use crate::{core::Cursor, AnimationFrame, KeyEvent, MouseEvent};
+use crate::{core::Cursor, style::DisplayStyle, AnimationFrame, KeyEvent, MouseEvent};
 
 use super::{animation::AnimationContext, EventContext, MouseEventContext, RenderContext};
 
@@ -37,10 +37,7 @@ pub trait Widget: Any {
         None
     }
 
-    /// Measure the widget. This must be implemented for widgets that do not have any children
-    fn measure(&self, _known_dimensions: taffy::Size<Option<f32>>, _available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
-        taffy::Size::ZERO
-    }
+    fn display_style(&self) -> DisplayStyle;
 
 	/// Widgets that wrap another widget (like background, styled etc) need to implement this method and return the 
 	/// wrapped widget in order for downcasting to work properly.
@@ -94,8 +91,8 @@ impl Widget for Box<dyn Widget> {
         self.deref_mut().status_updated(event, ctx)
     }
 
-    fn measure(&self, known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
-        self.deref().measure(known_dimensions, available_space)
+    fn display_style(&self) -> DisplayStyle {
+        self.deref().display_style()   
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {

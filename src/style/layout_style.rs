@@ -6,7 +6,7 @@ use super::{DisplayStyle, Style};
 /// Style used during layout
 pub struct LayoutStyle<'a> {
 	pub(crate) style: &'a Style,
-	pub(crate) display_style: &'a DisplayStyle,
+	pub(crate) display_style: DisplayStyle<'a>,
 	pub(crate) scale_factor: f64,
 	pub(crate) window_size: Size<f64>,
 }
@@ -32,7 +32,7 @@ impl<'a> taffy::CoreStyle for LayoutStyle<'a> {
 	}
 
 	fn overflow(&self) -> taffy::Point<taffy::Overflow> {
-		self.style.overflow
+		taffy::Point { x: self.style.overflow_x, y: self.style.overflow_y }
 	}
 
 	fn scrollbar_width(&self) -> f32 {

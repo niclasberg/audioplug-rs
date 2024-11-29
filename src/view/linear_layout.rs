@@ -88,7 +88,6 @@ impl<VS: ViewSequence> View for Row<VS> {
 		ctx.set_style(taffy::Style {
             flex_direction: taffy::FlexDirection::Row,
             gap: taffy::Size::from_length(self.spacing as f32),
-            display: taffy::Display::Flex,
             ..Default::default()
         });
         LinearLayoutWidget {
@@ -98,7 +97,8 @@ impl<VS: ViewSequence> View for Row<VS> {
 }
 
 pub struct LinearLayoutWidget {
-    alignment: Alignment
+    alignment: Alignment,
+    flex_style: FlexStyle
 }
 
 impl Widget for LinearLayoutWidget {
@@ -108,5 +108,9 @@ impl Widget for LinearLayoutWidget {
 
     fn render(&mut self, ctx: &mut RenderContext) {
         ctx.render_children();
+    }
+
+    fn display_style(&self) -> DisplayStyle {
+        DisplayStyle::Flex(&self.flex_style)
     }
 }

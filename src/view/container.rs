@@ -1,4 +1,4 @@
-use crate::app::{ViewContext, BuildContext, Widget};
+use crate::{app::{BuildContext, ViewContext, Widget}, style::DisplayStyle};
 
 use super::View;
 
@@ -43,5 +43,9 @@ impl Widget for ContainerWidget {
 
 	fn render(&mut self, ctx: &mut crate::app::RenderContext) {
 		ctx.render_children()
+	}
+
+	fn display_style(&self) -> DisplayStyle {
+		DisplayStyle::Block
 	}
 }
