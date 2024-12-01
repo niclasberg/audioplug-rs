@@ -1,6 +1,6 @@
 use windows::{core::Result, Foundation::Numerics::Matrix3x2, Win32::{Foundation::{HWND, RECT}, Graphics::Direct2D, UI::WindowsAndMessaging::GetClientRect}};
 
-use crate::core::{Rectangle, Color, Size, Transform, Point};
+use crate::core::{Color, Point, Rectangle, RoundedRectangle, Size, Transform};
 use std::mem::MaybeUninit;
 use super::{com::direct2d_factory, ImageSource, TextLayout};
 
@@ -22,6 +22,16 @@ impl Into<Direct2D::Common::D2D_RECT_F> for Rectangle {
             top: self.top() as f32,
             right: self.right() as f32,
             bottom: self.bottom() as f32
+        }
+    }
+}
+
+impl Into<Direct2D::D2D1_ROUNDED_RECT> for RoundedRectangle {
+    fn into(self) -> Direct2D::D2D1_ROUNDED_RECT {
+        Direct2D::D2D1_ROUNDED_RECT {
+            rect: self.rect.into(),
+            radiusX: self.corner_radius.width as f32,
+            radiusY: self.corner_radius.height as f32,
         }
     }
 }
@@ -207,31 +217,21 @@ impl Renderer {
         };
     }
 
-    pub fn draw_rounded_rectangle(&mut self, rect: Rectangle, radius: Size, color: Color, line_width: f32) {
+    pub fn draw_rounded_rectangle(&mut self, rect: RoundedRectangle, color: Color, line_width: f32) {
         unsafe {
             self.brush.SetColor(&color.into());
-            let rounded_rect = Direct2D::D2D1_ROUNDED_RECT {
-                rect: rect.into(),
-                radiusX: radius.width as f32,
-                radiusY: radius.height as f32,
-            };
             self.render_target.DrawRoundedRectangle(
-                &rounded_rect, 
+                &rect.into(), 
                 &self.brush, 
                 line_width, 
                 None);
         }
     }
 
-    pub fn fill_rounded_rectangle(&mut self, rect: Rectangle, radius: Size, color: Color) {
+    pub fn fill_rounded_rectangle(&mut self, rect: RoundedRectangle, color: Color) {
         unsafe {
             self.brush.SetColor(&color.into());
-            let rounded_rect = Direct2D::D2D1_ROUNDED_RECT {
-                rect: rect.into(),
-                radiusX: radius.width as f32,
-                radiusY: radius.height as f32,
-            };
-            self.render_target.FillRoundedRectangle(&rounded_rect, &self.brush)
+            self.render_target.FillRoundedRectangle(&rect.into(), &self.brush)
         }
     }
 

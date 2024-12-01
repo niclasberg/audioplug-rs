@@ -1,4 +1,4 @@
-use crate::{app::{Accessor, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, param::{AnyParameter, NormalizedValue, PlainValue}, style::{Length, Measure, Style}, KeyEvent, MouseEvent};
+use crate::{app::{Accessor, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, param::{AnyParameter, NormalizedValue, PlainValue}, style::{DisplayStyle, Length, Measure, Style}, KeyEvent, MouseEvent};
 
 use super::View;
 
@@ -174,17 +174,17 @@ impl SliderWidget {
 
 impl Measure for SliderWidget {
     fn measure(&self, 
-            style: &Style,
-            width: Option<f64>, 
-            height: Option<f64>, 
-            available_width: taffy::AvailableSpace, 
-            available_height: taffy::AvailableSpace) -> Size<f64> 
+        _style: &Style,
+        width: Option<f64>, 
+        height: Option<f64>, 
+        available_width: taffy::AvailableSpace, 
+        _available_height: taffy::AvailableSpace) -> Size<f64> 
     {
-        let width = width.unwrap_or(available_width.map(|x| match x {
-            taffy::AvailableSpace::Definite(x) => x,
+        let width = width.unwrap_or(match available_width {
+            taffy::AvailableSpace::Definite(x) => x.into(),
             taffy::AvailableSpace::MinContent => 5.0,
             taffy::AvailableSpace::MaxContent => 100.0,
-        }));
+        });
         let height = height.unwrap_or(5.0);
 
         Size::new(width, height)
@@ -317,5 +317,9 @@ impl Widget for SliderWidget {
         
         ctx.fill(Rectangle::from_center(center, Size::new(width, 2.0)), Color::BLACK);
         ctx.fill(self.knob_shape(bounds), knob_color);
+    }
+
+    fn display_style(&self) -> DisplayStyle {
+        DisplayStyle::Leaf(self)
     }
 }

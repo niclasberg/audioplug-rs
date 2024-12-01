@@ -48,7 +48,7 @@ pub struct TextWidget {
 
 impl Measure for TextWidget {
     fn measure(&self, 
-        style: &crate::style::Style,
+        _style: &crate::style::Style,
         width: Option<f64>, 
         height: Option<f64>, 
         available_width: taffy::AvailableSpace, 
@@ -56,21 +56,19 @@ impl Measure for TextWidget {
     {
         let width_constraint = width.unwrap_or(match available_width {
             taffy::AvailableSpace::MinContent => 0.0,
-            taffy::AvailableSpace::MaxContent => f32::INFINITY,
-            taffy::AvailableSpace::Definite(width) => width,
-        }) as f64;
+            taffy::AvailableSpace::MaxContent => f64::INFINITY,
+            taffy::AvailableSpace::Definite(width) => width.into(),
+        });
 
         let height_constraint = height.unwrap_or(match available_height {
-            taffy::AvailableSpace::MinContent => f32::INFINITY,
-            taffy::AvailableSpace::MaxContent => f32::INFINITY,
-            taffy::AvailableSpace::Definite(height) => height,
-        }) as f64; 
+            taffy::AvailableSpace::MinContent => f64::INFINITY,
+            taffy::AvailableSpace::MaxContent => f64::INFINITY,
+            taffy::AvailableSpace::Definite(height) => height.into(),
+        }); 
 
 		let mut text_layout = self.text_layout.borrow_mut();
         text_layout.set_max_size(Size::new(width_constraint, height_constraint));
-        let measured_size: taffy::Size<f32> = text_layout.measure().map(|x| x as f32).into();
-        
-        known_dimensions.unwrap_or(measured_size)
+        text_layout.measure()
     }
 }
 

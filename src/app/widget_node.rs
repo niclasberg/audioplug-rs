@@ -3,7 +3,7 @@ use std::{collections::VecDeque, ops::{Deref, DerefMut}};
 use bitflags::bitflags;
 use slotmap::{new_key_type, Key, KeyData};
 
-use crate::{core::{Point, Rectangle, Size}, style::{DisplayStyle, Style}};
+use crate::{core::{Point, Rectangle, RoundedRectangle, Shape, Size}, style::{DisplayStyle, Style}};
 use super::{app_state::Task, Widget, WindowId};
 
 new_key_type! {
@@ -141,6 +141,14 @@ impl WidgetData {
 
     pub fn is_hidden(&self) -> bool {
         self.style.hidden
+    }
+
+    pub fn shape(&self) -> Shape {
+        if self.style.corner_radius == Size::ZERO{
+            self.global_bounds().into()
+        } else {
+            RoundedRectangle::new(self.global_bounds(), self.style.corner_radius).into()
+        }
     }
 }
 

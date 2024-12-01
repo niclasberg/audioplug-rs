@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{app::ViewContext, core::Size, param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params}, view::{AnyView, Column, Label, ParameterSlider, Row, View}};
+use crate::{app::ViewContext, core::Size, param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params}, style::{Length, UiRect}, view::{AnyView, Flex, Label, ParameterSlider, View}};
 
 pub trait Editor: 'static {
 	type Parameters: Params;
@@ -34,7 +34,7 @@ impl ParamVisitor for CreateParameterViewsVisitor {
 	}
 
 	fn float_parameter(&mut self, p: &crate::param::FloatParameter) {
-		let view = Row::new((
+		let view = Flex::row((
 			Label::new(p.info().name()),
 			ParameterSlider::new(p).as_any(),
 		));
@@ -42,7 +42,7 @@ impl ParamVisitor for CreateParameterViewsVisitor {
 	}
 
 	fn int_parameter(&mut self, p: &crate::param::IntParameter) {
-		let view = Row::new((
+		let view = Flex::row((
 			Label::new(p.info().name()),
 			ParameterSlider::new(p).as_any(),
 		));
@@ -57,11 +57,11 @@ impl ParamVisitor for CreateParameterViewsVisitor {
 		let mut child_visitor = Self::new();
 		group.children().visit(&mut child_visitor);
 
-		let view = Column::new((
+		let view = Flex::column((
 			Label::new(group.name()),
-			Column::new(child_visitor.views)
-				.padding_left(20.0)
-		)).padding_top(10.0);
+			Flex::column(child_visitor.views)
+				.style(|style| style.padding(UiRect::left_px(20.0)))
+		)).style(|style| style.padding(UiRect::top_px(10.0)));
 		self.views.push(view.as_any());
 	}
 }
@@ -95,6 +95,6 @@ impl<P: Params> Editor for GenericEditor<P> {
 				ParamRef::Bool(_) => todo!(),
 			}
 		}*/
-        Column::new(visitor.views).as_any()
+        Flex::column(visitor.views).as_any()
     }
 }

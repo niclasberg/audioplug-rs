@@ -7,8 +7,6 @@ use super::{DisplayStyle, Style};
 pub struct LayoutStyle<'a> {
 	pub(crate) style: &'a Style,
 	pub(crate) display_style: DisplayStyle<'a>,
-	pub(crate) scale_factor: f64,
-	pub(crate) window_size: Size<f64>,
 }
 
 impl<'a> taffy::CoreStyle for LayoutStyle<'a> {
@@ -28,7 +26,7 @@ impl<'a> taffy::CoreStyle for LayoutStyle<'a> {
 	}
 
 	fn box_sizing(&self) -> taffy::BoxSizing {
-		taffy::BoxSizing::ContentBox
+		taffy::Style::DEFAULT.box_sizing
 	}
 
 	fn overflow(&self) -> taffy::Point<taffy::Overflow> {
@@ -108,5 +106,35 @@ impl<'a> taffy::FlexboxContainerStyle for LayoutStyle<'a> {
 
 	fn justify_content(&self) -> Option<taffy::JustifyContent> {
 		taffy::Style::DEFAULT.justify_content
+	}
+}
+
+impl<'a> taffy::FlexboxItemStyle for LayoutStyle<'a> {
+	fn flex_basis(&self) -> taffy::Dimension {
+		taffy::Style::DEFAULT.flex_basis
+	}
+
+	fn flex_grow(&self) -> f32 {
+		taffy::Style::DEFAULT.flex_grow
+	}
+
+	fn flex_shrink(&self) -> f32 {
+		taffy::Style::DEFAULT.flex_shrink
+	}
+
+	fn align_self(&self) -> Option<taffy::AlignSelf> {
+		taffy::Style::DEFAULT.align_self
+	}
+}
+
+impl<'a> taffy::BlockContainerStyle for LayoutStyle<'a> {
+	fn text_align(&self) -> taffy::TextAlign {
+		taffy::Style::DEFAULT.text_align
+	}
+}
+
+impl<'a> taffy::BlockItemStyle for LayoutStyle<'a> {
+	fn is_table(&self) -> bool {
+		false
 	}
 }

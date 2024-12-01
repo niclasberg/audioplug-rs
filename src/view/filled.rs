@@ -1,4 +1,4 @@
-use crate::{app::{BuildContext, RenderContext, Widget}, core::{Color, Rectangle, Shape, Size}, style::{Length, Style}};
+use crate::{app::{BuildContext, RenderContext, Widget}, core::{Color, Rectangle, Shape, Size}, style::{DisplayStyle, Length, Measure, Style}};
 use super::View;
 
 
@@ -37,17 +37,28 @@ impl View for Filled {
     }
 }
 
+impl Measure for Filled {
+    fn measure(&self, 
+        style: &Style,
+        _width: Option<f64>, 
+        _height: Option<f64>, 
+        _available_width: taffy::AvailableSpace, 
+        _available_height: taffy::AvailableSpace) -> Size 
+    {
+        self.shape.bounds().size()
+    }
+}
+
 impl Widget for Filled {
 	fn debug_label(&self) -> &'static str {
 		"Filled"
 	}
 
-    fn measure(&self, _style: &taffy::Style, _known_dimensions: taffy::Size<Option<f32>>, _available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
-        let size = self.shape.bounds().size().map(|x| x as f32);
-        size.into()
-    }
-
     fn render(&mut self, ctx: &mut RenderContext) {
         ctx.fill(self.shape.offset(ctx.global_bounds().top_left()), self.color)
+    }
+
+    fn display_style(&self) -> DisplayStyle {
+        DisplayStyle::Leaf(self)
     }
 }

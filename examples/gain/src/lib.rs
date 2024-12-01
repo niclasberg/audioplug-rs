@@ -1,6 +1,7 @@
 use audioplug::core::{Color, Size};
 use audioplug::param::{BoolParameter, FloatParameter, FloatRange, Parameter, ParameterId, Params};
-use audioplug::view::{AnyView, Column, Label, ParameterSlider, View};
+use audioplug::style::UiRect;
+use audioplug::view::{AnyView, Flex, Label, ParameterSlider, View};
 use audioplug::app::{SignalGet, ViewContext};
 use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, params, AudioLayout, Bus, ChannelType, Editor, Plugin, ProcessContext, VST3Plugin};
 
@@ -38,12 +39,12 @@ impl Editor for MyEditor {
         let text = parameters.enabled.as_signal()
             .map(|value| if *value { "Enabled" } else { "Disabled"}.to_string());
         
-        Column::new((
+        Flex::column((
             Label::new(text),
             Label::new("Gain").color(Color::BLUE),
             ParameterSlider::new(&parameters.gain)
         ))
-		.padding(10.0)
+        .style(|style| style.padding(UiRect::all_px(10.0)))
 		.as_any()
     }
 }

@@ -142,8 +142,8 @@ impl Rectangle<f64> {
         Self::new(self.position(), self.size().scale_y(scale))
     }
 
-    pub fn offset(&self, delta: Vector) -> Self {
-        Self::new(self.position()+delta, self.size())
+    pub fn offset(&self, delta: impl Into<Vector>) -> Self {
+        Self::new(self.position()+delta.into(), self.size())
     }
 
 	pub fn combine_with(&self, other: &Self) -> Self {

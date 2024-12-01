@@ -1,4 +1,4 @@
-use crate::{core::{Color, Point, Rectangle, Shape, Transform}, platform, text::TextLayout};
+use crate::{core::{Color, Point, Rectangle, RoundedRectangle, Shape, Transform}, platform, text::TextLayout};
 
 use super::{AppState, WidgetId, WindowId};
 
@@ -56,8 +56,8 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
         match shape.into() {
             Shape::Rect(rect) => 
                 self.renderer.fill_rectangle(rect, color),
-            Shape::RoundedRect { rect, corner_radius } => 
-                self.renderer.fill_rounded_rectangle(rect, corner_radius, color),
+            Shape::Rounded(rect) => 
+                self.renderer.fill_rounded_rectangle(rect, color),
             Shape::Ellipse { center, radii } => 
                 self.renderer.fill_ellipse(center, radii, color),
             Shape::Line { p0, p1 } =>
@@ -69,12 +69,8 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
         match shape.into() {
             Shape::Rect(rect) => 
                 self.renderer.draw_rectangle(rect, color.into(), line_width),
-            Shape::RoundedRect { rect, corner_radius } => 
-                self.renderer.draw_rounded_rectangle(
-                    rect, 
-                    corner_radius, 
-                    color.into(), 
-                    line_width),
+            Shape::Rounded(rect) => 
+                self.renderer.draw_rounded_rectangle(rect.into(), color.into(), line_width),
             Shape::Ellipse { center, radii } => self.renderer.draw_ellipse(center, radii, color.into(), line_width),
             Shape::Line { p0, p1 } => self.renderer.draw_line(p0, p1, color.into(), line_width)
         }
@@ -100,6 +96,13 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
     }
 
     pub(crate) fn render_current_widget(&mut self) {
+        {
+            let widget_data = self.app_state.widget_data_ref(self.id);
+            if let Some(background_color) = widget_data.style.background {
+                self.fill(widget_data.shape(), background_color);
+            }
+        }
+
         let mut widget = self.app_state.widgets.remove(self.id).unwrap();
         widget.render(self);
         self.app_state.widgets.insert(self.id, widget);

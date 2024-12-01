@@ -80,6 +80,15 @@ impl Size<f64> {
     }
 }
 
+impl<T> Size<Option<T>> {
+    pub fn unwrap_or(self, other: Size<T>) -> Size<T> {
+        Size {
+            width: self.width.unwrap_or(other.width),
+            height: self.height.unwrap_or(other.height),
+        }
+    }
+}
+
 impl From<[u32; 2]> for Size {
     fn from([width, height]: [u32; 2]) -> Self {
         Self { width: width.into(), height: height.into() }

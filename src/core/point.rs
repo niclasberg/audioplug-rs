@@ -26,6 +26,15 @@ impl<T> Point<T> {
     }
 }
 
+impl<T> Point<Option<T>> {
+    pub fn unwrap_or(self, other: Point<T>) -> Point<T> {
+        Point {
+            x: self.x.unwrap_or(other.x),
+            y: self.y.unwrap_or(other.y),
+        }
+    }
+}
+
 impl Point<f64> {
     pub const ZERO: Self = Self {
         x: 0.0,

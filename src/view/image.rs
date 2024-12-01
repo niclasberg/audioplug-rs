@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::{app::Widget, core::{Color, Size}, platform};
+use crate::{app::Widget, core::{Color, Size}, platform, style::{DisplayStyle, Measure}};
 
 use super::View;
 
@@ -31,37 +31,49 @@ pub struct ImageWidget {
     source: Option<platform::ImageSource>
 }
 
+impl Measure for ImageWidget {
+    fn measure(&self, 
+        _style: &crate::style::Style,
+        width: Option<f64>, 
+        height: Option<f64>, 
+        _available_width: taffy::AvailableSpace, 
+        _available_height: taffy::AvailableSpace) -> Size 
+    {
+        let image_size = self.source.as_ref().map(|source| source.size())
+            .unwrap_or(Size::new(20.0, 20.0));
+
+        match (width, height) {
+            (Some(width), Some(height)) => Size::new(width, height),
+            (Some(width), None) => {
+                let height = if image_size.width > 1e-8 {
+                    image_size.height * width / image_size.width
+                } else {
+                    0.0
+                };
+                Size::new(width, height)
+            },
+            (None, Some(height)) => {
+                let width = if image_size.height > 1e-8 {
+                    image_size.width * height / image_size.height
+                } else {
+                    0.0
+                };
+                Size::new(width, height)
+            },
+            (None, None) => { 
+                image_size
+            }
+        }
+    }
+}
+
 impl Widget for ImageWidget {
     fn debug_label(&self) -> &'static str {
         "Image"
     }
 
-    fn measure(&self, _style: &taffy::Style, known_dimensions: taffy::Size<Option<f32>>, _available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
-        let image_size = self.source.as_ref().map(|source| source.size())
-            .unwrap_or(Size::new(20.0, 20.0));
-
-        match (known_dimensions.width, known_dimensions.height) {
-            (Some(width), Some(height)) => taffy::Size { width, height },
-            (Some(width), None) => {
-                let height = if image_size.width > 1e-8 {
-                    image_size.height * width as f64 / image_size.width
-                } else {
-                    0.0
-                } as f32;
-                taffy::Size { width, height }
-            },
-            (None, Some(height)) => {
-                let width = if image_size.height > 1e-8 {
-                    image_size.width * height as f64 / image_size.height
-                } else {
-                    0.0
-                } as f32;
-                taffy::Size { width, height }
-            },
-            (None, None) => { 
-                taffy::Size { width: image_size.width as f32, height: image_size.height as f32 }
-            }
-        }
+    fn display_style(&self) -> DisplayStyle {
+        DisplayStyle::Leaf(self)
     }
 
     fn render(&mut self, ctx: &mut crate::app::RenderContext) {

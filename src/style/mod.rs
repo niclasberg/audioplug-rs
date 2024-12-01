@@ -3,7 +3,7 @@ mod length;
 mod ui_rect;
 mod layout_style;
 
-use crate::core::Size;
+use crate::core::{Color, Size};
 pub use taffy::{FlexDirection, FlexWrap, Overflow};
 pub use style_builder::StyleBuilder;
 pub use length::Length;
@@ -16,7 +16,7 @@ pub trait Measure {
 		width: Option<f64>, 
 		height: Option<f64>, 
 		available_width: taffy::AvailableSpace, 
-		available_height: taffy::AvailableSpace) -> Size<f64>;
+		available_height: taffy::AvailableSpace) -> Size;
 }
 
 #[derive(Copy, Clone)]
@@ -33,13 +33,17 @@ pub struct FlexStyle {
 	pub gap: Length,
 }
 
+impl FlexStyle {
+	pub const DEFAULT: Self = Self {
+		direction: FlexDirection::Row,
+		wrap: FlexWrap::NoWrap,
+		gap: Length::ZERO
+	};
+}
+
 impl Default for FlexStyle {
 	fn default() -> Self {
-		Self { 
-			direction: Default::default(),
-			wrap: Default::default(),
-			gap: Length::ZERO
-		}
+		Self::DEFAULT
 	}
 }
 
@@ -56,7 +60,9 @@ pub struct Style {
 	pub inset: UiRect,
 	pub scrollbar_width: f64, 
 	pub overflow_x: Overflow,
-	pub overflow_y: Overflow
+	pub overflow_y: Overflow,
+	pub background: Option<Color>,
+	pub corner_radius: Size
 }
 
 impl Default for Style {
@@ -72,8 +78,10 @@ impl Default for Style {
 			margin: UiRect::ZERO,
 			inset: UiRect::ZERO,
 			scrollbar_width: 5.0,
-			overflow_x: Overflow::Hidden,
-			overflow_y: Overflow::Hidden,
+			overflow_x: Overflow::Visible,
+			overflow_y: Overflow::Visible,
+			background: None,
+			corner_radius: Size::ZERO,
 		}
 	}
 }

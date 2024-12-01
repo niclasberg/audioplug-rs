@@ -16,14 +16,11 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
         };
         let mut ctx = LayoutContext { app_state };
         taffy::compute_root_layout(&mut ctx, widget_id.into(), available_space);
+        taffy::print_tree(&mut ctx, widget_id.into());
     }
 
     update_node_origins(app_state, widget_id);
     invalidate_window(app_state, window_id);
-}
-
-pub fn hide_widget(app_state: &mut AppState, widget_id: WidgetId) {
-    
 }
 
 pub(super) fn request_layout(app_state: &mut AppState, widget_id: WidgetId) {
@@ -59,25 +56,15 @@ impl<'a> Iterator for LayoutChildIter<'a> {
     }
 }
 
-enum LayoutAlgorithm {
-	Hidden,
-	Block,
-	Grid,
-	Flex, 
-	Leaf
-}
-
 pub struct LayoutContext<'a> {
 	app_state: &'a mut AppState
 }
 
 impl<'a> LayoutContext<'a> {
-	fn get_layout_style<'b>(&self, node_id: taffy::NodeId) -> LayoutStyle<'b> {
+	fn get_layout_style<'b>(&'b self, node_id: taffy::NodeId) -> LayoutStyle<'b> {
 		LayoutStyle { 
 			style: &self.app_state.widget_data[node_id.into()].style, 
 			display_style: self.app_state.widgets[node_id.into()].display_style(),
-			scale_factor: todo!(), 
-			window_size: todo!() 
 		}
 	}
 }
@@ -185,11 +172,12 @@ impl<'a> LayoutPartialTree for LayoutContext<'a> {
             if tree.app_state.widget_data[node_id.into()].is_hidden() {
                 taffy::compute_hidden_layout(tree, node)
             } else {
+                let has_children = tree.child_count(node) > 0;
                 let display_style = tree.app_state.widgets[node.into()].display_style();
-                match display_style {
-                    DisplayStyle::Block => taffy::compute_block_layout(tree, node, inputs),
-                    DisplayStyle::Flex(_) => taffy::compute_flexbox_layout(tree, node, inputs),
-                    DisplayStyle::Leaf(measure) => {
+                match (display_style, has_children) {
+                    (DisplayStyle::Block, true) => taffy::compute_block_layout(tree, node, inputs),
+                    (DisplayStyle::Flex(_), true) => taffy::compute_flexbox_layout(tree, node, inputs),
+                    (DisplayStyle::Leaf(measure), _) => {
                         let style = &tree.app_state.widget_data[node.into()].style;    
                         let measure_function = |known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<AvailableSpace>| {
                             let size = measure.measure(&style, 
@@ -203,7 +191,11 @@ impl<'a> LayoutPartialTree for LayoutContext<'a> {
                             }
                         };
                         taffy::compute_leaf_layout(inputs, &tree.get_layout_style(node_id), measure_function)
-                    },  
+                    }, 
+                    (_, false) => {
+                        let measure_function = |_, _| { taffy::Size::ZERO };
+                        taffy::compute_leaf_layout(inputs, &tree.get_layout_style(node_id), measure_function)
+                    } 
                 } 
             }
         })

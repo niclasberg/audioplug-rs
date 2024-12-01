@@ -12,6 +12,10 @@ pub enum Length {
 impl Length {
 	pub const ZERO: Self = Self::Px(0.0);
 	pub const DEFAULT: Self = Self::Auto;
+
+	pub const fn from_px(value: &f64) -> Self {
+		Self::Px(*value)
+	}
 }
 
 impl Default for Length {
@@ -24,7 +28,7 @@ impl From<taffy::LengthPercentageAuto> for Length {
 	fn from(value: taffy::LengthPercentageAuto) -> Self {
 		match value {
 			taffy::LengthPercentageAuto::Length(val) => Length::Px(val as _),
-			taffy::LengthPercentageAuto::Percent(val) => Length::Percent(val as _),
+			taffy::LengthPercentageAuto::Percent(val) => Length::Percent((val * 100.0) as _),
 			taffy::LengthPercentageAuto::Auto => Length::Auto,
 		}
 	}
@@ -35,7 +39,7 @@ impl Into<taffy::LengthPercentageAuto> for Length {
 		match self {
 			Length::Auto => taffy::LengthPercentageAuto::Auto,
 			Length::Px(val) => taffy::LengthPercentageAuto::Length(val as _),
-			Length::Percent(val) => taffy::LengthPercentageAuto::Percent(val as _),
+			Length::Percent(val) => taffy::LengthPercentageAuto::Percent((val / 100.0) as _),
 		}
 	}
 }
@@ -45,7 +49,7 @@ impl Into<taffy::LengthPercentage> for Length {
 		match self {
 			Length::Auto => taffy::LengthPercentage::ZERO,
 			Length::Px(val) => taffy::LengthPercentage::Length(val as _),
-			Length::Percent(val) => taffy::LengthPercentage::Percent(val as _),
+			Length::Percent(val) => taffy::LengthPercentage::Percent((val / 100.0) as _),
 		}
 	}
 }
@@ -55,7 +59,7 @@ impl Into<taffy::Dimension> for Length {
 		match self {
 			Length::Auto => taffy::Dimension::Auto,
 			Length::Px(val) => taffy::Dimension::Length(val as _),
-			Length::Percent(val) => taffy::Dimension::Percent(val as _),
+			Length::Percent(val) => taffy::Dimension::Percent((val / 100.0) as _),
 		}
 	}
 }

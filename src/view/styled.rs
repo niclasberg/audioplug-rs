@@ -1,259 +1,10 @@
-use crate::{app::{Accessor, BuildContext, Widget}, style::StyleBuilder};
+use crate::{app::{Accessor, BuildContext, Widget}, style::{Style, StyleBuilder}};
 
 use super::View;
 
-enum LengthPercentageAccessor {
-	None,
-	Length(Accessor<f64>),
-	Percent(Accessor<f64>)
-}
-
-impl LengthPercentageAccessor {
-	fn apply<W: Widget>(self, ctx: &mut BuildContext<W>, f: fn(&mut taffy::Style, taffy::LengthPercentage)) {
-		match self {
-			LengthPercentageAccessor::None => {},
-			LengthPercentageAccessor::Length(accessor) => {
-				let value = ctx.get_and_track(accessor, move |value, mut widget| {
-					widget.update_style(|style| f(style, taffy::LengthPercentage::Length(*value as _)));
-					widget.request_layout();
-				});
-				ctx.update_style(move |style| {
-					f(style, taffy::LengthPercentage::Length(value as _));
-				});
-			}
-			LengthPercentageAccessor::Percent(accessor) => {
-				let value = ctx.get_and_track(accessor, move |value, mut widget| {
-					widget.update_style(|style| f(style, taffy::LengthPercentage::Percent(*value as _)));
-					widget.request_layout();
-				});
-				ctx.update_style(|style| {
-					f(style, taffy::LengthPercentage::Percent(value as _));
-				});
-			},
-		};
-	}
-}
-
-enum DimensionAccessor {
-	None,
-	Length(Accessor<f64>),
-	Percent(Accessor<f64>),
-	Auto
-}
-
-impl DimensionAccessor {
-	fn apply<W: Widget>(self, ctx: &mut BuildContext<W>, f: fn(&mut taffy::Style, taffy::Dimension)) {
-		match self {
-			DimensionAccessor::None => {},
-			DimensionAccessor::Length(accessor) => {
-				let value = ctx.get_and_track(accessor, move |value, mut widget| {
-					widget.update_style(|style| f(style, taffy::Dimension::Length(*value as _)));
-					widget.request_layout();
-				});
-				ctx.update_style(move |style| {
-					f(style, taffy::Dimension::Length(value as _));
-				});
-			}
-			DimensionAccessor::Percent(accessor) => {
-				let value = ctx.get_and_track(accessor, move |value, mut widget| {
-					widget.update_style(|style| f(style, taffy::Dimension::Percent(*value as _)));
-					widget.request_layout();
-				});
-				ctx.update_style(|style| {
-					f(style, taffy::Dimension::Percent(value as _));
-				});
-			},
-			DimensionAccessor::Auto => {
-				ctx.update_style(|style| {
-					f(style, taffy::Dimension::Auto);
-				});
-			}
-		};
-	}
-}
-
-
 pub struct Styled<V> {
-	view: V,
-	style_builder: StyleBuilder,
-	left: LengthPercentageAccessor,
-	right: LengthPercentageAccessor,
-	top: LengthPercentageAccessor,
-	bottom: LengthPercentageAccessor,
-	width: DimensionAccessor,
-	height: DimensionAccessor,
-	min_width: DimensionAccessor,
-	max_width: DimensionAccessor,
-	min_height: DimensionAccessor,
-	max_height: DimensionAccessor,
-	hidden: Option<Accessor<bool>>,
-}
-
-impl<V: View> Styled<V> {
-	pub fn new(view: V) -> Self {
-		Self {
-			view,
-			left: LengthPercentageAccessor::None,
-			right: LengthPercentageAccessor::None,
-			top: LengthPercentageAccessor::None,
-			bottom: LengthPercentageAccessor::None,
-			width: DimensionAccessor::None,
-			height: DimensionAccessor::None,
-			min_width: DimensionAccessor::None,
-			max_width: DimensionAccessor::None,
-			min_height: DimensionAccessor::None,
-			max_height: DimensionAccessor::None,
-			hidden: None
-		}
-	}
-
-	pub fn padding(mut self, value: impl Into<Accessor<f64>>) -> Self {
-		let value = value.into();
-		self.left = LengthPercentageAccessor::Length(value.clone());
-		self.right = LengthPercentageAccessor::Length(value.clone());
-		self.top = LengthPercentageAccessor::Length(value.clone());
-		self.bottom = LengthPercentageAccessor::Length(value.clone());
-		self
-	}
-
-	pub fn padding_percent(mut self, value: impl Into<Accessor<f64>>) -> Self {
-		let value = value.into();
-		self.left = LengthPercentageAccessor::Percent(value.clone());
-		self.right = LengthPercentageAccessor::Percent(value.clone());
-		self.top = LengthPercentageAccessor::Percent(value.clone());
-		self.bottom = LengthPercentageAccessor::Percent(value.clone());
-		self
-	}
-
-	pub fn padding_left(mut self, left: impl Into<Accessor<f64>>) -> Self {
-		self.left = LengthPercentageAccessor::Length(left.into());
-		self
-	}
-
-	pub fn padding_left_percent(mut self, left: impl Into<Accessor<f64>>) -> Self {
-		self.left = LengthPercentageAccessor::Percent(left.into());
-		self
-	}
-
-	pub fn padding_right(mut self, right: impl Into<Accessor<f64>>) -> Self {
-		self.right = LengthPercentageAccessor::Length(right.into());
-		self
-	}
-
-	pub fn padding_right_percent(mut self, right: impl Into<Accessor<f64>>) -> Self {
-		self.right = LengthPercentageAccessor::Percent(right.into());
-		self
-	}
-
-	pub fn padding_top(mut self, top: impl Into<Accessor<f64>>) -> Self {
-		self.top = LengthPercentageAccessor::Length(top.into());
-		self
-	}
-
-	pub fn padding_top_percent(mut self, top: impl Into<Accessor<f64>>) -> Self {
-		self.top = LengthPercentageAccessor::Percent(top.into());
-		self
-	}
-
-	pub fn padding_bottom(mut self, bottom: impl Into<Accessor<f64>>) -> Self {
-		self.bottom = LengthPercentageAccessor::Length(bottom.into());
-		self
-	}
-
-	pub fn padding_bottom_percent(mut self, bottom: impl Into<Accessor<f64>>) -> Self {
-		self.bottom = LengthPercentageAccessor::Percent(bottom.into());
-		self
-	}
-
-	pub fn width(mut self, width: impl Into<Accessor<f64>>) -> Self {
-		self.width = DimensionAccessor::Length(width.into());
-		self
-	}
-
-	pub fn width_percent(mut self, width: impl Into<Accessor<f64>>) -> Self {
-		self.width = DimensionAccessor::Percent(width.into());
-		self
-	}
-
-	pub fn width_auto(mut self) -> Self {
-		self.width = DimensionAccessor::Auto;
-		self
-	}
-
-	pub fn min_width(mut self, width: impl Into<Accessor<f64>>) -> Self {
-		self.min_width = DimensionAccessor::Length(width.into());
-		self
-	}
-
-	pub fn min_width_percent(mut self, width: impl Into<Accessor<f64>>) -> Self {
-		self.min_width = DimensionAccessor::Percent(width.into());
-		self
-	}
-
-	pub fn min_width_auto(mut self) -> Self {
-		self.min_width = DimensionAccessor::Auto;
-		self
-	}
-
-	pub fn max_width(mut self, width: impl Into<Accessor<f64>>) -> Self {
-		self.max_width = DimensionAccessor::Length(width.into());
-		self
-	}
-
-	pub fn max_width_percent(mut self, width: impl Into<Accessor<f64>>) -> Self {
-		self.max_width = DimensionAccessor::Percent(width.into());
-		self
-	}
-
-	pub fn max_width_auto(mut self) -> Self {
-		self.max_width = DimensionAccessor::Auto;
-		self
-	}
-
-	pub fn height(mut self, height: impl Into<Accessor<f64>>) -> Self {
-		self.height = DimensionAccessor::Length(height.into());
-		self
-	}
-
-	pub fn height_percent(mut self, height: impl Into<Accessor<f64>>) -> Self {
-		self.height = DimensionAccessor::Percent(height.into());
-		self
-	}
-
-	pub fn height_auto(mut self) -> Self {
-		self.height = DimensionAccessor::Auto;
-		self
-	}
-
-	pub fn min_height(mut self, height: impl Into<Accessor<f64>>) -> Self {
-		self.min_height = DimensionAccessor::Length(height.into());
-		self
-	}
-
-	pub fn min_height_percent(mut self, height: impl Into<Accessor<f64>>) -> Self {
-		self.min_height = DimensionAccessor::Percent(height.into());
-		self
-	}
-
-	pub fn min_height_auto(mut self) -> Self {
-		self.min_height = DimensionAccessor::Auto;
-		self
-	}
-
-	pub fn max_height(mut self, height: impl Into<Accessor<f64>>) -> Self {
-		self.max_height = DimensionAccessor::Length(height.into());
-		self
-	}
-
-	pub fn max_height_percent(mut self, height: impl Into<Accessor<f64>>) -> Self {
-		self.max_height = DimensionAccessor::Percent(height.into());
-		self
-	}
-
-	pub fn max_height_auto(mut self) -> Self {
-		self.max_height = DimensionAccessor::Auto;
-		self
-	}
+	pub(super) view: V,
+	pub(super) style_builder: StyleBuilder
 }
 
 impl<V: View> View for Styled<V> {
@@ -261,22 +12,27 @@ impl<V: View> View for Styled<V> {
 
 	fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
 		let widget = self.view.build(ctx);
-
-		self.left.apply(ctx, |style, value| style.padding.left = value);
-		self.right.apply(ctx, |style, value| style.padding.right = value);
-		self.bottom.apply(ctx, |style, value| style.padding.bottom = value);
-		self.top.apply(ctx, |style, value| style.padding.top = value);
-
-		self.width.apply(ctx, |style, value| style.size.width = value);
-		self.height.apply(ctx, |style, value| style.size.height = value);
-		self.min_width.apply(ctx, |style, value| style.min_size.width = value);
-		self.max_width.apply(ctx, |style, value| style.max_size.width = value);
-		self.min_height.apply(ctx, |style, value| style.min_size.height = value);
-		self.max_height.apply(ctx, |style, value| style.max_size.height = value);
-
-
-		
+		apply_style(self.style_builder.aspect_ratio, ctx, |value, style| { style.aspect_ratio = Some(value); });
+		apply_style(self.style_builder.background, ctx, |value, style| { style.background = Some(value); });
+		apply_style(self.style_builder.border, ctx, |value, style| { style.border = value; });
+		apply_style(self.style_builder.corner_radius, ctx, |value, style| { style.corner_radius = value; });
+		apply_style(self.style_builder.height, ctx, |value, style| { style.size.height = value; });
+		apply_style(self.style_builder.hidden, ctx, |value, style| { style.hidden = value; });
+		apply_style(self.style_builder.min_height, ctx, |value, style| { style.min_size.height = value; });
+		apply_style(self.style_builder.min_width, ctx, |value, style| { style.min_size.width = value; });
+		apply_style(self.style_builder.max_height, ctx, |value, style| { style.max_size.height = value; });
+		apply_style(self.style_builder.max_width, ctx, |value, style| { style.max_size.width = value; });
+		apply_style(self.style_builder.padding, ctx, |value, style| { style.padding = value; });
+		apply_style(self.style_builder.width, ctx, |value, style| { style.size.width = value; });
 		widget
 	}
 }
 
+fn apply_style<W: Widget, T: Copy + Clone + 'static>(accessor: Option<Accessor<T>>, ctx: &mut BuildContext<W>, apply_fn: impl Fn(T, &mut Style) + 'static + Copy) {
+	if let Some(accessor) = accessor {
+		let value = ctx.get_and_track(accessor, move|value, mut widget| {
+			widget.update_style(|style| apply_fn(*value, style));
+		});
+		ctx.update_style(|style| apply_fn(value, style));
+	}
+}

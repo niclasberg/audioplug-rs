@@ -1,67 +1,39 @@
-use taffy::style_helpers::FromLength;
+use taffy::{FlexDirection, FlexWrap};
 
-use crate::app::{BuildContext, RenderContext, Widget};
-use crate::style::{DisplayStyle, FlexStyle};
+use crate::app::{Accessor, BuildContext, RenderContext, Widget};
+use crate::style::{DisplayStyle, FlexStyle, Length};
 use crate::view::{ViewSequence, View};
 use crate::core::Alignment;
 
-pub struct Column<VS: ViewSequence> {
+pub struct Flex<VS: ViewSequence> {
     view_seq: VS,
+    direction: Accessor<FlexDirection>,
     alignment: Alignment,
-    spacing: f64,
+    spacing: Accessor<Length>,
+    wrap: Accessor<FlexWrap>
 }
 
-impl<VS: ViewSequence> Column<VS> {
+impl<VS: ViewSequence> Flex<VS> {
     pub fn new(view_seq: VS) -> Self {
         Self {
             view_seq,
             alignment: Alignment::Center,
-            spacing: 0.0
+            spacing: Accessor::Const(Length::ZERO),
+            wrap: Accessor::Const(Default::default()),
+            direction: Accessor::Const(FlexDirection::default())
         }
     }
 
-    pub fn align(mut self, alignment: Alignment) -> Self {
-        self.alignment = alignment;
-        self
+    pub fn row(view_seq: VS) -> Self {
+        let mut this = Self::new(view_seq);
+        this.direction = Accessor::Const(FlexDirection::Row);
+        this
     }
 
-    pub fn spacing(mut self, spacing: f64) -> Self {
-        self.spacing = spacing;
-        self
-    }
-}
-
-impl<VS: ViewSequence> View for Column<VS> {
-    type Element = LinearLayoutWidget;
-
-    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
-        self.view_seq.build(ctx);
-		ctx.set_style(taffy::Style {
-            flex_direction: taffy::FlexDirection::Column,
-            gap: taffy::Size::from_length(self.spacing as f32),
-            display: taffy::Display::Flex,
-            ..Default::default()
-        });
-		
-        LinearLayoutWidget {
-            alignment: self.alignment
-        }
-    }
-}
-
-pub struct Row<VS: ViewSequence> {
-    view_seq: VS,
-    alignment: Alignment,
-    spacing: f64
-}
-
-impl<VS: ViewSequence> Row<VS> {
-    pub fn new(view_seq: VS) -> Self {
-        Self {
-            view_seq,
-            alignment: Alignment::Center,
-            spacing: 0.0
-        }
+    pub fn column(view_seq: VS) -> Self {
+        let mut this = Self::new(view_seq);
+        this.direction = Accessor::Const(FlexDirection::Column);
+        this
     }
 
     pub fn with_alignment(mut self, alignment: Alignment) -> Self {
@@ -69,39 +41,54 @@ impl<VS: ViewSequence> Row<VS> {
         self
     }
 
-    pub fn spacing(mut self, spacing: f64) -> Self {
-        self.spacing = spacing;
+    pub fn direction(mut self, value: impl Into<Accessor<FlexDirection>>) -> Self {
+        self.direction = value.into();
+        self
+    }
+
+    pub fn spacing(mut self, value: impl Into<Accessor<Length>>) -> Self {
+        self.spacing = value.into();
         self
     }
 }
 
-impl<VS: ViewSequence> View for Row<VS> {
-    type Element = LinearLayoutWidget;
+impl<VS: ViewSequence> View for Flex<VS> {
+    type Element = FlexWidget;
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         self.view_seq.build(ctx);
-		ctx.set_display_style(FlexStyle {
-			direction: FlexDi,
-			wrap: todo!(),
-			gap: todo!(),
-		});
-		ctx.set_style(taffy::Style {
-            flex_direction: taffy::FlexDirection::Row,
-            gap: taffy::Size::from_length(self.spacing as f32),
-            ..Default::default()
+        let direction = ctx.get_and_track(self.direction, |value, mut widget| {
+            widget.flex_style.direction = *value;
+            widget.request_layout();
         });
-        LinearLayoutWidget {
+        let gap = ctx.get_and_track(self.spacing, |value, mut widget| {
+            widget.flex_style.gap = *value;
+            widget.request_layout();
+        });
+        let wrap = ctx.get_and_track(self.wrap, |value, mut widget| {
+            widget.flex_style.wrap = *value;
+            widget.request_layout();
+        });
+
+        let flex_style = FlexStyle {
+            direction,
+            gap,
+            wrap,
+        };
+
+        FlexWidget {
             alignment: self.alignment,
+            flex_style
         }
     }
 }
 
-pub struct LinearLayoutWidget {
+pub struct FlexWidget {
     alignment: Alignment,
     flex_style: FlexStyle
 }
 
-impl Widget for LinearLayoutWidget {
+impl Widget for FlexWidget {
 	fn debug_label(&self) -> &'static str {
 		"Flex"
 	}

@@ -1,5 +1,5 @@
 use std::ops::Range;
-use crate::{app::{AnimationContext, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Cursor, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, style::{Length, Style, UiRect}, text::TextLayout, MouseEvent};
+use crate::{app::{AnimationContext, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Cursor, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, style::{DisplayStyle, Length, Measure, Style, UiRect}, text::TextLayout, MouseEvent};
 use unicode_segmentation::{UnicodeSegmentation, GraphemeCursor};
 
 use super::View;
@@ -294,6 +294,19 @@ impl Editor {
 
 const CURSOR_DELAY_SECONDS: f64 = 0.5;
 
+impl Measure for TextBoxWidget {
+    fn measure(&self, 
+        style: &Style,
+        width: Option<f64>, 
+        height: Option<f64>, 
+        available_width: taffy::AvailableSpace, 
+        available_height: taffy::AvailableSpace) -> Size 
+    {
+        let size = self.text_layout.measure();
+        Size::new(self.width, size.height)
+    }
+}
+
 impl Widget for TextBoxWidget {
 	fn debug_label(&self) -> &'static str {
 		"TextBox"
@@ -443,13 +456,6 @@ impl Widget for TextBoxWidget {
             _ => {}
         }
 	}
-    
-    fn measure(&self, _style: &taffy::Style, _known_dimensions: taffy::Size<Option<f32>>, _available_space: taffy::Size<taffy::AvailableSpace>) -> taffy::Size<f32> {
-        let size = self.text_layout.measure();
-        let size = Size::new(self.width, size.height);
-
-        size.map(|x| x as f32).into()
-    }
 
     fn cursor(&self) -> Option<Cursor> {
         Some(Cursor::IBeam)
@@ -479,5 +485,9 @@ impl Widget for TextBoxWidget {
                 ctx.fill(Shape::line(p0, p1), Color::BLACK);
             }
         });
+    }
+
+    fn display_style(&self) -> DisplayStyle {
+        DisplayStyle::Leaf(self)
     }
 }

@@ -1,4 +1,4 @@
-use crate::{app::{AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, style::{DisplayStyle, Length, Style, UiRect}, MouseEvent};
+use crate::{app::{AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Rectangle, RoundedRectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, style::{DisplayStyle, FlexStyle, Length, Style, UiRect}, MouseEvent};
 
 use super::View;
 
@@ -38,6 +38,8 @@ impl<V: View> View for Button<V> {
         widget
     }
 }
+
+const FLEX_STYLE: FlexStyle = FlexStyle::DEFAULT;
 
 pub struct ButtonWidget {
     is_hot: bool,
@@ -124,7 +126,7 @@ impl Widget for ButtonWidget {
             }
         };
 
-        let shape = Shape::RoundedRect { rect: ctx.global_bounds(), corner_radius: Size::new(4.0, 4.0) };
+        let shape = RoundedRectangle::new(ctx.global_bounds(), Size::new(4.0, 4.0));
         ctx.fill(shape, color);
         ctx.stroke(shape, Color::BLACK, 1.0);
         
@@ -132,6 +134,6 @@ impl Widget for ButtonWidget {
     }
 
     fn display_style(&self) -> DisplayStyle {
-        DisplayStyle::Block
+        DisplayStyle::Flex(&FLEX_STYLE)
     }
 }
