@@ -177,6 +177,7 @@ impl<'a> LayoutPartialTree for LayoutContext<'a> {
                 match (display_style, has_children) {
                     (DisplayStyle::Block, true) => taffy::compute_block_layout(tree, node, inputs),
                     (DisplayStyle::Flex(_), true) => taffy::compute_flexbox_layout(tree, node, inputs),
+					(DisplayStyle::Grid(_), _) => unreachable!(),
                     (DisplayStyle::Leaf(measure), _) => {
                         let style = &tree.app_state.widget_data[node.into()].style;    
                         let measure_function = |known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<AvailableSpace>| {
