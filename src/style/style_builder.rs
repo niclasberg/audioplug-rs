@@ -59,6 +59,11 @@ impl StyleBuilder {
         self
     }
 
+	pub fn margin(mut self, value: impl Into<Accessor<UiRect>>) -> Self {
+        self.margin = Some(value.into());
+        self
+    }
+
     pub fn height(mut self, value: impl Into<Accessor<Length>>) -> Self {
         self.height = Some(value.into());
         self
@@ -93,4 +98,9 @@ impl StyleBuilder {
         self.background = Some(value.into());
         self
     }
+
+	pub fn corner_radius(mut self, value: impl Into<Accessor<Size>>) -> Self {
+		self.corner_radius = Some(value.into());
+		self
+	}
 }

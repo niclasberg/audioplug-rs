@@ -1,6 +1,6 @@
 use objc2_foundation::{CGFloat, CGRect, NSRect};
 
-use crate::core::{Rectangle, Color, Point, Size, Vector, Transform};
+use crate::core::{Color, Point, Rectangle, RoundedRectangle, Size, Transform, Vector};
 
 use super::{core_graphics::{CGAffineTransform, CGColor, CGContext}, ImageSource, TextLayout};
 
@@ -73,40 +73,40 @@ impl<'a> RendererRef<'a> {
 		self.context.fill_rect(rect.into());
     }
 
-    pub fn fill_rounded_rectangle(&mut self, rect: Rectangle, radius: Size, color: Color) {
+    pub fn fill_rounded_rectangle(&mut self, rect: RoundedRectangle, color: Color) {
 		let color = CGColor::from_color(color);
 		self.context.set_fill_color(&color);
 
-		self.add_rounded_rectangle(rect, radius);
+		self.add_rounded_rectangle(rect);
 		// Fill & stroke the path 
 		self.context.fill_path(); 
     }
 
-	pub fn draw_rounded_rectangle(&mut self, rect: Rectangle, radius: Size, color: Color, line_width: f32) {
+	pub fn draw_rounded_rectangle(&mut self, rect: RoundedRectangle, color: Color, line_width: f32) {
 		let color = CGColor::from_color(color);
 		self.context.set_stroke_color(&color);
 		self.context.set_line_width(line_width as CGFloat);
 
-		self.add_rounded_rectangle(rect, radius);
+		self.add_rounded_rectangle(rect);
 
 		self.context.stroke_path(); 
     }
 
-	fn add_rounded_rectangle(&mut self, rect: Rectangle, radius: Size) {
-		let r: CGRect = rect.into();
+	fn add_rounded_rectangle(&mut self, rect: RoundedRectangle) {
+		let r: CGRect = rect.rect.into();
 		let min = r.min();
 		let mid = r.mid();
 		let max = r.max();
 
 		self.context.move_to_point(min.x, mid.y); 
 		// Add an arc through 2 to 3 
-		self.context.add_arc_to_point(min.x, min.y, mid.x, min.y, radius.height); 
+		self.context.add_arc_to_point(min.x, min.y, mid.x, min.y, rect.corner_radius.height); 
 		// Add an arc through 4 to 5 
-		self.context.add_arc_to_point(max.x, min.y, max.x, mid.y, radius.height); 
+		self.context.add_arc_to_point(max.x, min.y, max.x, mid.y, rect.corner_radius.height); 
 		// Add an arc through 6 to 7 
-		self.context.add_arc_to_point(max.x, max.y, mid.x, max.y, radius.height); 
+		self.context.add_arc_to_point(max.x, max.y, mid.x, max.y, rect.corner_radius.height); 
 		// Add an arc through 8 to 9 
-		self.context.add_arc_to_point(min.x, max.y, min.x, mid.y, radius.height); 
+		self.context.add_arc_to_point(min.x, max.y, min.x, mid.y, rect.corner_radius.height); 
 		// Close the path 
 		self.context.close_path(); 
 	}

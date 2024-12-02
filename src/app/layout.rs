@@ -1,7 +1,7 @@
-use taffy::{AvailableSpace, LayoutBlockContainer, LayoutFlexboxContainer, LayoutGridContainer, LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree};
+use taffy::{AvailableSpace, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree};
 use crate::{core::Point, style::{DisplayStyle, LayoutStyle}};
 
-use super::{invalidate_window, widget_node::WidgetFlags, AppState, WidgetData, WidgetId, WindowId};
+use super::{invalidate_window, WidgetFlags, AppState, WidgetId, WindowId};
 
 pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
     let (bounds, widget_id) = {
@@ -16,7 +16,7 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
         };
         let mut ctx = LayoutContext { app_state };
         taffy::compute_root_layout(&mut ctx, widget_id.into(), available_space);
-        taffy::print_tree(&mut ctx, widget_id.into());
+        //taffy::print_tree(&mut ctx, widget_id.into());
     }
 
     update_node_origins(app_state, widget_id);

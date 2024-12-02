@@ -1,4 +1,4 @@
-use crate::{core::{Color, Point, Rectangle, RoundedRectangle, Shape, Transform}, platform, text::TextLayout};
+use crate::{core::{Color, Point, Rectangle, Shape, Transform}, platform, text::TextLayout};
 
 use super::{AppState, WidgetId, WindowId};
 
@@ -98,6 +98,10 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
     pub(crate) fn render_current_widget(&mut self) {
         {
             let widget_data = self.app_state.widget_data_ref(self.id);
+			if widget_data.is_hidden() {
+				return;
+			}
+
             if let Some(background_color) = widget_data.style.background {
                 self.fill(widget_data.shape(), background_color);
             }

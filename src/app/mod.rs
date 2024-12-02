@@ -14,6 +14,7 @@ mod render;
 mod signal;
 mod runtime;
 mod widget;
+mod widget_data;
 mod widget_node;
 mod window;
 
@@ -36,7 +37,8 @@ pub use runtime::*;
 pub use signal::Signal;
 use signal::SignalState;
 pub use widget::{EventStatus, StatusChange, Widget};
-pub use widget_node::{WidgetData, WidgetRef, WidgetMut, WidgetId};
+pub use widget_node::{WidgetRef, WidgetMut};
+pub use widget_data::{WidgetData, WidgetId, WidgetFlags};
 pub use window::Window;
 #[cfg(target_os  ="macos")]
 pub(crate) use window::MyHandler;
