@@ -6,7 +6,11 @@ pub enum Length {
 	/// Length in pixels
 	Px(f64),
 	/// Length in percent
-	Percent(f64)
+	Percent(f64),
+	/// Percent of viewport height
+	Vh(f64),
+	/// Percent of viewport width
+	Vw(f64)
 }
 
 impl Length {
@@ -40,6 +44,7 @@ impl Into<taffy::LengthPercentageAuto> for Length {
 			Length::Auto => taffy::LengthPercentageAuto::Auto,
 			Length::Px(val) => taffy::LengthPercentageAuto::Length(val as _),
 			Length::Percent(val) => taffy::LengthPercentageAuto::Percent((val / 100.0) as _),
+			_ => todo!()
 		}
 	}
 }
@@ -50,6 +55,7 @@ impl Into<taffy::LengthPercentage> for Length {
 			Length::Auto => taffy::LengthPercentage::ZERO,
 			Length::Px(val) => taffy::LengthPercentage::Length(val as _),
 			Length::Percent(val) => taffy::LengthPercentage::Percent((val / 100.0) as _),
+			_ => todo!()
 		}
 	}
 }
@@ -60,6 +66,7 @@ impl Into<taffy::Dimension> for Length {
 			Length::Auto => taffy::Dimension::Auto,
 			Length::Px(val) => taffy::Dimension::Length(val as _),
 			Length::Percent(val) => taffy::Dimension::Percent((val / 100.0) as _),
+			_ => todo!()
 		}
 	}
 }
