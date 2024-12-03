@@ -1,9 +1,8 @@
-use crate::app::{BuildContext, Widget};
+use crate::app::{Accessor, BuildContext, ViewContext, Widget};
 
 use super::View;
 
 pub trait ViewSequence: Sized {
-    fn len(&self) -> usize;
     fn build<W: Widget>(self, ctx: &mut BuildContext<W>);
 }
 
@@ -14,10 +13,6 @@ macro_rules! impl_view_seq_tuple {
                 (
                     $( ctx.add_child(self.$s), )*
                 );
-            }
-        
-            fn len(&self) -> usize {
-                $n
             }
         }
     }
@@ -42,8 +37,29 @@ impl<V: View> ViewSequence for Vec<V> {
             ctx.add_child(child);
         }
     }
+}
 
-    fn len(&self) -> usize {
-        self.len()
-    }
+pub struct IndexedViewSeq<F> {
+	count: Accessor<usize>,
+	view_factory: F
+}
+
+impl<V: View, F: Fn(&mut ViewContext, usize) -> V> IndexedViewSeq<F> {
+	pub fn new(count: impl Into<Accessor<usize>>, view_factory: F) -> Self {
+		Self {
+			count: count.into(),
+			view_factory
+		}
+	}
+}
+
+impl<V: View, F: Fn(&mut ViewContext, usize) -> V> ViewSequence for IndexedViewSeq<F> {
+	fn build<W: Widget>(self, ctx: &mut BuildContext<W>) {
+		let child_count = ctx.get_and_track(self.count, |_, _| {
+
+		});
+		for i in 0..child_count {
+			ctx.add_child_with(|cx| (self.view_factory)(cx, i));
+		}
+	}
 }

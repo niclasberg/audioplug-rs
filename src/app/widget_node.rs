@@ -64,6 +64,10 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         &mut self.data
     }
 
+	pub fn child_count(&self) -> usize {
+		self.data.children.len()
+	}
+
     pub fn local_bounds(&self) -> Rectangle {
         self.data().local_bounds()
     }
