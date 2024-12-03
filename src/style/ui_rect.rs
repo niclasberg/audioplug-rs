@@ -1,4 +1,4 @@
-use super::Length;
+use super::{Length, ResolveInto};
 
 /// Type used to define padding, margin and border
 #[derive(Debug, Copy, Clone)]
@@ -108,24 +108,16 @@ impl Default for UiRect {
 	}
 }
 
-impl Into<taffy::Rect<taffy::LengthPercentage>> for UiRect {
-	fn into(self) -> taffy::Rect<taffy::LengthPercentage> {
-		taffy::Rect {
-			left: self.left.into(),
-			right: self.right.into(),
-			top: self.top.into(),
-			bottom: self.bottom.into(),
-		}
-	}
-}
-
-impl Into<taffy::Rect<taffy::LengthPercentageAuto>> for UiRect {
-	fn into(self) -> taffy::Rect<taffy::LengthPercentageAuto> {
-		taffy::Rect {
-			left: self.left.into(),
-			right: self.right.into(),
-			top: self.top.into(),
-			bottom: self.bottom.into(),
-		}
-	}
+impl<T> ResolveInto<taffy::Rect<T>> for UiRect 
+where
+    Length: ResolveInto<T>
+{
+    fn resolve_into(self, window_size: crate::core::Size) -> taffy::Rect<T> {
+        taffy::Rect {
+			left: self.left.resolve_into(window_size),
+			right: self.right.resolve_into(window_size),
+			top: self.top.resolve_into(window_size),
+			bottom: self.bottom.resolve_into(window_size),
+		}        
+    }
 }

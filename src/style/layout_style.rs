@@ -1,9 +1,12 @@
-use super::{DisplayStyle, Style};
+use crate::core::Size;
+
+use super::{DisplayStyle, ResolveInto, Style};
 
 /// Style used during layout
 pub struct LayoutStyle<'a> {
 	pub(crate) style: &'a Style,
 	pub(crate) display_style: DisplayStyle<'a>,
+	pub(crate) window_size: Size
 }
 
 impl<'a> taffy::CoreStyle for LayoutStyle<'a> {
@@ -39,19 +42,19 @@ impl<'a> taffy::CoreStyle for LayoutStyle<'a> {
 	}
 
 	fn inset(&self) -> taffy::Rect<taffy::LengthPercentageAuto> {
-		self.style.inset.into()
+		self.style.inset.resolve_into(self.window_size)
 	}
 
 	fn size(&self) -> taffy::Size<taffy::Dimension> {
-		self.style.size.into()
+		self.style.size.resolve_into(self.window_size)
 	}
 
 	fn min_size(&self) -> taffy::Size<taffy::Dimension> {
-		self.style.min_size.into()
+		self.style.min_size.resolve_into(self.window_size)
 	}
 
 	fn max_size(&self) -> taffy::Size<taffy::Dimension> {
-		self.style.max_size.into()
+		self.style.max_size.resolve_into(self.window_size)
 	}
 
 	fn aspect_ratio(&self) -> Option<f32> {
@@ -59,15 +62,15 @@ impl<'a> taffy::CoreStyle for LayoutStyle<'a> {
 	}
 
 	fn margin(&self) -> taffy::Rect<taffy::LengthPercentageAuto> {
-		self.style.margin.into()
+		self.style.margin.resolve_into(self.window_size)
 	}
 
 	fn padding(&self) -> taffy::Rect<taffy::LengthPercentage> {
-		self.style.padding.into()
+		self.style.padding.resolve_into(self.window_size)
 	}
 
 	fn border(&self) -> taffy::Rect<taffy::LengthPercentage> {
-		self.style.border.into()
+		self.style.border.resolve_into(self.window_size)
 	}
 }
 
@@ -88,7 +91,10 @@ impl<'a> taffy::FlexboxContainerStyle for LayoutStyle<'a> {
 
 	fn gap(&self) -> taffy::Size<taffy::LengthPercentage> {
 		match &self.display_style {
-			DisplayStyle::Flex(flex) => taffy::Size { width: flex.gap.into(), height: flex.gap.into() },
+			DisplayStyle::Flex(flex) => taffy::Size { 
+				width: flex.gap.resolve_into(self.window_size), 
+				height: flex.gap.resolve_into(self.window_size) 
+			},
 			_ => taffy::Style::DEFAULT.gap,
 		}
 	}
@@ -120,7 +126,8 @@ impl<'a> taffy::FlexboxItemStyle for LayoutStyle<'a> {
 	}
 
 	fn align_self(&self) -> Option<taffy::AlignSelf> {
-		taffy::Style::DEFAULT.align_self
+		Some(taffy::AlignSelf::Center)
+		//taffy::Style::DEFAULT.align_self
 	}
 }
 

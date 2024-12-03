@@ -12,6 +12,19 @@ pub use style_builder::StyleBuilder;
 pub use taffy::{FlexDirection, FlexWrap, Overflow};
 pub use ui_rect::UiRect;
 
+pub(super) trait ResolveInto<T> {
+	fn resolve_into(self, window_size: Size) -> T;
+}
+
+impl<U, T: ResolveInto<U>> ResolveInto<taffy::Size<U>> for Size<T> {
+	fn resolve_into(self, window_size: Size) -> taffy::Size<U> {
+		taffy::Size {
+			width: self.width.resolve_into(window_size),
+			height: self.height.resolve_into(window_size)
+		}
+	}
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct Style {
     pub hidden: bool,

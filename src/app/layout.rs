@@ -1,20 +1,20 @@
 use taffy::{AvailableSpace, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree};
-use crate::{core::Point, style::{DisplayStyle, LayoutStyle}};
+use crate::{core::{Point, Size}, style::{DisplayStyle, LayoutStyle}};
 
 use super::{invalidate_window, WidgetFlags, AppState, WidgetId, WindowId};
 
 pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
-    let (bounds, widget_id) = {
+    let (window_size, widget_id) = {
         let window = app_state.window(window_id);
         (window.handle.global_bounds().size(), window.root_widget)
     };
 
     {
         let available_space = taffy::Size {
-            width: taffy::AvailableSpace::Definite(bounds.width as f32),
-            height: taffy::AvailableSpace::Definite(bounds.height as f32),
+            width: taffy::AvailableSpace::Definite(window_size.width as f32),
+            height: taffy::AvailableSpace::Definite(window_size.height as f32),
         };
-        let mut ctx = LayoutContext { app_state };
+        let mut ctx = LayoutContext { app_state, window_size };
         taffy::compute_root_layout(&mut ctx, widget_id.into(), available_space);
         //taffy::print_tree(&mut ctx, widget_id.into());
     }
@@ -57,7 +57,8 @@ impl<'a> Iterator for LayoutChildIter<'a> {
 }
 
 pub struct LayoutContext<'a> {
-	app_state: &'a mut AppState
+	app_state: &'a mut AppState,
+    window_size: Size
 }
 
 impl<'a> LayoutContext<'a> {
@@ -65,6 +66,7 @@ impl<'a> LayoutContext<'a> {
 		LayoutStyle { 
 			style: &self.app_state.widget_data[node_id.into()].style, 
 			display_style: self.app_state.widgets[node_id.into()].display_style(),
+            window_size: self.window_size
 		}
 	}
 }
