@@ -1,7 +1,7 @@
 use std::{collections::VecDeque, ops::{Deref, DerefMut}};
 
-use crate::{core::Rectangle, style::Style};
-use super::{app_state::Task, Widget, WidgetData, WidgetFlags};
+use crate::{core::Rectangle, style::Style, view::View};
+use super::{app_state::Task, ViewContext, Widget, WidgetData, WidgetFlags};
 
 pub struct WidgetRef<'a, W: 'a + Widget + ?Sized> {
     pub(super) widget: &'a W,
@@ -67,6 +67,13 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
 	pub fn child_count(&self) -> usize {
 		self.data.children.len()
 	}
+
+    pub fn add_child_with<V: View, F: FnOnce(&mut ViewContext) -> V>(&mut self, f: F) {
+        self.pending_tasks.push_back(Task::AddChild { 
+            widget_id: self.data.id, 
+            factory_fn: todo!()
+        });
+    }
 
     pub fn local_bounds(&self) -> Rectangle {
         self.data().local_bounds()

@@ -1,8 +1,8 @@
 use std::{any::Any, collections::{HashSet, VecDeque}, ops::DerefMut, rc::{Rc, Weak}};
 use slotmap::{Key, SecondaryMap, SlotMap};
-use crate::{core::{Point, Rectangle}, param::{AnyParameterMap, NormalizedValue, ParamRef, ParameterId, PlainValue}, platform};
+use crate::{core::{Point, Rectangle}, param::{AnyParameterMap, NormalizedValue, ParamRef, ParameterId, PlainValue}, platform, view::View};
 
-use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, effect::EffectContext, layout_window, memo::MemoState, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, Accessor, HostHandle, ParamContext, Runtime, SignalContext, SignalCreator, SignalGetContext, Widget, WindowId};
+use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, effect::EffectContext, layout_window, memo::MemoState, Accessor, HostHandle, ParamContext, Runtime, SignalContext, SignalCreator, SignalGetContext, ViewContext, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId};
 use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
@@ -20,7 +20,11 @@ pub(super) enum Task {
 	InvalidateRect {
 		window_id: WindowId,
 		rect: Rectangle
-	}
+	},
+    AddChild {
+        widget_id: WidgetId,
+        factory_fn: Box<dyn FnOnce(&mut ViewContext) -> Box<dyn Widget>>,
+    }
 }
 
 impl Task {
@@ -47,7 +51,12 @@ impl Task {
                 if let Some(window) = app_state.windows.get(*window_id) {
                     window.handle.invalidate(*rect);
                 }
-			}
+			},
+            Task::AddChild { widget_id, factory_fn } => {
+                let mut ctx = ViewContext::new(app_state);
+            
+            },
+            
         }
     }
 }
@@ -147,7 +156,7 @@ impl AppState {
         true
     }
 
-    pub fn add_window<W: Widget + 'static>(&mut self, handle: platform::Handle, f: impl FnOnce(&mut BuildContext<W>) -> W) -> WindowId {
+    pub fn add_window<W: Widget + 'static>(&mut self, handle: platform::Handle, view: impl View<Element = W>) -> WindowId {
 		let window_id = self.windows.insert(
             WindowState {
                 handle,
@@ -163,7 +172,7 @@ impl AppState {
 		self.windows[window_id].root_widget = widget_id;
 
 		{
-            let widget = f(&mut BuildContext::new(widget_id, self));
+            let widget = view.build(&mut BuildContext::new(widget_id, self));
             self.widgets.insert(widget_id, Box::new(widget));
         }
 
@@ -173,14 +182,14 @@ impl AppState {
     }
 
     /// Add a new widget
-    pub fn add_widget<W: Widget + 'static>(&mut self, parent_id: WidgetId, f: impl FnOnce(&mut BuildContext<W>) -> W) -> WidgetId {
+    pub fn add_widget<W: Widget + 'static>(&mut self, parent_id: WidgetId, view: impl View<Element = W>) -> WidgetId {
 		let window_id = self.widget_data.get(parent_id).expect("Parent not found").window_id;
         let id = self.widget_data.insert_with_key(|id| {
 			WidgetData::new(window_id, id).with_parent(parent_id)
 		});
         
 		{
-            let widget = f(&mut BuildContext::new(id, self));
+            let widget = view.build(&mut BuildContext::new(id, self));
             self.widgets.insert(id, Box::new(widget));
         }
 

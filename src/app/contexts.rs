@@ -38,15 +38,12 @@ impl<'a, W: Widget> BuildContext<'a, W> {
     }
 
     pub fn add_child<V: View>(&mut self, view: V) -> WidgetId {
-        self.app_state.add_widget(self.id, move |ctx| -> V::Element {
-            view.build(ctx)
-        })
+        self.app_state.add_widget(self.id, view)
     }
 
 	pub fn add_child_with<V: View>(&mut self, view_factory: impl FnOnce(&mut ViewContext) -> V) -> WidgetId {
-		self.app_state.add_widget(self.id, move |ctx| -> V::Element {
-            ctx.build_with(view_factory)
-        })
+        let view = view_factory(&mut ViewContext::new(&mut self.app_state));
+		self.app_state.add_widget(self.id, view)
 	}
 
     pub(crate) fn build<V: View>(&mut self, view: V) -> V::Element {
@@ -73,6 +70,10 @@ impl<'a, W: Widget> BuildContext<'a, W> {
 	pub fn update_style(&mut self, f: impl FnOnce(&mut Style)) {
 		f(&mut self.app_state.widget_data_mut(self.id).style);
 	}
+
+    pub(crate) fn as_view_context(self) -> ViewContext<'a> {
+        ViewContext::new(self.app_state)
+    }
 }
 
 impl<'s, W: Widget> ParamContext for BuildContext<'s, W> {
@@ -100,6 +101,10 @@ pub struct ViewContext<'a> {
 }
 
 impl<'a> ViewContext<'a> {
+    pub(super) fn new(app_state: &'a mut AppState) -> Self {
+        Self { app_state}
+    }
+
 	pub fn app_state(&self) -> &AppState {
 		&self.app_state
 	}
