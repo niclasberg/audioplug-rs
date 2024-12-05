@@ -32,6 +32,7 @@ fn apply_style<W: Widget, T: Copy + Clone + 'static>(accessor: Option<Accessor<T
 	if let Some(accessor) = accessor {
 		let value = ctx.get_and_track(accessor, move|value, mut widget| {
 			widget.update_style(|style| apply_fn(*value, style));
+			widget.request_layout();
 		});
 		ctx.update_style(|style| apply_fn(value, style));
 	}

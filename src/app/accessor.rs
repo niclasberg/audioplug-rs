@@ -51,6 +51,10 @@ impl<T: 'static> Accessor<T> {
 		}
 	}
 
+	pub fn get(&self, cx: &mut dyn SignalGetContext) -> T where T: Clone {
+		self.with_ref(cx, T::clone)
+	}
+
     pub fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&T) -> R) -> R {
         match self {
             Accessor::Signal(signal) => signal.with_ref(cx, f),

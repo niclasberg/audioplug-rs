@@ -54,14 +54,18 @@ impl<V: View, F: Fn(&mut ViewContext, usize) -> V> IndexedViewSeq<F> {
 }
 
 impl<V: View, F: Fn(&mut ViewContext, usize) -> V> ViewSequence for IndexedViewSeq<F> {
-	fn build<W: Widget>(self, ctx: &mut BuildContext<W>) {
-		let child_count = ctx.get_and_track(self.count, |&value, mut widget| {
-            if value != widget.child_count() {
-                
+	fn build<W: Widget>(self, cx: &mut BuildContext<W>) {
+		let child_count = self.count.get(cx);
+		for i in 0..child_count {
+			cx.add_child_with(|cx| (self.view_factory)(cx, i));
+		}
+
+		cx.track(self.count, |&value, mut widget| {
+            if value < widget.child_count() {
+                for _ in value..widget.child_count() {
+
+				}
             }
 		});
-		for i in 0..child_count {
-			ctx.add_child_with(|cx| (self.view_factory)(cx, i));
-		}
 	}
 }
