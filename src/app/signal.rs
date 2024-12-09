@@ -50,7 +50,6 @@ impl<T: 'static> SignalGet for Signal<T> {
     }
 }
 
-
 pub struct SignalState  {
 	pub(super) value: Box<dyn Any>
 }

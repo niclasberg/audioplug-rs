@@ -1,6 +1,6 @@
-use crate::{app::StatusChange, core::{Cursor, Rectangle}, keyboard::Key, platform::WindowEvent, KeyEvent, MouseEvent};
+use crate::{app::StatusChange, core::{Cursor, Rectangle}, keyboard::Key, platform::WindowEvent, view::View, KeyEvent, MouseEvent};
 
-use super::{animation::{drive_animations, request_animation_frame}, invalidate_window, layout::request_layout, layout_window, render::invalidate_widget, WidgetFlags, AppState, EventStatus, WidgetId, WindowId};
+use super::{animation::{drive_animations, request_animation_frame}, invalidate_window, layout::request_layout, layout_window, render::invalidate_widget, AppState, EventStatus, ViewContext, WidgetFlags, WidgetId, WindowId};
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
@@ -205,6 +205,10 @@ impl<'a> MouseEventContext<'a> {
     pub fn bounds(&self) -> Rectangle {
         self.app_state.widget_data_ref(self.id).global_bounds()
     }
+
+	pub fn add_overlay<V: View>(&mut self, f: impl FnOnce(&mut ViewContext) -> V) {
+		
+	}
 }
 
 

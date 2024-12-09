@@ -4,7 +4,7 @@ mod length;
 mod style_builder;
 mod ui_rect;
 
-use crate::core::{Color, Size};
+use crate::core::{Color, Cursor, Size};
 pub use display_style::{DisplayStyle, FlexStyle, Measure};
 pub(crate) use layout_style::LayoutStyle;
 pub use length::Length;
@@ -41,6 +41,7 @@ pub struct Style {
     pub overflow_y: Overflow,
     pub background: Option<Color>,
     pub corner_radius: Size,
+	pub cursor: Option<Cursor>,
 }
 
 impl Default for Style {
@@ -60,6 +61,7 @@ impl Default for Style {
             overflow_y: Overflow::Visible,
             background: None,
             corner_radius: Size::ZERO,
+			cursor: None
         }
     }
 }

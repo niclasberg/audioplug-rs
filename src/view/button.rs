@@ -56,7 +56,6 @@ impl Widget for ButtonWidget {
         match event {
             MouseEvent::Down { button, position } | MouseEvent::DoubleClick { button, position } if ctx.bounds().contains(position) => {
                 if button == MouseButton::LEFT {
-                    self.mouse_down = true;
                     ctx.capture_mouse();
                     ctx.request_render();
                 }
@@ -64,15 +63,12 @@ impl Widget for ButtonWidget {
             },
             MouseEvent::Up { button, position } if button == MouseButton::LEFT => {
                 ctx.release_capture();
-                if self.mouse_down {
-                    self.mouse_down = false;
-                    if ctx.bounds().contains(position) {
-                        if let Some(f) = self.click_fn.as_ref() {
-                            f(ctx.app_state_mut());
-                        }
-                    }
-					ctx.request_render();
-                }
+				if ctx.bounds().contains(position) {
+					if let Some(f) = self.click_fn.as_ref() {
+						f(ctx.app_state_mut());
+					}
+				}
+				ctx.request_render();
                 EventStatus::Handled
             },
             _ => ctx.forward_to_children(event)
@@ -112,7 +108,7 @@ impl Widget for ButtonWidget {
 	}
 
     fn render(&mut self, ctx: &mut RenderContext) {
-        let color = if self.mouse_down {
+        let color = if ctx.has_mouse_capture() {
             if self.is_hot { 
                 Color::from_rgb8(0, 66, 37)
             } else {

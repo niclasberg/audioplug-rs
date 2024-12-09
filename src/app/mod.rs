@@ -15,10 +15,10 @@ mod signal;
 mod runtime;
 mod widget;
 mod widget_data;
-mod widget_node;
+mod widget_ref;
 mod window;
 
-use std::{any::Any, cell::RefCell, marker::PhantomData, rc::Rc};
+use std::{any::Any, cell::RefCell, marker::PhantomData, ops::Add, rc::Rc};
 
 pub use accessor::Accessor;
 use accessor::{MappedAccessor, SourceId};
@@ -37,7 +37,7 @@ pub use runtime::*;
 pub use signal::Signal;
 use signal::SignalState;
 pub use widget::{EventStatus, StatusChange, Widget};
-pub use widget_node::{WidgetRef, WidgetMut};
+pub use widget_ref::{WidgetRef, WidgetMut};
 pub use widget_data::{WidgetData, WidgetId, WidgetFlags};
 pub use window::Window;
 #[cfg(target_os  ="macos")]
@@ -115,8 +115,6 @@ pub trait SignalGet {
         }
     }
 }
-
-
 
 #[derive(Clone, Copy)]
 pub struct Mapped<S, T, R, F> {

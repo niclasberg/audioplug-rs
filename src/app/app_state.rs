@@ -1,6 +1,6 @@
 use std::{any::Any, collections::{HashSet, VecDeque}, ops::DerefMut, rc::{Rc, Weak}};
 use slotmap::{Key, SecondaryMap, SlotMap};
-use crate::{core::{Point, Rectangle}, param::{AnyParameterMap, NormalizedValue, ParamRef, ParameterId, PlainValue}, platform, view::{AnyView, View}};
+use crate::{core::{Point, Rectangle}, param::{AnyParameterMap, NormalizedValue, ParamRef, ParameterId, PlainValue}, platform, view::View};
 
 use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, effect::EffectContext, layout::request_layout, layout_window, memo::MemoState, Accessor, HostHandle, ParamContext, Runtime, SignalContext, SignalCreator, SignalGetContext, ViewContext, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId};
 use super::NodeId;
@@ -57,7 +57,7 @@ impl Task {
 			},
             Task::AddChild { parent_id, factory_fn } => {
                 // Widget might have been removed
-                if let Some(_) = app_state.widgets.get_mut(parent_id) {
+                if let Some(_) = app_state.widgets.get(parent_id) {
                     let widget_id = app_state.add_widget(parent_id, factory_fn);
                     request_layout(app_state, widget_id);
                 }
@@ -216,6 +216,10 @@ impl AppState {
         id
     }
 
+	pub fn add_overlay(&mut self, window_id: WindowId, widget_factory: impl FnOnce(&mut ViewContext) -> Box<dyn Widget>) -> WidgetId {
+		todo!()
+	}
+
     pub fn remove_window(&mut self, id: WindowId) {
         let window = self.windows.remove(id).expect("Window not found");
         self.remove_widget(window.root_widget);
@@ -223,11 +227,29 @@ impl AppState {
 
     /// Remove a widget and all of its children and associated signals
     pub fn remove_widget(&mut self, id: WidgetId) {
-        let mut widget_data = self.widget_data.remove(id).unwrap();
-        self.widgets.remove(id).expect("Widget already removed");
-        self.clear_widget_bindings(id);
+		fn do_remove(this: &mut AppState, id: WidgetId) -> WidgetData {
+			let widget_data = this.widget_data.remove(id).unwrap();
+			this.widgets.remove(id).expect("Widget already removed");
+			this.clear_widget_bindings(id);
+			widget_data
+		}
 
-        // Must be removed from the children of the parent
+		// Clear focus and mouse capture here first?
+		if let Some(mouse_capture_widget) = self.mouse_capture_widget {
+			let mut current = id;
+			let capture_view_is_being_dropped = loop {
+				if !current.is_null() {
+					break false;
+				} else if current == mouse_capture_widget {
+					break true;
+				} else {
+					current = self.widget_data[current].parent_id;
+				}
+			};
+		}
+
+        let mut widget_data = do_remove(self, id);
+        // Must be removed from parent's child list
         if !widget_data.parent_id.is_null() {
             let parent_id = widget_data.parent_id;
             let parent_widget_data = self.widget_data.get_mut(parent_id).expect("Parent does not exist");
@@ -236,10 +258,7 @@ impl AppState {
 
         let mut children_to_remove = std::mem::take(&mut widget_data.children);
         while let Some(id) = children_to_remove.pop() {
-            let widget_data = self.widget_data.remove(id).unwrap();
-            self.widgets.remove(id).expect("Widget already removed");
-            self.clear_widget_bindings(id);
-
+            let widget_data = do_remove(self, id);
             children_to_remove.extend(widget_data.children.into_iter());
         }
     }
@@ -285,18 +304,45 @@ impl AppState {
                 return;
             }
 
-            let data = &self.widget_data[current];
-            for child in self.widget_data[current].children.iter() {
-                if data.global_bounds().contains(pos) {
-                    stack.push(*child)
+            for &child in self.widget_data[current].children.iter().rev() {
+                if self.widget_data[child].global_bounds().contains(pos) {
+                    stack.push(child)
                 }
             }
         }
     }
 
-    pub fn for_each_widget_at_rev(&self, id: WindowId, pos: Point, f: impl FnMut(&Self, WidgetId) -> bool) {
-		// TODO: implement
-		self.for_each_widget_at(id, pos, f)
+    pub fn for_each_widget_at_rev(&self, id: WindowId, pos: Point, mut f: impl FnMut(&Self, WidgetId) -> bool) {
+		enum Action {
+			VisitChildren(WidgetId),
+			Done(WidgetId)
+		}
+
+		let mut stack = vec![Action::VisitChildren(self.windows[id].root_widget)];
+		while let Some(current) = stack.pop() {
+			match current {
+				Action::VisitChildren(widget_id) => {
+					let data = &self.widget_data[widget_id];
+					if data.children.is_empty() {
+						if !f(&self, widget_id) {
+							return;
+						}
+					} else {
+						stack.push(Action::Done(widget_id));
+						for &child in data.children.iter() {
+							if self.widget_data[child].global_bounds().contains(pos) {
+								stack.push(Action::VisitChildren(child))
+							}
+						}
+					}	
+				},
+				Action::Done(widget_id) => {
+					if !f(&self, widget_id) {
+						return;
+					}
+				},
+			}
+		}
     }
 
 	pub(super) fn merge_widget_flags(&mut self, source: WidgetId) {

@@ -1,6 +1,6 @@
 use std::{any::{Any, TypeId}, ops::{Deref, DerefMut}};
 
-use crate::{core::Cursor, style::DisplayStyle, AnimationFrame, KeyEvent, MouseEvent};
+use crate::{style::DisplayStyle, AnimationFrame, KeyEvent, MouseEvent};
 
 use super::{animation::AnimationContext, EventContext, MouseEventContext, RenderContext};
 

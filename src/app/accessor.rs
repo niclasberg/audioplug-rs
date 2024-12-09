@@ -1,5 +1,5 @@
 use crate::param::ParameterId;
-use super::{Mapped, Memo, NodeId, ParamSignal, Signal, SignalGet, SignalGetContext};
+use super::{Mapped, Memo, NodeId, ParamSignal, Runtime, Signal, SignalGet, SignalGetContext};
 
 pub trait MappedAccessor<T>: CloneMappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;
