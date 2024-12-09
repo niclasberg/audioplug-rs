@@ -22,7 +22,7 @@ pub trait View: Sized {
 		Styled { view: self, style_builder }
 	}
 
-    fn as_any(self) -> AnyView
+    fn as_any_view(self) -> AnyView
     where 
         Self: 'static 
     {

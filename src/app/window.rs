@@ -34,8 +34,7 @@ where
     fn initialize(self, app_state: &mut AppState, handle: platform::Handle) -> Self {
         match self {
             WindowState::PreInit(PreInit(view_factory)) => {
-                let view = view_factory(&mut ViewContext::new(app_state));
-				let window_id = app_state.add_window(handle, view);
+				let window_id = app_state.add_window(handle, view_factory);
                 Self::Initialized(Constructed(window_id))
             }
             WindowState::Initialized(_) | WindowState::Initializing => panic!("Multiple calls to window initialize"),

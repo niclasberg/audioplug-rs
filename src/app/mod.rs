@@ -117,6 +117,7 @@ pub trait SignalGet {
 }
 
 
+
 #[derive(Clone, Copy)]
 pub struct Mapped<S, T, R, F> {
     parent: S,

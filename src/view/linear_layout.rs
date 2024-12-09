@@ -56,7 +56,7 @@ impl<VS: ViewSequence> View for Flex<VS> {
     type Element = FlexWidget;
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
-        self.view_seq.build(ctx);
+        self.view_seq.build_seq(ctx);
         let direction = ctx.get_and_track(self.direction, |value, mut widget| {
             widget.flex_style.direction = *value;
             widget.request_layout();

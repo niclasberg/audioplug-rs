@@ -33,10 +33,6 @@ pub trait Widget: Any {
     
     fn animation_frame(&mut self, _frame: AnimationFrame, _ctx: &mut AnimationContext) {}
 
-    fn cursor(&self) -> Option<Cursor> {
-        None
-    }
-
     fn display_style(&self) -> DisplayStyle;
 
 	/// Widgets that wrap another widget (like background, styled etc) need to implement this method and return the 
@@ -97,10 +93,6 @@ impl Widget for Box<dyn Widget> {
 
     fn render(&mut self, ctx: &mut RenderContext) {
         self.deref_mut().render(ctx)
-    }
-
-    fn cursor(&self) -> Option<Cursor> {
-        self.deref().cursor()
     }
 
     fn inner_widget(&self) -> Option<&dyn Widget> {

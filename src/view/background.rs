@@ -75,10 +75,6 @@ impl<W: Widget> Widget for BackgroundWidget<W> {
         self.widget.status_updated(event, ctx)
     }
 
-    fn cursor(&self) -> Option<Cursor> {
-        self.widget.cursor()
-    }
-
     fn render(&mut self, ctx: &mut RenderContext) {
 		if let Some(fill) = self.fill {
 			ctx.fill(ctx.local_bounds(), fill);

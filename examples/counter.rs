@@ -1,4 +1,4 @@
-use audioplug::{app::{Signal, SignalGet, SignalSet, Window}, core::{Color, Size}, style::{Length, UiRect}, view::{Button, Container, Flex, Label, View}, App};
+use audioplug::{app::{Signal, SignalGet, SignalSet, Window}, core::{Color, Size}, style::{Length, UiRect}, view::{Button, Container, Flex, IndexedViewSeq, Label, View}, App};
 
 fn main() {
     let mut app = App::new();
@@ -6,7 +6,7 @@ fn main() {
         let count = Signal::new(cx, 0);
 		Container::new(move |_|
 			Flex::column((
-				Label::new(count.map(|cnt| format!("Count is {}", cnt))),
+				Label::new(count.map(|cnt| format!("Count: {}", cnt))),
 				Button::new(Label::new("Increase"))
 					.on_click(move |cx| {
 						let old_value = count.get(cx);		
@@ -17,8 +17,11 @@ fn main() {
 						let old_value = count.get(cx);		
 						count.set(cx, old_value - 1);
 					}),
-				Label::new("GAAAA")
-					.style(|style| style.hidden(count.map(|x| *x < 0)))
+				Label::new("No children to show")
+					.style(|style| style.hidden(count.map(|x| *x > 0))),
+				Flex::column(IndexedViewSeq::new(count.map(|&x| x.max(0) as usize), |_, i| {
+					Label::new(format!("Child {}", i+1))
+				}))
 			))
 			.spacing(Length::Px(10.0))
 			.style(|style| style

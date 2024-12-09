@@ -45,7 +45,7 @@ impl Editor for MyEditor {
             ParameterSlider::new(&parameters.gain)
         ))
         .style(|style| style.padding(UiRect::all_px(10.0)))
-		.as_any()
+		.as_any_view()
     }
 }
 

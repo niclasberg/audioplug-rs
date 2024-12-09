@@ -42,12 +42,16 @@ impl<'a, W: Widget> BuildContext<'a, W> {
     }
 
     pub fn add_child<V: View>(&mut self, view: V) -> WidgetId {
-        self.app_state.add_widget(self.id, view)
+        self.app_state.add_widget(self.id, move |cx| {
+            Box::new(view.build(&mut BuildContext::new(cx.id, &mut cx.app_state)))
+        })
     }
 
 	pub fn add_child_with<V: View>(&mut self, view_factory: impl FnOnce(&mut ViewContext) -> V) -> WidgetId {
-        let view = view_factory(&mut ViewContext::new(&mut self.app_state));
-		self.app_state.add_widget(self.id, view)
+		self.app_state.add_widget(self.id, move |cx| {
+            let view = view_factory(cx);
+            Box::new(view.build(&mut BuildContext::new(cx.id, &mut cx.app_state)))
+        })
 	}
 
     pub(crate) fn build<V: View>(&mut self, view: V) -> V::Element {
@@ -60,10 +64,7 @@ impl<'a, W: Widget> BuildContext<'a, W> {
     }
 
 	pub(crate) fn build_with<V: View>(&mut self, view_factory: impl FnOnce(&mut ViewContext) -> V) -> V::Element {
-		let mut app_context = ViewContext {
-			app_state: &mut self.app_state,
-		};
-		let view = view_factory(&mut app_context);
+		let view = view_factory(&mut ViewContext::new(self.id, &mut self.app_state));
 		self.build(view)
 	}
 
@@ -76,7 +77,7 @@ impl<'a, W: Widget> BuildContext<'a, W> {
 	}
 
     pub(crate) fn as_view_context(self) -> ViewContext<'a> {
-        ViewContext::new(self.app_state)
+        ViewContext::new(self.id, self.app_state)
     }
 }
 
@@ -102,16 +103,21 @@ impl<'b, W: Widget> SignalGetContext for BuildContext<'b, W> {
 
 pub struct ViewContext<'a> {
     app_state: &'a mut AppState,
+    id: WidgetId,
 }
 
 impl<'a> ViewContext<'a> {
-    pub(super) fn new(app_state: &'a mut AppState) -> Self {
-        Self { app_state}
+    pub(super) fn new(id: WidgetId, app_state: &'a mut AppState) -> Self {
+        Self { id, app_state }
     }
 
 	pub fn app_state(&self) -> &AppState {
 		&self.app_state
 	}
+
+    pub fn as_build_context<'b, W: Widget>(&'b mut self) -> BuildContext<'b, W> {
+        BuildContext::new(self.id, self.app_state)
+    }
 }
 
 impl<'a> SignalCreator for ViewContext<'a> {

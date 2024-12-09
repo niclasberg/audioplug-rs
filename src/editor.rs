@@ -36,17 +36,17 @@ impl ParamVisitor for CreateParameterViewsVisitor {
 	fn float_parameter(&mut self, p: &crate::param::FloatParameter) {
 		let view = Flex::row((
 			Label::new(p.info().name()),
-			ParameterSlider::new(p).as_any(),
+			ParameterSlider::new(p).as_any_view(),
 		));
-		self.views.push(view.as_any());
+		self.views.push(view.as_any_view());
 	}
 
 	fn int_parameter(&mut self, p: &crate::param::IntParameter) {
 		let view = Flex::row((
 			Label::new(p.info().name()),
-			ParameterSlider::new(p).as_any(),
+			ParameterSlider::new(p).as_any_view(),
 		));
-		self.views.push(view.as_any());
+		self.views.push(view.as_any_view());
 	}
 
 	fn string_list_parameter(&mut self, p: &crate::param::StringListParameter) {
@@ -62,7 +62,7 @@ impl ParamVisitor for CreateParameterViewsVisitor {
 			Flex::column(child_visitor.views)
 				.style(|style| style.padding(UiRect::left_px(20.0)))
 		)).style(|style| style.padding(UiRect::top_px(10.0)));
-		self.views.push(view.as_any());
+		self.views.push(view.as_any_view());
 	}
 }
 
@@ -95,6 +95,6 @@ impl<P: Params> Editor for GenericEditor<P> {
 				ParamRef::Bool(_) => todo!(),
 			}
 		}*/
-        Flex::column(visitor.views).as_any()
+        Flex::column(visitor.views).as_any_view()
     }
 }

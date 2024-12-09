@@ -68,11 +68,19 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
 		self.data.children.len()
 	}
 
-    pub fn add_child_with<V: View, F: FnOnce(&mut ViewContext) -> V>(&mut self, f: F) {
+    pub fn add_child_with<V: View, F: FnOnce(&mut ViewContext) -> V + 'static>(&mut self, f: F) {
         self.pending_tasks.push_back(Task::AddChild { 
-            widget_id: self.data.id, 
-            factory_fn: todo!()
+            parent_id: self.data.id, 
+            factory_fn: Box::new(move |cx| {
+                let view = f(cx);
+                Box::new(view.build(&mut cx.as_build_context()))
+            })
         });
+    }
+
+    pub fn remove_child(&mut self, i: usize) {
+        let widget_id = self.data.children[i];
+        self.pending_tasks.push_back(Task::RemoveWidget { widget_id });
     }
 
     pub fn local_bounds(&self) -> Rectangle {

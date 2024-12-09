@@ -457,10 +457,6 @@ impl Widget for TextBoxWidget {
         }
 	}
 
-    fn cursor(&self) -> Option<Cursor> {
-        Some(Cursor::IBeam)
-    }
-
     fn render(&mut self, ctx: &mut RenderContext) {
         let bounds = ctx.global_bounds();
 
