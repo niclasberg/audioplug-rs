@@ -1,6 +1,6 @@
 use std::{any::Any, collections::{HashSet, VecDeque}, ops::DerefMut, rc::{Rc, Weak}};
 use slotmap::{Key, SecondaryMap, SlotMap};
-use crate::{core::{Point, Rectangle}, param::{AnyParameterMap, NormalizedValue, ParamRef, ParameterId, PlainValue}, platform, view::View};
+use crate::{app::event_handling::set_mouse_capture_widget, core::{Point, Rectangle}, param::{AnyParameterMap, NormalizedValue, ParamRef, ParameterId, PlainValue}, platform, view::View};
 
 use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, effect::EffectContext, layout::request_layout, layout_window, memo::MemoState, Accessor, HostHandle, ParamContext, Runtime, SignalContext, SignalCreator, SignalGetContext, ViewContext, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId};
 use super::NodeId;
@@ -234,18 +234,10 @@ impl AppState {
 			widget_data
 		}
 
-		// Clear focus and mouse capture here first?
 		if let Some(mouse_capture_widget) = self.mouse_capture_widget {
-			let mut current = id;
-			let capture_view_is_being_dropped = loop {
-				if !current.is_null() {
-					break false;
-				} else if current == mouse_capture_widget {
-					break true;
-				} else {
-					current = self.widget_data[current].parent_id;
-				}
-			};
+			if mouse_capture_widget == id || self.widget_has_parent(mouse_capture_widget, id) {
+                set_mouse_capture_widget(self, None);
+            }
 		}
 
         let mut widget_data = do_remove(self, id);
@@ -276,6 +268,17 @@ impl AppState {
         let value = f(self, widget.as_mut());
         self.widgets.insert(id, widget);
         value
+    }
+
+    pub fn widget_has_parent(&self, child_id: WidgetId, parent_id: WidgetId) -> bool {
+        let mut id = child_id;
+        while !id.is_null() {
+            id = self.widget_data[id].parent_id;
+            if id == parent_id {
+                return true;
+            }
+        }
+        false
     }
 
     pub fn widget_has_focus(&self, id: WidgetId) -> bool {
