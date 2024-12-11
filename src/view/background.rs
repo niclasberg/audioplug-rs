@@ -28,7 +28,7 @@ impl<V: View> View for Background<V> {
 
 		let fill = self.fill.map(|fill| {
 			ctx.get_and_track(fill, |value, mut widget| {
-				widget.fill = Some(*value);
+				widget.fill = Some(value);
 				widget.request_render();
 			})
 		});
@@ -38,7 +38,7 @@ impl<V: View> View for Background<V> {
 				if !widget.border.is_some_and(|border| border.color == value.color) {
 					widget.request_render();
 				}
-				widget.border = Some(*value);
+				widget.border = Some(value);
 			})
 		});
 

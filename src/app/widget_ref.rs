@@ -1,23 +1,57 @@
-use std::{collections::VecDeque, ops::{Deref, DerefMut}};
+use std::{marker::PhantomData, ops::{Deref, DerefMut}};
 
 use crate::{core::Rectangle, style::Style, view::View};
-use super::{app_state::Task, ViewContext, Widget, WidgetData, WidgetFlags};
+use super::{layout::request_layout, render::invalidate_widget, AppState, ViewContext, Widget, WidgetData, WidgetFlags, WidgetId};
+
+pub struct ChildIter<'a> {
+    app_state: &'a AppState,
+    current_id: *const WidgetId,
+    end_id: *const WidgetId
+}
+
+impl<'a> Iterator for ChildIter<'a> {
+    type Item = WidgetRef<'a, dyn Widget>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current_id == self.end_id {
+            None
+        } else {
+            let id = unsafe { *self.current_id };
+            self.current_id = unsafe { self.current_id.offset(1) };
+            Some(WidgetRef::new(&self.app_state, id))
+        }
+    }
+}
+
+pub struct ChildIterMut<'a> {
+    app_state: &'a mut AppState
+}
+
+impl<'a> Iterator for ChildIterMut<'a> {
+    type Item = WidgetMut<'a, dyn Widget>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!()
+    }
+}
 
 pub struct WidgetRef<'a, W: 'a + Widget + ?Sized> {
-    pub(super) widget: &'a W,
-    pub(super) data: &'a WidgetData
+    pub(super) app_state: &'a AppState,
+    pub(super) id: WidgetId,
+    _phantom: PhantomData<&'a W>
 }
 
 impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
-    pub(super) fn new(widget: &'a W, data: &'a WidgetData) -> Self {
+    pub(super) fn new(app_state: &'a AppState, id: WidgetId) -> Self {
         Self {
-            widget,
-            data
+            app_state,
+            id,
+            _phantom: PhantomData
         }
     }
 
     pub fn data(&self) -> &WidgetData {
-        &self.data
+        &self.app_state.widget_data[self.id]
     }
 
     pub fn local_bounds(&self) -> Rectangle {
@@ -33,54 +67,74 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
     }
 }
 
-impl<'a, W: 'static + Widget> Deref for WidgetRef<'static, W> {
+impl<'a> Deref for WidgetRef<'a, dyn Widget> {
+    type Target = dyn Widget;
+
+    fn deref(&self) -> &Self::Target {
+        &self.app_state.widgets[self.id]
+    }
+}
+
+impl<'a, W: 'a + Widget> Deref for WidgetRef<'a, W> {
     type Target = W;
 
     fn deref(&self) -> &Self::Target {
-        &self.widget
+        self.app_state.widgets[self.id].downcast_ref().unwrap()
     }
 }
 
 pub struct WidgetMut<'a, W: 'a + Widget + ?Sized> {
-    pub(super) widget: &'a mut W,
-    pub(super) data: &'a mut WidgetData,
-	pub(super) pending_tasks: &'a mut VecDeque<Task>
+    pub(super) app_state: &'a mut AppState,
+    pub(super) id: WidgetId,
+    _phantom: PhantomData<&'a mut W>
 }
 
 impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
-    pub(super) fn new(widget: &'a mut W, data: &'a mut WidgetData, pending_tasks: &'a mut VecDeque<Task>) -> Self {
+    pub(super) fn new(app_state: &'a mut AppState, id: WidgetId) -> Self {
         Self {
-            widget,
-            data,
-			pending_tasks
+            app_state,
+            id,
+            _phantom: PhantomData
         }
     }
 
     pub fn data(&self) -> &WidgetData {
-        &self.data
+        &self.app_state.widget_data[self.id]
     }
 
     pub fn data_mut(&mut self) -> &mut WidgetData {
-        &mut self.data
+        &mut self.app_state.widget_data[self.id]
     }
 
 	pub fn child_count(&self) -> usize {
-		self.data.children.len()
+		self.data().children.len()
 	}
 
     pub fn add_child_with<V: View, F: FnOnce(&mut ViewContext) -> V + 'static>(&mut self, f: F) {
-        self.pending_tasks.push_back(Task::AddChild { 
-            parent_id: self.data.id, 
-            factory_fn: Box::new(move |cx| {
-                let view = f(cx);
-                Box::new(view.build(&mut cx.as_build_context()))
-            })
+        let widget_id = self.app_state.add_widget(self.id, move |cx| {
+            let view = f(cx);
+            Box::new(view.build(&mut cx.as_build_context()))
         });
+        request_layout(&mut self.app_state, widget_id);
     }
 
     pub fn remove_child(&mut self, i: usize) {
-        let widget_id = self.data.children[i];
-        self.pending_tasks.push_back(Task::RemoveWidget { widget_id });
+        let child_id = self.data().children[i];
+        self.app_state.remove_widget(child_id);
+        request_layout(&mut self.app_state, self.id);
+    }
+
+    pub fn child_iter<'b>(&'b self) -> ChildIter<'b> {
+        let ptr_range = self.data().children.as_ptr_range();
+        ChildIter { 
+            app_state: &self.app_state,
+            current_id: ptr_range.start,
+            end_id: ptr_range.end
+        }
+    }
+
+    pub fn child_iter_mut<'b>(&'b mut self) -> ChildIterMut<'b> {
+        ChildIterMut { app_state: &mut self.app_state }
     }
 
     pub fn local_bounds(&self) -> Rectangle {
@@ -96,22 +150,19 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 
 	pub fn request_render(&mut self) {
-        self.pending_tasks.push_back(Task::InvalidateRect { 
-			window_id: self.data.window_id, 
-			rect: self.data.global_bounds()
-		})
+        invalidate_widget(&mut self.app_state, self.id);
     }
 
 	pub fn update_style(&mut self, f: impl FnOnce(&mut Style)) {
-		f(&mut self.data.style);
+		f(&mut self.data_mut().style);
 	}
 
 	pub fn style(&self) -> &Style {
-		&self.data.style
+		&self.data().style
 	}
 
 	pub fn style_mut(&mut self) -> &mut Style {
-		&mut self.data.style
+		&mut self.data_mut().style
 	}
 
     pub fn layout_requested(&self) -> bool {
@@ -119,16 +170,30 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 }
 
+impl<'a> Deref for WidgetMut<'a, dyn Widget> {
+    type Target = dyn Widget;
+
+    fn deref(&self) -> &Self::Target {
+        &self.app_state.widgets[self.id]
+    }
+}
+
 impl<'a, W: 'a + Widget> Deref for WidgetMut<'a, W> {
     type Target = W;
 
     fn deref(&self) -> &Self::Target {
-        &self.widget
+        self.app_state.widgets[self.id].downcast_ref().unwrap()
+    }
+}
+
+impl<'a> DerefMut for WidgetMut<'a, dyn Widget> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.app_state.widgets[self.id]
     }
 }
 
 impl<'a, W: 'a + Widget> DerefMut for WidgetMut<'a, W> {    
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.widget
+        self.app_state.widgets[self.id].downcast_mut().unwrap()
     }
 }

@@ -85,7 +85,7 @@ impl<V: View, F: Fn(&mut ViewContext, usize) -> V + 'static> ViewSequence for In
 
         let f = Rc::new(self.view_factory);
 
-		cx.track(self.count, move |&value, mut widget| {
+		cx.track(self.count, move |value, mut widget| {
             if widget.child_count() < value {
                 for i in widget.child_count()..value {
                     let f = f.clone();
@@ -95,6 +95,9 @@ impl<V: View, F: Fn(&mut ViewContext, usize) -> V + 'static> ViewSequence for In
                 for i in value..widget.child_count() {
                     widget.remove_child(i);
 				}
+            }
+            for child in widget.child_iter() {
+                println!("{}", child.deref().debug_label())
             }
 		});
 	}

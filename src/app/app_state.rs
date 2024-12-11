@@ -14,20 +14,9 @@ pub(super) enum Task {
     },
 	UpdateBinding {
 		widget_id: WidgetId,
-    	f: Weak<Box<dyn Fn(&mut Runtime, &mut dyn Widget, &mut WidgetData)>>,
+    	f: Weak<Box<dyn Fn(&mut AppState)>>,
         node_id: NodeId,
 	},
-	InvalidateRect {
-		window_id: WindowId,
-		rect: Rectangle
-	},
-    AddChild {
-        parent_id: WidgetId,
-        factory_fn: Box<dyn FnOnce(&mut ViewContext) -> Box<dyn Widget>>,
-    },
-    RemoveWidget {
-        widget_id: WidgetId
-    }
 }
 
 impl Task {
@@ -43,34 +32,15 @@ impl Task {
             Task::UpdateBinding { widget_id, f, node_id } => {
                 if let Some(f) = f.upgrade() {
                     // Widget might have been removed
-                    if let Some(widget) = app_state.widgets.get_mut(widget_id) {
-                        f(&mut app_state.runtime, widget.deref_mut(), &mut app_state.widget_data[widget_id]);
-					    app_state.merge_widget_flags(widget_id);
+                    if app_state.widgets.contains_key(widget_id) {
+                        f(app_state);
+                    }
+                    if app_state.widgets.contains_key(widget_id) {
+                        app_state.merge_widget_flags(widget_id);
                     }
                 }
                 app_state.runtime.mark_node_as_clean(node_id);
             },
-			Task::InvalidateRect { window_id, rect } => {
-                if let Some(window) = app_state.windows.get(window_id) {
-                    window.handle.invalidate(rect);
-                }
-			},
-            Task::AddChild { parent_id, factory_fn } => {
-                // Widget might have been removed
-                if let Some(_) = app_state.widgets.get(parent_id) {
-                    let widget_id = app_state.add_widget(parent_id, factory_fn);
-                    request_layout(app_state, widget_id);
-                }
-            },
-            Task::RemoveWidget { widget_id } => {
-                if let Some(widget_data) = app_state.widget_data.get(widget_id) {
-                    let parent_id = widget_data.parent_id;
-                    app_state.remove_widget(widget_id);
-                    if !parent_id.is_null() {
-                        request_layout(app_state, parent_id);
-                    }
-                }
-            }
         }
     }
 }
@@ -109,17 +79,12 @@ impl AppState {
 		self.runtime.parameters.as_ref()
 	}
 
-    pub fn create_binding<T: 'static, W: Widget + 'static>(&mut self, accessor: Accessor<T>, widget_id: WidgetId, f: impl Fn(&T, WidgetMut<'_, W>) + 'static) -> bool {
+    pub fn create_binding<T: Clone + 'static, W: Widget + 'static>(&mut self, accessor: Accessor<T>, widget_id: WidgetId, f: impl Fn(T, WidgetMut<'_, W>) + 'static) -> bool {
         if let Some(source_id) = accessor.get_source_id() {
-            let state = BindingState::new(widget_id, move |ctx, widget, data| {
-                let tasks = accessor.with_ref(ctx, |value| {
-                    let mut tasks = VecDeque::new();
-                    let widget: &mut W = widget.downcast_mut().expect("Could not cast widget");
-                    let node = WidgetMut::new(widget, data, &mut tasks);
-                    f(value, node);
-                    tasks
-                });
-                ctx.pending_tasks.extend(tasks.into_iter());
+            let state = BindingState::new(widget_id, move |app_state| {
+                let value = accessor.get(app_state);
+                let node = WidgetMut::new(app_state, widget_id);
+                f(value, node);
             });
 
             let node_id = match source_id {
@@ -256,11 +221,11 @@ impl AppState {
     }
 
     pub fn widget_ref(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget> {
-        WidgetRef::new(&*self.widgets[id], &self.widget_data[id])
+        WidgetRef::new(self, id)
     }
 
     pub fn widget_mut(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
-        WidgetMut::new(&mut *self.widgets[id], &mut self.widget_data[id], &mut self.runtime.pending_tasks)
+        WidgetMut::new(self, id)
     }
 
     pub fn with_widget_mut<R>(&mut self, id: WidgetId, f: impl FnOnce(&mut Self, &mut dyn Widget) -> R) -> R {

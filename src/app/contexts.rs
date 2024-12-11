@@ -19,13 +19,13 @@ impl<'a, W: Widget> BuildContext<'a, W> {
         }
     }
 
-    pub fn get_and_track<T: Clone + 'static>(&mut self, accessor: Accessor<T>, f: impl Fn(&T, WidgetMut<'_, W>) + 'static) -> T {
+    pub fn get_and_track<T: Clone + 'static>(&mut self, accessor: Accessor<T>, f: impl Fn(T, WidgetMut<'_, W>) + 'static) -> T {
         let value = accessor.get(self.app_state);
 		self.track(accessor, f);
         value
     }
 
-	pub fn track<T: 'static>(&mut self, accessor: Accessor<T>, f: impl Fn(&T, WidgetMut<'_, W>) + 'static) {
+	pub fn track<T: Clone + 'static>(&mut self, accessor: Accessor<T>, f: impl Fn(T, WidgetMut<'_, W>) + 'static) {
 		self.app_state.create_binding(accessor, self.id, f);
 	}
 

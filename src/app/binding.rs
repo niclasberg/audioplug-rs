@@ -1,14 +1,14 @@
 use std::rc::Rc;
 
-use super::{Runtime, Widget, WidgetData, WidgetId};
+use super::{AppState, WidgetId};
 
 pub(super) struct BindingState {
     pub widget_id: WidgetId,
-    pub f: Rc<Box<dyn Fn(&mut Runtime, &mut dyn Widget, &mut WidgetData)>>,
+    pub f: Rc<Box<dyn Fn(&mut AppState)>>,
 }
 
 impl BindingState {
-    pub(super) fn new(widget_id: WidgetId, f: impl Fn(&mut Runtime, &mut dyn Widget, &mut WidgetData) + 'static) -> Self {
+    pub(super) fn new(widget_id: WidgetId, f: impl Fn(&mut AppState) + 'static) -> Self {
         Self {
             widget_id,
             f: Rc::new(Box::new(f))

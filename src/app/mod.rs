@@ -18,7 +18,7 @@ mod widget_data;
 mod widget_ref;
 mod window;
 
-use std::{any::Any, cell::RefCell, marker::PhantomData, ops::Add, rc::Rc};
+use std::{any::Any, cell::RefCell, marker::PhantomData, rc::Rc};
 
 pub use accessor::Accessor;
 use accessor::{MappedAccessor, SourceId};

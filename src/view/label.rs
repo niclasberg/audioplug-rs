@@ -33,7 +33,7 @@ impl View for Label {
         let color = ctx.get_and_track(self.color, |value, mut widget: WidgetMut<'_, Self::Element>| {
             widget.request_render();
             let mut text_layout = widget.text_layout.borrow_mut();
-			text_layout.set_color(*value);
+			text_layout.set_color(value);
         });
 
         let text_layout = RefCell::new(TextLayout::new(text.as_str(), color, Size::INFINITY));

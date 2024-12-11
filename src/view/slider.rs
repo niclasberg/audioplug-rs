@@ -62,7 +62,7 @@ impl View for Slider {
 
 		let position_normalized = if let Some(value) = self.value {
 			let position = ctx.get_and_track(value, move |value, mut widget| {
-				widget.position_normalized = normalize_value(widget.min, widget.max, *value);
+				widget.position_normalized = normalize_value(widget.min, widget.max, value);
 				widget.request_render();
 			});
 			normalize_value(self.min, self.max, position)
