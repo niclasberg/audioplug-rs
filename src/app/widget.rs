@@ -25,13 +25,16 @@ pub trait Widget: Any {
         ctx.forward_to_children(event)
     }
 
-    fn key_event(&mut self, _event: KeyEvent, _ctx: &mut EventContext) -> EventStatus {
+    #[allow(unused_variables)]
+    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
         EventStatus::Ignored
     }
 
-    fn status_updated(&mut self, _event: StatusChange, _ctx: &mut EventContext) {}
+    #[allow(unused_variables)]
+    fn status_updated(&mut self, event: StatusChange, ctx: &mut EventContext) {}
     
-    fn animation_frame(&mut self, _frame: AnimationFrame, _ctx: &mut AnimationContext) {}
+    #[allow(unused_variables)]
+    fn animation_frame(&mut self, frame: AnimationFrame, ctx: &mut AnimationContext) {}
 
     fn display_style(&self) -> DisplayStyle;
 

@@ -17,7 +17,7 @@ impl<V: View + Sized> ViewSequence for V {
 }
 
 macro_rules! impl_view_seq_tuple {
-    ( $n: tt; $( $t: ident),* ; $( $s: tt),*) => {
+    ($( $t: ident),* ; $( $s: tt),*) => {
         impl<$( $t: ViewSequence, )*> ViewSequence for ($( $t, )*) {
             type SeqState = ($( $t::SeqState, )*);
             fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>) -> Self::SeqState {
@@ -29,18 +29,18 @@ macro_rules! impl_view_seq_tuple {
     }
 }
 
-impl_view_seq_tuple!( 1; V; 0);
-impl_view_seq_tuple!( 2; V1, V2; 0, 1);
-impl_view_seq_tuple!( 3; V1, V2, V3; 0, 1, 2);
-impl_view_seq_tuple!( 4; V1, V2, V3, V4; 0, 1, 2, 3);
-impl_view_seq_tuple!( 5; V1, V2, V3, V4, V5; 0, 1, 2, 3, 4);
-impl_view_seq_tuple!( 6; V1, V2, V3, V4, V5, V6; 0, 1, 2, 3, 4, 5);
-impl_view_seq_tuple!( 7; V1, V2, V3, V4, V5, V6, V7; 0, 1, 2, 3, 4, 5, 6);
-impl_view_seq_tuple!( 8; V1, V2, V3, V4, V5, V6, V7, V8; 0, 1, 2, 3, 4, 5, 6, 7);
-impl_view_seq_tuple!( 9; V1, V2, V3, V4, V5, V6, V7, V8, V9; 0, 1, 2, 3, 4, 5, 6, 7, 8);
-impl_view_seq_tuple!(10; V1, V2, V3, V4, V5, V6, V7, V8, V9, V10; 0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
-impl_view_seq_tuple!(11; V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11; 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
-impl_view_seq_tuple!(12; V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12; 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
+impl_view_seq_tuple!(V; 0);
+impl_view_seq_tuple!(V1, V2; 0, 1);
+impl_view_seq_tuple!(V1, V2, V3; 0, 1, 2);
+impl_view_seq_tuple!(V1, V2, V3, V4; 0, 1, 2, 3);
+impl_view_seq_tuple!(V1, V2, V3, V4, V5; 0, 1, 2, 3, 4);
+impl_view_seq_tuple!(V1, V2, V3, V4, V5, V6; 0, 1, 2, 3, 4, 5);
+impl_view_seq_tuple!(V1, V2, V3, V4, V5, V6, V7; 0, 1, 2, 3, 4, 5, 6);
+impl_view_seq_tuple!(V1, V2, V3, V4, V5, V6, V7, V8; 0, 1, 2, 3, 4, 5, 6, 7);
+impl_view_seq_tuple!(V1, V2, V3, V4, V5, V6, V7, V8, V9; 0, 1, 2, 3, 4, 5, 6, 7, 8);
+impl_view_seq_tuple!(V1, V2, V3, V4, V5, V6, V7, V8, V9, V10; 0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+impl_view_seq_tuple!(V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11; 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+impl_view_seq_tuple!(V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12; 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
 
 impl<V: View> ViewSequence for Vec<V> {
     type SeqState = ();
@@ -96,9 +96,28 @@ impl<V: View, F: Fn(&mut ViewContext, usize) -> V + 'static> ViewSequence for In
                     widget.remove_child(i);
 				}
             }
-            for child in widget.child_iter() {
-                println!("{}", child.deref().debug_label())
-            }
 		});
 	}
+}
+
+pub struct ForEach<T, F> {
+	values: Accessor<Vec<T>>,
+	view_factory: F
+}
+
+impl<T, V: View, F: Fn(&mut ViewContext, &T) -> V + 'static> ForEach<T, F> {
+    pub fn new(values: impl Into<Accessor<Vec<T>>>, view_factory: F) -> Self {
+        Self {
+            values: values.into(),
+            view_factory
+        }
+    }
+}
+
+impl<T, V: View, F: Fn(&mut ViewContext, &T) -> V + 'static> ViewSequence for ForEach<T, F> {
+    type SeqState = ();
+
+    fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>) -> Self::SeqState {
+        todo!()
+    }
 }

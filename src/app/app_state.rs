@@ -45,6 +45,11 @@ impl Task {
     }
 }
 
+struct Overlay {
+    root_widget: WidgetId,
+    
+}
+
 pub(super) struct WindowState {
     pub(super) handle: platform::Handle,
     pub(super) root_widget: WidgetId,

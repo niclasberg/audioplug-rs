@@ -17,11 +17,6 @@ impl<T: Any> Signal<T> {
             _marker: PhantomData
         }
     }
-
-    pub fn update(&self, cx: &mut impl SignalContext, f: impl Fn(&T) -> T) {
-        let new_value = self.with_ref(cx, f);
-        self.set(cx, new_value);
-    }
 }
 
 impl<T: Any> SignalSet for Signal<T> {
@@ -31,9 +26,9 @@ impl<T: Any> SignalSet for Signal<T> {
         cx.set_signal_value(self, f())
     }
 
-    fn update(&self, _cx: &mut impl SignalContext, _f: impl FnOnce(&mut Self::Value)) {
-        //cx.update_signal_value(self, f)
-        todo!()
+    fn update(&self, cx: &mut impl SignalContext, f: impl FnOnce(&mut Self::Value)) {
+        //let new_value = self.with_ref(cx, f);
+        //self.set(cx, new_value);
     }
 }
 
@@ -60,4 +55,12 @@ impl SignalState {
             value: Box::new(value)
         }
     }
+}
+
+pub struct VecSignal<T> {
+    _phantom: PhantomData<*mut T>
+}
+
+impl<T> VecSignal<T> {
+
 }
