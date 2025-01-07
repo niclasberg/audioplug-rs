@@ -1,6 +1,10 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{accessor::SourceId, NodeId, SignalContext, SignalCreator, SignalGet, SignalGetContext, SignalSet};
+use super::{accessor::SourceId, NodeId, NodeType, Path, ReactiveContext, SignalCreator, SignalGet};
+
+pub trait SignalContext: ReactiveContext {
+    fn update_signal_value<T: Any>(&mut self, signal: &Signal<T>, f: impl FnOnce(&mut T));
+}
 
 #[derive(Clone, Copy)]
 pub struct Signal<T> {
@@ -17,18 +21,22 @@ impl<T: Any> Signal<T> {
             _marker: PhantomData
         }
     }
-}
 
-impl<T: Any> SignalSet for Signal<T> {
-    type Value = T;
-
-    fn set_with(&self, cx: &mut impl SignalContext, f: impl FnOnce() -> Self::Value) {
-        cx.set_signal_value(self, f())
+    /// Set the current value, notifies subscribers
+    pub fn set(&self, cx: &mut impl SignalContext, value: T) {
+        self.set_with(cx, move || value)
     }
 
-    fn update(&self, cx: &mut impl SignalContext, f: impl FnOnce(&mut Self::Value)) {
-        //let new_value = self.with_ref(cx, f);
-        //self.set(cx, new_value);
+    /// Set the current value, notifies subscribers
+    pub fn set_with(&self, cx: &mut impl SignalContext, f: impl FnOnce() -> T) {
+        cx.update_signal_value(self, move |value| {
+            *value = f();
+        });
+    }
+
+    /// Set the current value, notifies subscribers
+    pub fn update(&self, cx: &mut impl SignalContext, f: impl FnOnce(&mut T)) {
+        cx.update_signal_value(self, f);
     }
 }
 
@@ -39,9 +47,12 @@ impl<T: 'static> SignalGet for Signal<T> {
         SourceId::Node(self.id)
     }
 
-    fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&T) -> R) -> R {
-        let value = cx.get_node_value_ref(self.id).downcast_ref().expect("Signal had wrong type");
-        f(value)
+    fn with_ref<R>(&self, cx: &mut dyn ReactiveContext, f: impl FnOnce(&T) -> R) -> R {
+        let value = match &cx.get_node_ref(self.id, Path::ROOT).node_type {
+            NodeType::Signal(signal) => signal.value.as_ref(),
+            _ => unreachable!()
+        };
+        f(value.downcast_ref().expect("Signal had wrong type"))
     }
 }
 
@@ -55,12 +66,4 @@ impl SignalState {
             value: Box::new(value)
         }
     }
-}
-
-pub struct VecSignal<T> {
-    _phantom: PhantomData<*mut T>
-}
-
-impl<T> VecSignal<T> {
-
 }

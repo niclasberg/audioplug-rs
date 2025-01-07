@@ -2,7 +2,7 @@ use std::{any::Any, marker::PhantomData};
 
 use crate::{param::{ParamRef, ParameterId}, style::Style, view::View};
 
-use super::{effect::EffectState, WidgetFlags, WidgetId, WidgetMut, Accessor, AppState, NodeId, ParamContext, Signal, SignalContext, SignalCreator, SignalGetContext, Widget};
+use super::{effect::EffectState, signal::SignalContext, Accessor, AppState, Node, NodeId, ParamContext, Path, ReactiveContext, Signal, SignalCreator, Widget, WidgetFlags, WidgetId, WidgetMut};
 
 pub struct BuildContext<'a, W: Widget> {
     id: WidgetId,
@@ -87,9 +87,13 @@ impl<'s, W: Widget> ParamContext for BuildContext<'s, W> {
     }
 }
 
-impl<'b, W: Widget> SignalGetContext for BuildContext<'b, W> {
-    fn get_node_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
-        self.app_state.get_node_value_ref(signal_id)
+impl<'b, W: Widget> ReactiveContext for BuildContext<'b, W> {
+    fn get_node_ref_untracked<'a>(&'a mut self, signal_id: NodeId, child_path: Path) -> &'a mut Node {
+        self.app_state.get_node_ref_untracked(signal_id, child_path)
+    }
+
+    fn get_node_ref<'a>(&'a mut self, signal_id: NodeId, child_path: Path) -> &'a mut Node {
+        self.app_state.get_node_ref(signal_id, child_path)
     }
 	
 	fn get_parameter_ref_untracked(&self, parameter_id: ParameterId) -> ParamRef {
@@ -137,9 +141,13 @@ impl<'a> SignalCreator for ViewContext<'a> {
     }
 }
 
-impl<'b> SignalGetContext for ViewContext<'b> {
-    fn get_node_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
-        self.app_state.get_node_value_ref(signal_id)
+impl<'b> ReactiveContext for ViewContext<'b> {
+    fn get_node_ref_untracked<'a>(&'a mut self, signal_id: NodeId, child_path: Path) -> &'a mut Node {
+        self.app_state.get_node_ref_untracked(signal_id, child_path)
+    }
+
+    fn get_node_ref<'a>(&'a mut self, signal_id: NodeId, child_path: Path) -> &'a mut Node {
+        self.app_state.get_node_ref(signal_id, child_path)
     }
 	
 	fn get_parameter_ref_untracked(&self, parameter_id: ParameterId) -> ParamRef {
@@ -152,8 +160,8 @@ impl<'b> SignalGetContext for ViewContext<'b> {
 }
 
 impl<'b> SignalContext for ViewContext<'b> {
-    fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
-        self.app_state.set_signal_value(signal, value)
+    fn update_signal_value<T: Any>(&mut self, signal: &Signal<T>, f: impl FnOnce(&mut T)) {
+        self.app_state.update_signal_value(signal, f)
     }
 }
 

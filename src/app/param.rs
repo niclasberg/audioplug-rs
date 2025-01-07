@@ -2,9 +2,9 @@ use std::{any::Any, marker::PhantomData};
 
 use crate::param::{AnyParameter, NormalizedValue, Parameter, ParameterId, ParameterInfo, PlainValue};
 
-use super::{accessor::SourceId, HostHandle, SignalGet, SignalGetContext};
+use super::{accessor::SourceId, HostHandle, SignalGet, ReactiveContext};
 
-pub trait ParamContext: SignalGetContext {
+pub trait ParamContext: ReactiveContext {
 	fn host_handle(&self) -> &dyn HostHandle;
 }
 
@@ -97,13 +97,13 @@ impl<T: Any> SignalGet for ParamSignal<T> {
 		SourceId::Parameter(self.id)
 	}
 
-	fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+	fn with_ref<R>(&self, cx: &mut dyn ReactiveContext, f: impl FnOnce(&Self::Value) -> R) -> R {
 		let param_ref = cx.get_parameter_ref(self.id);
 		let value = param_ref.value_as().unwrap();
 		f(&value)
 	}
 	
-	fn get(&self, cx: &mut dyn SignalGetContext) -> Self::Value where Self::Value: Clone {
+	fn get(&self, cx: &mut dyn ReactiveContext) -> Self::Value where Self::Value: Clone {
 		let param_ref = cx.get_parameter_ref_untracked(self.id);
 		param_ref.value_as().unwrap()
 	}

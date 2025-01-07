@@ -1,8 +1,8 @@
-use std::{any::Any, collections::{HashSet, VecDeque}, ops::DerefMut, rc::{Rc, Weak}};
+use std::{any::Any, collections::HashSet, rc::{Rc, Weak}};
 use slotmap::{Key, SecondaryMap, SlotMap};
-use crate::{app::event_handling::set_mouse_capture_widget, core::{Point, Rectangle}, param::{AnyParameterMap, NormalizedValue, ParamRef, ParameterId, PlainValue}, platform, view::View};
+use crate::{app::event_handling::set_mouse_capture_widget, core::Point, param::{AnyParameterMap, NormalizedValue, ParamRef, ParameterId, PlainValue}, platform, view::View};
 
-use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, effect::EffectContext, layout::request_layout, layout_window, memo::MemoState, Accessor, HostHandle, ParamContext, Runtime, SignalContext, SignalCreator, SignalGetContext, ViewContext, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId};
+use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, effect::EffectContext, layout::request_layout, layout_window, memo::MemoState, signal::SignalContext, Accessor, HostHandle, Node, ParamContext, Path, ReactiveContext, Runtime, SignalCreator, ViewContext, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId};
 use super::NodeId;
 use super::signal::{Signal, SignalState};
 use super::effect::EffectState;
@@ -372,9 +372,13 @@ impl AppState {
     }
 }
 
-impl SignalGetContext for AppState {
-    fn get_node_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
-        self.runtime.get_node_value_ref(signal_id)
+impl ReactiveContext for AppState {
+    fn get_node_ref_untracked<'a>(&'a mut self, signal_id: NodeId, child_path: Path) -> &'a mut Node {
+        self.runtime.get_node_ref_untracked(signal_id, child_path)
+    }
+
+    fn get_node_ref<'a>(&'a mut self, signal_id: NodeId, child_path: Path) -> &'a mut Node {
+        self.runtime.get_node_ref(signal_id, child_path)
     }
 	
 	fn get_parameter_ref_untracked(&self, parameter_id: ParameterId) -> ParamRef {
@@ -387,8 +391,8 @@ impl SignalGetContext for AppState {
 }
 
 impl SignalContext for AppState {
-    fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
-        self.runtime.set_signal_value(signal, value);
+    fn update_signal_value<T: Any>(&mut self, signal: &Signal<T>, f: impl FnOnce(&mut T)) {
+        self.runtime.update_signal_value(signal, f);
     }
 }
 

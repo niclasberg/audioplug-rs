@@ -1,16 +1,20 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
-use super::{accessor::SourceId, NodeId, Runtime, SignalCreator, SignalGet, SignalGetContext};
+use super::{accessor::SourceId, Node, NodeId, NodeType, Path, ReactiveContext, Runtime, SignalCreator, SignalGet};
 
 pub struct MemoContext<'a> {
     pub(super) memo_id: NodeId,
     pub(super) runtime: &'a mut Runtime
 }
 
-impl<'b> SignalGetContext for MemoContext<'b> {
-    fn get_node_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any {
+impl<'b> ReactiveContext for MemoContext<'b> {
+    fn get_node_ref_untracked<'a>(&'a mut self, signal_id: NodeId, child_path: Path) -> &'a mut Node {
+        self.runtime.get_node_ref_untracked(signal_id, child_path)
+    }
+
+    fn get_node_ref<'a>(&'a mut self, signal_id: NodeId, child_path: Path) -> &'a mut Node {
         self.runtime.subscriptions.add_node_subscription(signal_id, self.memo_id);
-        self.runtime.get_node_value_ref(signal_id)
+        self.runtime.get_node_ref(signal_id, child_path)
     }
 
     fn get_parameter_ref_untracked<'a>(&'a self, parameter_id: crate::param::ParameterId) -> crate::param::ParamRef<'a> {
@@ -66,9 +70,12 @@ impl<T: 'static> SignalGet for Memo<T> {
 		SourceId::Node(self.id)
 	}
 
-    fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-        let value = cx.get_node_value_ref(self.id).downcast_ref().expect("Memo had wrong type");
-        f(value)
+    fn with_ref<R>(&self, cx: &mut dyn ReactiveContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+        let value = match &cx.get_node_ref(self.id, Path::ROOT).node_type {
+            NodeType::Memo(state) => state.value.as_ref().expect("Memo should have been evaluated before accessed").as_ref(),
+            _ => unreachable!()
+        };
+        f(value.downcast_ref().expect("Memo had wrong type"))
     }
 }
 
@@ -86,7 +93,7 @@ impl MemoState {
 #[cfg(test)]
 mod tests {
     use std::{cell::Cell, rc::Rc};
-    use crate::{app::{AppState, Effect, Signal, SignalSet}, param::ParameterMap};
+    use crate::{app::{AppState, Effect, Signal}, param::ParameterMap};
     use super::*;
 
     fn with_appstate(f: impl FnOnce(&mut AppState)) {

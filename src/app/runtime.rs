@@ -1,12 +1,18 @@
 use std::{any::Any, collections::{HashMap, HashSet, VecDeque}, rc::Rc};
 use indexmap::IndexSet;
-use slotmap::{Key, SecondaryMap, SlotMap};
+use slotmap::{SecondaryMap, SlotMap};
 use crate::param::{AnyParameterMap, ParamRef, ParameterId};
-use super::{accessor::SourceId, animation::AnimationState, app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::SignalState, MemoContext, NodeId, Signal, SignalContext, SignalCreator, SignalGet, SignalGetContext};
+use super::{animation::AnimationState, app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::{SignalContext, SignalState}, MemoContext, NodeId, ReactiveContext, Signal, SignalCreator};
 
-struct Node {
-    node_type: NodeType,
+pub struct Node {
+    pub(super) node_type: NodeType,
     state: NodeState
+}
+
+pub struct PathSegment(usize);
+pub struct Path(Vec<PathSegment>);
+impl Path {
+    pub const ROOT: Self = Self(Vec::new());
 }
 
 /*impl Node {
@@ -29,7 +35,7 @@ enum NodeState {
     Dirty = 2
 }
 
-enum NodeType {
+pub(super) enum NodeType {
     TmpRemoved,
     Signal(SignalState),
     Memo(MemoState),
@@ -111,6 +117,7 @@ impl SubscriberMap {
 
 pub struct Runtime {
     nodes: SlotMap<NodeId, Node>,
+    child_nodes: SecondaryMap<NodeId, Vec<NodeId>>,
     pub(super) subscriptions: SubscriberMap,
     pub(super) pending_tasks: VecDeque<Task>,
     pub(super) parameters: Rc<dyn AnyParameterMap>,
@@ -121,6 +128,7 @@ impl Runtime {
     pub fn new(parameter_map: Rc<dyn AnyParameterMap>) -> Self {    
         Self { 
             nodes: Default::default(), 
+            child_nodes: Default::default(),
             subscriptions: SubscriberMap::new(&parameter_map.parameter_ids()),
             pending_tasks: Default::default(),
             parameters: parameter_map,
@@ -156,24 +164,6 @@ impl Runtime {
     pub fn remove_node(&mut self, id: NodeId) {
         self.subscriptions.remove_node(id);
         self.nodes.remove(id).expect("Missing node");
-    }
-
-    fn update_signal_value<T: Any>(&mut self, signal: &Signal<T>, f: impl FnOnce(&mut T)) {
-        {
-            let signal = self.nodes.get_mut(signal.id).expect("No signal found");
-            match &mut signal.node_type {
-                NodeType::Signal(signal) => {
-                    let mut value = signal.value.downcast_mut().expect("Invalid signal value type");
-                    f(&mut value);
-                },
-                _ => unreachable!()
-            }
-        }
-        
-        let mut observers = std::mem::take(&mut self.scratch_buffer);
-        observers.clear();
-        observers.extend(self.subscriptions.observers[signal.id].iter());
-        self.notify_source_changed(observers);
     }
 
     pub(super) fn notify_source_changed(&mut self, mut nodes_to_notify: VecDeque<NodeId>) {
@@ -271,14 +261,6 @@ impl Runtime {
         self.notify_source_changed(nodes_to_notify);
 	}
 
-    pub fn get_signal_value_ref(&self, signal_id: NodeId) -> &dyn Any {
-        let node = self.nodes.get(signal_id).expect("Node not found");
-        match &node.node_type {
-            NodeType::Signal(signal) => signal.value.as_ref(),
-            _ => unreachable!()
-        }
-    }
-
     pub(super) fn mark_node_as_clean(&mut self, node_id: NodeId) {
         self.nodes[node_id].state = NodeState::Clean;
     }
@@ -288,15 +270,14 @@ impl Runtime {
     }
 }
 
-impl SignalGetContext for Runtime {
-    fn get_node_value_ref<'a>(&'a mut self, node_id: NodeId) -> &'a dyn Any {
+impl ReactiveContext for Runtime {
+    fn get_node_ref_untracked<'a>(&'a mut self, node_id: NodeId, _child_path: Path) -> &'a mut Node {
         self.update_if_necessary(node_id);
-        let node = self.nodes.get(node_id).expect("Node not found");
-        match &node.node_type {
-            NodeType::Signal(signal) => signal.value.as_ref(),
-            NodeType::Memo(memo) => memo.value.as_ref().expect("Memo should have been evaluated before accessed").as_ref(),
-            _ => unreachable!()
-        }
+        self.nodes.get_mut(node_id).expect("Node not found")
+    }
+
+    fn get_node_ref<'a>(&'a mut self, node_id: NodeId, child_path: Path) -> &'a mut Node {
+        self.get_node_ref_untracked(node_id, child_path)
     }
 	
 	fn get_parameter_ref_untracked(&self, parameter_id: ParameterId) -> ParamRef {
@@ -309,8 +290,22 @@ impl SignalGetContext for Runtime {
 }
 
 impl SignalContext for Runtime {
-    fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T) {
-        self.update_signal_value(signal, move |val| *val = value);
+    fn update_signal_value<T: Any>(&mut self, signal: &Signal<T>, f: impl FnOnce(&mut T)) {
+        {
+            let signal = self.nodes.get_mut(signal.id).expect("No signal found");
+            match &mut signal.node_type {
+                NodeType::Signal(signal) => {
+                    let mut value = signal.value.downcast_mut().expect("Invalid signal value type");
+                    f(&mut value);
+                },
+                _ => unreachable!()
+            }
+        }
+        
+        let mut observers = std::mem::take(&mut self.scratch_buffer);
+        observers.clear();
+        observers.extend(self.subscriptions.observers[signal.id].iter());
+        self.notify_source_changed(observers);
     }
 }
 

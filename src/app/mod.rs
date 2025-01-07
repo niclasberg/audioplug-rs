@@ -12,6 +12,7 @@ mod overlay;
 mod param;
 mod render;
 mod signal;
+mod signal_vec;
 mod runtime;
 mod widget;
 mod widget_data;
@@ -76,14 +77,11 @@ impl App {
     }
 }
 
-pub trait SignalGetContext {
-    fn get_node_value_ref<'a>(&'a mut self, signal_id: NodeId) -> &'a dyn Any;
+pub trait ReactiveContext {
+    fn get_node_ref_untracked<'a>(&'a mut self, signal_id: NodeId, child_path: Path) -> &'a mut Node;
+    fn get_node_ref<'a>(&'a mut self, signal_id: NodeId, child_path: Path) -> &'a mut Node;
     fn get_parameter_ref_untracked<'a>(&'a self, parameter_id: ParameterId) -> ParamRef<'a>;
     fn get_parameter_ref<'a>(&'a mut self, parameter_id: ParameterId) -> ParamRef<'a>;
-}
-
-pub trait SignalContext: SignalGetContext {
-    fn set_signal_value<T: Any>(&mut self, signal: &Signal<T>, value: T);
 }
 
 pub trait UntrackedSignalContext {}
@@ -94,10 +92,10 @@ pub trait SignalGet {
 	fn get_source_id(&self) -> SourceId;
 
     /// Map the current value using `f` and subscribe to changes
-    fn with_ref<R>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R) -> R;
+    fn with_ref<R>(&self, cx: &mut dyn ReactiveContext, f: impl FnOnce(&Self::Value) -> R) -> R;
 
     /// Get the current value and subscribe to changes
-    fn get(&self, cx: &mut dyn SignalGetContext) -> Self::Value
+    fn get(&self, cx: &mut dyn ReactiveContext) -> Self::Value
     where
         Self::Value: Clone,
     {
@@ -135,11 +133,11 @@ where
         self.parent.get_source_id()
     }
 
-    fn with_ref<R2>(&self, cx: &mut dyn SignalGetContext, f: impl FnOnce(&Self::Value) -> R2) -> R2 {
+    fn with_ref<R2>(&self, cx: &mut dyn ReactiveContext, f: impl FnOnce(&Self::Value) -> R2) -> R2 {
         f(&self.parent.with_ref(cx, |x| (self.f)(x)))
     }
 
-	fn get(&self, cx: &mut dyn SignalGetContext) -> Self::Value 
+	fn get(&self, cx: &mut dyn ReactiveContext) -> Self::Value 
 	where 
 		Self::Value: Clone 
 	{
@@ -158,24 +156,9 @@ where
         SignalGet::get_source_id(self)
     }
 
-    fn get_ref(&self, ctx: &mut dyn SignalGetContext) -> B {
+    fn get_ref(&self, ctx: &mut dyn ReactiveContext) -> B {
         self.parent.with_ref(ctx, &self.f)
     }
-}
-
-pub trait SignalSet {
-    type Value;
-
-    /// Set the current value, notifies subscribers
-    fn set(&self, cx: &mut impl SignalContext, value: Self::Value) {
-        self.set_with(cx, move || value)
-    }
-
-    /// Set the current value, notifies subscribers
-    fn set_with(&self, cx: &mut impl SignalContext, f: impl FnOnce() -> Self::Value);
-
-    /// Set the current value, notifies subscribers
-    fn update(&self, cx: &mut impl SignalContext, f: impl FnOnce(&mut Self::Value));
 }
 
 pub trait SignalCreator {

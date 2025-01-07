@@ -1,5 +1,5 @@
 use std::path::Path;
-use audioplug::app::{Effect, Memo, Signal, SignalGet, SignalSet, Window};
+use audioplug::app::{Effect,  Signal, SignalGet, Window};
 use audioplug::core::{Alignment, Border, Color};
 use audioplug::style::Length;
 use audioplug::view::{Button, Checkbox, Flex, Image, Label, Slider, TextBox, View};
