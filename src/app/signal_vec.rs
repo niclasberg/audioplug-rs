@@ -22,13 +22,14 @@ impl<T: Any> SignalVec<T> {
     }
 }
 
-pub struct SignalVecElem<T> {
+pub struct SignalVecElem<Source, T> {
     id: NodeId,
-    index: usize,
-    _phantom: PhantomData<*mut T>
+    get: fn(&Source) -> &T,
+	get_mut: fn(&mut Source) -> &mut T,
+    _phantom1: PhantomData<*mut T>
 }
 
-impl<T: Any> SignalGet for SignalVecElem<T> {
+impl<Source, T: Any> SignalGet for SignalVecElem<Source, T> {
     type Value = T;
 
     fn get_source_id(&self) -> super::accessor::SourceId {
@@ -58,4 +59,8 @@ impl SignalVecState {
             inner: Box::new(values)
         }
     }
+}
+
+pub struct FieldState {
+
 }

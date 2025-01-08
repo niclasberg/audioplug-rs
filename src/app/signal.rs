@@ -3,7 +3,7 @@ use std::{any::Any, marker::PhantomData};
 use super::{accessor::SourceId, NodeId, NodeType, Path, ReactiveContext, SignalCreator, SignalGet};
 
 pub trait SignalContext: ReactiveContext {
-    fn update_signal_value<T: Any>(&mut self, signal: &Signal<T>, f: impl FnOnce(&mut T));
+	fn notify(&mut self, node_id: NodeId);
 }
 
 #[derive(Clone, Copy)]
@@ -24,19 +24,27 @@ impl<T: Any> Signal<T> {
 
     /// Set the current value, notifies subscribers
     pub fn set(&self, cx: &mut impl SignalContext, value: T) {
-        self.set_with(cx, move || value)
+        self.update(cx, move |val| *val = value)
     }
 
     /// Set the current value, notifies subscribers
     pub fn set_with(&self, cx: &mut impl SignalContext, f: impl FnOnce() -> T) {
-        cx.update_signal_value(self, move |value| {
-            *value = f();
-        });
+		self.update(cx, move |value| *value = f());
     }
 
     /// Set the current value, notifies subscribers
     pub fn update(&self, cx: &mut impl SignalContext, f: impl FnOnce(&mut T)) {
-        cx.update_signal_value(self, f);
+		{
+            let signal = cx.get_node_mut(self.id, Path::ROOT);
+            match &mut signal.node_type {
+                NodeType::Signal(signal) => {
+                    let mut value = signal.value.downcast_mut().expect("Invalid signal value type");
+                    f(&mut value);
+                },
+                _ => unreachable!()
+            }
+        }
+		cx.notify(self.id);
     }
 }
 
@@ -48,7 +56,8 @@ impl<T: 'static> SignalGet for Signal<T> {
     }
 
     fn with_ref<R>(&self, cx: &mut dyn ReactiveContext, f: impl FnOnce(&T) -> R) -> R {
-        let value = match &cx.get_node_ref(self.id, Path::ROOT).node_type {
+		cx.track(self.id);
+        let value = match &cx.get_node_mut(self.id, Path::ROOT).node_type {
             NodeType::Signal(signal) => signal.value.as_ref(),
             _ => unreachable!()
         };

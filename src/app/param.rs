@@ -38,14 +38,14 @@ impl<P: AnyParameter> ParamEditor<P> {
 	}
 
 	pub fn set_value_normalized(&self, ctx: &mut impl ParamContext, value: NormalizedValue) {
-		let param_ref = ctx.get_parameter_ref_untracked(self.id);
+		let param_ref = ctx.get_parameter_ref(self.id);
 		param_ref.internal_set_value_normalized(value);
 		let info = param_ref.info();
 		ctx.host_handle().perform_edit(info, value);
 	}
 
 	pub fn set_value_plain(&self, ctx: &mut impl ParamContext, value: PlainValue) {
-		let param_ref = ctx.get_parameter_ref_untracked(self.id);
+		let param_ref = ctx.get_parameter_ref(self.id);
 		param_ref.internal_set_value_plain(value);
 		let info = param_ref.info();
 		let value = info.normalize(value);
@@ -104,7 +104,7 @@ impl<T: Any> SignalGet for ParamSignal<T> {
 	}
 	
 	fn get(&self, cx: &mut dyn ReactiveContext) -> Self::Value where Self::Value: Clone {
-		let param_ref = cx.get_parameter_ref_untracked(self.id);
+		let param_ref = cx.get_parameter_ref(self.id);
 		param_ref.value_as().unwrap()
 	}
 }

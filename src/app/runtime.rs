@@ -1,8 +1,8 @@
-use std::{any::Any, collections::{HashMap, HashSet, VecDeque}, rc::Rc};
+use std::{collections::{HashMap, HashSet, VecDeque}, rc::Rc};
 use indexmap::IndexSet;
 use slotmap::{SecondaryMap, SlotMap};
 use crate::param::{AnyParameterMap, ParamRef, ParameterId};
-use super::{animation::AnimationState, app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::{SignalContext, SignalState}, MemoContext, NodeId, ReactiveContext, Signal, SignalCreator};
+use super::{animation::AnimationState, app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::{SignalContext, SignalState}, MemoContext, NodeId, ReactiveContext, SignalCreator};
 
 pub struct Node {
     pub(super) node_type: NodeType,
@@ -37,6 +37,7 @@ enum NodeState {
 
 pub(super) enum NodeType {
     TmpRemoved,
+	Trigger,
     Signal(SignalState),
     Memo(MemoState),
     Effect(EffectState),
@@ -166,7 +167,7 @@ impl Runtime {
         self.nodes.remove(id).expect("Missing node");
     }
 
-    pub(super) fn notify_source_changed(&mut self, mut nodes_to_notify: VecDeque<NodeId>) {
+    fn notify_source_changed(&mut self, mut nodes_to_notify: VecDeque<NodeId>) {
         let mut nodes_to_check = HashSet::new();
         
         {
@@ -245,6 +246,7 @@ impl Runtime {
                         }
                     }
                 },
+				NodeType::Trigger => panic!("Triggers cannot depend on other reactive nodes"),
                 NodeType::Signal(_) => panic!("Signals cannot depend on other reactive nodes"),
                 NodeType::TmpRemoved => panic!("Circular dependency?")
             }
@@ -271,42 +273,23 @@ impl Runtime {
 }
 
 impl ReactiveContext for Runtime {
-    fn get_node_ref_untracked<'a>(&'a mut self, node_id: NodeId, _child_path: Path) -> &'a mut Node {
-        self.update_if_necessary(node_id);
+    fn get_node_mut(&mut self, node_id: NodeId, child_path: Path) -> &mut Node {
+		self.update_if_necessary(node_id);
         self.nodes.get_mut(node_id).expect("Node not found")
     }
-
-    fn get_node_ref<'a>(&'a mut self, node_id: NodeId, child_path: Path) -> &'a mut Node {
-        self.get_node_ref_untracked(node_id, child_path)
-    }
 	
-	fn get_parameter_ref_untracked(&self, parameter_id: ParameterId) -> ParamRef {
+	fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
 		self.parameters.get_by_id(parameter_id).expect("Invalid parameter id").as_param_ref()
-	}
-	
-	fn get_parameter_ref(&mut self, parameter_id: ParameterId) -> ParamRef {
-		self.get_parameter_ref_untracked(parameter_id)
 	}
 }
 
 impl SignalContext for Runtime {
-    fn update_signal_value<T: Any>(&mut self, signal: &Signal<T>, f: impl FnOnce(&mut T)) {
-        {
-            let signal = self.nodes.get_mut(signal.id).expect("No signal found");
-            match &mut signal.node_type {
-                NodeType::Signal(signal) => {
-                    let mut value = signal.value.downcast_mut().expect("Invalid signal value type");
-                    f(&mut value);
-                },
-                _ => unreachable!()
-            }
-        }
-        
-        let mut observers = std::mem::take(&mut self.scratch_buffer);
+	fn notify(&mut self, node_id: NodeId) {
+		let mut observers = std::mem::take(&mut self.scratch_buffer);
         observers.clear();
-        observers.extend(self.subscriptions.observers[signal.id].iter());
+        observers.extend(self.subscriptions.observers[node_id].iter());
         self.notify_source_changed(observers);
-    }
+	}
 }
 
 impl SignalCreator for Runtime {
@@ -324,6 +307,10 @@ impl SignalCreator for Runtime {
         self.pending_tasks.push_back(Task::RunEffect { id, f });
         id
     }
+
+	fn create_trigger(&mut self) -> NodeId {
+		self.create_node(NodeType::Trigger, NodeState::Clean)
+	}
 }
 
 /*#[cfg(test)]

@@ -8,22 +8,20 @@ pub struct MemoContext<'a> {
 }
 
 impl<'b> ReactiveContext for MemoContext<'b> {
-    fn get_node_ref_untracked<'a>(&'a mut self, signal_id: NodeId, child_path: Path) -> &'a mut Node {
-        self.runtime.get_node_ref_untracked(signal_id, child_path)
+	fn track(&mut self, source_id: NodeId) {
+		self.runtime.subscriptions.add_node_subscription(source_id, self.memo_id);
+	}
+
+	fn track_parameter(&mut self, source_id: crate::param::ParameterId) {
+		self.runtime.subscriptions.add_parameter_subscription(source_id, self.memo_id);
+	}
+
+    fn get_node_mut(&mut self, signal_id: NodeId, child_path: Path) -> &mut Node {
+        self.runtime.get_node_mut(signal_id, child_path)
     }
 
-    fn get_node_ref<'a>(&'a mut self, signal_id: NodeId, child_path: Path) -> &'a mut Node {
-        self.runtime.subscriptions.add_node_subscription(signal_id, self.memo_id);
-        self.runtime.get_node_ref(signal_id, child_path)
-    }
-
-    fn get_parameter_ref_untracked<'a>(&'a self, parameter_id: crate::param::ParameterId) -> crate::param::ParamRef<'a> {
-        self.runtime.get_parameter_ref_untracked(parameter_id)
-    }
-
-    fn get_parameter_ref<'a>(&'a mut self, parameter_id: crate::param::ParameterId) -> crate::param::ParamRef<'a> {
-        self.runtime.subscriptions.add_parameter_subscription(parameter_id, self.memo_id);
-        self.runtime.get_parameter_ref_untracked(parameter_id)
+    fn get_parameter_ref<'a>(&'a self, parameter_id: crate::param::ParameterId) -> crate::param::ParamRef<'a> {
+        self.runtime.get_parameter_ref(parameter_id)
     }
 }
 
@@ -71,7 +69,8 @@ impl<T: 'static> SignalGet for Memo<T> {
 	}
 
     fn with_ref<R>(&self, cx: &mut dyn ReactiveContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-        let value = match &cx.get_node_ref(self.id, Path::ROOT).node_type {
+		cx.track(self.id);
+        let value = match &cx.get_node_mut(self.id, Path::ROOT).node_type {
             NodeType::Memo(state) => state.value.as_ref().expect("Memo should have been evaluated before accessed").as_ref(),
             _ => unreachable!()
         };

@@ -1,9 +1,14 @@
-use audioplug::{app::{Signal, SignalGet, Window}, core::{Color, Size}, style::{Length, UiRect}, view::{Button, Container, Flex, IndexedViewSeq, Label, View}, App};
+use audioplug::{app::{Effect, Signal, SignalGet, Trigger, Window}, core::{Color, Size}, style::{Length, UiRect}, view::{Button, Container, Flex, IndexedViewSeq, Label, View}, App};
 
 fn main() {
     let mut app = App::new();
     let _ = Window::open(&mut app, |cx| {  
         let count = Signal::new(cx, 0);
+		let trigger = Trigger::new(cx);
+		Effect::new(cx, move |cx| {
+			trigger.track(cx);
+			println!("Count = {}", count.get(cx));
+		});
 		Container::new(move |_|
 			Flex::column((
 				Label::new(count.map(|cnt| format!("Count: {}", cnt))),
@@ -11,6 +16,8 @@ fn main() {
 					.on_click(move |cx| count.update(cx, |value| *value += 1)),
 				Button::new(Label::new("Decrease"))
 					.on_click(move |cx| count.update(cx, |value| *value -= 1)),
+				Button::new(Label::new("Trigger"))
+					.on_click(move |cx| trigger.trigger(cx)),
 				Label::new("No children to show")
 					.style(|style| style.hidden(count.map(|x| *x > 0))),
 				Flex::column(IndexedViewSeq::new(count.map(|&x| x.max(0) as usize), |_, i| {

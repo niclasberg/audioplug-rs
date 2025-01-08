@@ -14,6 +14,7 @@ mod render;
 mod signal;
 mod signal_vec;
 mod runtime;
+mod trigger;
 mod widget;
 mod widget_data;
 mod widget_ref;
@@ -37,6 +38,7 @@ pub use render::{RenderContext, render_window, invalidate_window};
 pub use runtime::*;
 pub use signal::Signal;
 use signal::SignalState;
+pub use trigger::Trigger;
 pub use widget::{EventStatus, StatusChange, Widget};
 pub use widget_ref::{WidgetRef, WidgetMut};
 pub use widget_data::{WidgetData, WidgetId, WidgetFlags};
@@ -78,10 +80,13 @@ impl App {
 }
 
 pub trait ReactiveContext {
-    fn get_node_ref_untracked<'a>(&'a mut self, signal_id: NodeId, child_path: Path) -> &'a mut Node;
-    fn get_node_ref<'a>(&'a mut self, signal_id: NodeId, child_path: Path) -> &'a mut Node;
-    fn get_parameter_ref_untracked<'a>(&'a self, parameter_id: ParameterId) -> ParamRef<'a>;
-    fn get_parameter_ref<'a>(&'a mut self, parameter_id: ParameterId) -> ParamRef<'a>;
+	#[allow(unused_variables)]
+	fn track(&mut self, source_id: NodeId) {}
+	#[allow(unused_variables)]
+	fn track_parameter(&mut self, source_id: ParameterId) {}
+
+	fn get_node_mut(&mut self, signal_id: NodeId, child_path: Path) -> &mut Node;
+    fn get_parameter_ref<'a>(&'a self, parameter_id: ParameterId) -> ParamRef<'a>;
 }
 
 pub trait UntrackedSignalContext {}
@@ -162,6 +167,7 @@ where
 }
 
 pub trait SignalCreator {
+	fn create_trigger(&mut self) -> NodeId;
     fn create_signal_node(&mut self, state: SignalState) -> NodeId;
     fn create_memo_node(&mut self, state: MemoState) -> NodeId;
     fn create_effect_node(&mut self, state: EffectState) -> NodeId;

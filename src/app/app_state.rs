@@ -373,27 +373,19 @@ impl AppState {
 }
 
 impl ReactiveContext for AppState {
-    fn get_node_ref_untracked<'a>(&'a mut self, signal_id: NodeId, child_path: Path) -> &'a mut Node {
-        self.runtime.get_node_ref_untracked(signal_id, child_path)
-    }
-
-    fn get_node_ref<'a>(&'a mut self, signal_id: NodeId, child_path: Path) -> &'a mut Node {
-        self.runtime.get_node_ref(signal_id, child_path)
+    fn get_node_mut(&mut self, signal_id: NodeId, child_path: Path) -> &mut Node {
+        self.runtime.get_node_mut(signal_id, child_path)
     }
 	
-	fn get_parameter_ref_untracked(&self, parameter_id: ParameterId) -> ParamRef {
-		self.runtime.get_parameter_ref_untracked(parameter_id)
-	}
-	
-	fn get_parameter_ref(&mut self, parameter_id: ParameterId) -> ParamRef {
+	fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
 		self.runtime.get_parameter_ref(parameter_id)
 	}
 }
 
 impl SignalContext for AppState {
-    fn update_signal_value<T: Any>(&mut self, signal: &Signal<T>, f: impl FnOnce(&mut T)) {
-        self.runtime.update_signal_value(signal, f);
-    }
+    fn notify(&mut self, node_id: NodeId) {
+		self.runtime.notify(node_id);
+	}
 }
 
 impl ParamContext for AppState {
@@ -415,4 +407,8 @@ impl SignalCreator for AppState {
     fn create_signal_node(&mut self, state: SignalState) -> NodeId {
         self.runtime.create_signal_node(state)
     }
+	
+	fn create_trigger(&mut self) -> NodeId {
+		self.runtime.create_trigger()
+	}
 }
