@@ -273,7 +273,7 @@ impl Runtime {
 }
 
 impl ReactiveContext for Runtime {
-    fn get_node_mut(&mut self, node_id: NodeId, child_path: Path) -> &mut Node {
+    fn get_node_mut(&mut self, node_id: NodeId) -> &mut Node {
 		self.update_if_necessary(node_id);
         self.nodes.get_mut(node_id).expect("Node not found")
     }

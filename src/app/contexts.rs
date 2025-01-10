@@ -88,8 +88,8 @@ impl<'s, W: Widget> ParamContext for BuildContext<'s, W> {
 }
 
 impl<'b, W: Widget> ReactiveContext for BuildContext<'b, W> {
-    fn get_node_mut(&mut self, signal_id: NodeId, child_path: Path) -> &mut Node {
-        self.app_state.get_node_mut(signal_id, child_path)
+    fn get_node_mut(&mut self, signal_id: NodeId) -> &mut Node {
+        self.app_state.get_node_mut(signal_id)
     }
 	
 	fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
@@ -138,8 +138,8 @@ impl<'a> SignalCreator for ViewContext<'a> {
 }
 
 impl<'b> ReactiveContext for ViewContext<'b> {
-    fn get_node_mut(&mut self, signal_id: NodeId, child_path: Path) -> &mut Node {
-        self.app_state.get_node_mut(signal_id, child_path)
+    fn get_node_mut(&mut self, signal_id: NodeId) -> &mut Node {
+        self.app_state.get_node_mut(signal_id)
     }
 
 	fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {

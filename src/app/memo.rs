@@ -16,8 +16,8 @@ impl<'b> ReactiveContext for MemoContext<'b> {
 		self.runtime.subscriptions.add_parameter_subscription(source_id, self.memo_id);
 	}
 
-    fn get_node_mut(&mut self, signal_id: NodeId, child_path: Path) -> &mut Node {
-        self.runtime.get_node_mut(signal_id, child_path)
+    fn get_node_mut(&mut self, signal_id: NodeId) -> &mut Node {
+        self.runtime.get_node_mut(signal_id)
     }
 
     fn get_parameter_ref<'a>(&'a self, parameter_id: crate::param::ParameterId) -> crate::param::ParamRef<'a> {
@@ -70,7 +70,7 @@ impl<T: 'static> SignalGet for Memo<T> {
 
     fn with_ref<R>(&self, cx: &mut dyn ReactiveContext, f: impl FnOnce(&Self::Value) -> R) -> R {
 		cx.track(self.id);
-        let value = match &cx.get_node_mut(self.id, Path::ROOT).node_type {
+        let value = match &cx.get_node_mut(self.id).node_type {
             NodeType::Memo(state) => state.value.as_ref().expect("Memo should have been evaluated before accessed").as_ref(),
             _ => unreachable!()
         };

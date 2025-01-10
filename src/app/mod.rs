@@ -85,7 +85,7 @@ pub trait ReactiveContext {
 	#[allow(unused_variables)]
 	fn track_parameter(&mut self, source_id: ParameterId) {}
 
-	fn get_node_mut(&mut self, signal_id: NodeId, child_path: Path) -> &mut Node;
+	fn get_node_mut(&mut self, signal_id: NodeId) -> &mut Node;
     fn get_parameter_ref<'a>(&'a self, parameter_id: ParameterId) -> ParamRef<'a>;
 }
 

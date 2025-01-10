@@ -35,7 +35,7 @@ impl<T: Any> Signal<T> {
     /// Set the current value, notifies subscribers
     pub fn update(&self, cx: &mut impl SignalContext, f: impl FnOnce(&mut T)) {
 		{
-            let signal = cx.get_node_mut(self.id, Path::ROOT);
+            let signal = cx.get_node_mut(self.id);
             match &mut signal.node_type {
                 NodeType::Signal(signal) => {
                     let mut value = signal.value.downcast_mut().expect("Invalid signal value type");
@@ -57,7 +57,7 @@ impl<T: 'static> SignalGet for Signal<T> {
 
     fn with_ref<R>(&self, cx: &mut dyn ReactiveContext, f: impl FnOnce(&T) -> R) -> R {
 		cx.track(self.id);
-        let value = match &cx.get_node_mut(self.id, Path::ROOT).node_type {
+        let value = match &cx.get_node_mut(self.id).node_type {
             NodeType::Signal(signal) => signal.value.as_ref(),
             _ => unreachable!()
         };

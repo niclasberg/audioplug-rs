@@ -373,8 +373,8 @@ impl AppState {
 }
 
 impl ReactiveContext for AppState {
-    fn get_node_mut(&mut self, signal_id: NodeId, child_path: Path) -> &mut Node {
-        self.runtime.get_node_mut(signal_id, child_path)
+    fn get_node_mut(&mut self, signal_id: NodeId) -> &mut Node {
+        self.runtime.get_node_mut(signal_id)
     }
 	
 	fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {

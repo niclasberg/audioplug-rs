@@ -22,14 +22,13 @@ impl<T: Any> SignalVec<T> {
     }
 }
 
-pub struct SignalVecElem<Source, T> {
+pub struct SignalVecElem<T> {
     id: NodeId,
-    get: fn(&Source) -> &T,
-	get_mut: fn(&mut Source) -> &mut T,
+    index: usize,
     _phantom1: PhantomData<*mut T>
 }
 
-impl<Source, T: Any> SignalGet for SignalVecElem<Source, T> {
+impl<T: Any> SignalGet for SignalVecElem<T> {
     type Value = T;
 
     fn get_source_id(&self) -> super::accessor::SourceId {
@@ -37,6 +36,7 @@ impl<Source, T: Any> SignalGet for SignalVecElem<Source, T> {
     }
 
     fn with_ref<R>(&self, cx: &mut dyn super::ReactiveContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+        //cx.get_node_mut(self.id, child_path)
         todo!()
     }
 }
