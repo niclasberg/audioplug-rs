@@ -10,11 +10,11 @@ use super::effect::EffectState;
 pub(super) enum Task {
     RunEffect {
         id: NodeId,
-        f: Weak<Box<dyn Fn(&mut EffectContext)>>
+        f: Weak<dyn Fn(&mut EffectContext)>
     },
 	UpdateBinding {
 		widget_id: WidgetId,
-    	f: Weak<Box<dyn Fn(&mut AppState)>>,
+    	f: Weak<dyn Fn(&mut AppState)>,
         node_id: NodeId,
 	},
 }
@@ -102,8 +102,8 @@ impl AppState {
             };
 
             self.widget_bindings.entry(widget_id).unwrap()
-                .and_modify(|bindings| { bindings.insert(node_id); })
-                .or_default();
+                .or_default()
+				.insert(node_id);
 
             true
         } else {
@@ -385,6 +385,10 @@ impl ReactiveContext for AppState {
 impl SignalContext for AppState {
     fn notify(&mut self, node_id: NodeId) {
 		self.runtime.notify(node_id);
+	}
+	
+	fn get_or_insert_field_trigger(&mut self, node_id: NodeId, path: Path) -> super::Trigger {
+		todo!()
 	}
 }
 

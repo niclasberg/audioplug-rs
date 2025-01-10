@@ -2,7 +2,7 @@ use std::{collections::{HashMap, HashSet, VecDeque}, rc::Rc};
 use indexmap::IndexSet;
 use slotmap::{SecondaryMap, SlotMap};
 use crate::param::{AnyParameterMap, ParamRef, ParameterId};
-use super::{animation::AnimationState, app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::{SignalContext, SignalState}, MemoContext, NodeId, ReactiveContext, SignalCreator};
+use super::{animation::AnimationState, app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::{SignalContext, SignalState}, MemoContext, NodeId, ReactiveContext, SignalCreator, Trigger};
 
 pub struct Node {
     pub(super) node_type: NodeType,
@@ -289,6 +289,11 @@ impl SignalContext for Runtime {
         observers.clear();
         observers.extend(self.subscriptions.observers[node_id].iter());
         self.notify_source_changed(observers);
+	}
+
+	fn get_or_insert_field_trigger(&mut self, node_id: NodeId, path: Path) -> Trigger {
+		let id = self.create_trigger();
+		Trigger::from_node_id(id)
 	}
 }
 

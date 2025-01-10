@@ -16,6 +16,13 @@ impl Trigger {
 		}
 	}
 
+	pub(super) fn from_node_id(node_id: NodeId) -> Self {
+		Self {
+			node_id,
+			_marker: PhantomData
+		}
+	}
+
 	pub fn track(&self, cx: &mut dyn ReactiveContext) {
 		cx.track(self.node_id);
 	}

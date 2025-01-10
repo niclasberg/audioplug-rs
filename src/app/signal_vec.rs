@@ -60,7 +60,3 @@ impl SignalVecState {
         }
     }
 }
-
-pub struct FieldState {
-
-}

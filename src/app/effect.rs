@@ -25,7 +25,7 @@ impl<'b> ReactiveContext for EffectContext<'b> {
 }
 
 pub struct EffectState {
-    pub(super) f: Rc<Box<dyn Fn(&mut EffectContext)>>,
+    pub(super) f: Rc<dyn Fn(&mut EffectContext)>,
 }
 
 pub struct Effect {
@@ -35,7 +35,7 @@ pub struct Effect {
 impl Effect {
     pub fn new(cx: &mut impl SignalCreator, f: impl Fn(&mut EffectContext) + 'static) -> Self {
         cx.create_effect_node(EffectState { 
-            f: Rc::new(Box::new(f))
+            f: Rc::new(f)
         });
         Self {}
     }
@@ -43,10 +43,10 @@ impl Effect {
     pub fn new_with_state<T: Any>(cx: &mut impl SignalCreator, f: impl Fn(&mut EffectContext, Option<T>) -> T + 'static) -> Self {
         let state: Cell<Option<T>> = Cell::new(None);
         cx.create_effect_node(EffectState { 
-            f: Rc::new(Box::new(move |cx: &mut EffectContext| {
+            f: Rc::new(move |cx: &mut EffectContext| {
                 let new_state = f(cx, state.replace(None));
                 state.replace(Some(new_state));
-            }))
+            })
         });
         Self {}
     }

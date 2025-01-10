@@ -1,4 +1,4 @@
-use std::{ops::Deref, rc::Rc};
+use std::{any::Any, ops::Deref, rc::Rc};
 
 use crate::app::{Accessor, BuildContext, ViewContext, Widget};
 
@@ -76,13 +76,11 @@ impl<V: View, F: Fn(&mut ViewContext, usize) -> V + 'static> ViewSequence for In
 			cx.add_child_with(|cx| (self.view_factory)(cx, i));
 		}
 
-        let f = Rc::new(self.view_factory);
-
+        let f = self.view_factory;
 		cx.track(self.count, move |value, mut widget| {
             if widget.child_count() < value {
                 for i in widget.child_count()..value {
-                    let f = f.clone();
-                    widget.add_child_with(move |cx| (f.deref())(cx, i));
+                    widget.add_child_with(|cx| f(cx, i));
 				}
             } else if value < widget.child_count() {
                 for i in value..widget.child_count() {
@@ -98,7 +96,7 @@ pub struct ForEach<T, F> {
 	view_factory: F
 }
 
-impl<T, V: View, F: Fn(&mut ViewContext, &T) -> V + 'static> ForEach<T, F> {
+impl<T: Any + Eq, V: View, F: Fn(&mut ViewContext, &T) -> V + 'static> ForEach<T, F> {
     pub fn new(values: impl Into<Accessor<Vec<T>>>, view_factory: F) -> Self {
         Self {
             values: values.into(),
@@ -108,7 +106,30 @@ impl<T, V: View, F: Fn(&mut ViewContext, &T) -> V + 'static> ForEach<T, F> {
 }
 
 impl<T, V: View, F: Fn(&mut ViewContext, &T) -> V + 'static> ViewSequence for ForEach<T, F> {
-    fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>) {
+    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+
         todo!()
     }
 }
+
+pub enum VecDiff<T> {
+	Removed { index: usize, len: usize},
+	Changed { index: usize, new_value: T },
+	Inserted { index: usize, value: T }
+}
+
+/*fn diff_slices<T: Eq>(a: &[T], b: &[T]) {
+	let (mut a_start, mut a_end) = (0, a.len());
+	let (mut b_start, mut b_end) = (0, b.len());
+
+	while a_start < a_end && b_start < b_end {
+		// Matching prefix
+		if a[a_start] == b[b_start] {
+			a_start += 1;
+			b_start += 1;
+		} else if a[a_end - 1] == b[b_end - 1] {
+			a_end -= 1;
+			b_end -= 1;
+		} else if 
+	}
+}*/

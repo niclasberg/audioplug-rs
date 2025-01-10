@@ -1,16 +1,24 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{accessor::SourceId, NodeId, NodeType, Path, ReactiveContext, SignalCreator, SignalGet};
+use super::{accessor::SourceId, NodeId, NodeType, Path, ReactiveContext, SignalCreator, SignalGet, Trigger};
 
 pub trait SignalContext: ReactiveContext {
 	fn notify(&mut self, node_id: NodeId);
+	fn get_or_insert_field_trigger(&mut self, node_id: NodeId, path: Path) -> Trigger;
 }
 
-#[derive(Clone, Copy)]
 pub struct Signal<T> {
     pub(super) id: NodeId,
     _marker: PhantomData<*mut T>
 }
+
+impl<T> Clone for Signal<T> {
+	fn clone(&self) -> Self {
+		Self { id: self.id.clone(), _marker: self._marker.clone() }
+	}
+}
+
+impl<T> Copy for Signal<T> {}
 
 impl<T: Any> Signal<T> {
     pub fn new(cx: &mut impl SignalCreator, value: T) -> Self {
@@ -46,6 +54,12 @@ impl<T: Any> Signal<T> {
         }
 		cx.notify(self.id);
     }
+}
+
+impl<T: Any> Signal<Vec<T>> {
+	pub fn push(&self, cx: &mut impl SignalContext, val: T) {
+		self.update(cx, move |value| value.push(val));
+	}
 }
 
 impl<T: 'static> SignalGet for Signal<T> {

@@ -151,6 +151,10 @@ impl<'b> SignalContext for ViewContext<'b> {
     fn notify(&mut self, node_id: NodeId) {
 		self.app_state.notify(node_id);
 	}
+	
+	fn get_or_insert_field_trigger(&mut self, node_id: NodeId, path: Path) -> super::Trigger {
+		todo!()
+	}
 }
 
 

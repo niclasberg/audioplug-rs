@@ -110,7 +110,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
 		self.data().children.len()
 	}
 
-    pub fn add_child_with<V: View, F: FnOnce(&mut ViewContext) -> V + 'static>(&mut self, f: F) {
+    pub fn add_child_with<V: View, F: FnOnce(&mut ViewContext) -> V>(&mut self, f: F) {
         let widget_id = self.app_state.add_widget(self.id, move |cx| {
             let view = f(cx);
             Box::new(view.build(&mut cx.as_build_context()))
