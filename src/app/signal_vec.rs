@@ -22,6 +22,14 @@ impl<T: Any> SignalVec<T> {
     }
 }
 
+pub struct AtIndex<Parent, T> {
+    index: usize,
+    parent: Parent,
+    _phantom2: PhantomData<*const T>
+}
+
+
+
 pub struct SignalVecElem<T> {
     id: NodeId,
     index: usize,
