@@ -36,7 +36,7 @@ pub use memo::{Memo, MemoContext};
 pub use param::{ParamContext, ParamEditor, ParamSignal};
 pub use render::{RenderContext, render_window, invalidate_window};
 pub use runtime::*;
-pub use signal::Signal;
+pub use signal::{Signal, SignalContext};
 use signal::SignalState;
 pub use trigger::Trigger;
 pub use widget::{EventStatus, StatusChange, Widget};

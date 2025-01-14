@@ -21,7 +21,7 @@ impl<T> Clone for Signal<T> {
 impl<T> Copy for Signal<T> {}
 
 impl<T: Any> Signal<T> {
-    pub fn new(cx: &mut impl SignalCreator, value: T) -> Self {
+    pub fn new(cx: &mut dyn SignalCreator, value: T) -> Self {
         let state = SignalState::new(value);
         let id = cx.create_signal_node(state);
         Self {

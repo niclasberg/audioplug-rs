@@ -1,5 +1,4 @@
 mod view_sequence;
-pub use view_sequence::*;
 mod label;
 //mod stack;
 mod background;
@@ -29,4 +28,5 @@ pub use slider::{Slider, ParameterSlider};
 pub use styled::*;
 pub use textbox::TextBox;
 pub use view::*;
+pub use view_sequence::*;
 pub use xy_pad::XyPad;

@@ -1,4 +1,4 @@
-use std::{any::Any, ops::Deref, rc::Rc};
+use std::{any::Any, hash::Hash, ops::Deref, rc::Rc};
 
 use crate::app::{Accessor, BuildContext, ViewContext, Widget};
 
@@ -91,26 +91,40 @@ impl<V: View, F: Fn(&mut ViewContext, usize) -> V + 'static> ViewSequence for In
 	}
 }
 
-pub struct ForEach<T, F> {
+pub struct ForEach<T, F, FKey> {
 	values: Accessor<Vec<T>>,
-	view_factory: F
+	view_factory: F,
+	key_fn: FKey
 }
 
-impl<T: Any + Eq, V: View, F: Fn(&mut ViewContext, &T) -> V + 'static> ForEach<T, F> {
-    pub fn new(values: impl Into<Accessor<Vec<T>>>, view_factory: F) -> Self {
-        Self {
-            values: values.into(),
-            view_factory
-        }
-    }
-}
-
-impl<T, V: View, F: Fn(&mut ViewContext, &T) -> V + 'static> ViewSequence for ForEach<T, F> {
+impl<K, T, V, F, FKey> ViewSequence for ForEach<T, F, FKey> 
+where 
+	K: Hash + PartialEq,
+	T: Any,
+	V: View,
+	F: Fn(&mut ViewContext, &T) -> V + 'static,
+	FKey: Fn(&T) -> K
+{
     fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
 
-        todo!()
     }
 }
+
+pub fn for_each_keyed<K, T, V, F, FKey>(
+	values: impl Into<Accessor<Vec<T>>>,
+	key_fn: FKey,
+	view_fn: F
+) -> ForEach<T, F, FKey> 
+where 
+	K: Hash + PartialEq,
+	T: Any,
+	V: View,
+	F: Fn(&mut ViewContext, &T) -> V + 'static,
+	FKey: Fn(&T) -> K
+{
+	todo!()
+}
+
 
 pub enum VecDiff<T> {
 	Removed { index: usize, len: usize},

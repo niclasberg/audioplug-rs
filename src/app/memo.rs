@@ -31,14 +31,25 @@ pub struct Memo<T> {
     _marker: PhantomData<fn() -> T>
 }
 
-impl<T: 'static + PartialEq> Memo<T> {
-    pub fn new(cx: &mut impl SignalCreator, f: impl Fn(&mut MemoContext, Option<&T>) -> T + 'static) -> Self {
-        let state = MemoState {
+impl<T: Any> Memo<T> {
+    pub fn new(cx: &mut impl SignalCreator, f: impl Fn(&mut MemoContext, Option<&T>) -> T + 'static) -> Self 
+	where 
+		T: PartialEq
+	{
+        Self::new_with_compare(cx, f, PartialEq::eq)
+    }
+
+	pub fn new_with_compare(
+		cx: &mut impl SignalCreator, 
+		f: impl Fn(&mut MemoContext, Option<&T>) -> T + 'static,
+		compare: fn(&T, &T) -> bool
+	) -> Self {
+		let state = MemoState {
             f: Box::new(move |cx, value| {
                 if let Some(value) = value {
                     let value = value.deref_mut().downcast_mut::<T>().unwrap();
                     let new_value = f(cx, Some(&value));
-                    if *value != new_value {
+                    if !compare(value, &new_value) {
                         *value = new_value;
                         true
                     } else {
@@ -58,7 +69,7 @@ impl<T: 'static + PartialEq> Memo<T> {
             id,
             _marker: PhantomData
         }
-    }
+	}
 }
 
 impl<T: 'static> SignalGet for Memo<T> {
