@@ -102,8 +102,17 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
 				return;
 			}
 
-            if let Some(background_color) = widget_data.style.background {
-                self.fill(widget_data.shape(), background_color);
+            let background_color = widget_data.style.background;
+            let border_color = widget_data.style.border_color;
+            let line_width = widget_data.layout.border.top;
+            let shape = widget_data.shape();
+
+            if let Some(background_color) = background_color {
+                self.fill(shape, background_color);
+            }
+
+            if let Some(border_color) = border_color {
+                self.stroke(shape, border_color, line_width);
             }
         }
 

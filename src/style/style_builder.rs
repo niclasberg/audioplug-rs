@@ -1,6 +1,6 @@
 use taffy::Overflow;
 
-use crate::{app::Accessor, core::{Color, Size}};
+use crate::{app::Accessor, core::{Border, Color, Size}};
 
 use super::{Length, UiRect};
 
@@ -14,14 +14,15 @@ pub struct StyleBuilder {
 	pub(crate) max_width: Option<Accessor<Length>>,
 	pub(crate) max_height: Option<Accessor<Length>>,
 	pub(crate) aspect_ratio: Option<Accessor<f64>>,
-	pub(crate) border: Option<Accessor<UiRect>>,
+	pub(crate) border: Option<Accessor<Length>>,
 	pub(crate) margin: Option<Accessor<UiRect>>,
 	pub(crate) inset: Option<Accessor<UiRect>>,
 	pub(crate) scrollbar_width: Option<Accessor<f64>>, 
 	pub(crate) overflow_x: Option<Accessor<Overflow>>,
 	pub(crate) overflow_y: Option<Accessor<Overflow>>,
     pub(crate) background: Option<Accessor<Color>>,
-	pub(crate) corner_radius: Option<Accessor<Size>>
+	pub(crate) corner_radius: Option<Accessor<Size>>,
+    pub(crate) border_color: Option<Accessor<Color>>
 }
 
 impl Default for StyleBuilder {
@@ -44,6 +45,7 @@ impl Default for StyleBuilder {
             max_height: None,
             background: None,
             corner_radius: None,
+            border_color: None
         }
     }
 }
@@ -103,4 +105,10 @@ impl StyleBuilder {
 		self.corner_radius = Some(value.into());
 		self
 	}
+
+    pub fn border(mut self, value: impl Into<Accessor<Length>>, color: impl Into<Accessor<Color>>) -> Self {
+        self.border = Some(value.into());
+        self.border_color = Some(color.into());
+        self
+    }
 }

@@ -1,6 +1,6 @@
 use crate::core::Size;
 
-use super::{DisplayStyle, ResolveInto, Style};
+use super::{DisplayStyle, ResolveInto, Style, UiRect};
 
 /// Style used during layout
 pub struct LayoutStyle<'a> {
@@ -70,7 +70,7 @@ impl<'a> taffy::CoreStyle for LayoutStyle<'a> {
 	}
 
 	fn border(&self) -> taffy::Rect<taffy::LengthPercentage> {
-		self.style.border.resolve_into(self.window_size)
+		UiRect::all(self.style.border).resolve_into(self.window_size)
 	}
 }
 

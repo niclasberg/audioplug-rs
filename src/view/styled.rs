@@ -24,6 +24,7 @@ impl<V: View> View for Styled<V> {
 		apply_style(self.style_builder.max_width, ctx, |value, style| { style.max_size.width = value; });
 		apply_style(self.style_builder.padding, ctx, |value, style| { style.padding = value; });
 		apply_style(self.style_builder.width, ctx, |value, style| { style.size.width = value; });
+		apply_style(self.style_builder.border_color, ctx, |value, style| { style.border_color = Some(value); });
 		widget
 	}
 }

@@ -1,7 +1,7 @@
 use std::path::Path;
 use audioplug::app::{Effect,  Signal, SignalGet, Window};
 use audioplug::core::{Alignment, Border, Color};
-use audioplug::style::Length;
+use audioplug::style::{Length, UiRect};
 use audioplug::view::{Button, Checkbox, Flex, Image, Label, Slider, TextBox, View};
 use audioplug::App;
 
@@ -22,7 +22,7 @@ fn main() {
         });
 
         Flex::column((
-            Label::new(text.clone()).border(Border { color: Color::GREEN, width: 2.0 }),
+            Label::new(text.clone()).style(|s| s.border(Length::Px(2.0), Color::GREEN)),
 			Flex::row((
 				Label::new("Slider"),
 				Slider::new()
@@ -30,7 +30,7 @@ fn main() {
 					.value(slider_value)
                     .on_value_changed(move |cx, value| slider_value.set(cx, value))
 			)).spacing(Length::Px(5.0))
-            .background(Color::RED),
+            .style(|s| s.background(Color::RED)),
             Flex::row((
 				Label::new("Checkbox"),
 				Checkbox::new(checkbox_enabled.clone())

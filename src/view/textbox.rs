@@ -39,7 +39,7 @@ impl View for TextBox {
 		{
 			cx.set_style(Style {
 				padding: UiRect::all(Length::Px(2.0)), 
-				border: UiRect::all(Length::Px(1.0)), 
+				border: Length::Px(1.0), 
 				..Default::default()
 			});
 		}

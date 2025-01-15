@@ -33,7 +33,7 @@ pub struct Style {
     pub max_size: Size<Length>,
     pub aspect_ratio: Option<f64>,
     pub padding: UiRect,
-    pub border: UiRect,
+    pub border: Length,
     pub margin: UiRect,
     pub inset: UiRect,
     pub scrollbar_width: f64,
@@ -42,6 +42,7 @@ pub struct Style {
     pub background: Option<Color>,
     pub corner_radius: Size,
 	pub cursor: Option<Cursor>,
+    pub border_color: Option<Color>,
 }
 
 impl Default for Style {
@@ -53,7 +54,7 @@ impl Default for Style {
             max_size: Default::default(),
             aspect_ratio: None,
             padding: UiRect::ZERO,
-            border: UiRect::ZERO,
+            border: Length::ZERO,
             margin: UiRect::ZERO,
             inset: UiRect::ZERO,
             scrollbar_width: 5.0,
@@ -61,7 +62,8 @@ impl Default for Style {
             overflow_y: Overflow::Visible,
             background: None,
             corner_radius: Size::ZERO,
-			cursor: None
+			cursor: None,
+            border_color: None
         }
     }
 }
