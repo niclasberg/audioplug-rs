@@ -142,10 +142,7 @@ where
         f(&self.parent.with_ref(cx, |x| (self.f)(x)))
     }
 
-	fn get(&self, cx: &mut dyn ReactiveContext) -> Self::Value 
-	where 
-		Self::Value: Clone 
-	{
+	fn get(&self, cx: &mut dyn ReactiveContext) -> Self::Value {
 		self.parent.with_ref(cx, |x| (self.f)(x))
 	}
 }
@@ -168,7 +165,7 @@ where
 
 pub trait SignalCreator {
 	fn create_trigger(&mut self) -> NodeId;
-    fn create_signal_node(&mut self, state: SignalState) -> NodeId;
+    fn create_signal_node(&mut self, f: &dyn FnMut(&mut dyn SignalCreator) -> SignalState) -> NodeId;
     fn create_memo_node(&mut self, state: MemoState) -> NodeId;
     fn create_effect_node(&mut self, state: EffectState) -> NodeId;
 }

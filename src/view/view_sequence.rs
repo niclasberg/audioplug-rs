@@ -1,4 +1,4 @@
-use std::{any::Any, hash::Hash, ops::Deref, rc::Rc};
+use std::{any::Any, cell::Cell, collections::HashMap, hash::Hash, ops::Deref, rc::Rc};
 
 use crate::app::{Accessor, BuildContext, ViewContext, Widget};
 
@@ -91,38 +91,55 @@ impl<V: View, F: Fn(&mut ViewContext, usize) -> V + 'static> ViewSequence for In
 	}
 }
 
-pub struct ForEach<T, F, FKey> {
-	values: Accessor<Vec<T>>,
-	view_factory: F,
+pub struct ForEach<C, F, FKey> {
+	values: Accessor<C>,
+	view_fn: F,
 	key_fn: FKey
 }
 
-impl<K, T, V, F, FKey> ViewSequence for ForEach<T, F, FKey> 
+impl<C, K, T, V, F, FKey> ViewSequence for ForEach<C, F, FKey> 
 where 
-	K: Hash + PartialEq,
+	C: IntoIterator<Item = T>,
+	K: Hash + Eq + 'static,
 	T: Any,
 	V: View,
-	F: Fn(&mut ViewContext, &T) -> V + 'static,
+	F: Fn(&mut ViewContext, T) -> V + 'static,
 	FKey: Fn(&T) -> K
 {
     fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+		let mut view_indices = HashMap::new();
+		for (i, value) in self.values.get(cx).into_iter().enumerate() {
+			view_indices.insert((self.key_fn)(&value), i);
+			cx.add_child_with(|cx| (self.view_fn)(cx, value));
+		}
 
+		let view_indices = Cell::new(Some(view_indices));
+		cx.track(self.values, move |values, mut widget| {
+			let old_view_indices = view_indices.take();
+
+
+		});
     }
 }
 
-pub fn for_each_keyed<K, T, V, F, FKey>(
-	values: impl Into<Accessor<Vec<T>>>,
+pub fn for_each_keyed<C, K, T, V, F, FKey>(
+	values: impl Into<Accessor<C>>,
 	key_fn: FKey,
 	view_fn: F
-) -> ForEach<T, F, FKey> 
+) -> ForEach<C, F, FKey> 
 where 
-	K: Hash + PartialEq,
+	K: Hash + Eq,
 	T: Any,
+	C: IntoIterator<Item = T>,
 	V: View,
-	F: Fn(&mut ViewContext, &T) -> V + 'static,
+	F: Fn(&mut ViewContext, T) -> V + 'static,
 	FKey: Fn(&T) -> K
 {
-	todo!()
+	ForEach {
+		values: values.into(),
+		key_fn,
+		view_fn
+	}
 }
 
 

@@ -35,7 +35,7 @@ enum NodeState {
     Dirty = 2
 }
 
-pub(super) enum NodeType {
+pub enum NodeType {
     TmpRemoved,
 	Trigger,
     Signal(SignalState),
@@ -298,7 +298,8 @@ impl SignalContext for Runtime {
 }
 
 impl SignalCreator for Runtime {
-    fn create_signal_node(&mut self, state: SignalState) -> NodeId {
+    fn create_signal_node(&mut self, f: &mut dyn FnMut(&mut dyn SignalCreator) -> SignalState) -> NodeId {
+		let state = (*f)(self);
         self.create_node(NodeType::Signal(state), NodeState::Clean)
     }
 

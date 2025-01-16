@@ -1,6 +1,6 @@
 use std::path::Path;
 use audioplug::app::{Effect,  Signal, SignalGet, Window};
-use audioplug::core::{Alignment, Border, Color};
+use audioplug::core::{Alignment, Border, Color, Size};
 use audioplug::style::{Length, UiRect};
 use audioplug::view::{Button, Checkbox, Flex, Image, Label, Slider, TextBox, View};
 use audioplug::App;
@@ -22,7 +22,9 @@ fn main() {
         });
 
         Flex::column((
-            Label::new(text.clone()).style(|s| s.border(Length::Px(2.0), Color::GREEN)),
+            Label::new(text.clone()).style(|s| s
+				.border(Length::Px(2.0), Color::GREEN)
+				.corner_radius(Size::new(2.0, 2.0))),
 			Flex::row((
 				Label::new("Slider"),
 				Slider::new()
