@@ -26,8 +26,12 @@ impl<'a, W: Widget> BuildContext<'a, W> {
     }
 
 	pub fn track<T: Clone + 'static>(&mut self, accessor: Accessor<T>, f: impl Fn(T, WidgetMut<'_, W>) + 'static) {
-		self.app_state.create_binding(accessor, self.id, f);
+		self.app_state.create_binding(accessor, self.id, T::clone, f);
 	}
+
+    pub fn track_mapped<T: 'static, U: 'static>(&mut self, accessor: Accessor<T>, f_map: fn(&T) -> U, f: impl Fn(U, WidgetMut<'_, W>) + 'static) {
+        self.app_state.create_binding(accessor, self.id, f_map, f);
+    }
 
     pub fn id(&self) -> WidgetId {
         self.id

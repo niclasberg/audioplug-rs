@@ -298,8 +298,7 @@ impl SignalContext for Runtime {
 }
 
 impl SignalCreator for Runtime {
-    fn create_signal_node(&mut self, f: &mut dyn FnMut(&mut dyn SignalCreator) -> SignalState) -> NodeId {
-		let state = (*f)(self);
+    fn create_signal_node(&mut self, state: SignalState) -> NodeId {
         self.create_node(NodeType::Signal(state), NodeState::Clean)
     }
 

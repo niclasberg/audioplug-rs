@@ -23,7 +23,7 @@ impl<T> Copy for Signal<T> {}
 impl<T: Any> Signal<T> {
     pub fn new(cx: &mut dyn SignalCreator, value: T) -> Self {
         let state = SignalState::new(value);
-        let id = cx.create_signal_node(&mut move |_| state);
+        let id = cx.create_signal_node(state);
         Self {
             id,
             _marker: PhantomData

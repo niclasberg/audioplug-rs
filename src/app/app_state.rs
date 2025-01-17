@@ -84,10 +84,10 @@ impl AppState {
 		self.runtime.parameters.as_ref()
 	}
 
-    pub fn create_binding<T: Clone + 'static, W: Widget + 'static>(&mut self, accessor: Accessor<T>, widget_id: WidgetId, f: impl Fn(T, WidgetMut<'_, W>) + 'static) -> bool {
+    pub fn create_binding<T: 'static, U: 'static, W: Widget + 'static>(&mut self, accessor: Accessor<T>, widget_id: WidgetId, f_map: fn(&T) -> U, f: impl Fn(U, WidgetMut<'_, W>) + 'static) -> bool {
         if let Some(source_id) = accessor.get_source_id() {
             let state = BindingState::new(widget_id, move |app_state| {
-                let value = accessor.get(app_state);
+                let value = accessor.with_ref(app_state, f_map);
                 let node = WidgetMut::new(app_state, widget_id);
                 f(value, node);
             });

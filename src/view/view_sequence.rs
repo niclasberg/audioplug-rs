@@ -99,26 +99,35 @@ pub struct ForEach<C, F, FKey> {
 
 impl<C, K, T, V, F, FKey> ViewSequence for ForEach<C, F, FKey> 
 where 
-	C: IntoIterator<Item = T>,
+	C: 'static,
+	for <'a> &'a C: IntoIterator<Item = &'a T>,
 	K: Hash + Eq + 'static,
-	T: Any,
+	T: Clone + 'static,
 	V: View,
-	F: Fn(&mut ViewContext, T) -> V + 'static,
+	F: Fn(&mut ViewContext, &T) -> V + 'static,
 	FKey: Fn(&T) -> K
 {
     fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
-		let mut view_indices = HashMap::new();
-		for (i, value) in self.values.get(cx).into_iter().enumerate() {
-			view_indices.insert((self.key_fn)(&value), i);
-			cx.add_child_with(|cx| (self.view_fn)(cx, value));
-		}
+		let items: Vec<_> = self.values.with_ref(cx, |values| {
+			values.into_iter().map(T::clone).collect()
+		});
 
-		let view_indices = Cell::new(Some(view_indices));
+		cx.track_mapped(self.values, 
+			|values| { values.into_iter().map(T::clone).collect::<Vec<T>>() },
+			|values, mut widget| {
+
+			});
+
+		/*
+		view_indices.insert((self.key_fn)(&value), i);
+				cx.add_child_with(|cx| (self.view_fn)(cx, value)); */
+		
+		/*let view_indices = Cell::new(Some(view_indices));
 		cx.track(self.values, move |values, mut widget| {
 			let old_view_indices = view_indices.take();
 
 
-		});
+		});*/
     }
 }
 
