@@ -44,7 +44,7 @@ fn main() {
 				Label::new("TODO app"),
 				TextBox::new()
 					.on_input(move |cx, value| text_input.set(cx, value.to_string())),
-				Flex::column(for_each_keyed(items, |todo: &Todo| todo.index, |_, &todo| todo_view(todo)))
+				//Flex::column(for_each_keyed(items, |todo: &Todo| todo.index, |_, &todo| todo_view(todo)))
 			))
 		).style(|s| s.width(Length::Vw(100.0)).height(Length::Vh(100.0)))
 	});
