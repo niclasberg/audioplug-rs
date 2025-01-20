@@ -31,13 +31,11 @@ pub use effect::{Effect, EffectState};
 pub use event_handling::{EventContext, MouseEventContext, handle_window_event};
 pub use host_handle::HostHandle;
 pub use layout::{LayoutContext, layout_window};
-use memo::MemoState;
 pub use memo::{Memo, MemoContext};
 pub use param::{ParamContext, ParamEditor, ParamSignal};
 pub use render::{RenderContext, render_window, invalidate_window};
 pub use runtime::*;
-pub use signal::{Signal, SignalContext};
-use signal::SignalState;
+pub use signal::Signal;
 pub use trigger::Trigger;
 pub use widget::{EventStatus, StatusChange, Widget};
 pub use widget_ref::{WidgetRef, WidgetMut};
@@ -80,16 +78,24 @@ impl App {
 }
 
 pub trait ReactiveContext {
-	#[allow(unused_variables)]
-	fn track(&mut self, source_id: NodeId) {}
-	#[allow(unused_variables)]
-	fn track_parameter(&mut self, source_id: ParameterId) {}
-
-	fn get_node_mut(&mut self, signal_id: NodeId) -> &mut Node;
-    fn get_parameter_ref<'a>(&'a self, parameter_id: ParameterId) -> ParamRef<'a>;
+    fn runtime(&self) -> &Runtime;
+    fn runtime_mut(&mut self) -> &mut Runtime;
 }
 
-pub trait UntrackedSignalContext {}
+pub trait CreateContext: ReactiveContext {
+    fn owner(&self) -> Option<Owner>;
+}
+
+pub trait ReadContext: ReactiveContext {
+    fn scope(&self) -> Scope;
+    fn track(&mut self, node_id: NodeId) {
+        self.
+    }
+}
+
+pub trait WriteContext: ReactiveContext {
+    
+}
 
 pub trait SignalGet {
     type Value;
@@ -97,10 +103,10 @@ pub trait SignalGet {
 	fn get_source_id(&self) -> SourceId;
 
     /// Map the current value using `f` and subscribe to changes
-    fn with_ref<R>(&self, cx: &mut dyn ReactiveContext, f: impl FnOnce(&Self::Value) -> R) -> R;
+    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R;
 
     /// Get the current value and subscribe to changes
-    fn get(&self, cx: &mut dyn ReactiveContext) -> Self::Value
+    fn get(&self, cx: &mut dyn ReadContext) -> Self::Value
     where
         Self::Value: Clone,
     {
@@ -138,11 +144,11 @@ where
         self.parent.get_source_id()
     }
 
-    fn with_ref<R2>(&self, cx: &mut dyn ReactiveContext, f: impl FnOnce(&Self::Value) -> R2) -> R2 {
+    fn with_ref<R2>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R2) -> R2 {
         f(&self.parent.with_ref(cx, |x| (self.f)(x)))
     }
 
-	fn get(&self, cx: &mut dyn ReactiveContext) -> Self::Value {
+	fn get(&self, cx: &mut dyn ReadContext) -> Self::Value {
 		self.parent.with_ref(cx, |x| (self.f)(x))
 	}
 }
@@ -158,14 +164,7 @@ where
         SignalGet::get_source_id(self)
     }
 
-    fn get_ref(&self, ctx: &mut dyn ReactiveContext) -> B {
+    fn get_ref(&self, ctx: &mut dyn ReadContext) -> B {
         self.parent.with_ref(ctx, &self.f)
     }
-}
-
-pub trait SignalCreator {
-	fn create_trigger(&mut self) -> NodeId;
-    fn create_signal_node(&mut self, state: SignalState) -> NodeId;
-    fn create_memo_node(&mut self, state: MemoState) -> NodeId;
-    fn create_effect_node(&mut self, state: EffectState) -> NodeId;
 }

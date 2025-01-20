@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
-use super::{accessor::SourceId, Node, NodeId, NodeType, Path, ReactiveContext, Runtime, SignalCreator, SignalGet};
+use super::{accessor::SourceId, CreateContext, NodeId, NodeType, ReactiveContext, ReadContext, Runtime, Scope, SignalGet};
 
 pub struct MemoContext<'a> {
     pub(super) memo_id: NodeId,
@@ -8,20 +8,18 @@ pub struct MemoContext<'a> {
 }
 
 impl<'b> ReactiveContext for MemoContext<'b> {
-	fn track(&mut self, source_id: NodeId) {
-		self.runtime.subscriptions.add_node_subscription(source_id, self.memo_id);
-	}
-
-	fn track_parameter(&mut self, source_id: crate::param::ParameterId) {
-		self.runtime.subscriptions.add_parameter_subscription(source_id, self.memo_id);
-	}
-
-    fn get_node_mut(&mut self, signal_id: NodeId) -> &mut Node {
-        self.runtime.get_node_mut(signal_id)
+    fn runtime(&self) -> &Runtime {
+        &self.runtime
     }
+    
+    fn runtime_mut(&mut self) -> &mut Runtime {
+        &mut self.runtime
+    }
+}
 
-    fn get_parameter_ref<'a>(&'a self, parameter_id: crate::param::ParameterId) -> crate::param::ParamRef<'a> {
-        self.runtime.get_parameter_ref(parameter_id)
+impl<'b> ReadContext for MemoContext<'b> {
+    fn scope(&self) -> Scope {
+        Scope::Node(self.memo_id)
     }
 }
 
@@ -32,7 +30,7 @@ pub struct Memo<T> {
 }
 
 impl<T: Any> Memo<T> {
-    pub fn new(cx: &mut impl SignalCreator, f: impl Fn(&mut MemoContext, Option<&T>) -> T + 'static) -> Self 
+    pub fn new(cx: &mut impl CreateContext, f: impl Fn(&mut MemoContext, Option<&T>) -> T + 'static) -> Self 
 	where 
 		T: PartialEq
 	{
@@ -40,7 +38,7 @@ impl<T: Any> Memo<T> {
     }
 
 	pub fn new_with_compare(
-		cx: &mut impl SignalCreator, 
+		cx: &mut impl CreateContext, 
 		f: impl Fn(&mut MemoContext, Option<&T>) -> T + 'static,
 		compare: fn(&T, &T) -> bool
 	) -> Self {
@@ -63,7 +61,7 @@ impl<T: Any> Memo<T> {
             }),
             value: None
         };
-        let id = cx.create_memo_node(state);
+        let id = cx.runtime_mut().create_memo_node(state);
 
         Self {
             id,
@@ -79,7 +77,7 @@ impl<T: 'static> SignalGet for Memo<T> {
 		SourceId::Node(self.id)
 	}
 
-    fn with_ref<R>(&self, cx: &mut dyn ReactiveContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
 		cx.track(self.id);
         let value = match &cx.get_node_mut(self.id).node_type {
             NodeType::Memo(state) => state.value.as_ref().expect("Memo should have been evaluated before accessed").as_ref(),

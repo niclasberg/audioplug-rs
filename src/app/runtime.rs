@@ -2,7 +2,7 @@ use std::{collections::{HashMap, HashSet, VecDeque}, rc::Rc};
 use indexmap::IndexSet;
 use slotmap::{SecondaryMap, SlotMap};
 use crate::param::{AnyParameterMap, ParamRef, ParameterId};
-use super::{animation::AnimationState, app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::{SignalContext, SignalState}, MemoContext, NodeId, ReactiveContext, SignalCreator, Trigger};
+use super::{animation::AnimationState, app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::SignalState, CreateContext, MemoContext, NodeId, ReactiveContext, ReadContext, Trigger, WidgetId, WriteContext};
 
 pub struct Node {
     pub(super) node_type: NodeType,
@@ -13,6 +13,18 @@ pub struct PathSegment(usize);
 pub struct Path(Vec<PathSegment>);
 impl Path {
     pub const ROOT: Self = Self(Vec::new());
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Owner {
+    Widget(WidgetId),
+    Node(NodeId)
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Scope {
+    Root,
+    Node(NodeId)
 }
 
 /*impl Node {
@@ -118,11 +130,12 @@ impl SubscriberMap {
 
 pub struct Runtime {
     nodes: SlotMap<NodeId, Node>,
-    child_nodes: SecondaryMap<NodeId, Vec<NodeId>>,
     pub(super) subscriptions: SubscriberMap,
     pub(super) pending_tasks: VecDeque<Task>,
     pub(super) parameters: Rc<dyn AnyParameterMap>,
-    scratch_buffer: VecDeque<NodeId>
+    scratch_buffer: VecDeque<NodeId>,
+    child_nodes: SecondaryMap<NodeId, HashSet<NodeId>>,
+    widget_bindings: SecondaryMap<WidgetId, HashSet<NodeId>>,
 }
 
 impl Runtime {
@@ -134,8 +147,32 @@ impl Runtime {
             pending_tasks: Default::default(),
             parameters: parameter_map,
             scratch_buffer: Default::default(),
+            widget_bindings: Default::default(),
         }
     }
+
+    pub(super) fn create_signal_node(&mut self, state: SignalState, owner: Option<Owner>) -> NodeId {
+        let id = self.create_node(NodeType::Signal(state), NodeState::Clean);
+        if let Some(owner) = owner {
+            self.assign_owner(id, owner);
+        }
+        id
+    }
+
+    pub(super) fn create_memo_node(&mut self, state: MemoState) -> NodeId {
+        self.create_node(NodeType::Memo(state), NodeState::Dirty)
+    }
+
+    pub(super) fn create_effect_node(&mut self, state: EffectState) -> NodeId {
+        let f = Rc::downgrade(&state.f);
+        let id = self.create_node(NodeType::Effect(state), NodeState::Dirty);
+        self.pending_tasks.push_back(Task::RunEffect { id, f });
+        id
+    }
+
+	pub(super) fn create_trigger(&mut self) -> NodeId {
+		self.create_node(NodeType::Trigger, NodeState::Clean)
+	}
 
     pub(super) fn create_binding_node(&mut self, source_id: NodeId, state: BindingState) -> NodeId {
         let id = self.create_node(NodeType::Binding(state), NodeState::Clean);
@@ -155,6 +192,25 @@ impl Runtime {
         id
     }
 
+    fn assign_owner(&mut self, node_id: NodeId, owner: Owner) {
+        match owner {
+            Owner::Widget(widget_id) => self.widget_bindings.entry(widget_id).unwrap()
+                .or_default()
+                .insert(node_id),
+            Owner::Node(node_id) => self.child_nodes.entry(node_id).unwrap()
+                .or_default()
+                .insert(node_id),
+        };
+    }
+
+    pub(super) fn clear_nodes_for_widget(&mut self, widget_id: WidgetId) {
+        if let Some(bindings) = self.widget_bindings.remove(widget_id) {
+            for node_id in bindings {
+                self.remove_node(node_id);
+            }
+        }
+    }
+
     fn create_node(&mut self, node_type: NodeType, state: NodeState) -> NodeId {
         let node = Node { node_type, state };
         let id = self.nodes.insert(node);
@@ -166,6 +222,26 @@ impl Runtime {
         self.subscriptions.remove_node(id);
         self.nodes.remove(id).expect("Missing node");
     }
+
+    pub fn get_node(&self, node_id: NodeId) -> &Node {
+        self.nodes.get(node_id).expect("Node not found")
+    }
+
+    pub fn get_node_mut(&mut self, node_id: NodeId) -> &mut Node {
+		self.update_if_necessary(node_id);
+        self.nodes.get_mut(node_id).expect("Node not found")
+    }
+	
+	pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
+		self.parameters.get_by_id(parameter_id).expect("Invalid parameter id").as_param_ref()
+	}
+
+    pub fn notify(&mut self, node_id: NodeId) {
+		let mut observers = std::mem::take(&mut self.scratch_buffer);
+        observers.clear();
+        observers.extend(self.subscriptions.observers[node_id].iter());
+        self.notify_source_changed(observers);
+	}
 
     fn notify_source_changed(&mut self, mut nodes_to_notify: VecDeque<NodeId>) {
         let mut nodes_to_check = HashSet::new();
@@ -270,52 +346,44 @@ impl Runtime {
     pub(super) fn take_tasks(&mut self) -> VecDeque<Task> {
         std::mem::take(&mut self.pending_tasks)
     }
+
+    pub fn track(&mut self, source_id: NodeId, scope: Scope) {
+        match scope {
+            Scope::Node(node_id) => {
+                self.subscriptions.add_node_subscription(source_id, node_id);
+            },
+            _ => {}
+        }
+	}
+
+	pub fn track_parameter(&mut self, source_id: crate::param::ParameterId, scope: Scope) {
+        match scope {
+            Scope::Node(node_id) => {
+                self.subscriptions.add_parameter_subscription(source_id, node_id);
+            },
+            _ => {}
+        }
+	}
 }
 
 impl ReactiveContext for Runtime {
-    fn get_node_mut(&mut self, node_id: NodeId) -> &mut Node {
-		self.update_if_necessary(node_id);
-        self.nodes.get_mut(node_id).expect("Node not found")
+    fn runtime(&self) -> &Runtime {
+        self
     }
-	
-	fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
-		self.parameters.get_by_id(parameter_id).expect("Invalid parameter id").as_param_ref()
-	}
+
+    fn runtime_mut(&mut self) -> &mut Runtime {
+        self
+    }
 }
 
-impl SignalContext for Runtime {
-	fn notify(&mut self, node_id: NodeId) {
-		let mut observers = std::mem::take(&mut self.scratch_buffer);
-        observers.clear();
-        observers.extend(self.subscriptions.observers[node_id].iter());
-        self.notify_source_changed(observers);
-	}
+impl WriteContext for Runtime {
 
-	fn get_or_insert_field_trigger(&mut self, node_id: NodeId, path: Path) -> Trigger {
-		let id = self.create_trigger();
-		Trigger::from_node_id(id)
-	}
 }
 
-impl SignalCreator for Runtime {
-    fn create_signal_node(&mut self, state: SignalState) -> NodeId {
-        self.create_node(NodeType::Signal(state), NodeState::Clean)
+impl ReadContext for Runtime {
+    fn scope(&self) -> Scope {
+        Scope::Root
     }
-
-    fn create_memo_node(&mut self, state: MemoState) -> NodeId {
-        self.create_node(NodeType::Memo(state), NodeState::Dirty)
-    }
-
-    fn create_effect_node(&mut self, state: EffectState) -> NodeId {
-        let f = Rc::downgrade(&state.f);
-        let id = self.create_node(NodeType::Effect(state), NodeState::Dirty);
-        self.pending_tasks.push_back(Task::RunEffect { id, f });
-        id
-    }
-
-	fn create_trigger(&mut self) -> NodeId {
-		self.create_node(NodeType::Trigger, NodeState::Clean)
-	}
 }
 
 /*#[cfg(test)]

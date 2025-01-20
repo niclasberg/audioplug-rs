@@ -1,11 +1,9 @@
-use std::{any::Any, collections::HashSet, rc::{Rc, Weak}};
+use std::{collections::HashSet, rc::{Rc, Weak}};
 use slotmap::{Key, SecondaryMap, SlotMap};
-use crate::{app::event_handling::set_mouse_capture_widget, core::Point, param::{AnyParameterMap, NormalizedValue, ParamRef, ParameterId, PlainValue}, platform, view::View};
+use crate::{app::event_handling::set_mouse_capture_widget, core::Point, param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue}, platform, view::View};
 
-use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, effect::EffectContext, layout::request_layout, layout_window, memo::MemoState, signal::SignalContext, Accessor, HostHandle, Node, ParamContext, Path, ReactiveContext, Runtime, SignalCreator, ViewContext, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId};
+use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, effect::EffectContext, layout_window, Accessor, CreateContext, HostHandle, ParamContext, Path, ReactiveContext, ReadContext, Runtime, ViewContext, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext};
 use super::NodeId;
-use super::signal::{Signal, SignalState};
-use super::effect::EffectState;
 
 pub(super) enum Task {
     RunEffect {
@@ -61,7 +59,6 @@ pub struct AppState {
     windows: SlotMap<WindowId, WindowState>,
     pub(super) widget_data: SlotMap<WidgetId, WidgetData>,
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
-    widget_bindings: SecondaryMap<WidgetId, HashSet<NodeId>>,
     pub(super) mouse_capture_widget: Option<WidgetId>,
     pub(super) runtime: Runtime,
     host_handle: Option<Box<dyn HostHandle>>
@@ -72,7 +69,6 @@ impl AppState {
         Self {
             widget_data: Default::default(),
             widgets: Default::default(),
-            widget_bindings: Default::default(),
             windows: Default::default(),
             mouse_capture_widget: None,
             runtime: Runtime::new(parameters),
@@ -101,21 +97,9 @@ impl AppState {
                 }
             };
 
-            self.widget_bindings.entry(widget_id).unwrap()
-                .or_default()
-				.insert(node_id);
-
             true
         } else {
             false
-        }
-    }
-
-    fn clear_widget_bindings(&mut self, widget_id: WidgetId) {
-        if let Some(bindings) = self.widget_bindings.remove(widget_id) {
-            for node_id in bindings {
-                self.runtime.remove_node(node_id);
-            }
         }
     }
 
@@ -200,7 +184,7 @@ impl AppState {
 		fn do_remove(this: &mut AppState, id: WidgetId) -> WidgetData {
 			let widget_data = this.widget_data.remove(id).unwrap();
 			this.widgets.remove(id).expect("Widget already removed");
-			this.clear_widget_bindings(id);
+			this.runtime.clear_nodes_for_widget(id);
 			widget_data
 		}
 
@@ -373,24 +357,22 @@ impl AppState {
 }
 
 impl ReactiveContext for AppState {
-    fn get_node_mut(&mut self, signal_id: NodeId) -> &mut Node {
-        self.runtime.get_node_mut(signal_id)
+    fn runtime(&self) -> &Runtime {
+        &self.runtime
     }
-	
-	fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
-		self.runtime.get_parameter_ref(parameter_id)
-	}
+
+    fn runtime_mut(&mut self) -> &mut Runtime {
+        &mut self.runtime
+    }
 }
 
-impl SignalContext for AppState {
-    fn notify(&mut self, node_id: NodeId) {
-		self.runtime.notify(node_id);
-	}
-	
-	fn get_or_insert_field_trigger(&mut self, node_id: NodeId, path: Path) -> super::Trigger {
-		todo!()
-	}
+impl ReadContext for AppState {
+    fn scope(&self) -> super::Scope {
+        super::Scope::Root
+    }
 }
+
+impl WriteContext for AppState {}
 
 impl ParamContext for AppState {
     fn host_handle(&self) -> &dyn HostHandle {
@@ -399,20 +381,8 @@ impl ParamContext for AppState {
     }
 }
 
-impl SignalCreator for AppState {
-    fn create_memo_node(&mut self, state: MemoState) -> NodeId {
-        self.runtime.create_memo_node(state)
+impl CreateContext for AppState {
+    fn owner(&self) -> Option<super::Owner> {
+        None
     }
-
-    fn create_effect_node(&mut self, state: EffectState) -> NodeId {
-        self.runtime.create_effect_node(state)
-    }
-    
-    fn create_signal_node(&mut self, state: SignalState) -> NodeId {
-        self.runtime.create_signal_node(state)
-    }
-	
-	fn create_trigger(&mut self) -> NodeId {
-		self.runtime.create_trigger()
-	}
 }

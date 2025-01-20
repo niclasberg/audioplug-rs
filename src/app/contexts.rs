@@ -1,8 +1,6 @@
-use std::{any::Any, marker::PhantomData};
-
-use crate::{param::{ParamRef, ParameterId}, style::Style, view::View};
-
-use super::{effect::EffectState, signal::SignalContext, Accessor, AppState, Node, NodeId, ParamContext, Path, ReactiveContext, Signal, SignalCreator, Widget, WidgetFlags, WidgetId, WidgetMut};
+use std::marker::PhantomData;
+use crate::{style::Style, view::View};
+use super::{Accessor, AppState, CreateContext, Owner, ParamContext, ReactiveContext, ReadContext, Scope, Widget, WidgetFlags, WidgetId, WidgetMut};
 
 pub struct BuildContext<'a, W: Widget> {
     id: WidgetId,
@@ -92,13 +90,13 @@ impl<'s, W: Widget> ParamContext for BuildContext<'s, W> {
 }
 
 impl<'b, W: Widget> ReactiveContext for BuildContext<'b, W> {
-    fn get_node_mut(&mut self, signal_id: NodeId) -> &mut Node {
-        self.app_state.get_node_mut(signal_id)
+    fn runtime(&self) -> &super::Runtime {
+        self.app_state.runtime()
     }
-	
-	fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
-		self.app_state.get_parameter_ref(parameter_id)
-	}
+
+    fn runtime_mut(&mut self) -> &mut super::Runtime {
+        self.app_state.runtime_mut()
+    }
 }
 
 pub struct ViewContext<'a> {
@@ -120,45 +118,26 @@ impl<'a> ViewContext<'a> {
     }
 }
 
-impl<'a> SignalCreator for ViewContext<'a> {
-    fn create_signal_node(&mut self, state: super::signal::SignalState) -> NodeId {
-        self.app_state.create_signal_node(state)
-    }
-
-    fn create_effect_node(&mut self, state: EffectState) -> NodeId {
-        let id = self.app_state.create_effect_node(state);
-        // Run the effect directly
-        self.app_state.run_effects();
-        id
-    }
-    
-    fn create_memo_node(&mut self, state: super::memo::MemoState) -> NodeId {
-        self.app_state.create_memo_node(state)
-    }
-	
-	fn create_trigger(&mut self) -> NodeId {
-		self.app_state.create_trigger()
-	}
-}
-
 impl<'b> ReactiveContext for ViewContext<'b> {
-    fn get_node_mut(&mut self, signal_id: NodeId) -> &mut Node {
-        self.app_state.get_node_mut(signal_id)
+    fn runtime(&self) -> &super::Runtime {
+        self.app_state.runtime()
     }
 
-	fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
-		self.app_state.get_parameter_ref(parameter_id)
-	}
+    fn runtime_mut(&mut self) -> &mut super::Runtime {
+        self.app_state.runtime_mut()
+    }
 }
 
-impl<'b> SignalContext for ViewContext<'b> {
-    fn notify(&mut self, node_id: NodeId) {
-		self.app_state.notify(node_id);
-	}
-	
-	fn get_or_insert_field_trigger(&mut self, node_id: NodeId, path: Path) -> super::Trigger {
-		todo!()
-	}
+impl<'a> CreateContext for ViewContext<'a> {
+    fn owner(&self) -> Option<Owner> {
+        Some(Owner::Widget(self.id))
+    }
+}
+
+impl<'b> ReadContext for ViewContext<'b> {
+    fn scope(&self) -> Scope {
+        Scope::Root
+    }
 }
 
 

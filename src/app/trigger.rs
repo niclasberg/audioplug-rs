@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use super::{signal::SignalContext, NodeId, ReactiveContext, SignalCreator};
+use super::{CreateContext, NodeId, ReadContext, WriteContext};
 
 #[derive(Clone, Copy)]
 pub struct Trigger {
@@ -9,9 +9,9 @@ pub struct Trigger {
 }
 
 impl Trigger {
-	pub fn new(cx: &mut impl SignalCreator) -> Self {
+	pub fn new(cx: &mut impl CreateContext) -> Self {
 		Self {
-			node_id: cx.create_trigger(),
+			node_id: cx.runtime_mut().create_trigger(),
 			_marker: PhantomData
 		}
 	}
@@ -23,11 +23,12 @@ impl Trigger {
 		}
 	}
 
-	pub fn track(&self, cx: &mut dyn ReactiveContext) {
-		cx.track(self.node_id);
+	pub fn track(&self, cx: &mut dyn ReadContext) {
+		let scope = cx.scope().clone();
+		cx.runtime_mut().track(self.node_id, scope);
 	}
 
-	pub fn trigger(&self, cx: &mut dyn SignalContext) {
-		cx.notify(self.node_id);
+	pub fn trigger(&self, cx: &mut dyn WriteContext) {
+		cx.runtime_mut().notify(self.node_id);
 	}
 }

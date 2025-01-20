@@ -1,6 +1,6 @@
 use std::sync::atomic::AtomicUsize;
 
-use audioplug::{app::{Signal, SignalContext, SignalCreator, SignalGet, ViewContext, Window}, core::Color, style::Length, view::*, App};
+use audioplug::{app::{Signal, SignalContext, CreateContext, SignalGet, ViewContext, Window}, core::Color, style::Length, view::*, App};
 
 struct Todos(pub Vec<Todo>);
 
@@ -13,7 +13,7 @@ struct Todo {
 
 static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
 impl Todo {
-	pub fn new(cx: &mut dyn SignalCreator, name: &str, completed: bool) -> Self {
+	pub fn new(cx: &mut dyn CreateContext, name: &str, completed: bool) -> Self {
 		Self {
 			index: NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
 			name: Signal::new(cx, name.to_string()),

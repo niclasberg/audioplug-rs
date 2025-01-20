@@ -43,7 +43,7 @@ impl<T: Any> SignalGet for SignalVecElem<T> {
         todo!()
     }
 
-    fn with_ref<R>(&self, cx: &mut dyn super::ReactiveContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+    fn with_ref<R>(&self, cx: &mut dyn super::ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         //cx.get_node_mut(self.id, child_path)
         todo!()
     }

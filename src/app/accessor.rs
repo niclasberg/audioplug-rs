@@ -1,9 +1,9 @@
 use crate::param::ParameterId;
-use super::{Mapped, Memo, NodeId, ParamSignal, Runtime, Signal, SignalGet, ReactiveContext};
+use super::{Mapped, Memo, NodeId, ParamSignal, ReactiveContext, ReadContext, Runtime, Signal, SignalGet};
 
 pub trait MappedAccessor<T>: CloneMappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;
-    fn get_ref(&self, ctx: &mut dyn ReactiveContext) -> T;
+    fn get_ref(&self, ctx: &mut dyn ReadContext) -> T;
 }
 
 pub trait CloneMappedAccessor<T> {
@@ -51,11 +51,11 @@ impl<T: 'static> Accessor<T> {
 		}
 	}
 
-	pub fn get(&self, cx: &mut dyn ReactiveContext) -> T where T: Clone {
+	pub fn get(&self, cx: &mut dyn ReadContext) -> T where T: Clone {
 		self.with_ref(cx, T::clone)
 	}
 
-    pub fn with_ref<R>(&self, cx: &mut dyn ReactiveContext, f: impl FnOnce(&T) -> R) -> R {
+    pub fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&T) -> R) -> R {
         match self {
             Accessor::Signal(signal) => signal.with_ref(cx, f),
             Accessor::Memo(memo) => memo.with_ref(cx, f),

@@ -2,7 +2,7 @@ use std::{any::Any, marker::PhantomData};
 
 use crate::param::{AnyParameter, NormalizedValue, Parameter, ParameterId, ParameterInfo, PlainValue};
 
-use super::{accessor::SourceId, HostHandle, SignalGet, ReactiveContext};
+use super::{accessor::SourceId, HostHandle, ReactiveContext, ReadContext, SignalGet};
 
 pub trait ParamContext: ReactiveContext {
 	fn host_handle(&self) -> &dyn HostHandle;
@@ -29,31 +29,31 @@ impl<P: AnyParameter> ParamEditor<P> {
 		}
 	}
 
-	pub fn info<'a>(&self, ctx: &'a mut impl ParamContext) -> &'a dyn ParameterInfo {
-		ctx.get_parameter_ref(self.id).info()
+	pub fn info<'a>(&self, cx: &'a mut impl ParamContext) -> &'a dyn ParameterInfo {
+		cx.runtime().get_parameter_ref(self.id).info()
 	}
 
 	pub fn begin_edit(&self, ctx: &mut impl ParamContext) {
 		ctx.host_handle().begin_edit(self.id);
 	}
 
-	pub fn set_value_normalized(&self, ctx: &mut impl ParamContext, value: NormalizedValue) {
-		let param_ref = ctx.get_parameter_ref(self.id);
+	pub fn set_value_normalized(&self, cx: &mut impl ParamContext, value: NormalizedValue) {
+		let param_ref = cx.runtime().get_parameter_ref(self.id);
 		param_ref.internal_set_value_normalized(value);
 		let info = param_ref.info();
-		ctx.host_handle().perform_edit(info, value);
+		cx.host_handle().perform_edit(info, value);
 	}
 
-	pub fn set_value_plain(&self, ctx: &mut impl ParamContext, value: PlainValue) {
-		let param_ref = ctx.get_parameter_ref(self.id);
+	pub fn set_value_plain(&self, cx: &mut impl ParamContext, value: PlainValue) {
+		let param_ref = cx.runtime().get_parameter_ref(self.id);
 		param_ref.internal_set_value_plain(value);
 		let info = param_ref.info();
 		let value = info.normalize(value);
-		ctx.host_handle().perform_edit(info, value);
+		cx.host_handle().perform_edit(info, value);
 	}
 
-	pub fn end_edit(&self, ctx: &mut impl ParamContext) {
-		ctx.host_handle().end_edit(self.id);
+	pub fn end_edit(&self, cx: &mut impl ParamContext) {
+		cx.host_handle().end_edit(self.id);
 	}
 }
 
@@ -97,14 +97,16 @@ impl<T: Any> SignalGet for ParamSignal<T> {
 		SourceId::Parameter(self.id)
 	}
 
-	fn with_ref<R>(&self, cx: &mut dyn ReactiveContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-		let param_ref = cx.get_parameter_ref(self.id);
+	fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+		// TODO: Subscribe
+		let param_ref = cx.runtime_mut().get_parameter_ref(self.id);
 		let value = param_ref.value_as().unwrap();
 		f(&value)
 	}
 	
-	fn get(&self, cx: &mut dyn ReactiveContext) -> Self::Value where Self::Value: Clone {
-		let param_ref = cx.get_parameter_ref(self.id);
+	fn get(&self, cx: &mut dyn ReadContext) -> Self::Value where Self::Value: Clone {
+		// TODO: Subscribe
+		let param_ref = cx.runtime().get_parameter_ref(self.id);
 		param_ref.value_as().unwrap()
 	}
 }
