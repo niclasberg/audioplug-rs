@@ -50,7 +50,7 @@ impl<'a> AnimationContext<'a> {
     }
 }
 
-pub(super) struct AnimationState {
+pub(crate) struct AnimationState {
 	pub(super) value: Box<dyn Any>
 }
 

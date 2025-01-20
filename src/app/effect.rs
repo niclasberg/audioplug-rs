@@ -34,20 +34,22 @@ pub struct Effect {
 
 impl Effect {
     pub fn new(cx: &mut impl CreateContext, f: impl Fn(&mut EffectContext) + 'static) -> Self {
+		let owner = cx.owner();
         cx.runtime_mut().create_effect_node(EffectState { 
             f: Rc::new(f)
-        });
+        }, owner);
         Self {}
     }
 
     pub fn new_with_state<T: Any>(cx: &mut impl CreateContext, f: impl Fn(&mut EffectContext, Option<T>) -> T + 'static) -> Self {
         let state: Cell<Option<T>> = Cell::new(None);
+		let owner = cx.owner();
         cx.runtime_mut().create_effect_node(EffectState { 
             f: Rc::new(move |cx: &mut EffectContext| {
                 let new_state = f(cx, state.replace(None));
                 state.replace(Some(new_state));
             })
-        });
+        }, owner);
         Self {}
     }
 }

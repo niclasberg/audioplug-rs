@@ -108,9 +108,10 @@ where
 	FKey: Fn(&T) -> K
 {
     fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
-		let items: Vec<_> = self.values.with_ref(cx, |values| {
-			values.into_iter().map(T::clone).collect()
+		let indices = self.values.with_ref(cx, |values| {
+			values.into_iter().enumerate().map(|(i, value) ()).collect()
 		});
+		
 
 		cx.track_mapped(self.values, 
 			|values| { values.into_iter().map(T::clone).collect::<Vec<T>>() },

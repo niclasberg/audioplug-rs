@@ -2,7 +2,7 @@ use std::{collections::{HashMap, HashSet, VecDeque}, rc::Rc};
 use indexmap::IndexSet;
 use slotmap::{SecondaryMap, SlotMap};
 use crate::param::{AnyParameterMap, ParamRef, ParameterId};
-use super::{animation::AnimationState, app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::SignalState, CreateContext, MemoContext, NodeId, ReactiveContext, ReadContext, Trigger, WidgetId, WriteContext};
+use super::{accessor::SourceId, animation::AnimationState, app_state::Task, binding::BindingState, effect::EffectState, memo::MemoState, signal::SignalState, CreateContext, MemoContext, NodeId, ReactiveContext, ReadContext, Trigger, WidgetId, WriteContext};
 
 pub struct Node {
     pub(super) node_type: NodeType,
@@ -151,56 +151,75 @@ impl Runtime {
         }
     }
 
-    pub(super) fn create_signal_node(&mut self, state: SignalState, owner: Option<Owner>) -> NodeId {
-        let id = self.create_node(NodeType::Signal(state), NodeState::Clean);
-        if let Some(owner) = owner {
-            self.assign_owner(id, owner);
-        }
+    pub(crate) fn create_signal_node(&mut self, state: SignalState, owner: Option<Owner>) -> NodeId {
+        let id = self.create_node(NodeType::Signal(state), NodeState::Clean, owner);
         id
     }
 
-    pub(super) fn create_memo_node(&mut self, state: MemoState) -> NodeId {
-        self.create_node(NodeType::Memo(state), NodeState::Dirty)
+    pub(crate) fn create_memo_node(&mut self, state: MemoState, owner: Option<Owner>) -> NodeId {
+        self.create_node(NodeType::Memo(state), NodeState::Dirty, owner)
     }
 
-    pub(super) fn create_effect_node(&mut self, state: EffectState) -> NodeId {
+    pub(crate) fn create_effect_node(&mut self, state: EffectState, owner: Option<Owner>) -> NodeId {
         let f = Rc::downgrade(&state.f);
-        let id = self.create_node(NodeType::Effect(state), NodeState::Dirty);
+        let id = self.create_node(NodeType::Effect(state), NodeState::Dirty, owner);
         self.pending_tasks.push_back(Task::RunEffect { id, f });
         id
     }
 
-	pub(super) fn create_trigger(&mut self) -> NodeId {
-		self.create_node(NodeType::Trigger, NodeState::Clean)
+	pub(crate) fn create_trigger(&mut self, owner: Option<Owner>) -> NodeId {
+		self.create_node(NodeType::Trigger, NodeState::Clean, owner)
 	}
 
-    pub(super) fn create_binding_node(&mut self, source_id: NodeId, state: BindingState) -> NodeId {
-        let id = self.create_node(NodeType::Binding(state), NodeState::Clean);
+	pub(crate) fn create_binding_node(&mut self, source: SourceId, state: BindingState, owner: Option<Owner>) -> NodeId {
+		match source {
+			SourceId::Parameter(source_id) => {
+				self.create_parameter_binding_node(source_id, state, owner)
+			},
+			SourceId::Node(source_id) => {
+				self.create_node_binding_node(source_id, state, owner)
+			}
+		}
+	}
+
+    pub(crate) fn create_node_binding_node(&mut self, source_id: NodeId, state: BindingState, owner: Option<Owner>) -> NodeId {
+        let id = self.create_node(NodeType::Binding(state), NodeState::Clean, owner);
         self.subscriptions.add_node_subscription(source_id, id);
         id
     }
 
-    pub(super) fn create_animation_node(&mut self, source_id: NodeId, state: AnimationState) -> NodeId {
-        let id = self.create_node(NodeType::Animation(state), NodeState::Check);
-        self.subscriptions.add_node_subscription(source_id, id);
-        id
-    }
-
-	pub(super) fn create_parameter_binding_node(&mut self, source_id: ParameterId, state: BindingState) -> NodeId {
-        let id = self.create_node(NodeType::Binding(state), NodeState::Clean);
+	pub(crate) fn create_parameter_binding_node(&mut self, source_id: ParameterId, state: BindingState, owner: Option<Owner>) -> NodeId {
+        let id = self.create_node(NodeType::Binding(state), NodeState::Clean, owner);
         self.subscriptions.add_parameter_subscription(source_id, id);
         id
     }
 
-    fn assign_owner(&mut self, node_id: NodeId, owner: Owner) {
-        match owner {
-            Owner::Widget(widget_id) => self.widget_bindings.entry(widget_id).unwrap()
-                .or_default()
-                .insert(node_id),
-            Owner::Node(node_id) => self.child_nodes.entry(node_id).unwrap()
-                .or_default()
-                .insert(node_id),
+    pub(crate) fn create_animation_node(&mut self, source_id: NodeId, state: AnimationState, owner: Option<Owner>) -> NodeId {
+        let id = self.create_node(NodeType::Animation(state), NodeState::Check, owner);
+        self.subscriptions.add_node_subscription(source_id, id);
+        id
+    }
+
+    fn create_node(&mut self, node_type: NodeType, state: NodeState, owner: Option<Owner>) -> NodeId {
+        let node = Node { node_type, state };
+        let id = self.nodes.insert(node);
+        self.subscriptions.insert_node(id);
+
+		match owner {
+            Some(Owner::Widget(widget_id)) => {
+				self.widget_bindings.entry(widget_id).unwrap()
+					.or_default()
+					.insert(id);
+			},
+            Some(Owner::Node(node_id)) => {
+				self.child_nodes.entry(node_id).unwrap()
+					.or_default()
+					.insert(id);
+			},
+			_ => {}
         };
+
+        id
     }
 
     pub(super) fn clear_nodes_for_widget(&mut self, widget_id: WidgetId) {
@@ -209,13 +228,6 @@ impl Runtime {
                 self.remove_node(node_id);
             }
         }
-    }
-
-    fn create_node(&mut self, node_type: NodeType, state: NodeState) -> NodeId {
-        let node = Node { node_type, state };
-        let id = self.nodes.insert(node);
-        self.subscriptions.insert_node(id);
-        id
     }
 
     pub fn remove_node(&mut self, id: NodeId) {
@@ -301,9 +313,8 @@ impl Runtime {
                     };
                     self.pending_tasks.push_back(task);
                 },
-                NodeType::Binding(BindingState { widget_id, f }) => {
+                NodeType::Binding(BindingState { f }) => {
                     let task = Task::UpdateBinding { 
-                        widget_id: widget_id.clone(),
                         f: Rc::downgrade(&f),
                         node_id
                     };

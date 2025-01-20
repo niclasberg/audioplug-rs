@@ -61,7 +61,8 @@ impl<T: Any> Memo<T> {
             }),
             value: None
         };
-        let id = cx.runtime_mut().create_memo_node(state);
+		let owner = cx.owner();
+        let id = cx.runtime_mut().create_memo_node(state, owner);
 
         Self {
             id,

@@ -11,7 +11,6 @@ pub(super) enum Task {
         f: Weak<dyn Fn(&mut EffectContext)>
     },
 	UpdateBinding {
-		widget_id: WidgetId,
     	f: Weak<dyn Fn(&mut AppState)>,
         node_id: NodeId,
 	},
@@ -27,15 +26,9 @@ impl Task {
                     app_state.runtime.mark_node_as_clean(id);                    
                 }
             },
-            Task::UpdateBinding { widget_id, f, node_id } => {
+            Task::UpdateBinding { f, node_id } => {
                 if let Some(f) = f.upgrade() {
-                    // Widget might have been removed
-                    if app_state.widgets.contains_key(widget_id) {
-                        f(app_state);
-                    }
-                    if app_state.widgets.contains_key(widget_id) {
-                        app_state.merge_widget_flags(widget_id);
-                    }
+                    f(app_state);
                 }
                 app_state.runtime.mark_node_as_clean(node_id);
             },
@@ -79,29 +72,6 @@ impl AppState {
 	pub fn parameters(&self) -> &dyn AnyParameterMap {
 		self.runtime.parameters.as_ref()
 	}
-
-    pub fn create_binding<T: 'static, U: 'static, W: Widget + 'static>(&mut self, accessor: Accessor<T>, widget_id: WidgetId, f_map: fn(&T) -> U, f: impl Fn(U, WidgetMut<'_, W>) + 'static) -> bool {
-        if let Some(source_id) = accessor.get_source_id() {
-            let state = BindingState::new(widget_id, move |app_state| {
-                let value = accessor.with_ref(app_state, f_map);
-                let node = WidgetMut::new(app_state, widget_id);
-                f(value, node);
-            });
-
-            let node_id = match source_id {
-                SourceId::Parameter(source_id) => {
-                    self.runtime.create_parameter_binding_node(source_id, state)
-                },
-                SourceId::Node(source_id) => {
-                    self.runtime.create_binding_node(source_id, state)
-                }
-            };
-
-            true
-        } else {
-            false
-        }
-    }
 
     pub(crate) fn set_host_handle(&mut self, host_handle: Option<Box<dyn HostHandle>>) {
         self.host_handle = host_handle;
