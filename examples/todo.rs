@@ -1,6 +1,6 @@
 use std::sync::atomic::AtomicUsize;
 
-use audioplug::{app::{Signal, SignalContext, CreateContext, SignalGet, ViewContext, Window}, core::Color, style::Length, view::*, App};
+use audioplug::{app::{CreateContext, Signal, SignalGet, ViewContext, Window, WriteContext}, core::Color, style::Length, view::*, App};
 
 struct Todos(pub Vec<Todo>);
 
@@ -21,7 +21,7 @@ impl Todo {
 		}
 	}
 
-	pub fn toggle(&self, cx: &mut impl SignalContext) {
+	pub fn toggle(&self, cx: &mut impl WriteContext) {
 		self.completed.update(cx, |value| *value = !*value);
 	}
 }
@@ -44,7 +44,7 @@ fn main() {
 				Label::new("TODO app"),
 				TextBox::new()
 					.on_input(move |cx, value| text_input.set(cx, value.to_string())),
-				Flex::column(for_each_keyed(items, |todo| todo.index, |_, todo| todo_view(todo)))
+				Flex::column(for_each_keyed(items, |todo: &Todo| todo.index, |_, &todo| todo_view(todo)))
 			))
 		).style(|s| s.width(Length::Vw(100.0)).height(Length::Vh(100.0)))
 	});

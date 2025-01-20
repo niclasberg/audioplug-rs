@@ -88,9 +88,6 @@ pub trait CreateContext: ReactiveContext {
 
 pub trait ReadContext: ReactiveContext {
     fn scope(&self) -> Scope;
-    fn track(&mut self, node_id: NodeId) {
-        self.
-    }
 }
 
 pub trait WriteContext: ReactiveContext {

@@ -115,7 +115,7 @@ where
 		cx.track_mapped(self.values, 
 			|values| { values.into_iter().map(T::clone).collect::<Vec<T>>() },
 			|values, mut widget| {
-
+				
 			});
 
 		/*
@@ -137,11 +137,12 @@ pub fn for_each_keyed<C, K, T, V, F, FKey>(
 	view_fn: F
 ) -> ForEach<C, F, FKey> 
 where 
-	K: Hash + Eq,
-	T: Any,
-	C: IntoIterator<Item = T>,
+	C: 'static,
+	for <'a> &'a C: IntoIterator<Item = &'a T>,
+	K: Hash + Eq + 'static,
+	T: Clone + 'static,
 	V: View,
-	F: Fn(&mut ViewContext, T) -> V + 'static,
+	F: Fn(&mut ViewContext, &T) -> V + 'static,
 	FKey: Fn(&T) -> K
 {
 	ForEach {

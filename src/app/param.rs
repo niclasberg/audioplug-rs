@@ -98,14 +98,16 @@ impl<T: Any> SignalGet for ParamSignal<T> {
 	}
 
 	fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-		// TODO: Subscribe
+		let scope = cx.scope();
+		cx.runtime_mut().track_parameter(self.id, scope);
 		let param_ref = cx.runtime_mut().get_parameter_ref(self.id);
 		let value = param_ref.value_as().unwrap();
 		f(&value)
 	}
 	
 	fn get(&self, cx: &mut dyn ReadContext) -> Self::Value where Self::Value: Clone {
-		// TODO: Subscribe
+		let scope = cx.scope();
+		cx.runtime_mut().track_parameter(self.id, scope);
 		let param_ref = cx.runtime().get_parameter_ref(self.id);
 		param_ref.value_as().unwrap()
 	}

@@ -89,6 +89,12 @@ impl<'s, W: Widget> ParamContext for BuildContext<'s, W> {
     }
 }
 
+impl<'s, W: Widget> ReadContext for BuildContext<'s, W> {
+    fn scope(&self) -> Scope {
+        Scope::Root
+    }
+}
+
 impl<'b, W: Widget> ReactiveContext for BuildContext<'b, W> {
     fn runtime(&self) -> &super::Runtime {
         self.app_state.runtime()
