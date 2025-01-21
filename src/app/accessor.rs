@@ -1,28 +1,11 @@
+use std::rc::Rc;
+
 use crate::param::ParameterId;
 use super::{Mapped, Memo, NodeId, ParamSignal, ReactiveContext, ReadContext, Runtime, Signal, SignalGet};
 
-pub trait MappedAccessor<T>: CloneMappedAccessor<T> {
+pub trait MappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;
-    fn get_ref(&self, ctx: &mut dyn ReadContext) -> T;
-}
-
-pub trait CloneMappedAccessor<T> {
-    fn box_clone(&self) -> Box<dyn MappedAccessor<T>>;
-}
-
-impl<T, V> CloneMappedAccessor<T> for V
-where
-    V: 'static + MappedAccessor<T> + Clone
-{
-    fn box_clone(&self) -> Box<dyn MappedAccessor<T>> {
-        Box::new(self.clone())
-    }
-}
-
-impl<T> Clone for Box<dyn MappedAccessor<T>> {
-    fn clone(&self) -> Box<dyn MappedAccessor<T>> {
-        self.box_clone()
-    }
+    fn evaluate(&self, ctx: &mut dyn ReadContext) -> T;
 }
 
 #[derive(Clone, Copy)]
@@ -37,7 +20,7 @@ pub enum Accessor<T> {
     Memo(Memo<T>),
 	Parameter(ParamSignal<T>),
     Const(T),
-    Mapped(Box<dyn MappedAccessor<T>>)
+    Mapped(Rc<dyn MappedAccessor<T>>)
 }
 
 impl<T: 'static> Accessor<T> {
@@ -52,7 +35,13 @@ impl<T: 'static> Accessor<T> {
 	}
 
 	pub fn get(&self, cx: &mut dyn ReadContext) -> T where T: Clone {
-		self.with_ref(cx, T::clone)
+		match self {
+            Accessor::Signal(signal) => signal.get(cx),
+            Accessor::Memo(memo) => memo.get(cx),
+            Accessor::Const(value) => value.clone(),
+			Accessor::Parameter(param) => param.get(cx),
+            Accessor::Mapped(mapped) => mapped.evaluate(cx)
+        }
 	}
 
     pub fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&T) -> R) -> R {
@@ -61,7 +50,7 @@ impl<T: 'static> Accessor<T> {
             Accessor::Memo(memo) => memo.with_ref(cx, f),
             Accessor::Const(value) => f(value),
 			Accessor::Parameter(param) => param.with_ref(cx, f),
-            Accessor::Mapped(mapped) => f(&mapped.get_ref(cx))
+            Accessor::Mapped(mapped) => f(&mapped.evaluate(cx))
         }
     }
 }
@@ -90,7 +79,7 @@ where
     Mapped<S, T, R, F>: MappedAccessor<R> + 'static
 {
     fn from(value: Mapped<S, T, R, F>) -> Self {
-        Self::Mapped(Box::new(value))
+        Self::Mapped(Rc::new(value))
     }
 }
 

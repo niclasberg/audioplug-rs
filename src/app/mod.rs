@@ -24,6 +24,7 @@ use std::{any::Any, cell::RefCell, marker::PhantomData, rc::Rc};
 
 pub use accessor::Accessor;
 use accessor::{MappedAccessor, SourceId};
+pub use binding::BindingState;
 pub use animation::AnimationContext;
 pub(crate) use app_state::AppState;
 pub use contexts::{BuildContext, ViewContext};
@@ -152,16 +153,16 @@ where
 
 impl<S, T, B, F> MappedAccessor<B> for Mapped<S, T, B, F> 
 where
-    S: SignalGet<Value = T> + Clone + 'static,
-    T: Any + Clone,
-    B: Any + Clone,
-    F: Fn(&T) -> B + Clone + 'static
+    S: SignalGet<Value = T> + 'static,
+    T: Any,
+    B: Any,
+    F: Fn(&T) -> B + 'static
 {
     fn get_source_id(&self) -> SourceId {
         SignalGet::get_source_id(self)
     }
 
-    fn get_ref(&self, ctx: &mut dyn ReadContext) -> B {
+    fn evaluate(&self, ctx: &mut dyn ReadContext) -> B {
         self.parent.with_ref(ctx, &self.f)
     }
 }

@@ -1,13 +1,13 @@
 use std::rc::Rc;
 
-use super::{AppState, WidgetId};
+use super::AppState;
 
-pub(crate) struct BindingState {
+pub struct BindingState {
     pub f: Rc<dyn Fn(&mut AppState)>,
 }
 
 impl BindingState {
-    pub(super) fn new(f: impl Fn(&mut AppState) + 'static) -> Self {
+    pub fn new(f: impl Fn(&mut AppState) + 'static) -> Self {
         Self {
             f: Rc::new(f)
         }

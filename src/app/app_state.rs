@@ -1,8 +1,7 @@
 use std::{collections::HashSet, rc::{Rc, Weak}};
 use slotmap::{Key, SecondaryMap, SlotMap};
 use crate::{app::event_handling::set_mouse_capture_widget, core::Point, param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue}, platform, view::View};
-
-use super::{accessor::SourceId, binding::BindingState, contexts::BuildContext, effect::EffectContext, layout_window, Accessor, CreateContext, HostHandle, ParamContext, Path, ReactiveContext, ReadContext, Runtime, ViewContext, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext};
+use super::{contexts::BuildContext, effect::EffectContext, layout_window, CreateContext, HostHandle, ParamContext, ReactiveContext, ReadContext, Runtime, ViewContext, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext};
 use super::NodeId;
 
 pub(super) enum Task {

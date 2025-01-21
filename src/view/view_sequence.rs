@@ -1,6 +1,6 @@
 use std::{any::Any, cell::Cell, collections::HashMap, hash::Hash, ops::Deref, rc::Rc};
 
-use crate::app::{Accessor, BuildContext, ViewContext, Widget};
+use crate::app::{Accessor, BindingState, BuildContext, Owner, ReactiveContext, SignalGet, ViewContext, Widget};
 
 use super::View;
 
@@ -91,33 +91,69 @@ impl<V: View, F: Fn(&mut ViewContext, usize) -> V + 'static> ViewSequence for In
 	}
 }
 
-pub struct ForEach<C, F, FKey> {
+pub trait MapToViews {
+	fn map_to_views();
+}
+
+pub struct ForEach<C, F> {
 	values: Accessor<C>,
+	view_fn: F,
+}
+
+impl<C, T, V, F> ViewSequence for ForEach<C, F> 
+where 
+	C: 'static,
+	for <'a> &'a C: IntoIterator<Item = &'a T>,
+	T: Eq + Clone + 'static,
+	V: View,
+	F: Fn(&mut ViewContext, T) -> V + 'static
+{
+	fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>) {
+		todo!()
+	}
+}
+
+pub struct ForEachKeyed<S, F, FKey> {
+	signal: S,
 	view_fn: F,
 	key_fn: FKey
 }
 
-impl<C, K, T, V, F, FKey> ViewSequence for ForEach<C, F, FKey> 
+impl<S, C, K, T, V, F, FKey> ViewSequence for ForEachKeyed<S, F, FKey> 
 where 
+	S: SignalGet<Value = C> + 'static,
 	C: 'static,
 	for <'a> &'a C: IntoIterator<Item = &'a T>,
 	K: Hash + Eq + 'static,
 	T: Clone + 'static,
 	V: View,
-	F: Fn(&mut ViewContext, &T) -> V + 'static,
-	FKey: Fn(&T) -> K
+	F: Fn(&mut ViewContext, T) -> V + 'static,
+	FKey: Fn(&T) -> K + 'static
 {
     fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
-		let indices = self.values.with_ref(cx, |values| {
-			values.into_iter().enumerate().map(|(i, value) ()).collect()
-		});
-		
+		let values = self.signal.with_ref(cx, |values| values.into_iter().map(T::clone).collect::<Vec<T>>());
+		let mut indices = HashMap::new();
+		for (i, value) in values.into_iter().enumerate() {
+			indices.insert((self.key_fn)(&value), i);
+			cx.add_child_with(|cx| (self.view_fn)(cx, value));
+		}
 
-		cx.track_mapped(self.values, 
-			|values| { values.into_iter().map(T::clone).collect::<Vec<T>>() },
-			|values, mut widget| {
-				
-			});
+		let indices = Cell::new(Some(indices));
+		let signal = self.signal;
+		let source_id = signal.get_source_id();
+		let widget_id = cx.id();
+		let state = BindingState::new(move |cx| {
+			let values = signal.with_ref(cx, |values| values.into_iter().map(T::clone).collect::<Vec<T>>());
+			let old_indices = indices.take().unwrap();
+			let new_indices: HashMap<_, _> = values.iter().enumerate().map(|(i, value)| ((self.key_fn)(value), i)).collect();
+
+			//cx.add_widget(widget_id, widget_factory)
+			//cx.remove_widget(id);
+
+			indices.replace(Some(new_indices));
+		});
+
+		cx.runtime_mut().create_binding_node(source_id, state, Some(Owner::Widget(widget_id)));
 
 		/*
 		view_indices.insert((self.key_fn)(&value), i);
@@ -132,32 +168,38 @@ where
     }
 }
 
-pub fn for_each_keyed<C, K, T, V, F, FKey>(
-	values: impl Into<Accessor<C>>,
+pub fn for_each_keyed<S, C, K, T, V, F, FKey>(
+	signal: S,
 	key_fn: FKey,
 	view_fn: F
-) -> ForEach<C, F, FKey> 
+) -> ForEachKeyed<S, F, FKey> 
 where 
+	S: SignalGet<Value = C> + 'static,
 	C: 'static,
 	for <'a> &'a C: IntoIterator<Item = &'a T>,
 	K: Hash + Eq + 'static,
 	T: Clone + 'static,
 	V: View,
-	F: Fn(&mut ViewContext, &T) -> V + 'static,
-	FKey: Fn(&T) -> K
+	F: Fn(&mut ViewContext, T) -> V + 'static,
+	FKey: Fn(&T) -> K + 'static
 {
-	ForEach {
-		values: values.into(),
+	ForEachKeyed {
+		signal,
 		key_fn,
 		view_fn
 	}
 }
 
-
 pub enum VecDiff<T> {
 	Removed { index: usize, len: usize},
 	Changed { index: usize, new_value: T },
 	Inserted { index: usize, value: T }
+}
+
+fn diff_vecs<K: Hash + PartialEq>(a: HashMap<K, usize>, b: HashMap<K, usize>) {
+	if a.is_empty() && b.is_empty() {
+
+	}
 }
 
 /*fn diff_slices<T: Eq>(a: &[T], b: &[T]) {
