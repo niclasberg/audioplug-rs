@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{accessor::SourceId, CreateContext, NodeId, NodeType, ReactiveContext, ReadContext, SignalGet, WriteContext};
+use super::{accessor::SourceId, CreateContext, LocalCreateContext, NodeId, NodeType, ReadContext, SignalGet, WriteContext};
 
 pub struct Signal<T> {
     pub(super) id: NodeId,
@@ -9,7 +9,7 @@ pub struct Signal<T> {
 
 impl<T> Clone for Signal<T> {
 	fn clone(&self) -> Self {
-		Self { id: self.id.clone(), _marker: self._marker.clone() }
+		*self
 	}
 }
 
@@ -27,7 +27,8 @@ impl<T: Any> Signal<T> {
     }
 
 	pub fn new_with(cx: &mut dyn CreateContext, f: impl FnOnce(&mut dyn CreateContext) -> T) -> Self {
-		todo!()
+		let value = f(cx);
+		Self::new(cx, value)
 	}
 
     /// Set the current value, notifies subscribers
@@ -36,8 +37,9 @@ impl<T: Any> Signal<T> {
     }
 
     /// Set the current value, notifies subscribers
-    pub fn set_with(&self, cx: &mut impl WriteContext, f: impl FnOnce() -> T) {
-		self.update(cx, move |value| *value = f());
+    pub fn set_with(&self, cx: &mut impl WriteContext, f: impl FnOnce(&mut dyn CreateContext) -> T) {
+		let new_value = f(&mut cx.as_create_context(super::Owner::Node(self.id)));
+		self.update(cx, move |value| *value = new_value);
     }
 
     /// Set the current value, notifies subscribers

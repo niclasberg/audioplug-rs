@@ -17,7 +17,7 @@ fn main() {
 				Button::new(Label::new("Decrease"))
 					.on_click(move |cx| count.update(cx, |value| *value -= 1)),
 				Button::new(Label::new("Trigger"))
-					.on_click(move |cx| trigger.trigger(cx)),
+					.on_click(move |cx| trigger.notify(cx)),
 				Label::new("No children to show")
 					.style(|style| style.hidden(count.map(|x| *x > 0))),
 				Flex::column(IndexedViewSeq::new(count.map(|&x| x.max(0) as usize), |_, i| {

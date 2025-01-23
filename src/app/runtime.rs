@@ -240,7 +240,6 @@ impl Runtime {
     }
 
     pub fn get_node_mut(&mut self, node_id: NodeId) -> &mut Node {
-		self.update_if_necessary(node_id);
         self.nodes.get_mut(node_id).expect("Node not found")
     }
 	
@@ -287,7 +286,7 @@ impl Runtime {
         }
     }
 
-    fn update_if_necessary(&mut self, node_id: NodeId) {
+    pub fn update_if_necessary(&mut self, node_id: NodeId) {
         if self.nodes[node_id].state == NodeState::Clean {
             return;
         }

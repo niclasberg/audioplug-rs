@@ -1,7 +1,7 @@
 use std::path::Path;
 use audioplug::app::{Effect,  Signal, SignalGet, Window};
-use audioplug::core::{Alignment, Border, Color, Size};
-use audioplug::style::{Length, UiRect};
+use audioplug::core::{Color, Size};
+use audioplug::style::Length;
 use audioplug::view::{Button, Checkbox, Flex, Image, Label, Slider, TextBox, View};
 use audioplug::App;
 
@@ -22,9 +22,10 @@ fn main() {
         });
 
         Flex::column((
-            Label::new(text.clone()).style(|s| s
-				.border(Length::Px(2.0), Color::GREEN)
-				.corner_radius(Size::new(2.0, 2.0))),
+            Label::new(text)
+				.style(|s| s
+					.border(Length::Px(2.0), Color::GREEN)
+					.corner_radius(Size::new(2.0, 2.0))),
 			Flex::row((
 				Label::new("Slider"),
 				Slider::new()
@@ -35,14 +36,13 @@ fn main() {
             .style(|s| s.background(Color::RED)),
             Flex::row((
 				Label::new("Checkbox"),
-				Checkbox::new(checkbox_enabled.clone())
+				Checkbox::new(checkbox_enabled)
 			)).spacing(Length::Px(5.0)),
             Flex::row((
                 Label::new("Button"),
                 Button::new(Label::new("Filled"))
-                    .on_click(move |ctx| {
-                        let current = checkbox_enabled.get(ctx);
-                        checkbox_enabled.set(ctx, !current)
+                    .on_click(move |cx| {
+						checkbox_enabled.update(cx, |enabled| *enabled = !*enabled );
                     })
             )).spacing(Length::Px(5.0)),
             Flex::row((

@@ -1,6 +1,6 @@
 use std::{any::Any, cell::Cell, collections::HashMap, hash::Hash, ops::Deref, rc::Rc};
 
-use crate::app::{Accessor, BindingState, BuildContext, Owner, ReactiveContext, SignalGet, ViewContext, Widget};
+use crate::app::{Accessor, BindingState, BuildContext, DependentField, NodeId, Owner, ReactiveContext, SignalGet, ViewContext, Widget};
 
 use super::View;
 
@@ -91,25 +91,20 @@ impl<V: View, F: Fn(&mut ViewContext, usize) -> V + 'static> ViewSequence for In
 	}
 }
 
-pub trait MapToViews {
-	fn map_to_views();
-}
-
-pub struct ForEach<C, F> {
-	values: Accessor<C>,
+pub struct ForEach<T, F> {
+	values: Accessor<Vec<T>>,
 	view_fn: F,
 }
 
-impl<C, T, V, F> ViewSequence for ForEach<C, F> 
+impl<T, V, F> ViewSequence for ForEach<T, F> 
 where 
-	C: 'static,
-	for <'a> &'a C: IntoIterator<Item = &'a T>,
 	T: Eq + Clone + 'static,
 	V: View,
-	F: Fn(&mut ViewContext, T) -> V + 'static
+	F: Fn(&mut ViewContext, Accessor<T>) -> V + 'static
 {
 	fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>) {
-		todo!()
+		let triggers: Vec<NodeId> = Vec::new();
+
 	}
 }
 
@@ -138,19 +133,17 @@ where
 			cx.add_child_with(|cx| (self.view_fn)(cx, value));
 		}
 
-		let indices = Cell::new(Some(indices));
 		let signal = self.signal;
 		let source_id = signal.get_source_id();
 		let widget_id = cx.id();
 		let state = BindingState::new(move |cx| {
 			let values = signal.with_ref(cx, |values| values.into_iter().map(T::clone).collect::<Vec<T>>());
-			let old_indices = indices.take().unwrap();
-			let new_indices: HashMap<_, _> = values.iter().enumerate().map(|(i, value)| ((self.key_fn)(value), i)).collect();
+			let mut new_indices: HashMap<_, _> = values.iter().enumerate().map(|(i, value)| ((self.key_fn)(value), i)).collect();
 
 			//cx.add_widget(widget_id, widget_factory)
 			//cx.remove_widget(id);
 
-			indices.replace(Some(new_indices));
+			std::mem::swap(&mut indices, &mut new_indices);
 		});
 
 		cx.runtime_mut().create_binding_node(source_id, state, Some(Owner::Widget(widget_id)));
@@ -187,18 +180,6 @@ where
 		signal,
 		key_fn,
 		view_fn
-	}
-}
-
-pub enum VecDiff<T> {
-	Removed { index: usize, len: usize},
-	Changed { index: usize, new_value: T },
-	Inserted { index: usize, value: T }
-}
-
-fn diff_vecs<K: Hash + PartialEq>(a: HashMap<K, usize>, b: HashMap<K, usize>) {
-	if a.is_empty() && b.is_empty() {
-
 	}
 }
 

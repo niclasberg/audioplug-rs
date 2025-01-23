@@ -29,32 +29,33 @@ impl Trigger {
 		cx.runtime_mut().track(self.node_id, scope);
 	}
 
-	pub fn trigger(&self, cx: &mut dyn WriteContext) {
+	pub fn notify(&self, cx: &mut dyn WriteContext) {
 		cx.runtime_mut().notify(self.node_id);
 	}
 }
 
 #[derive(Copy, Clone)]
-pub struct MappedValueTrigger<S, T, R, F> {
+pub struct DependentField<S, T, R> {
     source_signal: S,
-    f: F,
-	trigger_id: NodeId,
-    _marker: PhantomData<fn(&T) -> R>
+    f: fn(&T) -> &R,
+	trigger_id: NodeId
 }
 
-impl<S, T, R, F> MappedValueTrigger<S, T, R, F> 
+impl<S, T, R> DependentField<S, T, R> 
 where 
-	S: SignalGet<Value = T>,
-	F: Fn(&T) -> R
+	S: SignalGet<Value = T>
 {
-	pub fn new(cx: &mut impl CreateContext, source_signal: S, f: F, owner: Option<Owner>) -> Self {
+	pub fn new(cx: &mut impl CreateContext, source_signal: S, f: fn(&T) -> &R, owner: Option<Owner>) -> Self {
 		let trigger_id = cx.runtime_mut().create_trigger(owner);
 		Self {
 			source_signal,
 			f,
-			trigger_id,
-			_marker: PhantomData
+			trigger_id
 		}
+	}
+
+	pub fn notify(&self, cx: &mut dyn WriteContext) {
+		cx.runtime_mut().notify(self.trigger_id);
 	}
 
 	pub fn dispose(self, cx: &mut impl ReactiveContext) {
@@ -62,12 +63,11 @@ where
 	}
 }
 
-impl<S, T, B, F> SignalGet for MappedValueTrigger<S, T, B, F> 
+impl<S, T, B> SignalGet for DependentField<S, T, B> 
 where
     S: SignalGet<Value = T> + 'static,
     T: Any,
-    B: Any,
-    F: Fn(&T) -> B + 'static
+    B: Any
 {
 	type Value = B;
 
@@ -76,22 +76,6 @@ where
 	}
 
 	fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-		f(&self.source_signal.with_ref(cx, |x| (self.f)(x)))
+		self.source_signal.with_ref(cx, move |x| f((self.f)(x)))
 	}
-}
-
-impl<S, T, B, F> MappedAccessor<B> for MappedValueTrigger<S, T, B, F> 
-where
-    S: SignalGet<Value = T> + Clone + 'static,
-    T: Any + Clone,
-    B: Any + Clone,
-    F: Fn(&T) -> B + Clone + 'static
-{
-    fn get_source_id(&self) -> SourceId {
-        SourceId::Node(self.trigger_id)
-    }
-
-    fn evaluate(&self, ctx: &mut dyn ReadContext) -> B {
-        self.source_signal.with_ref(ctx, &self.f)
-    }
 }

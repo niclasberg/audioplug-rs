@@ -80,12 +80,14 @@ impl<T: 'static> SignalGet for Memo<T> {
 
     fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         let scope = cx.scope();
-		cx.runtime_mut().track(self.id, scope);
+		cx.runtime_mut().update_if_necessary(self.id);
         let value = match &cx.runtime_mut().get_node_mut(self.id).node_type {
             NodeType::Memo(state) => state.value.as_ref().expect("Memo should have been evaluated before accessed").as_ref(),
             _ => unreachable!()
         };
-        f(value.downcast_ref().expect("Memo had wrong type"))
+        let r = f(value.downcast_ref().expect("Memo had wrong type"));
+		cx.runtime_mut().track(self.id, scope);
+		r
     }
 }
 

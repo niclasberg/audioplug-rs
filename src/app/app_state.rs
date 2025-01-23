@@ -1,4 +1,4 @@
-use std::{collections::HashSet, rc::{Rc, Weak}};
+use std::{cell::RefCell, collections::HashSet, rc::{Rc, Weak}};
 use slotmap::{Key, SecondaryMap, SlotMap};
 use crate::{app::event_handling::set_mouse_capture_widget, core::Point, param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue}, platform, view::View};
 use super::{contexts::BuildContext, effect::EffectContext, layout_window, CreateContext, HostHandle, ParamContext, ReactiveContext, ReadContext, Runtime, ViewContext, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext};
@@ -10,7 +10,7 @@ pub(super) enum Task {
         f: Weak<dyn Fn(&mut EffectContext)>
     },
 	UpdateBinding {
-    	f: Weak<dyn Fn(&mut AppState)>,
+    	f: Weak<RefCell<dyn FnMut(&mut AppState)>>,
         node_id: NodeId,
 	},
 }
@@ -27,7 +27,7 @@ impl Task {
             },
             Task::UpdateBinding { f, node_id } => {
                 if let Some(f) = f.upgrade() {
-                    f(app_state);
+                    (RefCell::borrow_mut(&f))(app_state);
                 }
                 app_state.runtime.mark_node_as_clean(node_id);
             },

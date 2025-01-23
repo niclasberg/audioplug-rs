@@ -37,7 +37,11 @@ fn todo_view(todo: Todo) -> impl View {
 fn main() {
 	let mut app = App::new();
 	let _ = Window::open(&mut app, |cx| {
-		let items = Signal::new(cx, Vec::<Todo>::new());
+		let items = Signal::new_with(cx, |cx| {
+			let mut todos = Vec::new();
+			todos.push(Todo::new(cx, "Item1", false));
+			todos
+		});
 		let text_input = Signal::new(cx, "".to_string());
 		Container::new(move |_| 
 			Flex::column((

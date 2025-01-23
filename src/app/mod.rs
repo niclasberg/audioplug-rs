@@ -3,6 +3,7 @@ mod animation;
 mod app_state;
 mod binding;
 mod contexts;
+pub mod diff;
 mod effect;
 mod event_handling;
 mod host_handle;
@@ -37,7 +38,7 @@ pub use param::{ParamContext, ParamEditor, ParamSignal};
 pub use render::{RenderContext, render_window, invalidate_window};
 pub use runtime::*;
 pub use signal::Signal;
-pub use trigger::Trigger;
+pub use trigger::{Trigger, DependentField};
 pub use widget::{EventStatus, StatusChange, Widget};
 pub use widget_ref::{WidgetRef, WidgetMut};
 pub use widget_data::{WidgetData, WidgetId, WidgetFlags};
@@ -81,10 +82,37 @@ impl App {
 pub trait ReactiveContext {
     fn runtime(&self) -> &Runtime;
     fn runtime_mut(&mut self) -> &mut Runtime;
+	fn as_create_context(&mut self, owner: Owner) -> LocalCreateContext {
+		LocalCreateContext {
+			runtime: self.runtime_mut(),
+			owner
+		}
+	}
 }
 
 pub trait CreateContext: ReactiveContext {
     fn owner(&self) -> Option<Owner>;
+}
+
+pub struct LocalCreateContext<'a> {
+	runtime: &'a mut Runtime,
+	owner: Owner
+}
+
+impl<'a> ReactiveContext for LocalCreateContext<'a> {
+	fn runtime(&self) -> &Runtime {
+		&self.runtime
+	}
+
+	fn runtime_mut(&mut self) -> &mut Runtime {
+		&mut self.runtime
+	}
+}
+
+impl<'a> CreateContext for LocalCreateContext<'a> {
+	fn owner(&self) -> Option<Owner> {
+		Some(self.owner)
+	}
 }
 
 pub trait ReadContext: ReactiveContext {
