@@ -13,6 +13,7 @@ mod overlay;
 mod param;
 mod render;
 mod signal;
+mod signal_range;
 mod signal_vec;
 mod runtime;
 mod trigger;

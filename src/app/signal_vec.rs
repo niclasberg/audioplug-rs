@@ -31,6 +31,12 @@ impl<T: Any> SignalVec<T> {
 		cx.runtime_mut().notify(self.id);
     }
 
+	pub fn extend(&self, cx: &mut impl WriteContext, iter: impl IntoIterator<Item = T>) {
+		self.with_inner_mut(cx.runtime_mut(), move |inner| {
+			inner.values.extend(iter);
+		});
+	}
+
 	fn with_inner<R>(&self, cx: &Runtime, f: impl FnOnce(&Inner<T>) -> R) -> R {
 		let value = match &cx.get_node(self.id).node_type {
             NodeType::Signal(signal) => signal.value.as_ref(),
