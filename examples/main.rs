@@ -1,8 +1,8 @@
 use std::path::Path;
-use audioplug::app::{Effect,  Signal, SignalGet, Window};
+use audioplug::app::*;
 use audioplug::core::{Color, Size};
 use audioplug::style::Length;
-use audioplug::view::{Button, Checkbox, Flex, Image, Label, Slider, TextBox, View};
+use audioplug::view::*;
 use audioplug::App;
 
 fn main() {

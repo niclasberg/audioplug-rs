@@ -6,9 +6,8 @@ use raw_window_handle::RawWindowHandle;
 use crate::app::{handle_window_event, render_window, AppState, WindowId};
 use crate::core::{Cursor, Point, Rectangle};
 use crate::platform::{WindowEvent, WindowHandler};
-use crate::view::View;
 use crate::{platform, App};
-use super::ViewContext;
+use super::{ViewContext, View};
 
 struct PreInit<F>(F);
 struct Constructed(WindowId);

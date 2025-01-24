@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
-use crate::{style::Style, view::View};
-use super::{binding::BindingState, Accessor, AppState, CreateContext, Owner, ParamContext, ReactiveContext, ReadContext, Scope, Widget, WidgetFlags, WidgetId, WidgetMut};
+use crate::style::Style;
+use super::{binding::BindingState, Accessor, AppState, CreateContext, Owner, ParamContext, ReactiveContext, ReadContext, Scope, View, Widget, WidgetFlags, WidgetId, WidgetMut};
 
 pub struct BuildContext<'a, W: Widget> {
     id: WidgetId,

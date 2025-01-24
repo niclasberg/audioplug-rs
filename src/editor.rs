@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{app::ViewContext, core::Size, param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params}, style::{Length, UiRect}, view::{AnyView, Flex, Label, ParameterSlider, View}};
+use crate::{app::{AnyView, View, ViewContext}, core::Size, param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params}, style::{Length, UiRect}, view::{Flex, Label, ParameterSlider, ViewExt}};
 
 pub trait Editor: 'static {
 	type Parameters: Params;

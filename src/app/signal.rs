@@ -37,13 +37,13 @@ impl<T: Any> Signal<T> {
     }
 
     /// Set the current value, notifies subscribers
-    pub fn set_with(&self, cx: &mut impl WriteContext, f: impl FnOnce(&mut dyn CreateContext) -> T) {
+    pub fn set_with(&self, cx: &mut dyn WriteContext, f: impl FnOnce(&mut dyn CreateContext) -> T) {
 		let new_value = f(&mut cx.as_create_context(super::Owner::Node(self.id)));
 		self.update(cx, move |value| *value = new_value);
     }
 
     /// Set the current value, notifies subscribers
-    pub fn update(&self, cx: &mut impl WriteContext, f: impl FnOnce(&mut T)) {
+    pub fn update(&self, cx: &mut dyn WriteContext, f: impl FnOnce(&mut T)) {
 		{
             let signal = cx.runtime_mut().get_node_mut(self.id);
             match &mut signal.node_type {

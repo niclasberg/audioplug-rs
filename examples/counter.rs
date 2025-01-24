@@ -1,9 +1,10 @@
-use audioplug::{app::{Effect, Signal, SignalGet, Trigger, Window}, core::{Color, Size}, style::{Length, UiRect}, view::{Button, Container, Flex, IndexedViewSeq, Label, View}, App};
+use audioplug::{app::*, core::{Color, Size}, keyboard::Key, style::{Length, UiRect}, view::*, App};
 
 fn main() {
     let mut app = App::new();
     let _ = Window::open(&mut app, |cx| {  
         let count = Signal::new(cx, 0);
+
 		let trigger = Trigger::new(cx);
 		Effect::new(cx, move |cx| {
 			trigger.track(cx);
@@ -40,6 +41,22 @@ fn main() {
 		).style(|style| style
 			.height(Length::Vh(100.0))
 			.width(Length::Vw(100.0)))
+		.on_key_event(move |cx, event| {
+			match event {
+				audioplug::KeyEvent::KeyDown { key, .. } => match key {
+					Key::Up => {
+						count.update(cx, |value| *value += 1);
+						EventStatus::Handled
+					},
+					Key::Down => {
+						count.update(cx, |value| *value -= 1);
+						EventStatus::Handled
+					},
+					_ => EventStatus::Ignored
+				},
+				_ => EventStatus::Ignored
+			}
+		})
     });
 	app.run();
 }

@@ -14,3 +14,4 @@ pub fn signal_range<Idx: 'static + PartialEq>(
 		start..end
 	})
 }
+

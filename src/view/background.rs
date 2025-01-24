@@ -1,6 +1,4 @@
-use crate::{app::{Accessor, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Border, Color, Cursor}, style::DisplayStyle, KeyEvent, MouseEvent};
-
-use super::View;
+use crate::{app::{Accessor, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, View, Widget}, core::{Border, Color, Cursor}, style::DisplayStyle, KeyEvent, MouseEvent};
 
 pub struct Background<V: View> {
     pub(super) view: V,

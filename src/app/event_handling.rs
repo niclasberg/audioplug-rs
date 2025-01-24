@@ -1,6 +1,5 @@
-use crate::{app::StatusChange, core::{Cursor, Rectangle}, keyboard::Key, platform::WindowEvent, view::View, KeyEvent, MouseEvent};
-
-use super::{animation::{drive_animations, request_animation_frame}, invalidate_window, layout::request_layout, layout_window, render::invalidate_widget, AppState, EventStatus, ViewContext, WidgetFlags, WidgetId, WindowId};
+use crate::{app::StatusChange, core::{Cursor, Rectangle}, keyboard::Key, platform::WindowEvent, KeyEvent, MouseEvent};
+use super::{animation::{drive_animations, request_animation_frame}, invalidate_window, layout::request_layout, layout_window, render::invalidate_widget, AppState, EventStatus, View, ViewContext, WidgetFlags, WidgetId, WindowId};
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
@@ -39,11 +38,15 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         },
         WindowEvent::Key(key_event) => {
             let mut event_status = EventStatus::Ignored;
-            if let Some(focus_widget) = app_state.window(window_id).focus_widget {
-                let mut ctx = EventContext::new(focus_widget, app_state);
+            let mut key_widget = app_state.window(window_id).focus_widget
+                .unwrap_or(app_state.window(window_id).root_widget);
+
+            while !slotmap::Key::is_null(&key_widget) && event_status != EventStatus::Handled {
+                let mut ctx = EventContext::new(key_widget, app_state);
                 event_status = ctx.dispatch_key_event(key_event.clone());
-                app_state.run_effects();
+                key_widget = app_state.widget_data_ref(key_widget).parent_id;
             }
+            app_state.run_effects();
 
             if event_status == EventStatus::Ignored {
                 match key_event {

@@ -1,7 +1,7 @@
 use std::{marker::PhantomData, ops::{Deref, DerefMut}};
 
-use crate::{core::Rectangle, style::Style, view::View};
-use super::{layout::request_layout, render::invalidate_widget, AppState, ViewContext, Widget, WidgetData, WidgetFlags, WidgetId};
+use crate::{core::Rectangle, style::Style};
+use super::{layout::request_layout, render::invalidate_widget, AppState, ViewContext, View, Widget, WidgetData, WidgetFlags, WidgetId};
 
 pub struct ChildIter<'a> {
     app_state: &'a AppState,

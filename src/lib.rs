@@ -5,7 +5,7 @@ mod audiolayout;
 pub mod core;
 mod editor;
 mod event;
-mod keyboard;
+pub mod keyboard;
 pub mod midi;
 pub mod param;
 pub mod platform;

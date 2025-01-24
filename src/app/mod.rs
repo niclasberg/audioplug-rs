@@ -17,15 +17,17 @@ mod signal_range;
 mod signal_vec;
 mod runtime;
 mod trigger;
+mod traits;
+mod view;
+mod view_sequence;
 mod widget;
 mod widget_data;
 mod widget_ref;
 mod window;
 
-use std::{any::Any, cell::RefCell, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 pub use accessor::Accessor;
-use accessor::{MappedAccessor, SourceId};
 pub use binding::BindingState;
 pub use animation::AnimationContext;
 pub(crate) use app_state::AppState;
@@ -39,7 +41,10 @@ pub use param::{ParamContext, ParamEditor, ParamSignal};
 pub use render::{RenderContext, render_window, invalidate_window};
 pub use runtime::*;
 pub use signal::Signal;
+pub use traits::*;
 pub use trigger::{Trigger, DependentField};
+pub use view::*;
+pub use view_sequence::*;
 pub use widget::{EventStatus, StatusChange, Widget};
 pub use widget_ref::{WidgetRef, WidgetMut};
 pub use widget_data::{WidgetData, WidgetId, WidgetFlags};
@@ -47,7 +52,7 @@ pub use window::Window;
 #[cfg(target_os  ="macos")]
 pub(crate) use window::MyHandler;
 
-use crate::{param::{ParamRef, ParameterId, ParameterMap}, platform};
+use crate::{param::ParameterMap, platform};
 
 slotmap::new_key_type! {
     pub struct NodeId;
@@ -80,118 +85,6 @@ impl App {
     }
 }
 
-pub trait ReactiveContext {
-    fn runtime(&self) -> &Runtime;
-    fn runtime_mut(&mut self) -> &mut Runtime;
-	fn as_create_context(&mut self, owner: Owner) -> LocalCreateContext {
-		LocalCreateContext {
-			runtime: self.runtime_mut(),
-			owner
-		}
-	}
-}
+mod prelude {
 
-pub trait CreateContext: ReactiveContext {
-    fn owner(&self) -> Option<Owner>;
-}
-
-pub struct LocalCreateContext<'a> {
-	runtime: &'a mut Runtime,
-	owner: Owner
-}
-
-impl<'a> ReactiveContext for LocalCreateContext<'a> {
-	fn runtime(&self) -> &Runtime {
-		&self.runtime
-	}
-
-	fn runtime_mut(&mut self) -> &mut Runtime {
-		&mut self.runtime
-	}
-}
-
-impl<'a> CreateContext for LocalCreateContext<'a> {
-	fn owner(&self) -> Option<Owner> {
-		Some(self.owner)
-	}
-}
-
-pub trait ReadContext: ReactiveContext {
-    fn scope(&self) -> Scope;
-}
-
-pub trait WriteContext: ReactiveContext {
-    
-}
-
-pub trait SignalGet {
-    type Value;
-
-	fn get_source_id(&self) -> SourceId;
-
-    /// Map the current value using `f` and subscribe to changes
-    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R;
-
-    /// Get the current value and subscribe to changes
-    fn get(&self, cx: &mut dyn ReadContext) -> Self::Value
-    where
-        Self::Value: Clone,
-    {
-        self.with_ref(cx, Self::Value::clone)
-    }
-
-	fn map<R, F: Fn(&Self::Value) -> R>(self, f: F) -> Mapped<Self, Self::Value, R, F> 
-    where   
-        Self: Sized
-    {
-        Mapped {
-            parent: self,
-            f,
-            _marker: PhantomData,
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct Mapped<S, T, R, F> {
-    parent: S,
-    f: F,
-    _marker: PhantomData<fn(&T) -> R>
-}
-
-impl<S, T, R, F> SignalGet for Mapped<S, T, R, F> 
-where
-	S: SignalGet<Value = T>,
-    T: Any,
-    F: Fn(&T) -> R
-{
-    type Value = R;
-
-	fn get_source_id(&self) -> SourceId {
-        self.parent.get_source_id()
-    }
-
-    fn with_ref<R2>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R2) -> R2 {
-        f(&self.parent.with_ref(cx, |x| (self.f)(x)))
-    }
-
-	fn get(&self, cx: &mut dyn ReadContext) -> Self::Value {
-		self.parent.with_ref(cx, |x| (self.f)(x))
-	}
-}
-
-impl<S, T, B, F> MappedAccessor<B> for Mapped<S, T, B, F> 
-where
-    S: SignalGet<Value = T> + 'static,
-    T: Any,
-    B: Any,
-    F: Fn(&T) -> B + 'static
-{
-    fn get_source_id(&self) -> SourceId {
-        SignalGet::get_source_id(self)
-    }
-
-    fn evaluate(&self, ctx: &mut dyn ReadContext) -> B {
-        self.parent.with_ref(ctx, &self.f)
-    }
 }

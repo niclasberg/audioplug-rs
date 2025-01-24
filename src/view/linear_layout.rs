@@ -1,8 +1,7 @@
 use taffy::{FlexDirection, FlexWrap};
 
-use crate::app::{Accessor, BuildContext, RenderContext, Widget};
+use crate::app::{Accessor, BuildContext, RenderContext, Widget, ViewSequence, View};
 use crate::style::{DisplayStyle, FlexStyle, Length};
-use crate::view::{ViewSequence, View};
 use crate::core::Alignment;
 
 pub struct Flex<VS: ViewSequence> {
