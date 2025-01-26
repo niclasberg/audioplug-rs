@@ -387,12 +387,12 @@ impl Widget for TextBoxWidget {
                     },
                     (Key::C, _) if modifiers == Modifiers::CONTROL => {
                         if let Some(selected_text) = self.selected_text() {
-                            ctx.set_clipboard(selected_text);
+                            ctx.clipboard().set_text(selected_text);
                         }
                         EventStatus::Handled
                     },
                     (Key::V, _) if modifiers == Modifiers::CONTROL => {
-                        if let Some(text_to_insert) = ctx.get_clipboard() {
+                        if let Some(text_to_insert) = ctx.clipboard().get_text() {
                             self.insert(text_to_insert.as_str());
                             rebuild_text_layout(self, ctx);
                         }

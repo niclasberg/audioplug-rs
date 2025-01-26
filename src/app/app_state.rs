@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashSet, rc::{Rc, Weak}};
 use slotmap::{Key, SecondaryMap, SlotMap};
 use crate::{app::event_handling::set_mouse_capture_widget, core::Point, param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue}, platform};
-use super::{contexts::BuildContext, effect::EffectContext, layout_window, CreateContext, HostHandle, ParamContext, ReactiveContext, ReadContext, Runtime, ViewContext, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext, NodeId, View};
+use super::{clipboard::Clipboard, contexts::BuildContext, effect::EffectContext, layout_window, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext, ReadContext, Runtime, View, ViewContext, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext};
 
 pub(super) enum Task {
     RunEffect {
@@ -320,6 +320,12 @@ impl AppState {
 
         for window_to_layout in windows_needing_layout {
             layout_window(self, window_to_layout);
+        }
+    }
+
+    pub fn clipboard(&self, window_id: WindowId) -> Clipboard {
+        Clipboard { 
+            handle: &self.window(window_id).handle
         }
     }
 }

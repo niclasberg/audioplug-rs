@@ -27,10 +27,12 @@ use {
 	std::ptr::NonNull
 };
 
-#[cfg(target_os = "windows")]
+#[allow(unused)]
 const VST3_PLATFORM_HWND: &str = "HWND";
-#[cfg(target_os = "macos")]
+#[allow(unused)]
 const VST3_PLATFORM_NSVIEW: &str = "NSView";
+#[allow(unused)]
+const VST3_PLATFORM_X11_WINDOW: &str = "X11EmbedWindowID";
 
 use vst3_sys as vst3_com;
 #[VST3(implements(IPlugView))]
@@ -60,6 +62,8 @@ impl<E: Editor> IPlugView for PlugView<E> {
             Ok(type_) if type_ == VST3_PLATFORM_HWND => kResultOk,
 			#[cfg(target_os = "macos")]
             Ok(type_) if type_ == VST3_PLATFORM_NSVIEW => kResultOk,
+            #[cfg(target_os = "linux")]
+            Ok(type_) if type_ == VST3_PLATFORM_X11_WINDOW => kResultOk,
             _ => kResultFalse,
         }
     }

@@ -2,6 +2,7 @@ mod accessor;
 mod animation;
 mod app_state;
 mod binding;
+mod clipboard;
 mod contexts;
 pub mod diff;
 mod effect;
