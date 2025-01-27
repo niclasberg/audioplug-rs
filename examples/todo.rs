@@ -36,14 +36,14 @@ fn todo_view(todo: Todo) -> impl View {
 
 fn main() {
 	let mut app = App::new();
-	let _ = Window::open(&mut app, |cx| {
+	let _ = Window::open(&mut app, Scoped::new(|cx| {
 		let items = Signal::new_with(cx, |cx| {
 			let mut todos = Vec::new();
 			todos.push(Todo::new(cx, "Item1", false));
 			todos
 		});
 		let text_input = Signal::new(cx, "".to_string());
-		Container::new(move |_| 
+		Container::new( 
 			Flex::column((
 				Label::new("TODO app"),
 				TextBox::new()
@@ -51,6 +51,6 @@ fn main() {
 				//Flex::column(for_each_keyed(items, |todo: &Todo| todo.index, |_, &todo| todo_view(todo)))
 			))
 		).style(|s| s.width(Length::Vw(100.0)).height(Length::Vh(100.0)))
-	});
+	}));
 	app.run();
 }

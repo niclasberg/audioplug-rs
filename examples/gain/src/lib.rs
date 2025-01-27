@@ -35,7 +35,7 @@ impl Editor for MyEditor {
 		Some(Size::new(540.0, 480.0))
 	}
 
-    fn view(&self, _ctx: &mut ViewContext, parameters: &MyPluginParams) -> AnyView {
+    fn view(&self, parameters: &MyPluginParams) -> AnyView {
         let text = parameters.enabled.as_signal()
             .map(|value| if *value { "Enabled" } else { "Disabled"}.to_string());
         

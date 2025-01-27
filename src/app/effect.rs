@@ -43,7 +43,7 @@ pub struct Effect {
 }
 
 impl Effect {
-    pub fn new(cx: &mut impl CreateContext, f: impl Fn(&mut EffectContext) + 'static) -> Self {
+    pub fn new(cx: &mut dyn CreateContext, f: impl Fn(&mut EffectContext) + 'static) -> Self {
 		let owner = cx.owner();
         cx.runtime_mut().create_effect_node(EffectState { 
             f: Rc::new(f)
@@ -51,7 +51,7 @@ impl Effect {
         Self {}
     }
 
-    pub fn new_with_state<T: Any>(cx: &mut impl CreateContext, f: impl Fn(&mut EffectContext, Option<T>) -> T + 'static) -> Self {
+    pub fn new_with_state<T: Any>(cx: &mut dyn CreateContext, f: impl Fn(&mut EffectContext, Option<T>) -> T + 'static) -> Self {
         let state: Cell<Option<T>> = Cell::new(None);
 		let owner = cx.owner();
         cx.runtime_mut().create_effect_node(EffectState { 

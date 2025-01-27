@@ -2,15 +2,15 @@ use audioplug::{app::*, core::{Color, Size}, keyboard::Key, style::{Length, UiRe
 
 fn main() {
     let mut app = App::new();
-    let _ = Window::open(&mut app, |cx| {  
-        let count = Signal::new(cx, 0);
+    let _ = Window::open(&mut app, Scoped::new(|cx| {
+		let count = Signal::new(cx, 0);
 
 		let trigger = Trigger::new(cx);
 		Effect::new(cx, move |cx| {
 			trigger.track(cx);
 			println!("Count = {}", count.get(cx));
 		});
-		Container::new(move |_|
+		Container::new(
 			Flex::column((
 				Label::new(count.map(|cnt| format!("Count: {}", cnt))),
 				Button::new(Label::new("Increase"))
@@ -21,7 +21,7 @@ fn main() {
 					.on_click(move |cx| trigger.notify(cx)),
 				Label::new("No children to show")
 					.style(|style| style.hidden(count.map(|x| *x > 0))),
-				Flex::column(IndexedViewSeq::new(count.map(|&x| x.max(0) as usize), |_, i| {
+				Flex::column(IndexedViewSeq::new(count.map(|&x| x.max(0) as usize), |i| {
 					Label::new(format!("Child {}", i+1))
 				}))
 			))
@@ -57,6 +57,6 @@ fn main() {
 				_ => EventStatus::Ignored
 			}
 		})
-    });
+	}));
 	app.run();
 }

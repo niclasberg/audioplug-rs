@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashSet, rc::{Rc, Weak}};
 use slotmap::{Key, SecondaryMap, SlotMap};
 use crate::{app::event_handling::set_mouse_capture_widget, core::Point, param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue}, platform};
-use super::{clipboard::Clipboard, contexts::BuildContext, effect::EffectContext, layout_window, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext, ReadContext, Runtime, View, ViewContext, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext};
+use super::{clipboard::Clipboard, effect::EffectContext, layout_window, BuildContext, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext, ReadContext, Runtime, View, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext};
 
 pub(super) enum Task {
     RunEffect {
@@ -92,7 +92,7 @@ impl AppState {
         true
     }
 
-    pub fn add_window<V: View>(&mut self, handle: platform::Handle, view_factory: impl FnOnce(&mut ViewContext) -> V) -> WindowId {
+    pub fn add_window(&mut self, handle: platform::Handle, view: impl View) -> WindowId {
 		let window_id = self.windows.insert(
             WindowState {
                 handle,
@@ -108,7 +108,6 @@ impl AppState {
 		self.windows[window_id].root_widget = widget_id;
 
 		{
-            let view = view_factory(&mut ViewContext::new(widget_id, self));
             let widget = view.build(&mut BuildContext::new(widget_id, self));
             self.widgets.insert(widget_id, Box::new(widget));
         }
@@ -119,14 +118,14 @@ impl AppState {
     }
 
     /// Add a new widget
-    pub fn add_widget(&mut self, parent_id: WidgetId, widget_factory: impl FnOnce(&mut ViewContext) -> Box<dyn Widget>) -> WidgetId {
+    pub fn add_widget<V: View>(&mut self, parent_id: WidgetId, view: V) -> WidgetId {
 		let window_id = self.widget_data.get(parent_id).expect("Parent not found").window_id;
         let id = self.widget_data.insert_with_key(|id| {
 			WidgetData::new(window_id, id).with_parent(parent_id)
 		});
         
 		{
-            let widget = widget_factory(&mut ViewContext::new(id, self));
+            let widget = view.build(&mut BuildContext::new(id, self));
             self.widgets.insert(id, Box::new(widget));
         }
 
@@ -137,10 +136,6 @@ impl AppState {
 
         id
     }
-
-	pub fn add_overlay(&mut self, window_id: WindowId, widget_factory: impl FnOnce(&mut ViewContext) -> Box<dyn Widget>) -> WidgetId {
-		todo!()
-	}
 
     pub fn remove_window(&mut self, id: WindowId) {
         let window = self.windows.remove(id).expect("Window not found");

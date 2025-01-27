@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{accessor::{MappedAccessor, SourceId}, Owner, Runtime, Scope, View, ViewContext, ViewSequence};
+use super::{accessor::{MappedAccessor, SourceId}, Owner, Runtime, Scope};
 
 
 pub trait ReactiveContext {
@@ -73,11 +73,6 @@ pub trait Readable {
             _marker: PhantomData,
         }
     }
-}
-
-/// Represents readables that can be mapped to a ViewSequence
-pub trait MapToViews: Readable {
-	fn map_to_views<V: View, F: Fn(&mut ViewContext, Self::Value) -> V>(self, f: F) -> impl ViewSequence;
 }
 
 #[derive(Clone, Copy)]

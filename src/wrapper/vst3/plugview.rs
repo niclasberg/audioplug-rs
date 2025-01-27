@@ -92,12 +92,11 @@ impl<E: Editor> IPlugView for PlugView<E> {
                 }
             };
 
-			let _editor = self.editor.clone();
-            let parameters = self.parameters.clone();
-            *window = Some(Window::attach(self.app_state.clone(), handle, move |ctx| {
-				let editor = RefCell::borrow(&_editor);
-				editor.view(ctx, parameters.parameters_ref())
-			}));
+            let view = {
+                let editor = RefCell::borrow(&self.editor);
+                editor.view(self.parameters.parameters_ref())
+            };
+            *window = Some(Window::attach(self.app_state.clone(), handle, view));
 
             kResultOk
         } else {

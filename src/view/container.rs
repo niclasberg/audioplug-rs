@@ -1,30 +1,24 @@
-use crate::{app::{BuildContext, ViewContext, Widget}, style::DisplayStyle};
+use crate::{app::{BuildContext, Widget}, style::DisplayStyle};
 
 use super::View;
 
-pub struct Container<F> {
-	view_factory: F
+pub struct Container<V> {
+	view: V
 }
 
-impl<V, F> Container<F> where 
-	V: View,
-	F: FnOnce(&mut ViewContext) -> V 
-{
-	pub fn new(view_factory: F) -> Self {
+impl<V> Container<V> {
+	pub fn new(view: V) -> Self {
 		Self {
-			view_factory
+			view
 		}
 	}
 }
 
-impl<V, F> View for Container<F> where 
-	V: View,
-	F: FnOnce(&mut ViewContext) -> V
-{
+impl<V: View> View for Container<V> {
 	type Element = ContainerWidget;
 
 	fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
-		ctx.add_child_with(self.view_factory);
+		ctx.add_child(self.view);
 		ContainerWidget {
 
 		}

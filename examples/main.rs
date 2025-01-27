@@ -10,7 +10,7 @@ fn main() {
     //println!("name: {}, id: {}", device.name()?, device.id()?);
 
     let mut app = App::new();
-    let _ = Window::open(&mut app, |cx| {  
+    let _ = Window::open(&mut app, Scoped::new(|cx| {  
         let checkbox_enabled = Signal::new(cx, false);
         let text = Signal::new(cx, "".to_string());
         let slider_value = Signal::new(cx, 100.0);
@@ -59,7 +59,7 @@ fn main() {
                     .on_input(move |cx, str| text.set(cx, str.to_string()))
             )).spacing(Length::Px(5.0))
         )).spacing(Length::Px(5.0))
-    });
+    }));
 
     app.run();
 }

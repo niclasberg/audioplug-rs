@@ -57,9 +57,9 @@ impl<P: Plugin> StandaloneApp<P> {
 
     pub fn run(mut self) {
         let editor = self.editor;
-        let _ = Window::open(&mut self.app, move |ctx| {
+        let _ = Window::open(&mut self.app, {
             let p = P::Parameters::new();
-            editor.view(ctx, &p)
+            editor.view(&p)
         });
         self.app.run()
     }

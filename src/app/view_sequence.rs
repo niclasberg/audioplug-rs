@@ -1,5 +1,5 @@
 use std::{collections::HashMap, hash::Hash, ops::Range};
-use super::{Accessor, BindingState, BuildContext, NodeId, Owner, ReactiveContext, Readable, ViewContext, Widget, View};
+use super::{Accessor, BindingState, BuildContext, NodeId, Owner, ReactiveContext, Readable, Widget, View};
 
 pub trait ViewSequence: Sized {
     fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>);
@@ -57,7 +57,7 @@ pub struct IndexedViewSeq<F> {
 	view_factory: F
 }
 
-impl<V: View, F: Fn(&mut ViewContext, usize) -> V> IndexedViewSeq<F> {
+impl<V: View, F: Fn(usize) -> V> IndexedViewSeq<F> {
 	pub fn new(count: impl Into<Accessor<usize>>, view_factory: F) -> Self {
 		Self {
 			count: count.into(),
@@ -66,18 +66,18 @@ impl<V: View, F: Fn(&mut ViewContext, usize) -> V> IndexedViewSeq<F> {
 	}
 }
 
-impl<V: View, F: Fn(&mut ViewContext, usize) -> V + 'static> ViewSequence for IndexedViewSeq<F> {
+impl<V: View, F: Fn(usize) -> V + 'static> ViewSequence for IndexedViewSeq<F> {
 	fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
 		let child_count = self.count.get(cx);
 		for i in 0..child_count {
-			cx.add_child_with(|cx| (self.view_factory)(cx, i));
+			cx.add_child((self.view_factory)(i));
 		}
 
         let f = self.view_factory;
 		self.count.track(cx, move |value, mut widget| {
             if widget.child_count() < value {
                 for i in widget.child_count()..value {
-                    widget.add_child_with(|cx| f(cx, i));
+                    widget.add_child(f(i));
 				}
             } else if value < widget.child_count() {
                 for i in value..widget.child_count() {
@@ -113,7 +113,7 @@ impl<T, V, F> ViewSequence for ForEach<T, F>
 where 
 	T: Eq + Clone + 'static,
 	V: View,
-	F: Fn(&mut ViewContext, Accessor<T>) -> V + 'static
+	F: Fn(Accessor<T>) -> V + 'static
 {
 	fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>) {
 		let triggers: Vec<NodeId> = Vec::new();
@@ -135,7 +135,7 @@ where
 	K: Hash + Eq + 'static,
 	T: Clone + 'static,
 	V: View,
-	F: Fn(&mut ViewContext, T) -> V + 'static,
+	F: Fn(T) -> V + 'static,
 	FKey: Fn(&T) -> K + 'static
 {
     fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
@@ -143,7 +143,7 @@ where
 		let mut indices = HashMap::new();
 		for (i, value) in values.into_iter().enumerate() {
 			indices.insert((self.key_fn)(&value), i);
-			cx.add_child_with(|cx| (self.view_fn)(cx, value));
+			cx.add_child((self.view_fn)(value));
 		}
 
 		let signal = self.signal;
@@ -186,7 +186,7 @@ where
 	K: Hash + Eq + 'static,
 	T: Clone + 'static,
 	V: View,
-	F: Fn(&mut ViewContext, T) -> V + 'static,
+	F: Fn(T) -> V + 'static,
 	FKey: Fn(&T) -> K + 'static
 {
 	ForEachKeyed {

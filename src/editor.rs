@@ -1,12 +1,12 @@
 use std::marker::PhantomData;
 
-use crate::{app::{AnyView, View, ViewContext}, core::Size, param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params}, style::{Length, UiRect}, view::{Flex, Label, ParameterSlider, ViewExt}};
+use crate::{app::{AnyView, View}, core::Size, param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params}, style::{Length, UiRect}, view::{Flex, Label, ParameterSlider, ViewExt}};
 
 pub trait Editor: 'static {
 	type Parameters: Params;
 
 	fn new() -> Self;
-    fn view(&self, ctx: &mut ViewContext, parameters: &Self::Parameters) -> AnyView;
+    fn view(&self, parameters: &Self::Parameters) -> impl View + 'static;
 	fn min_size(&self) -> Option<Size> { None }
 	fn max_size(&self) -> Option<Size> { None }
 	fn prefered_size(&self) -> Option<Size> { None }
@@ -77,7 +77,7 @@ impl<P: Params> Editor for GenericEditor<P> {
 		Self { _phantom: PhantomData }
 	}
 	
-    fn view(&self, _ctx: &mut ViewContext, parameters: &P) -> AnyView {
+    fn view(&self, parameters: &P) -> impl View + 'static {
 		let mut visitor = CreateParameterViewsVisitor::new();
 		parameters.visit(&mut visitor);
 		/*for param in parameters.visit() {

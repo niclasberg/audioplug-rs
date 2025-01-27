@@ -9,7 +9,7 @@ pub struct Trigger {
 }
 
 impl Trigger {
-	pub fn new(cx: &mut impl CreateContext) -> Self {
+	pub fn new(cx: &mut dyn CreateContext) -> Self {
 		let owner = cx.owner();
 		Self {
 			node_id: cx.runtime_mut().create_trigger(owner),
