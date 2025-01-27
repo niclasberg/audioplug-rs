@@ -1,8 +1,5 @@
-use std::{any::Any, cell::Cell, collections::HashMap, hash::Hash, ops::Deref, rc::Rc};
-
-use crate::app::{Accessor, BindingState, BuildContext, DependentField, NodeId, Owner, ReactiveContext, SignalGet, ViewContext, Widget};
-
-use super::View;
+use std::{collections::HashMap, hash::Hash, ops::Range};
+use super::{Accessor, BindingState, BuildContext, NodeId, Owner, ReactiveContext, SignalGet, ViewContext, Widget, View};
 
 pub trait ViewSequence: Sized {
     fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>);
@@ -54,6 +51,10 @@ impl<V: View> ViewSequence for Option<V> {
         }
     }
 }
+pub trait MapToViews {
+	type Value;
+	fn map_to_views<V: View, F: Fn(&mut ViewContext, Self::Value) -> V>(self, f: F) -> impl ViewSequence;
+}
 
 pub struct IndexedViewSeq<F> {
 	count: Accessor<usize>,
@@ -88,6 +89,22 @@ impl<V: View, F: Fn(&mut ViewContext, usize) -> V + 'static> ViewSequence for In
 				}
             }
 		});
+	}
+}
+
+
+pub struct RangeForViews<S, F> {
+	signal: S,
+	f: F
+}
+
+
+impl<Idx, S, F> ViewSequence for RangeForViews<S, F> 
+where 
+	S: SignalGet<Value = Range<Idx>>
+{
+	fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>) {
+		
 	}
 }
 
