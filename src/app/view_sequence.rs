@@ -1,5 +1,5 @@
 use std::{collections::HashMap, hash::Hash, ops::Range};
-use super::{Accessor, BindingState, BuildContext, NodeId, Owner, ReactiveContext, SignalGet, ViewContext, Widget, View};
+use super::{Accessor, BindingState, BuildContext, NodeId, Owner, ReactiveContext, Readable, ViewContext, Widget, View};
 
 pub trait ViewSequence: Sized {
     fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>);
@@ -51,10 +51,6 @@ impl<V: View> ViewSequence for Option<V> {
         }
     }
 }
-pub trait MapToViews {
-	type Value;
-	fn map_to_views<V: View, F: Fn(&mut ViewContext, Self::Value) -> V>(self, f: F) -> impl ViewSequence;
-}
 
 pub struct IndexedViewSeq<F> {
 	count: Accessor<usize>,
@@ -78,7 +74,7 @@ impl<V: View, F: Fn(&mut ViewContext, usize) -> V + 'static> ViewSequence for In
 		}
 
         let f = self.view_factory;
-		cx.track(self.count, move |value, mut widget| {
+		self.count.track(cx, move |value, mut widget| {
             if widget.child_count() < value {
                 for i in widget.child_count()..value {
                     widget.add_child_with(|cx| f(cx, i));
@@ -101,7 +97,7 @@ pub struct RangeForViews<S, F> {
 
 impl<Idx, S, F> ViewSequence for RangeForViews<S, F> 
 where 
-	S: SignalGet<Value = Range<Idx>>
+	S: Readable<Value = Range<Idx>>
 {
 	fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>) {
 		
@@ -133,7 +129,7 @@ pub struct ForEachKeyed<S, F, FKey> {
 
 impl<S, C, K, T, V, F, FKey> ViewSequence for ForEachKeyed<S, F, FKey> 
 where 
-	S: SignalGet<Value = C> + 'static,
+	S: Readable<Value = C> + 'static,
 	C: 'static,
 	for <'a> &'a C: IntoIterator<Item = &'a T>,
 	K: Hash + Eq + 'static,
@@ -184,7 +180,7 @@ pub fn for_each_keyed<S, C, K, T, V, F, FKey>(
 	view_fn: F
 ) -> ForEachKeyed<S, F, FKey> 
 where 
-	S: SignalGet<Value = C> + 'static,
+	S: Readable<Value = C> + 'static,
 	C: 'static,
 	for <'a> &'a C: IntoIterator<Item = &'a T>,
 	K: Hash + Eq + 'static,

@@ -17,39 +17,6 @@ impl<'a, W: Widget> BuildContext<'a, W> {
         }
     }
 
-    pub fn get_and_track<T: Clone + 'static>(&mut self, accessor: Accessor<T>, f: impl Fn(T, WidgetMut<'_, W>) + 'static) -> T {
-        self.get_and_track_mapped(accessor, T::clone, f)
-    }
-
-	pub fn get_and_track_mapped<T: 'static, U: 'static>(&mut self, accessor: Accessor<T>, f_map: fn(&T) -> U, f: impl Fn(U, WidgetMut<'_, W>) + 'static) -> U {
-		let value = accessor.with_ref(self.app_state, f_map);
-		self.track_mapped(accessor, f_map, f);
-        value
-	}
-
-	pub fn track<T: Clone + 'static>(&mut self, accessor: Accessor<T>, f: impl Fn(T, WidgetMut<'_, W>) + 'static) {
-		self.track_mapped(accessor, T::clone, f);
-	}
-
-    pub fn track_mapped<T: 'static, U: 'static>(&mut self, accessor: Accessor<T>, f_map: fn(&T) -> U, f: impl Fn(U, WidgetMut<'_, W>) + 'static) {
-		if let Some(source_id) = accessor.get_source_id() {
-			let widget_id = self.id;
-            let state = BindingState::new(move |app_state| {
-                let value = accessor.with_ref(app_state, f_map);
-				// Widget might have been removed
-				if app_state.widgets.contains_key(widget_id) {
-					let node = WidgetMut::new(app_state, widget_id);
-					f(value, node);
-				}
-				if app_state.widgets.contains_key(widget_id) {
-					app_state.merge_widget_flags(widget_id);
-				}
-            });
-
-            self.runtime_mut().create_binding_node(source_id, state, Some(super::Owner::Widget(widget_id)));
-		}
-    }
-
     pub fn id(&self) -> WidgetId {
         self.id
     }

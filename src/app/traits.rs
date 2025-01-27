@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{accessor::{MappedAccessor, SourceId}, Owner, Runtime, Scope};
+use super::{accessor::{MappedAccessor, SourceId}, Owner, Runtime, Scope, View, ViewContext, ViewSequence};
 
 
 pub trait ReactiveContext {
@@ -47,7 +47,7 @@ pub trait WriteContext: ReactiveContext {
     
 }
 
-pub trait SignalGet {
+pub trait Readable {
     type Value;
 
 	fn get_source_id(&self) -> SourceId;
@@ -75,6 +75,11 @@ pub trait SignalGet {
     }
 }
 
+/// Represents readables that can be mapped to a ViewSequence
+pub trait MapToViews: Readable {
+	fn map_to_views<V: View, F: Fn(&mut ViewContext, Self::Value) -> V>(self, f: F) -> impl ViewSequence;
+}
+
 #[derive(Clone, Copy)]
 pub struct Mapped<S, T, R, F> {
     parent: S,
@@ -82,9 +87,9 @@ pub struct Mapped<S, T, R, F> {
     _marker: PhantomData<fn(&T) -> R>
 }
 
-impl<S, T, R, F> SignalGet for Mapped<S, T, R, F> 
+impl<S, T, R, F> Readable for Mapped<S, T, R, F> 
 where
-	S: SignalGet<Value = T>,
+	S: Readable<Value = T>,
     T: Any,
     F: Fn(&T) -> R
 {
@@ -105,13 +110,13 @@ where
 
 impl<S, T, B, F> MappedAccessor<B> for Mapped<S, T, B, F> 
 where
-    S: SignalGet<Value = T> + 'static,
+    S: Readable<Value = T> + 'static,
     T: Any,
     B: Any,
     F: Fn(&T) -> B + 'static
 {
     fn get_source_id(&self) -> SourceId {
-        SignalGet::get_source_id(self)
+        Readable::get_source_id(self)
     }
 
     fn evaluate(&self, ctx: &mut dyn ReadContext) -> B {

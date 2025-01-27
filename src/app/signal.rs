@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{accessor::SourceId, CreateContext, LocalCreateContext, NodeId, NodeType, ReadContext, SignalGet, WriteContext};
+use super::{accessor::SourceId, CreateContext, LocalCreateContext, NodeId, NodeType, ReadContext, Readable, WriteContext};
 
 pub struct Signal<T> {
     pub(super) id: NodeId,
@@ -64,7 +64,7 @@ impl<T: Any> Signal<Vec<T>> {
 	}
 }
 
-impl<T: 'static> SignalGet for Signal<T> {
+impl<T: 'static> Readable for Signal<T> {
     type Value = T;
 
 	fn get_source_id(&self) -> SourceId {

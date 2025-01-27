@@ -19,7 +19,7 @@ impl Task {
         match self {
             Task::RunEffect { id, f } => {
                 if let Some(f) = f.upgrade() {
-                    let mut cx = EffectContext { effect_id: id, runtime: &mut app_state.runtime };
+                    let mut cx = EffectContext { effect_id: id, app_state };
                     f(&mut cx);
                     app_state.runtime.mark_node_as_clean(id);                    
                 }

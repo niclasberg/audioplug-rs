@@ -2,7 +2,7 @@ use std::{any::Any, marker::PhantomData};
 
 use crate::param::{AnyParameter, NormalizedValue, Parameter, ParameterId, ParameterInfo, PlainValue};
 
-use super::{accessor::SourceId, HostHandle, ReactiveContext, ReadContext, SignalGet};
+use super::{accessor::SourceId, HostHandle, ReactiveContext, ReadContext, Readable};
 
 pub trait ParamContext: ReactiveContext {
 	fn host_handle(&self) -> &dyn HostHandle;
@@ -90,7 +90,7 @@ impl ParamSignal<NormalizedValue> {
 	}
 }
 
-impl<T: Any> SignalGet for ParamSignal<T> {
+impl<T: Any> Readable for ParamSignal<T> {
 	type Value = T;
 
 	fn get_source_id(&self) -> SourceId {

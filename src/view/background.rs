@@ -21,18 +21,18 @@ impl<V: View> Background<V> {
 impl<V: View> View for Background<V> {
     type Element = BackgroundWidget<V::Element>;
 
-    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
-        let widget = ctx.build(self.view);
+    fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
+        let widget = cx.build(self.view);
 
 		let fill = self.fill.map(|fill| {
-			ctx.get_and_track(fill, |value, mut widget| {
+			fill.get_and_track(cx, |value, mut widget| {
 				widget.fill = Some(value);
 				widget.request_render();
 			})
 		});
 
 		let border = self.border.map(|border| {
-			ctx.get_and_track(border, |value, mut widget| {
+			border.get_and_track(cx, |value, mut widget| {
 				if !widget.border.is_some_and(|border| border.color == value.color) {
 					widget.request_render();
 				}
@@ -41,7 +41,7 @@ impl<V: View> View for Background<V> {
 		});
 
 		if let Some(border) = border {
-			ctx.update_style(|style| {
+			cx.update_style(|style| {
 				
 			});
 		}

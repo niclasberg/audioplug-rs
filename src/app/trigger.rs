@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{accessor::{MappedAccessor, SourceId}, CreateContext, NodeId, Owner, ReactiveContext, ReadContext, SignalGet, WriteContext};
+use super::{accessor::{MappedAccessor, SourceId}, CreateContext, NodeId, Owner, ReactiveContext, ReadContext, Readable, WriteContext};
 
 #[derive(Clone, Copy)]
 pub struct Trigger {
@@ -43,7 +43,7 @@ pub struct DependentField<S, T, R> {
 
 impl<S, T, R> DependentField<S, T, R> 
 where 
-	S: SignalGet<Value = T>
+	S: Readable<Value = T>
 {
 	pub fn new(cx: &mut impl CreateContext, source_signal: S, f: fn(&T) -> &R, owner: Option<Owner>) -> Self {
 		let trigger_id = cx.runtime_mut().create_trigger(owner);
@@ -63,9 +63,9 @@ where
 	}
 }
 
-impl<S, T, B> SignalGet for DependentField<S, T, B> 
+impl<S, T, B> Readable for DependentField<S, T, B> 
 where
-    S: SignalGet<Value = T> + 'static,
+    S: Readable<Value = T> + 'static,
     T: Any,
     B: Any
 {

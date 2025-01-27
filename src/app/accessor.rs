@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::param::ParameterId;
-use super::{Mapped, Memo, NodeId, ParamSignal, ReactiveContext, ReadContext, Runtime, Signal, SignalGet};
+use super::{BindingState, BuildContext, Mapped, Memo, NodeId, ParamSignal, ReactiveContext, ReadContext, Readable, Runtime, Signal, Widget, WidgetMut};
 
 pub trait MappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;
@@ -53,6 +53,39 @@ impl<T: 'static> Accessor<T> {
             Accessor::Mapped(mapped) => f(&mapped.evaluate(cx))
         }
     }
+
+	pub fn get_and_track<W: Widget>(self, cx: &mut BuildContext<W>, f: impl Fn(T, WidgetMut<'_, W>) + 'static) -> T where T: Clone{
+        self.get_and_track_mapped(cx, T::clone, f)
+    }
+
+	pub fn get_and_track_mapped<W: Widget, U: 'static>(self, cx: &mut BuildContext<W>, f_map: fn(&T) -> U, f: impl Fn(U, WidgetMut<'_, W>) + 'static) -> U {
+		let value = self.with_ref(cx, f_map);
+		self.track_mapped(cx, f_map, f);
+        value
+	}
+
+	pub fn track<W: Widget>(self, cx: &mut BuildContext<W>, f: impl Fn(T, WidgetMut<'_, W>) + 'static) where T: Clone{
+		self.track_mapped(cx, T::clone, f);
+	}
+
+    pub fn track_mapped<W: Widget, U: 'static>(self, cx: &mut BuildContext<W>, f_map: fn(&T) -> U, f: impl Fn(U, WidgetMut<'_, W>) + 'static) {
+		if let Some(source_id) = self.get_source_id() {
+			let widget_id = cx.id();
+            let state = BindingState::new(move |app_state| {
+                let value = self.with_ref(app_state, f_map);
+				// Widget might have been removed
+				if app_state.widgets.contains_key(widget_id) {
+					let node = WidgetMut::new(app_state, widget_id);
+					f(value, node);
+				}
+				if app_state.widgets.contains_key(widget_id) {
+					app_state.merge_widget_flags(widget_id);
+				}
+            });
+
+            cx.runtime_mut().create_binding_node(source_id, state, Some(super::Owner::Widget(widget_id)));
+		}
+    }
 }
 
 impl<T> From<Signal<T>> for Accessor<T> {
@@ -75,7 +108,7 @@ impl<T> From<ParamSignal<T>> for Accessor<T> {
 
 impl<S, T, R, F> From<Mapped<S, T, R, F>> for Accessor<R> 
 where
-	S: SignalGet,
+	S: Readable,
     Mapped<S, T, R, F>: MappedAccessor<R> + 'static
 {
     fn from(value: Mapped<S, T, R, F>) -> Self {

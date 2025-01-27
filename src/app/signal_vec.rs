@@ -1,6 +1,6 @@
 use std::{any::Any, cell::RefCell, collections::VecDeque, marker::PhantomData, rc::Rc};
 
-use super::{accessor::SourceId, signal::SignalState, CreateContext, NodeId, NodeType, Owner, Runtime, SignalGet, Trigger, WriteContext};
+use super::{accessor::SourceId, signal::SignalState, CreateContext, NodeId, NodeType, Owner, Runtime, Readable, Trigger, WriteContext};
 
 #[derive(Copy, Clone)]
 pub struct SignalVec<T> {
@@ -54,7 +54,7 @@ impl<T: Any> SignalVec<T> {
 	}
 }
 
-impl<T: Any> SignalGet for SignalVec<T> {
+impl<T: Any> Readable for SignalVec<T> {
 	type Value = Vec<T>;
 
 	fn get_source_id(&self) -> SourceId {
@@ -75,7 +75,7 @@ pub struct AtIndex<Parent, T> {
     _phantom2: PhantomData<*const T>
 }
 
-impl<T: Any> SignalGet for AtIndex<SignalVec<T>, T> {
+impl<T: Any> Readable for AtIndex<SignalVec<T>, T> {
 	type Value = T;
 
 	fn get_source_id(&self) -> SourceId {
@@ -95,7 +95,7 @@ pub struct SignalVecElem<T> {
     _phantom1: PhantomData<*mut T>
 }
 
-impl<T: Any> SignalGet for SignalVecElem<T> {
+impl<T: Any> Readable for SignalVecElem<T> {
     type Value = T;
 
     fn get_source_id(&self) -> super::accessor::SourceId {

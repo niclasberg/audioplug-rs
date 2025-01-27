@@ -1,18 +1,28 @@
 use std::{any::Any, cell::Cell, rc::Rc};
-use super::{CreateContext, Node, NodeId, ReactiveContext, ReadContext, Runtime, Scope, WriteContext};
+use super::{AppState, CreateContext, NodeId, ReactiveContext, ReadContext, Runtime, Scope, Widget, WidgetId, WidgetMut, WidgetRef, WriteContext};
 
 pub struct EffectContext<'a> {
     pub(super) effect_id: NodeId,
-    pub(super) runtime: &'a mut Runtime
+    pub(super) app_state: &'a mut AppState
+}
+
+impl<'b> EffectContext<'b> {
+	pub fn widget_ref(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget> {
+        WidgetRef::new(&self.app_state, id)
+    }
+
+    pub fn widget_mut(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
+        WidgetMut::new(&mut self.app_state, id)
+    }
 }
 
 impl<'b> ReactiveContext for EffectContext<'b> {
     fn runtime(&self) -> &Runtime {
-        &self.runtime
+        self.app_state.runtime()
     }
     
     fn runtime_mut(&mut self) -> &mut Runtime {
-        &mut self.runtime
+        self.app_state.runtime_mut()
     }
 }
 

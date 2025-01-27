@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
-use super::{accessor::SourceId, CreateContext, NodeId, NodeType, ReactiveContext, ReadContext, Runtime, Scope, SignalGet};
+use super::{accessor::SourceId, CreateContext, NodeId, NodeType, ReactiveContext, ReadContext, Runtime, Scope, Readable};
 
 pub struct MemoContext<'a> {
     pub(super) memo_id: NodeId,
@@ -71,7 +71,7 @@ impl<T: Any> Memo<T> {
 	}
 }
 
-impl<T: 'static> SignalGet for Memo<T> {
+impl<T: 'static> Readable for Memo<T> {
     type Value = T;
 
 	fn get_source_id(&self) -> SourceId {
