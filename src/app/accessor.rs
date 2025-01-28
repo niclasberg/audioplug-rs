@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::param::ParameterId;
-use super::{BindingState, BuildContext, Mapped, Memo, NodeId, ParamSignal, ReactiveContext, ReadContext, Readable, Runtime, Signal, Widget, WidgetMut};
+use super::{BindingState, BuildContext, Mapped, Memo, NodeId, ParamSignal, ReactiveContext, ReadContext, Readable, Signal, Widget, WidgetMut};
 
 pub trait MappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;
@@ -54,21 +54,21 @@ impl<T: 'static> Accessor<T> {
         }
     }
 
-	pub fn get_and_track<W: Widget>(self, cx: &mut BuildContext<W>, f: impl Fn(T, WidgetMut<'_, W>) + 'static) -> T where T: Clone{
-        self.get_and_track_mapped(cx, T::clone, f)
+	pub fn get_and_bind<W: Widget>(self, cx: &mut BuildContext<W>, f: impl Fn(T, WidgetMut<'_, W>) + 'static) -> T where T: Clone{
+        self.get_and_bind_mapped(cx, T::clone, f)
     }
 
-	pub fn get_and_track_mapped<W: Widget, U: 'static>(self, cx: &mut BuildContext<W>, f_map: fn(&T) -> U, f: impl Fn(U, WidgetMut<'_, W>) + 'static) -> U {
+	pub fn get_and_bind_mapped<W: Widget, U: 'static>(self, cx: &mut BuildContext<W>, f_map: fn(&T) -> U, f: impl Fn(U, WidgetMut<'_, W>) + 'static) -> U {
 		let value = self.with_ref(cx, f_map);
-		self.track_mapped(cx, f_map, f);
+		self.bind_mapped(cx, f_map, f);
         value
 	}
 
-	pub fn track<W: Widget>(self, cx: &mut BuildContext<W>, f: impl Fn(T, WidgetMut<'_, W>) + 'static) where T: Clone{
-		self.track_mapped(cx, T::clone, f);
+	pub fn bind<W: Widget>(self, cx: &mut BuildContext<W>, f: impl Fn(T, WidgetMut<'_, W>) + 'static) where T: Clone{
+		self.bind_mapped(cx, T::clone, f);
 	}
 
-    pub fn track_mapped<W: Widget, U: 'static>(self, cx: &mut BuildContext<W>, f_map: fn(&T) -> U, f: impl Fn(U, WidgetMut<'_, W>) + 'static) {
+    pub fn bind_mapped<W: Widget, U: 'static>(self, cx: &mut BuildContext<W>, f_map: fn(&T) -> U, f: impl Fn(U, WidgetMut<'_, W>) + 'static) {
 		if let Some(source_id) = self.get_source_id() {
 			let widget_id = cx.id();
             let state = BindingState::new(move |app_state| {

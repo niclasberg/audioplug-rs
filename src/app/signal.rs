@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{accessor::SourceId, CreateContext, LocalCreateContext, NodeId, NodeType, ReadContext, Readable, WriteContext};
+use super::{accessor::SourceId, CreateContext, NodeId, NodeType, ReadContext, Readable, WriteContext};
 
 pub struct Signal<T> {
     pub(super) id: NodeId,

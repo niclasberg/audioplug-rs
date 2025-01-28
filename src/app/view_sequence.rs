@@ -74,7 +74,7 @@ impl<V: View, F: Fn(usize) -> V + 'static> ViewSequence for IndexedViewSeq<F> {
 		}
 
         let f = self.view_factory;
-		self.count.track(cx, move |value, mut widget| {
+		self.count.bind(cx, move |value, mut widget| {
             if widget.child_count() < value {
                 for i in widget.child_count()..value {
                     widget.add_child(f(i));

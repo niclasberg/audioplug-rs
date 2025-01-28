@@ -61,7 +61,7 @@ impl View for Slider {
         });
 
 		let position_normalized = if let Some(value) = self.value {
-			let position = value.get_and_track(ctx, move |value, mut widget| {
+			let position = value.get_and_bind(ctx, move |value, mut widget| {
 				widget.position_normalized = normalize_value(widget.min, widget.max, value);
 				widget.request_render();
 			});
@@ -119,7 +119,7 @@ impl<P: AnyParameter> View for ParameterSlider<P> {
                 editor.set_value_plain(cx, PlainValue::new(value));
             });
 
-		let normalized_position = self.signal.get_and_track(ctx, |value, mut widget| {
+		let normalized_position = self.signal.get_and_bind(ctx, |value, mut widget| {
 			widget.position_normalized = value.0;
 			widget.request_render();
 		});

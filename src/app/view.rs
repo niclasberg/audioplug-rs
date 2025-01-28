@@ -1,7 +1,5 @@
 use std::marker::PhantomData;
-
 use crate::style::Style;
-
 use super::{AppState, CreateContext, Owner, ParamContext, ReactiveContext, ReadContext, Scope, Widget, WidgetFlags, WidgetId};
 
 pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn Widget>>;

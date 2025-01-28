@@ -45,7 +45,7 @@ impl View for TextBox {
 		}
 
 		let text_layout = if let Some(value) = self.value {
-			let text = value.get_and_track(cx, |value, mut widget| {
+			let text = value.get_and_bind(cx, |value, mut widget| {
 				if value != widget.value {
 					widget.value = value;
 					widget.rebuild_text_layout();

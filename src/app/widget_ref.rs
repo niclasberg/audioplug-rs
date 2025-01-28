@@ -24,7 +24,9 @@ impl<'a> Iterator for ChildIter<'a> {
 }
 
 pub struct ChildIterMut<'a> {
-    app_state: &'a mut AppState
+    app_state: &'a mut AppState,
+    current_id: *const WidgetId,
+    end_id: *const WidgetId
 }
 
 impl<'a> Iterator for ChildIterMut<'a> {
@@ -131,7 +133,12 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 
     pub fn child_iter_mut<'b>(&'b mut self) -> ChildIterMut<'b> {
-        ChildIterMut { app_state: &mut self.app_state }
+        let ptr_range = self.data_mut().children.as_mut_ptr_range();
+        ChildIterMut { 
+            app_state: &mut self.app_state,
+            current_id: ptr_range.start,
+            end_id: ptr_range.end 
+        }
     }
 
     pub fn local_bounds(&self) -> Rectangle {

@@ -25,14 +25,14 @@ impl<V: View> View for Background<V> {
         let widget = cx.build(self.view);
 
 		let fill = self.fill.map(|fill| {
-			fill.get_and_track(cx, |value, mut widget| {
+			fill.get_and_bind(cx, |value, mut widget| {
 				widget.fill = Some(value);
 				widget.request_render();
 			})
 		});
 
 		let border = self.border.map(|border| {
-			border.get_and_track(cx, |value, mut widget| {
+			border.get_and_bind(cx, |value, mut widget| {
 				if !widget.border.is_some_and(|border| border.color == value.color) {
 					widget.request_render();
 				}

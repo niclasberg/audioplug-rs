@@ -24,13 +24,13 @@ impl View for Label {
     type Element = TextWidget;
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
-        let text = self.text.get_and_track(ctx, |value, mut widget: WidgetMut<'_, Self::Element>| {
+        let text = self.text.get_and_bind(ctx, |value, mut widget: WidgetMut<'_, Self::Element>| {
             widget.text_layout.replace_with(|_text_layout| {
 				TextLayout::new(value.as_str(), widget.color, Size::INFINITY)
 			});
             widget.request_layout();
         });
-        let color = self.color.get_and_track(ctx, |value, mut widget: WidgetMut<'_, Self::Element>| {
+        let color = self.color.get_and_bind(ctx, |value, mut widget: WidgetMut<'_, Self::Element>| {
             widget.request_render();
             let mut text_layout = widget.text_layout.borrow_mut();
 			text_layout.set_color(value);

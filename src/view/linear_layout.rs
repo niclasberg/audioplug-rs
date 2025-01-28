@@ -57,15 +57,15 @@ impl<VS: ViewSequence> View for Flex<VS> {
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         self.view_seq.build_seq(ctx);
         let flex_style = FlexStyle {
-            direction: self.direction.get_and_track(ctx, |value, mut widget| {
+            direction: self.direction.get_and_bind(ctx, |value, mut widget| {
                 widget.flex_style.direction = value;
                 widget.request_layout();
             }),
-            gap: self.spacing.get_and_track(ctx, |value, mut widget| {
+            gap: self.spacing.get_and_bind(ctx, |value, mut widget| {
                 widget.flex_style.gap = value;
                 widget.request_layout();
             }),
-            wrap: self.wrap.get_and_track(ctx, |value, mut widget| {
+            wrap: self.wrap.get_and_bind(ctx, |value, mut widget| {
                 widget.flex_style.wrap = value;
                 widget.request_layout();
             }),
