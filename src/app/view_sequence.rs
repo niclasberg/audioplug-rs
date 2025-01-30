@@ -1,13 +1,13 @@
 use std::{collections::HashMap, hash::Hash, ops::Range};
-use super::{Accessor, BindingState, BuildContext, NodeId, Owner, ReactiveContext, Readable, Widget, View};
+use super::{Accessor, BindingState, BuildContext, Effect, NodeId, Owner, ReactiveContext, Readable, View, Widget};
 
 pub trait ViewSequence: Sized {
-    fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>);
+    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>);
 }
 
 impl<V: View + Sized> ViewSequence for V {
-    fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>) {
-        ctx.add_child(self);
+    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+        cx.add_child(self);
     }
 }
 
@@ -37,19 +37,50 @@ impl_view_seq_tuple!(V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11; 0, 1, 2, 3, 4
 impl_view_seq_tuple!(V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12; 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
 
 impl<V: View> ViewSequence for Vec<V> {
-    fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>) {
+    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
         for child in self {
-            ctx.add_child(child);
+            cx.add_child(child);
         }
     }
 }
 
 impl<V: View> ViewSequence for Option<V> {
-    fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>) {
+    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
         if let Some(view) = self {
-            ctx.add_child(view);
+            cx.add_child(view);
         }
     }
+}
+
+pub struct ForRange<Idx, F> {
+	start: Accessor<Idx>,
+	end: Accessor<Idx>, 
+	view_fn: F
+}
+
+impl<Idx, V, F> ViewSequence for ForRange<Idx, F> 
+where 
+	Idx: num::Integer + Clone + 'static,
+	V: View,
+	F: Fn(Idx) -> V
+{
+	fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+		let mut start = self.start.get(cx);
+		let mut end = self.end.get(cx);
+		//let mut ids = Vec::new();
+		let view_fn = self.view_fn;
+		let mut i = start;
+		/*while i != end {
+			let id = cx.add_child(view_fn(i));
+			ids.push(id);
+			if start < end { 
+				i = i.add(Idx::one());
+			} else { 
+				i = i.sub(Idx::one());
+			};
+		}*/
+
+	}
 }
 
 pub struct IndexedViewSeq<F> {

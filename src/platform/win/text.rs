@@ -96,7 +96,7 @@ impl TextLayout {
             assert!(self.string.is_char_boundary(index));
             let index = util::count_utf16(&self.string[..index]);
 
-            let is_trailing_hit: BOOL = false.into();
+            let is_trailing_hit = false;
             let mut metric = std::mem::MaybeUninit::uninit();
             let mut pointx = std::mem::MaybeUninit::uninit();
             let mut pointy = std::mem::MaybeUninit::uninit();

@@ -65,14 +65,14 @@ impl WindowState {
                 }
 
                 unsafe {
-                    SetTimer(hwnd, ANIMATION_FRAME_TIMER, 1000 / 60, None);
+                    SetTimer(Some(hwnd), ANIMATION_FRAME_TIMER, 1000 / 60, None);
                     Some(LRESULT(0))
                 }
             },
 
             WM_DESTROY => {
                 unsafe { 
-                    KillTimer(hwnd, ANIMATION_FRAME_TIMER).unwrap();
+                    KillTimer(Some(hwnd), ANIMATION_FRAME_TIMER).unwrap();
                     //PostQuitMessage(0);
                 };
                 Some(LRESULT(0))
@@ -123,7 +123,7 @@ impl WindowState {
                 let new_size = new_size.scale(self.scale_factor.get());
                 let window_event = WindowEvent::Resize { new_size };
                 self.publish_event(hwnd, window_event);
-                unsafe { InvalidateRect(hwnd, None, false) };
+                unsafe { InvalidateRect(Some(hwnd), None, false) };
                 Some(LRESULT(0))
             },
 
@@ -270,7 +270,7 @@ impl WindowState {
                 let pos: Point = get_message_pos(hwnd).into();
                 let pos = pos.scale(self.scale_factor.get());
                 if let Some(cursor) = self.handler.borrow_mut().get_cursor(pos) {
-                    unsafe { SetCursor(get_cursor(cursor)) };
+                    unsafe { SetCursor(Some(get_cursor(cursor))) };
                     Some(LRESULT(0))
                 } else {
                     None
@@ -380,9 +380,9 @@ impl Window {
                 CW_USEDEFAULT, 
                 CW_USEDEFAULT, 
                 CW_USEDEFAULT, 
-                parent.unwrap_or_default(), 
+                parent, 
                 None, 
-                instance, 
+                Some(instance.into()), 
                 Some(Rc::into_raw(window_state) as _))?
         };
 
@@ -421,7 +421,7 @@ fn get_message_pos(hwnd: HWND) -> Point<i32> {
 
 fn peek_message(hwnd: HWND, msgmin: u32, msgmax: u32) -> Option<MSG> {
     let mut msg = MaybeUninit::uninit();
-    let avail = unsafe { PeekMessageW(msg.as_mut_ptr(), hwnd, msgmin, msgmax, PM_NOREMOVE) };
+    let avail = unsafe { PeekMessageW(msg.as_mut_ptr(), Some(hwnd), msgmin, msgmax, PM_NOREMOVE) };
     if avail.into() {
         Some(unsafe { msg.assume_init() })
     } else {

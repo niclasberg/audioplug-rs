@@ -53,7 +53,7 @@ impl Executor {
             {
                 // See if the window class already has been registered
                 let mut class = MaybeUninit::uninit();
-                let result = unsafe { GetClassInfoW(instance, WINDOW_CLASS, class.as_mut_ptr())};
+                let result = unsafe { GetClassInfoW(Some(instance.into()), WINDOW_CLASS, class.as_mut_ptr())};
                 if result.is_ok() {
                     return;
                 }
@@ -81,7 +81,7 @@ impl Executor {
                 0, 
                 0, 
                 0, 
-                HWND_MESSAGE, 
+                Some(HWND_MESSAGE), 
                 None, 
                 None, 
                 Some(Rc::into_raw(inner.clone()) as _))?
@@ -99,7 +99,7 @@ impl Executor {
 
     pub fn dispatch_on_main(&self, f: impl FnOnce() + 'static) {
         self.sender.send(Work::Fn(Box::new(f))).expect("Failed to enqueue task");
-        unsafe { PostMessageA(self.hwnd, WAKER_MSG_ID, WPARAM(0), LPARAM(0)) }.unwrap();
+        unsafe { PostMessageA(Some(self.hwnd), WAKER_MSG_ID, WPARAM(0), LPARAM(0)) }.unwrap();
     }
 
     pub fn dispatch_future_on_main<T: 'static>(&self, f: impl Future<Output = T> + 'static) -> Task<T> {
@@ -107,7 +107,7 @@ impl Executor {
         let hwnd = SafeHWND(self.hwnd);
         let schedule = move |runnable| {
             sender.send(Work::Runnable(runnable)).expect("Failed to enqueue task");
-            unsafe { PostMessageA(*hwnd, WAKER_MSG_ID, WPARAM(0), LPARAM(0)) }.unwrap();
+            unsafe { PostMessageA(Some(*hwnd), WAKER_MSG_ID, WPARAM(0), LPARAM(0)) }.unwrap();
         };
         let (runnable, task) = async_task::spawn_local(f, schedule);
         runnable.schedule();

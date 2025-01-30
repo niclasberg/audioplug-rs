@@ -36,7 +36,7 @@ impl Handle {
     }
 
     pub fn invalidate_window(&self) {
-		let _ = unsafe { InvalidateRect(self.hwnd, None, false) };
+		let _ = unsafe { InvalidateRect(Some(self.hwnd), None, false) };
 	}
 
     pub fn invalidate(&self, rect: Rectangle) {
@@ -47,7 +47,7 @@ impl Handle {
             right: rect.right().ceil() as i32, 
             bottom: rect.bottom().ceil() as i32
         };
-        let _ = unsafe { InvalidateRect(self.hwnd, Some(&rect as _), false) };
+        let _ = unsafe { InvalidateRect(Some(self.hwnd), Some(&rect as _), false) };
     }
 
     pub fn global_bounds(&self) -> Rectangle {
@@ -56,7 +56,7 @@ impl Handle {
     }
 
     pub fn set_clipboard(&self, string: &str) -> Result<()> {
-        unsafe { DataExchange::OpenClipboard(self.hwnd) }?;
+        unsafe { DataExchange::OpenClipboard(Some(self.hwnd)) }?;
         let _close_clipboard = ScopeExit(|| unsafe { CloseClipboard().expect("Error while closing clipboard") });
         unsafe { DataExchange::EmptyClipboard() }?;
 
@@ -68,7 +68,7 @@ impl Handle {
                 let mem_loc = Memory::GlobalLock(hmem);
                 std::ptr::copy_nonoverlapping(chars.as_ptr(), mem_loc as *mut u8, chars.len());
                 let _ = Memory::GlobalUnlock(hmem);
-                DataExchange::SetClipboardData(CF_TEXT.0.into(), HANDLE(hmem.0))?;
+                DataExchange::SetClipboardData(CF_TEXT.0.into(), Some(HANDLE(hmem.0)))?;
             };
         }
 
@@ -81,7 +81,7 @@ impl Handle {
             return Ok(None); 
         }
 
-        unsafe { DataExchange::OpenClipboard(self.hwnd) }?;
+        unsafe { DataExchange::OpenClipboard(Some(self.hwnd)) }?;
         let _close_clipboard = ScopeExit(|| unsafe { CloseClipboard().expect("Error while closing clipboard") });
 
         unsafe {

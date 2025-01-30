@@ -52,7 +52,7 @@ impl<'a, W: Widget> BuildContext<'a, W> {
         }
     }
 
-    pub fn add_child<V: View>(&mut self, view: V) -> WidgetId {
+    pub fn add_child(&mut self, view: impl View) -> WidgetId {
         self.app_state.add_widget(self.id, view)
     }
 
