@@ -108,7 +108,7 @@ impl<E: Editor> IEditController for EditController<E> {
     unsafe fn get_param_string_by_value(&self, id: u32, value_normalized: f64, string: *mut tchar) -> tresult {
         // The string is actually a String128, it's mistyped in vst3-sys
         let string = string as *mut String128;
-		let Some(param_ref) = self.parameters.get_by_id(ParameterId::new(id)) else { return kInvalidArgument };
+		let Some(param_ref) = self.parameters.get_by_id(ParameterId(id)) else { return kInvalidArgument };
         let Some(value) = NormalizedValue::from_f64(value_normalized) else { return kInvalidArgument };
         let value_str = param_ref.info().string_from_value(value);
 
@@ -117,7 +117,7 @@ impl<E: Editor> IEditController for EditController<E> {
     }
 
     unsafe fn get_param_value_by_string(&self, id: u32, string: *const tchar, value_normalized: *mut f64) -> tresult {
-		let Some(param_ref) = self.parameters.get_by_id(ParameterId::new(id)) else { return kInvalidArgument };
+		let Some(param_ref) = self.parameters.get_by_id(ParameterId(id)) else { return kInvalidArgument };
         
         let len = (0..).take_while(|&i| unsafe { *string.offset(i) } != 0).count();
         let slice = unsafe { std::slice::from_raw_parts(string as *mut u16, len) };
@@ -131,17 +131,17 @@ impl<E: Editor> IEditController for EditController<E> {
 
     unsafe fn normalized_param_to_plain(&self, id: u32, value_normalized: f64) -> f64 {
 		let value_normalized = unsafe { NormalizedValue::from_f64_unchecked(value_normalized) };
-		self.parameters.get_by_id(ParameterId::new(id))
+		self.parameters.get_by_id(ParameterId(id))
 			.map_or(0.0, |param| param.info().denormalize(value_normalized).into())
     }
 
     unsafe fn plain_param_to_normalized(&self, id: u32, plain_value: f64) -> f64 {
-		self.parameters.get_by_id(ParameterId::new(id))
+		self.parameters.get_by_id(ParameterId(id))
         	.map_or(0.0, |param| param.info().normalize(PlainValue::new(plain_value)).into())
     }
 
     unsafe fn get_param_normalized(&self, id: u32) -> f64 {
-        self.parameters.get_by_id(ParameterId::new(id))
+        self.parameters.get_by_id(ParameterId(id))
 			.map_or(0.0, |p| p.normalized_value().into())
     }
 
@@ -151,7 +151,7 @@ impl<E: Editor> IEditController for EditController<E> {
 			return kResultOk;
 		}
 
-		let id = ParameterId::new(id);
+		let id = ParameterId(id);
 		let Some(value) = NormalizedValue::from_f64(value) else { return kInvalidArgument };
 		let mut app_state = self.app_state.borrow_mut();
 		if app_state.set_normalized_parameter_value_from_host(id, value) {

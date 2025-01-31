@@ -38,3 +38,11 @@ pub trait ParameterTraversal: 'static {
 impl ParameterTraversal for () {
 	fn visit<V: ParamVisitor>(&self, _visitor: &mut V) {}
 }
+
+impl<const N: usize, P: ParameterTraversal> ParameterTraversal for [P; N] {
+	fn visit<V: ParamVisitor>(&self, visitor: &mut V) {
+		for p in self.iter() {
+			p.visit(visitor);
+		}
+	}
+}

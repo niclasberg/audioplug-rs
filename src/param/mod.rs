@@ -42,12 +42,6 @@ pub enum Unit {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Clone, Copy, Hash)]
 pub struct ParameterId(pub u32);
 
-impl ParameterId {
-    pub fn new(id: u32) -> Self {
-        Self(id)
-    }
-}
-
 impl From<ParameterId> for u32 {
     fn from(value: ParameterId) -> Self {
         value.0

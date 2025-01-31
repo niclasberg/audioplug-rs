@@ -30,6 +30,11 @@ impl FloatParameter {
         self
     }
 
+	pub fn with_linear_range(mut self, min: f64, max: f64) -> Self {
+        self.info.range = FloatRange::Linear { min, max };
+        self
+    }
+
     pub fn with_default(mut self, default_value: f64) -> Self {
         self.info.default = default_value;
         self.value.set(default_value);

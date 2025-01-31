@@ -15,9 +15,9 @@ params!(
 impl Params for MyPluginParams {
     fn new() -> Self {
         Self {
-            enabled: BoolParameter::new(ParameterId::new(1), "Enabled", true),
-            gain: FloatParameter::new(ParameterId::new(2), "Gain")
-				.with_range(FloatRange::Linear { min: 0.0, max: 1.0 })
+            enabled: BoolParameter::new(ParameterId(1), "Enabled", true),
+            gain: FloatParameter::new(ParameterId(2), "Gain")
+				.with_linear_range(0.0, 1.0)
 				.with_default(0.5)
         }
     }

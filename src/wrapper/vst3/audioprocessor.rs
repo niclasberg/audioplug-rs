@@ -105,7 +105,7 @@ impl<P: VST3Plugin> IAudioProcessor for AudioProcessor<P> {
             let parameter_change_count = input_param_changes.get_parameter_count();
             for i in 0..parameter_change_count {
 				if let Some(data) = input_param_changes.get_parameter_data(i).upgrade() {
-					let param_id = ParameterId::new(data.get_parameter_id());
+					let param_id = ParameterId(data.get_parameter_id());
 					let point_count = data.get_point_count();
 					if point_count <= 0 {
 						continue;
