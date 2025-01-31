@@ -2,7 +2,7 @@ use std::{ffi::CStr, marker::PhantomData, mem::MaybeUninit, ops::Deref, rc::Rc, 
 
 use atomic_refcell::AtomicRefCell;
 use block2::RcBlock;
-use objc2::{msg_send, rc::Retained, runtime::{AnyClass, Bool, ClassBuilder, Sel}, sel, AllocAnyThread, ClassType, Encoding, Message, RefEncode};
+use objc2::{define_class, msg_send, rc::Retained, runtime::{AnyClass, Bool, ClassBuilder, Sel}, sel, AllocAnyThread, ClassType, Encoding, Message, RefEncode};
 use objc2_foundation::{NSArray, NSError, NSIndexSet, NSInteger, NSNumber, NSObject, NSTimeInterval};
 use crate::{param::{AnyParameterMap, ParameterId, ParameterMap, Params, PlainValue}, platform::{audio_toolbox::{AUAudioFrameCount, AUAudioUnit, AUAudioUnitBusArray, AUAudioUnitBusType, AUAudioUnitStatus, AUAudioUnitViewConfiguration, AUInternalRenderBlock, AUInternalRenderRcBlock, AUParameter, AUParameterTree, AURenderEvent, AURenderEventType, AURenderPullInputBlock, AUValue, AudioComponentInstantiationOptions, AudioUnitRenderActionFlags}, av_foundation::AVAudioFormat}, AudioBuffer, Plugin, ProcessContext};
 use crate::platform::mac::core_audio::{AudioBufferList, AudioTimeStamp};
@@ -12,10 +12,9 @@ use super::{buffers::BusBuffer, AudioComponentDescription};
 const DEFAULT_SAMPLE_RATE: f64 = 44100.0;
 
 trait Wrapper {
-	fn new(audio_unit: &AUAudioUnit) -> Self;
 	fn allocate_render_resources(&mut self);
 	fn deallocate_render_resources(&mut self);
-	unsafe fn setup_parameter_tree(this: *const Self);
+	unsafe fn setup_parameter_tree(&mut self);
 }
 
 struct WrapperImpl<P: Plugin> {
@@ -185,9 +184,16 @@ pub struct MyAudioUnit<P: Plugin + 'static> {
     p: PhantomData<P>,
 }
 
-struct IVars<P> {
-	wrapper: AtomicRefCell<P>
+struct IVars {
+	wrapper: AtomicRefCell<Box<dyn Wrapper>>
 }
+
+define_class!(
+	#[unsafe(super(AUAudioUnit))]
+	#[name = "AudioPlugAudioUnit"]
+	#[ivars = IVars]
+	pub struct AudioPlugAudioUnit;
+);
 
 const CLASS_NAME: &'static CStr = c"AudioPlugUnit";
 const WRAPPER_IVAR_NAME: &'static CStr = c"wrapper";
