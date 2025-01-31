@@ -15,7 +15,7 @@ impl Note {
     }
 
     pub fn frequency_hz(&self) -> f32 {
-        440.0 * semitone_freq_ratio().powi((self.0 - 69) as _)
+        440.0 * semitone_freq_ratio().powi(self.0 as i32 - 69)
     }
 
 	pub fn octave_and_semitone(&self) -> (u8, u8) {
