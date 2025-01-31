@@ -133,15 +133,15 @@ pub fn key_from_code(key_code: c_ushort) -> Key {
 
 pub fn get_modifiers(flags: NSEventModifierFlags) -> Modifiers {
 	let mut modifiers = Modifiers::empty();
-	if flags.contains(NSEventModifierFlags::NSEventModifierFlagShift) {
+	if flags.contains(NSEventModifierFlags::Shift) {
 		modifiers |= Modifiers::SHIFT;
 	}
 
-	if flags.contains(NSEventModifierFlags::NSEventModifierFlagControl) {
+	if flags.contains(NSEventModifierFlags::Control) {
 		modifiers |= Modifiers::ALT;
 	}
 
-	if flags.contains(NSEventModifierFlags::NSEventModifierFlagCommand) {
+	if flags.contains(NSEventModifierFlags::Command) {
 		modifiers |= Modifiers::CONTROL;
 	}
 

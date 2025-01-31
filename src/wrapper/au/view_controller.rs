@@ -3,7 +3,8 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 use block2::RcBlock;
 use objc2::rc::Retained;
 use objc2_app_kit::NSView;
-use objc2_foundation::{CGSize, MainThreadMarker, NSError};
+use objc2_core_foundation::CGSize;
+use objc2_foundation::{MainThreadMarker, NSError};
 use crate::{app::{AppState, HostHandle, MyHandler}, param::{NormalizedValue, ParameterId, ParameterInfo, ParameterMap, PlainValue, Params}, platform::{self, audio_toolbox::{AUParameterAddress, AUParameterAutomationEventType, AUParameterObserverToken, AUParameterTree, AUValue}, dispatch::create_block_dispatching_to_main2, view::View}, Editor, Plugin};
 use crate::platform::mac::audio_toolbox::{AUAudioUnit, AudioComponentDescription};
 use super::MyAudioUnit;
@@ -50,14 +51,13 @@ pub struct ViewController<P: Plugin> {
 
 impl<P: Plugin + 'static> ViewController<P> {
 	pub fn new() -> Self {
-		let executor = Rc::new(platform::Executor::new().unwrap());
 		let parameters = ParameterMap::new(P::Parameters::new());
 		let app_state =  Rc::new(RefCell::new(AppState::new(parameters.clone())));
 		let editor = Rc::new(RefCell::new(P::Editor::new()));
 		let parameter_observer = {
 			let weak_app_state = Rc::downgrade(&app_state);
 			create_block_dispatching_to_main2(MainThreadMarker::new().unwrap(), move |address, value| {
-				let id = ParameterId::new(address as _);
+				let id = ParameterId(address as _);
 				let value = PlainValue::new(value as _);
 				if let Some(app_state) = weak_app_state.upgrade() {
 					app_state.borrow_mut().set_plain_parameter_value_from_host(id, value);
@@ -87,20 +87,18 @@ impl<P: Plugin + 'static> ViewController<P> {
 			app_state.set_host_handle(Some(Box::new(handle)));
 		}
 		
-		let audio_unit = Retained::into_super(audio_unit);
-		Retained::into_raw(audio_unit) 
+		Retained::into_raw(Retained::into_super(audio_unit)) 
 	}
 
 	pub fn create_view(&mut self) -> *mut NSView {
 		let mtm = unsafe { MainThreadMarker::new_unchecked() };
 		let app_state = self.app_state.clone();
 
-		let _editor = self.editor.clone();
-		let _parameters = self.parameters.clone();
-		let handler = MyHandler::new(app_state, move |ctx| {
-			let editor = RefCell::borrow(&_editor);
-			editor.view(ctx, _parameters.parameters_ref())
-		});
+		let view = {
+			let editor = RefCell::borrow_mut(&self.editor);
+			editor.view(self.parameters.parameters_ref())
+		};
+		let handler = MyHandler::new(app_state, view);
 		let view = View::new(mtm, handler, None);
 
 		Retained::into_raw(Retained::into_super(view))

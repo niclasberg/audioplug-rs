@@ -1,4 +1,4 @@
-use objc2::{rc::Retained, ClassType};
+use objc2::{rc::Retained, AllocAnyThread, ClassType};
 use objc2_foundation::NSInteger;
 
 use crate::platform::{audio_toolbox::{AUAudioFrameCount, AUAudioUnitBus, AUAudioUnitBusArray, AUAudioUnitStatus, AURenderPullInputBlock, AudioUnitRenderActionFlags}, av_foundation::AVAudioFormat, core_audio};

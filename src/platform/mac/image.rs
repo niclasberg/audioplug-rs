@@ -1,12 +1,13 @@
 use std::path::Path;
 use crate::core::Size;
 
-use objc2::{rc::Retained, ClassType};
-use objc2_foundation::{NSString, NSURL};
+use objc2::{rc::Retained, AllocAnyThread};
+use objc2_foundation::NSString;
 use objc2_app_kit::NSImage;
 
 use super::Error;
 
+#[derive(Debug, Clone)]
 pub struct ImageSource(pub(super) Retained<NSImage>);
 
 impl ImageSource {
@@ -20,7 +21,7 @@ impl ImageSource {
 
 	pub fn size(&self) -> Size {
 		let representations = unsafe { self.0.representations() };
-		representations.first()
+		representations.firstObject()
 			.map(|representation| {
 				let size = unsafe { representation.size() };
 				Size::new(size.width, size.height)

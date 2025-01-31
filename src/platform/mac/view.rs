@@ -1,22 +1,18 @@
-use std::cell::{Cell, OnceCell, RefCell};
+use std::cell::{OnceCell, RefCell};
 
-use objc2::ffi::YES;
-use objc2_app_kit::{NSEvent, NSResponder, NSTrackingArea, NSTrackingAreaOptions, NSView, NSViewFrameDidChangeNotification};
-use objc2_foundation::{CGRect, MainThreadMarker, NSDate, NSNotificationCenter, NSRect, NSTimer};
+use objc2_app_kit::{NSEvent, NSGraphicsContext, NSResponder, NSTrackingArea, NSTrackingAreaOptions, NSView, NSViewFrameDidChangeNotification};
+use objc2_foundation::{MainThreadMarker, NSDate, NSNotificationCenter, NSRect, NSTimer};
 use objc2::rc::{Retained, Weak};
 use objc2::runtime::{NSObject, NSObjectProtocol};
-use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
+use objc2::{define_class, msg_send, sel, AllocAnyThread, DefinedClass, MainThreadOnly};
 
-use crate::core::{Color, Point};
+use crate::core::Point;
 use crate::event::{MouseButton, KeyEvent, MouseEvent};
 use crate::platform::mac::keyboard::{key_from_code, get_modifiers};
 use crate::platform::WindowEvent;
 use crate::AnimationFrame;
 use super::{RendererRef, Handle};
 use crate::platform::WindowHandler;
-
-use super::appkit::NSGraphicsContext;
-use super::core_graphics::CGColor;
 
 pub struct Ivars {
     handler: RefCell<Box<dyn WindowHandler>>,
@@ -30,27 +26,20 @@ pub struct Ivars {
 // try to register the class with the objc runtime. This will panic. We could version mark
 // the class name, and if the class already is registered, we could just look it up.
 // We cannot use declare_class! in that case, but have to write the boilerplate ourselves.
-declare_class!(
+define_class!(
+	#[unsafe(super(NSView, NSResponder, NSObject))]
+	#[thread_kind = MainThreadOnly]
+	#[name = "AudioPlugView"]
+	#[ivars = Ivars]
 	pub struct View;
 
-	unsafe impl ClassType for View {
-		#[inherits(NSResponder, NSObject)]
-		type Super = NSView;
-		type Mutability = mutability::MainThreadOnly;
-		const NAME: &'static str = "AudioPlugView";
-	}
-
-	impl DeclaredClass for View {
-		type Ivars = Ivars;
-	}
-
-	unsafe impl View {
-		#[method(isFlipped)]
+	impl View {
+		#[unsafe(method(isFlipped))]
 		fn is_flipped(&self) -> bool {
 			true
 		}
 
-		#[method(keyDown:)]
+		#[unsafe(method(keyDown:))]
         fn key_down(&self, event: &NSEvent) {
 			let key = key_from_code(unsafe { event.keyCode() });
 			let modifiers = get_modifiers(unsafe { event.modifierFlags() });
@@ -60,7 +49,7 @@ declare_class!(
 			self.dispatch_event(WindowEvent::Key(key_event));
 		}
 
-		#[method(mouseDown:)]
+		#[unsafe(method(mouseDown:))]
         fn mouse_down(&self, event: &NSEvent) {
 			if let (Some(button), Some(position)) = (mouse_button(event), self.mouse_position(event)) {
 				self.dispatch_event(WindowEvent::Mouse(
@@ -69,7 +58,7 @@ declare_class!(
 			}
 		}
 
-		#[method(mouseUp:)]
+		#[unsafe(method(mouseUp:))]
         fn mouse_up(&self, event: &NSEvent) {
 			if let (Some(button), Some(position)) = (mouse_button(event), self.mouse_position(event)) {
 				self.dispatch_event(WindowEvent::Mouse(
@@ -78,7 +67,7 @@ declare_class!(
 			}
 		}
 
-		#[method(mouseMoved:)]
+		#[unsafe(method(mouseMoved:))]
         fn mouse_moved(&self, event: &NSEvent) {
             if let Some(position) = self.mouse_position(event) {
 				self.dispatch_event(WindowEvent::Mouse(
@@ -87,7 +76,7 @@ declare_class!(
 			}
         }
 
-		#[method(mouseDragged:)]
+		#[unsafe(method(mouseDragged:))]
 		fn mouse_dragged(&self, event: &NSEvent) {
 			if let Some(position) = self.mouse_position(event) {
 				self.dispatch_event(WindowEvent::Mouse(
@@ -96,49 +85,49 @@ declare_class!(
 			}
 		}
 
-		#[method(acceptsFirstResponder)]
+		#[unsafe(method(acceptsFirstResponder))]
         fn accepts_first_responder(&self) -> bool {
             true
         }
 
-		#[method(viewDidMoveToWindow)]
+		#[unsafe(method(viewDidMoveToWindow))]
 		fn view_did_move_to_window(&self) {
 			let visible_rect = self.visibleRect();
 			self.set_tracking_area(visible_rect);
 		}
 
-		#[method(updateTrackingAreas)]
+		#[unsafe(method(updateTrackingAreas))]
 		fn update_tracking_areas(&self) {
 			let visible_rect = self.visibleRect();
 			self.set_tracking_area(visible_rect);
 		}
 
-		#[method(frameDidChange:)]
+		#[unsafe(method(frameDidChange:))]
 		fn frame_did_change(&self, _event: &NSEvent) {
 			let visible_rect = self.visibleRect();
 			let new_size = visible_rect.size.into();
 			self.dispatch_event(WindowEvent::Resize { new_size });
 		}
 
-		#[method(acceptsFirstMouse:)]
+		#[unsafe(method(acceptsFirstMouse:))]
         fn accepts_first_mouse(&self, _event: &NSEvent) -> bool {
             true
         }
 
-		#[method(drawRect:)]
+		#[unsafe(method(drawRect:))]
 		fn draw_rect(&self, rect: NSRect) {
-			let graphics_context = NSGraphicsContext::current().unwrap();
-			let context = graphics_context.cg_context();
-			let bg_color = CGColor::from_rgba(1.0, 1.0, 1.0, 1.0);
+			let graphics_context = unsafe { NSGraphicsContext::currentContext() }.unwrap();
+			let context = unsafe { graphics_context.CGContext() };
+			/*let bg_color = CGColor::from_rgba(1.0, 1.0, 1.0, 1.0);
 			context.set_fill_color(&bg_color);
-			context.fill_rect(self.frame());
+			context.fill_rect(self.frame());*/
 			
-			let renderer = RendererRef::new(context, rect);
+			let renderer = RendererRef::new(&context, rect);
 
 			self.ivars().handler.borrow_mut().render(rect.into(), renderer);
 		}
 
-		#[method(onAnimationTimer:)]
+		#[unsafe(method(onAnimationTimer:))]
 		fn on_animation_timer(&self, _timer: &NSTimer) {
 			let animation_start = self.ivars().animation_start.get_or_init(|| {
 				unsafe { NSDate::now() }
@@ -163,9 +152,9 @@ impl View {
 		let this = this.set_ivars(Ivars { handler, tracking_area, timer: RefCell::new(None), animation_start: OnceCell::new() });
 
 		let this: Retained<Self> = if let Some(frame) = frame {
-			unsafe { msg_send_id![super(this), initWithFrame: frame] }
+			unsafe { msg_send![super(this), initWithFrame: frame] }
 		} else {
-			unsafe { msg_send_id![super(this), init] }
+			unsafe { msg_send![super(this), init] }
 		};
 
 		this.setPostsFrameChangedNotifications(true);
@@ -199,7 +188,7 @@ impl View {
 		self.ivars().handler.borrow_mut().event(event)
 	}
 
-	fn set_tracking_area(&self, rect: CGRect) {
+	fn set_tracking_area(&self, rect: NSRect) {
 		// Use try-borrow here to avoid re-entrancy problems
 		if let Ok(mut tracking_area_ref) = self.ivars().tracking_area.try_borrow_mut() {
 			if let Some(tracking_area) = tracking_area_ref.as_ref() {
@@ -211,7 +200,7 @@ impl View {
 				let tracking_area = NSTrackingArea::alloc();
 				NSTrackingArea::initWithRect_options_owner_userInfo(tracking_area, 
 					rect, 
-					NSTrackingAreaOptions::NSTrackingActiveAlways | NSTrackingAreaOptions::NSTrackingMouseEnteredAndExited | NSTrackingAreaOptions::NSTrackingMouseMoved, 
+					NSTrackingAreaOptions::ActiveAlways | NSTrackingAreaOptions::MouseEnteredAndExited | NSTrackingAreaOptions::MouseMoved, 
 					Some(self), 
 					None)
 			};

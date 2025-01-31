@@ -1,4 +1,4 @@
-use crate::platform::mac::core_foundation::CFString;
+use objc2_core_foundation::CFString;
 
 use super::{AudioObjectPropertySelector, AudioClassID, AudioObjectID};
 

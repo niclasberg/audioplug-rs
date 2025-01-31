@@ -24,9 +24,8 @@ serde = "1.0.215"
 atomic_refcell = "0.1.13"
 indexmap = "2.6.0"
 
-[target.'cfg(windows)'.dependencies.windows]
-version = "0.59.0"
-features = [
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.59.0", features = [
 	"Win32_Foundation",
 	"Win32_Graphics_Gdi",
 	"Win32_UI_HiDpi",
@@ -52,23 +51,24 @@ features = [
 	"Foundation_Numerics",
 	"Win32_Graphics_DirectWrite",
 	"Win32_Graphics_Imaging",
-]
+] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 c-enum = "0.2.3"
-block2 = "0.5.1"
-objc2 = "0.5.2"
-objc2-foundation = { version = "0.2.2", features = [
+block2 = "0.6.0"
+objc2 = "0.6.0"
+objc2-foundation = { version = "0.3.0", features = [
 	"NSAttributedString",
 	"NSDictionary",
 	"NSDate",
 	"NSEnumerator",
+	"NSExtensionRequestHandling",
 	"NSIndexSet",
 	"NSString",
 	"NSTimer",
 	"NSThread",
 ] }
-objc2-app-kit = { version = "0.2.2", features = [
+objc2-app-kit = { version = "0.3.0", features = [
 	"NSApplication",
 	"NSRunningApplication",
 	"NSGraphics",
@@ -82,3 +82,24 @@ objc2-app-kit = { version = "0.2.2", features = [
 	"NSViewController",
 	"NSWindow",
 ] }
+objc2-core-foundation = { version = "0.3.0", features = [
+	"CFBase",
+	"CFArray",
+	"CFDictionary",
+	"CFCGTypes",
+	"CFNumber"
+]}
+objc2-core-graphics = { version  = "0.3.0", features = [
+	"CGAffineTransform",
+	"CGContext",
+	"CGGeometry",
+	"CGColor",
+	"CGImage",
+	"CGFont"
+]}
+objc2-core-text = { version = "0.3.0", features = [
+	"CTFont",
+	"CTFrame",
+	"CTFramesetter",
+	"CTLine"
+]}

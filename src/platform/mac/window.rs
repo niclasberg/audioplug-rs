@@ -1,7 +1,8 @@
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
-use objc2_foundation::{CGSize, MainThreadMarker, NSPoint, NSRect, NSSize};
+use objc2_core_foundation::CGSize;
+use objc2_foundation::{MainThreadMarker, NSPoint, NSRect, NSSize};
 use objc2_app_kit::{NSBackingStoreType, NSView, NSWindow, NSWindowStyleMask};
 use objc2::rc::{Retained, Weak};
 use raw_window_handle::{AppKitWindowHandle, HasWindowHandle, RawWindowHandle};
@@ -22,7 +23,7 @@ impl Window {
 		let content_rect = NSRect::new(NSPoint::new(0., 0.), NSSize::new(1024., 768.));
 		let window = {
 			let this = mtm.alloc();
-			let backing_store_type = NSBackingStoreType::NSBackingStoreBuffered;
+			let backing_store_type = NSBackingStoreType::Buffered;
 			let style = NSWindowStyleMask::Closable | NSWindowStyleMask::Resizable | NSWindowStyleMask::Titled;
 			let flag = false;
 	

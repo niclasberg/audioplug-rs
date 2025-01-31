@@ -15,61 +15,52 @@ cf_enum!(
 );
 
 extern_class!(
+	#[unsafe(super(NSObject))]
 	pub struct AUAudioUnitBusArray;
-
-	unsafe impl ClassType for AUAudioUnitBusArray {
-		type Super = NSObject;
-		type Mutability = objc2::mutability::InteriorMutable;
-	}
 );
 
-extern_methods!(
-	unsafe impl AUAudioUnitBusArray {
-		#[method_id(initWithAudioUnit:busType:busses:)]
+impl AUAudioUnitBusArray {
+	extern_methods!(
+		#[unsafe(method(initWithAudioUnit:busType:busses:))]
 		#[allow(non_snake_case)]
 		pub unsafe fn initWithAudioUnit_busType_busses(
 			this: Allocated<Self>,
-			owner: *mut AUAudioUnit,
+			owner: &AUAudioUnit,
 			bus_type: AUAudioUnitBusType,
 			busses: &NSArray<AUAudioUnitBus>
 		) -> Retained<Self>;
 
-		#[method_id(initWithAudioUnit:busType:)]
+		#[unsafe(method(initWithAudioUnit:busType:))]
 		#[allow(non_snake_case)]
 		pub unsafe fn initWithAudioUnit_busType(
 			this: Allocated<Self>,
-			owner: *mut AUAudioUnit,
+			owner: &AUAudioUnit,
 			bus_type: AUAudioUnitBusType) -> Retained<Self>;
 
-		#[method(count)]
+		#[unsafe(method(count))]
 		pub fn count(&self) -> NSUInteger;
-	}
-);
-
+	);
+}
+	
 extern_class!(
+	#[unsafe(super(NSObject))]
 	pub struct AUAudioUnitBus;
-
-	unsafe impl ClassType for AUAudioUnitBus {
-		type Super = NSObject;
-		type Mutability = objc2::mutability::InteriorMutable;
-	}
 );
 
-extern_methods!(
-	unsafe impl AUAudioUnitBus {
-		#[method_id(initWithFormat:error:_)]
+impl AUAudioUnitBus {
+	extern_methods!(
+		#[unsafe(method(initWithFormat:error:_))]
 		#[allow(non_snake_case)]
 		pub unsafe fn initWithFormat_error(
 			this: Allocated<Self>,
 			format: &AVAudioFormat) -> Result<Retained<Self>, Retained<NSError>>;
 
-		#[method(maximumChannelCount)]
+		#[unsafe(method(maximumChannelCount))]
 		#[allow(non_snake_case)]
 		pub fn maximumChannelCount(&self) -> AUAudioChannelCount;
 
-		#[method(setMaximumChannelCount:)]
+		#[unsafe(method(setMaximumChannelCount:))]
 		#[allow(non_snake_case)]
 		pub fn setMaximumChannelCount(&self, value: AUAudioChannelCount);
-	}
-);
-
+	);
+}

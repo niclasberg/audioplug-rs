@@ -1,7 +1,8 @@
 use bitflags::bitflags;
 use block2::{Block, RcBlock};
-use objc2_foundation::{CGFloat, NSArray, NSError, NSInteger, NSNumber, NSString, NSTimeInterval, NSUInteger, NSIndexSet};
-use objc2::{extern_class, extern_methods, mutability, rc::{Allocated, Id, Retained}, runtime::{AnyClass, Bool, NSObject}, ClassType, Encode, Encoding, RefEncode};
+use objc2_core_foundation::CGFloat;
+use objc2_foundation::{NSArray, NSError, NSInteger, NSNumber, NSString, NSTimeInterval, NSUInteger, NSIndexSet};
+use objc2::{extern_class, extern_methods, rc::{Allocated, Retained}, runtime::{AnyClass, Bool, NSObject}, ClassType, Encode, Encoding, RefEncode};
 
 use crate::platform::mac::core_audio::{AudioBufferList, AudioTimeStamp};
 use super::{AUAudioUnitBusArray, AUParameterTree, AURenderEvent, AUViewControllerBase, AudioComponentDescription};
@@ -66,37 +67,29 @@ pub type AUInternalRenderRcBlock = RcBlock<dyn Fn(*mut AudioUnitRenderActionFlag
 pub type AURenderBlock = AUInternalRenderBlock;
 
 extern_class!(
+	#[unsafe(super(NSObject))]
 	pub struct AUAudioUnitViewConfiguration;
-
-	unsafe impl ClassType for AUAudioUnitViewConfiguration {
-		type Super = NSObject;
-		type Mutability = mutability::InteriorMutable;
-	}
 );
 
-extern_methods!(
-	unsafe impl AUAudioUnitViewConfiguration {
-		#[method(width)]
+impl AUAudioUnitViewConfiguration {
+	extern_methods!(
+		#[unsafe(method(width))]
 		pub fn width(&self) -> CGFloat;
 
-		#[method(height)]
+		#[unsafe(method(height))]
 		pub fn height(&self) -> CGFloat;
-	}
-);
+	);
+}
 
 extern_class!(
+	#[unsafe(super(NSObject))]
 	#[derive(PartialEq, Eq, Hash)]
 	pub struct AUAudioUnit;
-
-	unsafe impl ClassType for AUAudioUnit {
-		type Super = NSObject;
-		type Mutability = mutability::InteriorMutable;
-	}
 );
 
-extern_methods!(
-	unsafe impl AUAudioUnit {
-		#[method(registerSubclass:asComponentDescription:name:version:)]
+impl AUAudioUnit {
+	extern_methods!(
+		#[unsafe(method(registerSubclass:asComponentDescription:name:version:))]
 		#[allow(non_snake_case)]
 		pub fn registerSubclass(
 			cls: &AnyClass, 
@@ -106,129 +99,129 @@ extern_methods!(
 		);
 
 		// Initialization
-		#[method_id(initWithComponentDescription:error:_)]
+		#[unsafe(method(initWithComponentDescription:error:_))]
 		#[allow(non_snake_case)]
 		pub fn initWithComponentDescription(
 			this: Allocated<Self>,
 			componentDescription: AudioComponentDescription
 		) -> Result<Retained<Self>, Retained<NSError>>;
 
-		#[method_id(initWithComponentDescription:options:error:)]
+		#[unsafe(method(initWithComponentDescription:options:error:))]
 		#[allow(non_snake_case)]
 		pub fn initWithComponentDescription_options_error(
 			this: Allocated<Self>,
 			componentDescription: AudioComponentDescription, 
 			options: AudioComponentInstantiationOptions,
 			outError: *mut *mut NSError
-		) -> Id<Self>;
+		) -> Retained<Self>;
 
 		// Querying Parameters
-		#[method_id(parameterTree)]
+		#[unsafe(method(parameterTree))]
 		#[allow(non_snake_case)]
 		pub fn parameterTree(&self) -> Option<Retained<AUParameterTree>>;
 
-		#[method(allParameterValues)]
+		#[unsafe(method(allParameterValues))]
 		#[allow(non_snake_case)]
 		pub fn allParameterValues(&self) -> Bool;
 
-		#[method_id(parametersForOverviewWithCount:)]
+		#[unsafe(method(parametersForOverviewWithCount:))]
 		#[allow(non_snake_case)]
 		pub fn parametersForOverviewWithCount(count: NSInteger) -> Option<Retained<NSArray<NSNumber>>>;
 
 		// Render cycle methods
-		#[method(allocateRenderResourcesAndReturnError:_)]
+		#[unsafe(method(allocateRenderResourcesAndReturnError:_))]
 		#[allow(non_snake_case)]
 		pub fn allocate_render_resources(&self) -> Result<(), Retained<NSError>>;
 
-		#[method(deallocateRenderResources)]
+		#[unsafe(method(deallocateRenderResources))]
 		#[allow(non_snake_case)]
 		pub fn deallocateRenderResources(&self);
 
-		#[method(reset)]
+		#[unsafe(method(reset))]
 		pub unsafe fn reset(&self);
 
-		#[method(renderResourcesAllocated)]
+		#[unsafe(method(renderResourcesAllocated))]
 		#[allow(non_snake_case)]
 		pub unsafe fn renderResourcesAllocated(&self) -> bool;
 
-		#[method(renderBlock)]
+		#[unsafe(method(renderBlock))]
 		#[allow(non_snake_case)]
 		pub fn render_block(&self) -> Option<&AURenderBlock>;
 
-		#[method(maximumFramesToRender)]
+		#[unsafe(method(maximumFramesToRender))]
 		#[allow(non_snake_case)]
 		pub fn maximumFramesToRender(&self) -> AUAudioFrameCount;
 
-		#[method(setMaximumFramesToRender:)]
+		#[unsafe(method(setMaximumFramesToRender:))]
 		#[allow(non_snake_case)]
 		pub fn setMaximumFramesToRender(&self, maximumFramesToRender: AUAudioFrameCount);
 
-		#[method(internalRenderBlock)]
+		#[unsafe(method(internalRenderBlock))]
 		#[allow(non_snake_case)]
 		pub fn internalRenderBlock(&self) -> Option<&AUInternalRenderBlock>;
 
-		#[method_id(inputBusses)]
+		#[unsafe(method(inputBusses))]
 		#[allow(non_snake_case)]
 		pub fn input_busses(&self) -> Option<Retained<AUAudioUnitBusArray>>;
 
-		#[method_id(outputBusses)]
+		#[unsafe(method(outputBusses))]
 		#[allow(non_snake_case)]
 		pub fn output_busses(&self) -> Option<Retained<AUAudioUnitBusArray>>;
 
 		// Optimizing performance
-		#[method(latency)]
+		#[unsafe(method(latency))]
 		pub fn latency(&self) -> NSTimeInterval;
 
-		#[method(tailTime)]
+		#[unsafe(method(tailTime))]
 		#[allow(non_snake_case)]
 		pub fn tailTime(&self) -> NSTimeInterval;
 
-		#[method(renderQuality)]
+		#[unsafe(method(renderQuality))]
 		#[allow(non_snake_case)]
 		pub fn renderQuality(&self) -> NSInteger;
 
-		#[method(setRenderQuality:)]
+		#[unsafe(method(setRenderQuality:))]
 		#[allow(non_snake_case)]
 		pub fn setRenderQuality(&self, value: NSInteger);
 
-		#[method(shouldBypassEffect)]
+		#[unsafe(method(shouldBypassEffect))]
 		#[allow(non_snake_case)]
 		pub fn shouldBypassEffect(&self) -> Bool;
 
-		#[method(setShouldBypassEffect:)]
+		#[unsafe(method(setShouldBypassEffect:))]
 		#[allow(non_snake_case)]
 		pub fn setShouldBypassEffect(&self, value: Bool);
 
-		#[method(canProcessInPlace)]
+		#[unsafe(method(canProcessInPlace))]
 		#[allow(non_snake_case)]
 		pub fn canProcessInPlace(&self) -> Bool;
 
-		#[method(isRenderingOffline)]
+		#[unsafe(method(isRenderingOffline))]
 		#[allow(non_snake_case)]
 		pub fn isRenderingOffline(&self) -> Bool;
 
-		#[method(setRenderingOffline:)]
+		#[unsafe(method(setRenderingOffline:))]
 		#[allow(non_snake_case)]
 		pub fn setRenderingOffline(&self, value: Bool);
 
 
 		// Configuring channel capabilities
-		#[method_id(channelCapabilities)]
+		#[unsafe(method(channelCapabilities))]
 		#[allow(non_snake_case)]
 		pub fn channelCapabilities(&self) -> Option<Retained<NSArray<NSNumber>>>;
 		
 
 		// Configuring the User Interface
-		#[method(providesUserInterface)]
+		#[unsafe(method(providesUserInterface))]
 		#[allow(non_snake_case)]
 		pub unsafe fn providesUserInterface(&self) -> Bool;
 
-		#[method_id(supportedViewConfigurations:)]
+		#[unsafe(method(supportedViewConfigurations:))]
 		#[allow(non_snake_case)]
 		pub unsafe fn supportedViewConfigurations(&self, availableViewConfigurations: &NSArray<AUAudioUnitViewConfiguration>) -> Retained<NSIndexSet>;
 
-		#[method(requestViewControllerWithCompletionHandler:)]
+		#[unsafe(method(requestViewControllerWithCompletionHandler:))]
 		#[allow(non_snake_case)]
 		pub unsafe fn requestViewControllerWithCompletionHandler(&self, completion_handler: &Block<dyn Fn(*mut AUViewControllerBase)>);
-	}
-);
+	);
+}

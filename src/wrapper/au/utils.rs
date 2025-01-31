@@ -30,7 +30,7 @@ impl ParamVisitor for CreateParametersVisitor {
 			AudioUnitParameterOptions::IsReadable | AudioUnitParameterOptions::IsWritable, 
 			&NSArray::new(), 
 			&NSArray::new());
-		self.au_params.push(Retained::into_super(au_param));
+		self.au_params.addObject(&au_param);
 	}
 
 	fn bypass_parameter(&mut self, p: &crate::param::ByPassParameter) {
@@ -45,7 +45,7 @@ impl ParamVisitor for CreateParametersVisitor {
 			AudioUnitParameterOptions::IsReadable | AudioUnitParameterOptions::IsWritable, 
 			&NSArray::new(), 
 			&NSArray::new());
-		self.au_params.push(Retained::into_super(au_param));
+		self.au_params.addObject(&au_param);
 	}
 
 	fn float_parameter(&mut self, p: &crate::param::FloatParameter) {
@@ -60,7 +60,7 @@ impl ParamVisitor for CreateParametersVisitor {
 			AudioUnitParameterOptions::IsReadable | AudioUnitParameterOptions::IsWritable, 
 			&NSArray::new(), 
 			&NSArray::new());
-		self.au_params.push(Retained::into_super(au_param));
+		self.au_params.addObject(&au_param);
 	}
 
 	fn int_parameter(&mut self, p: &crate::param::IntParameter) {
@@ -75,7 +75,7 @@ impl ParamVisitor for CreateParametersVisitor {
 			AudioUnitParameterOptions::IsReadable | AudioUnitParameterOptions::IsWritable, 
 			&NSArray::new(), 
 			&NSArray::new());
-		self.au_params.push(Retained::into_super(au_param));
+		self.au_params.addObject(&au_param);
 	}
 
 	fn string_list_parameter(&mut self, p: &crate::param::StringListParameter) {
@@ -89,7 +89,7 @@ impl ParamVisitor for CreateParametersVisitor {
 			&NSString::from_str(group.name()), 
 			&NSString::from_str(group.name()), 
 			&child_visitor.au_params);
-		self.au_params.push(Retained::into_super(au_group));
+		self.au_params.addObject(&au_group);
 	}
 }
 
