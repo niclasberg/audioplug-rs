@@ -1,4 +1,4 @@
-use std::{ffi::CStr, marker::PhantomData, mem::MaybeUninit, ops::Deref, rc::Rc, sync::OnceLock};
+use std::{ffi::{CStr, CString}, marker::PhantomData, mem::MaybeUninit, ops::Deref, rc::Rc, sync::OnceLock};
 
 use atomic_refcell::AtomicRefCell;
 use block2::RcBlock;
@@ -11,13 +11,7 @@ use super::{buffers::BusBuffer, AudioComponentDescription};
 
 const DEFAULT_SAMPLE_RATE: f64 = 44100.0;
 
-trait Wrapper {
-	fn allocate_render_resources(&mut self);
-	fn deallocate_render_resources(&mut self);
-	unsafe fn setup_parameter_tree(&mut self);
-}
-
-struct WrapperImpl<P: Plugin> {
+struct Wrapper<P: Plugin> {
 	plugin: P,
     parameters: Rc<ParameterMap<P::Parameters>>,
 	inputs: Retained<AUAudioUnitBusArray>,
@@ -31,11 +25,11 @@ struct WrapperImpl<P: Plugin> {
 	rendering_offline: bool
 }
 
-unsafe impl<P: Plugin> RefEncode for WrapperImpl<P> {
+unsafe impl<P: Plugin> RefEncode for Wrapper<P> {
 	const ENCODING_REF: Encoding = Encoding::Pointer(&Encoding::Struct("?", &[]));
 } 
 
-impl<P: Plugin + 'static> WrapperImpl<P> {
+impl<P: Plugin + 'static> Wrapper<P> {
 	pub fn new(audio_unit: &AUAudioUnit) -> Self {
 		let plugin = P::new();
 		let parameters = ParameterMap::new(P::Parameters::new());
@@ -184,18 +178,10 @@ pub struct MyAudioUnit<P: Plugin + 'static> {
     p: PhantomData<P>,
 }
 
-struct IVars {
-	wrapper: AtomicRefCell<Box<dyn Wrapper>>
+struct IVars<P: Plugin> {
+	wrapper: AtomicRefCell<Wrapper<P>>
 }
 
-define_class!(
-	#[unsafe(super(AUAudioUnit))]
-	#[name = "AudioPlugAudioUnit"]
-	#[ivars = IVars]
-	pub struct AudioPlugAudioUnit;
-);
-
-const CLASS_NAME: &'static CStr = c"AudioPlugUnit";
 const WRAPPER_IVAR_NAME: &'static CStr = c"wrapper";
 static mut IVAR_OFFSET: MaybeUninit<isize> = MaybeUninit::uninit();
 
@@ -208,7 +194,6 @@ unsafe impl<P: Plugin + 'static> Message for MyAudioUnit<P> {}
 impl<P: Plugin + 'static> MyAudioUnit<P> {
 	pub fn new_with_component_descriptor_error(desc: AudioComponentDescription, out_error: *mut *mut NSError) -> Retained<Self> {
 		unsafe {
-			let this = msg_send![Self::class(), new];
 			let audio_unit: Retained<Self> = msg_send![
 				Self::alloc(),
 				initWithComponentDescription: desc,
@@ -217,14 +202,6 @@ impl<P: Plugin + 'static> MyAudioUnit<P> {
 
 			audio_unit
 		}
-	}
-
-	pub fn as_super(&self) -> &AUAudioUnit {
-		&self.superclass
-	}
-
-	pub fn as_super_mut(&mut self) -> &mut AUAudioUnit {
-		&mut self.superclass
 	}
 
 	pub fn try_with_component_descriptor(desc: AudioComponentDescription) -> Result<Retained<Self>, Retained<NSError>> {
@@ -256,15 +233,22 @@ impl<P: Plugin + 'static> MyAudioUnit<P> {
 	}
 }
 
-impl<P: Plugin + 'static> MyAudioUnit<P> {
-	pub fn class() -> &'static AnyClass {
-        static CLASS: OnceLock<&'static AnyClass> = OnceLock::new();
+unsafe impl<P: Plugin + 'static> ClassType for MyAudioUnit<P> {
+	type Super = AUAudioUnit;
+	type ThreadKind = <AUAudioUnit as ClassType>::ThreadKind;
+
+	const NAME: &'static str = P::NAME;
+
+	fn class() -> &'static AnyClass {
+		static CLASS: OnceLock<&'static AnyClass> = OnceLock::new();
 
         CLASS.get_or_init(|| {
             let superclass = AUAudioUnit::class();
-            let mut builder = ClassBuilder::new(CLASS_NAME, superclass).unwrap();
+			let class_name = CString::new(Self::NAME)
+				.expect("The objc class name should be a valid c-string");
+            let mut builder = ClassBuilder::new(&class_name, superclass).unwrap();
 
-            builder.add_ivar::<*mut WrapperImpl<P>>(WRAPPER_IVAR_NAME);
+            builder.add_ivar::<*mut Wrapper<P>>(WRAPPER_IVAR_NAME);
             unsafe {
                 builder.add_method(
                     sel!(initWithComponentDescription:options:error:),
@@ -338,19 +322,26 @@ impl<P: Plugin + 'static> MyAudioUnit<P> {
 			}
 			cls
         })
-    }
+	}
 
+	fn as_super(&self) -> &AUAudioUnit {
+		&self.superclass
+	}
+
+	const __INNER: () = ();
+	type __SubclassingType = Self;
+}
+
+impl<P: Plugin + 'static> MyAudioUnit<P> {
 	fn ivars_ptr(&self) -> *const IVars<P> {
 		let ptr = self as *const _ as *const *const IVars<P>;
 		unsafe { *ptr.byte_offset(IVAR_OFFSET.assume_init()) }
 	}
-
-	fn wrapper(&self) -> &WrapperImpl<P> {
-		unsafe { &*self.wrapper_ptr() }
-	}
 	
-	fn wrapper_mut(&mut self) -> &mut WrapperImpl<P> {
-		unsafe { &mut *self.wrapper_ptr_mut() }
+	#[inline(always)]
+	fn with_wrapper(&self, f: impl FnOnce(&Wrapper<P>)) {
+		let wrapper = unsafe { &*self.ivars_ptr() }.wrapper.borrow();
+		f(&wrapper);
 	}
 
 	#[allow(non_snake_case)]
@@ -363,14 +354,14 @@ impl<P: Plugin + 'static> MyAudioUnit<P> {
 	) -> Option<&mut Self> {
 		let this: Option<&mut Self> = unsafe { msg_send![self.as_super(), initWithComponentDescription: desc, options: options, error: out_error ] } ;
 		this.map(|this| {
-			let wrapper = Box::new(WrapperImpl::new(this.as_super_mut()));
+			let ivars = Box::new(IVars { wrapper: AtomicRefCell::new(Wrapper::new(this.as_super())) });
             let ivar = Self::class().instance_variable(WRAPPER_IVAR_NAME).unwrap();
             unsafe {
-				let wrapper_ptr = Box::into_raw(wrapper);
-                ivar.load_ptr::<*mut WrapperImpl<P>>(&mut this.superclass)
+				let wrapper_ptr = Box::into_raw(ivars);
+                ivar.load_ptr::<*mut IVars<P>>(&mut this.superclass)
 					.write(wrapper_ptr);
-				WrapperImpl::create_render_block(wrapper_ptr);
-				WrapperImpl::setup_parameter_tree(wrapper_ptr);
+				Wrapper::create_render_block(wrapper_ptr);
+				Wrapper::setup_parameter_tree(wrapper_ptr);
             };
             this
         })
