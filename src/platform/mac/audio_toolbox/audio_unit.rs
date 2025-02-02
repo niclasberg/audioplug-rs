@@ -2,9 +2,9 @@ use bitflags::bitflags;
 use block2::{Block, RcBlock};
 use objc2_core_foundation::CGFloat;
 use objc2_foundation::{NSArray, NSError, NSInteger, NSNumber, NSString, NSTimeInterval, NSUInteger, NSIndexSet};
-use objc2::{extern_class, extern_methods, rc::{Allocated, Retained}, runtime::{AnyClass, Bool, NSObject}, ClassType, Encode, Encoding, RefEncode};
+use objc2::{extern_class, extern_methods, rc::{Allocated, Retained}, runtime::{AnyClass, Bool, NSObject}, Encode, Encoding, RefEncode};
+use objc2_core_audio_types::{AudioBufferList, AudioTimeStamp};
 
-use crate::platform::mac::core_audio::{AudioBufferList, AudioTimeStamp};
 use super::{AUAudioUnitBusArray, AUParameterTree, AURenderEvent, AUViewControllerBase, AudioComponentDescription};
 
 pub type AUAudioUnitStatus = i32;

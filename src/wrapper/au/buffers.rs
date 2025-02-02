@@ -1,7 +1,9 @@
 use objc2::{rc::Retained, AllocAnyThread, ClassType};
 use objc2_foundation::NSInteger;
 
-use crate::platform::{audio_toolbox::{AUAudioFrameCount, AUAudioUnitBus, AUAudioUnitBusArray, AUAudioUnitStatus, AURenderPullInputBlock, AudioUnitRenderActionFlags}, av_foundation::AVAudioFormat, core_audio};
+use crate::platform::{audio_toolbox::{AUAudioFrameCount, AUAudioUnitBus, AUAudioUnitBusArray, AUAudioUnitStatus, AURenderPullInputBlock, AudioUnitRenderActionFlags}, av_foundation::AVAudioFormat};
+
+use objc2_core_audio_types as core_audio;
 
 pub struct BusBuffers {
 	au_buffers: Retained<AUAudioUnitBusArray>,

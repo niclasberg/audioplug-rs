@@ -1,4 +1,5 @@
-use super::{Error, core_audio::AudioDeviceID};
+use super::Error;
+use objc2_core_audio::AudioDeviceID;
 
 pub struct AudioHost;
 

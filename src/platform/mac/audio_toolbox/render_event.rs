@@ -1,8 +1,4 @@
-use std::marker::PhantomData;
-
 use objc2::{Encode, Encoding, RefEncode};
-
-use crate::platform::core_audio::OSStatus;
 
 use super::cf_enum;
 

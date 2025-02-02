@@ -103,3 +103,7 @@ objc2-core-text = { version = "0.3.0", features = [
 	"CTFramesetter",
 	"CTLine"
 ]}
+objc2-core-audio = { version = "0.3.0", features = []}
+objc2-core-audio-types = { version = "0.3.0", features = [
+	"CoreAudioBaseTypes"
+]}

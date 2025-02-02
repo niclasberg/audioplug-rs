@@ -1,11 +1,11 @@
-use std::{ffi::{CStr, CString}, marker::PhantomData, mem::MaybeUninit, ops::Deref, rc::Rc, sync::OnceLock};
+use std::{cell::RefCell, ffi::{CStr, CString}, marker::PhantomData, mem::MaybeUninit, ops::Deref, rc::Rc, sync::OnceLock};
 
 use atomic_refcell::AtomicRefCell;
 use block2::RcBlock;
 use objc2::{define_class, msg_send, rc::Retained, runtime::{AnyClass, Bool, ClassBuilder, Sel}, sel, AllocAnyThread, ClassType, Encoding, Message, RefEncode};
+use objc2_core_audio_types::{AudioBufferList, AudioTimeStamp};
 use objc2_foundation::{NSArray, NSError, NSIndexSet, NSInteger, NSNumber, NSObject, NSTimeInterval};
 use crate::{param::{AnyParameterMap, ParameterId, ParameterMap, Params, PlainValue}, platform::{audio_toolbox::{AUAudioFrameCount, AUAudioUnit, AUAudioUnitBusArray, AUAudioUnitBusType, AUAudioUnitStatus, AUAudioUnitViewConfiguration, AUInternalRenderBlock, AUInternalRenderRcBlock, AUParameter, AUParameterTree, AURenderEvent, AURenderEventType, AURenderPullInputBlock, AUValue, AudioComponentInstantiationOptions, AudioUnitRenderActionFlags}, av_foundation::AVAudioFormat}, AudioBuffer, Plugin, ProcessContext};
-use crate::platform::mac::core_audio::{AudioBufferList, AudioTimeStamp};
 
 use super::{buffers::BusBuffer, AudioComponentDescription};
 
@@ -24,10 +24,6 @@ struct Wrapper<P: Plugin> {
 	max_frames_to_render: usize,
 	rendering_offline: bool
 }
-
-unsafe impl<P: Plugin> RefEncode for Wrapper<P> {
-	const ENCODING_REF: Encoding = Encoding::Pointer(&Encoding::Struct("?", &[]));
-} 
 
 impl<P: Plugin + 'static> Wrapper<P> {
 	pub fn new(audio_unit: &AUAudioUnit) -> Self {
@@ -181,6 +177,10 @@ pub struct MyAudioUnit<P: Plugin + 'static> {
 struct IVars<P: Plugin> {
 	wrapper: AtomicRefCell<Wrapper<P>>
 }
+
+unsafe impl<P: Plugin> RefEncode for IVars<P> {
+	const ENCODING_REF: Encoding = Encoding::Pointer(&Encoding::Struct("?", &[]));
+} 
 
 const WRAPPER_IVAR_NAME: &'static CStr = c"wrapper";
 static mut IVAR_OFFSET: MaybeUninit<isize> = MaybeUninit::uninit();
@@ -354,11 +354,11 @@ impl<P: Plugin + 'static> MyAudioUnit<P> {
 	) -> Option<&mut Self> {
 		let this: Option<&mut Self> = unsafe { msg_send![self.as_super(), initWithComponentDescription: desc, options: options, error: out_error ] } ;
 		this.map(|this| {
-			let ivars = Box::new(IVars { wrapper: AtomicRefCell::new(Wrapper::new(this.as_super())) });
+			let ivars = Box::new(IVars { wrapper: RefCell::new(Wrapper::new(this.as_super())) });
             let ivar = Self::class().instance_variable(WRAPPER_IVAR_NAME).unwrap();
             unsafe {
 				let wrapper_ptr = Box::into_raw(ivars);
-                ivar.load_ptr::<*mut IVars<P>>(&mut this.superclass)
+                ivar.load_ptr::<*const IVars<P>>(&mut this.superclass)
 					.write(wrapper_ptr);
 				Wrapper::create_render_block(wrapper_ptr);
 				Wrapper::setup_parameter_tree(wrapper_ptr);

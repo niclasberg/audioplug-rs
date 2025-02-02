@@ -1,4 +1,4 @@
-use objc2::{extern_class, extern_methods, rc::{Allocated, Retained}, ClassType, Encode, Encoding, RefEncode};
+use objc2::{extern_class, extern_methods, rc::{Allocated, Retained}};
 use objc2_foundation::{NSArray, NSError, NSInteger, NSObject, NSUInteger};
 
 use crate::platform::mac::av_foundation::AVAudioFormat;
