@@ -106,14 +106,13 @@ impl AUAudioUnit {
 			componentDescription: AudioComponentDescription
 		) -> Result<Retained<Self>, Retained<NSError>>;
 
-		#[unsafe(method(initWithComponentDescription:options:error:))]
+		#[unsafe(method(initWithComponentDescription:options:error:_))]
 		#[allow(non_snake_case)]
 		pub fn initWithComponentDescription_options_error(
 			this: Allocated<Self>,
 			componentDescription: AudioComponentDescription, 
-			options: AudioComponentInstantiationOptions,
-			outError: *mut *mut NSError
-		) -> Retained<Self>;
+			options: AudioComponentInstantiationOptions
+		) -> Result<Retained<Self>, Retained<NSError>>;
 
 		// Querying Parameters
 		#[unsafe(method(parameterTree))]

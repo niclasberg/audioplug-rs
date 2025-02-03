@@ -45,7 +45,11 @@ impl BusBuffer {
 			samples: Box::new([]),
 			buffer_list: core_audio::AudioBufferList {
 				mNumberBuffers: 0,
-				mBuffers: std::ptr::null_mut(),
+				mBuffers: [core_audio::AudioBuffer {
+					mNumberChannels: todo!(),
+					mDataByteSize: todo!(),
+					mData: todo!(),
+				}]
 			},
 			bus,
 			buffers

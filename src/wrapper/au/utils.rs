@@ -1,8 +1,11 @@
+use std::rc::Rc;
+
+use block2::RcBlock;
 use objc2::rc::Retained;
 use objc2_foundation::{ns_string, NSArray, NSMutableArray, NSString};
 
-use crate::param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterMap, Params};
-use crate::platform::audio_toolbox::{AUParameterNode, AudioUnitParameterOptions, AudioUnitParameterUnit};
+use crate::param::{AnyParameter, AnyParameterGroup, AnyParameterMap, ParamVisitor, ParameterId, ParameterMap, Params, PlainValue};
+use crate::platform::audio_toolbox::{AUParameter, AUParameterNode, AUValue, AudioUnitParameterOptions, AudioUnitParameterUnit};
 use crate::platform::mac::audio_toolbox::AUParameterTree;
 
 struct CreateParametersVisitor {
@@ -93,9 +96,38 @@ impl ParamVisitor for CreateParametersVisitor {
 	}
 }
 
-pub fn create_parameter_tree<P: Params>(parameters: &ParameterMap<P>) -> Retained<AUParameterTree> {
+pub fn create_parameter_tree<P: Params>(parameters: Rc<ParameterMap<P>>) -> Retained<AUParameterTree> {
 	let mut visitor = CreateParametersVisitor::new();
 	parameters.parameters_ref().visit(&mut visitor);
-	AUParameterTree::createTreeWithChildren(&visitor.au_params)
+	let tree = AUParameterTree::createTreeWithChildren(&visitor.au_params);
+
+	let value_observer = {
+		let parameters = parameters.clone();
+		RcBlock::new(move |p: *mut AUParameter, value: AUValue| {
+			let p = unsafe { &*p};
+			let id = ParameterId(p.address() as _);
+			if let Some(param_ref) = parameters.get_by_id(id) {
+				param_ref.set_value_plain(PlainValue::new(value as _));
+			}
+		})
+	};
+	tree.setImplementorValueObserver(&value_observer);
+	let value_provider = {
+		let parameters = parameters.clone();
+		RcBlock::new(move |p: *mut AUParameter| -> AUValue {
+			let p = unsafe { &*p};
+			let id = ParameterId(p.address() as _);
+			parameters.get_by_id(id).map_or(0.0, |param| {
+				let value: f64 = param.plain_value().into();
+				value as _
+			})
+		})
+	};
+	tree.setImplementorValueProvider(&value_provider);
+
+	tree
 }
 
+pub fn setup_parameter_tree<P: Params>() {
+	
+}

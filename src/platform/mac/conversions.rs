@@ -1,6 +1,6 @@
-use objc2_core_foundation::{CFIndex, CFRetained, CFString, CFStringBuiltInEncodings, CFStringCreateWithBytes, CFStringEncoding, CGAffineTransform, CGPoint, CGRect, CGSize};
+use objc2_core_foundation::{CFIndex, CFRange, CFRetained, CFString, CFStringBuiltInEncodings, CFStringCreateWithBytes, CFStringEncoding, CGAffineTransform, CGPoint, CGRect, CGSize};
 use objc2_core_graphics::{CGColor, CGColorCreateSRGB};
-use crate::core::{Color, Point, Rectangle, Size, Transform};
+use crate::core::{Color, Point, Range, Rectangle, Size, Transform};
 
 impl Into<CGPoint> for Point {
     fn into(self) -> CGPoint {
@@ -63,4 +63,12 @@ pub fn cfstring_from_str(str: &str) -> CFRetained<CFString> {
 			CFStringBuiltInEncodings::EncodingUTF8.0, 
 			false)
 	}.unwrap()
+}
+
+pub fn cfrange_contains(cf_range: &CFRange, index: CFIndex) -> bool {
+	index >= cf_range.location && (index + cf_range.location) < cf_range.length
+}
+
+pub fn cfrange_as_range(cf_range: &CFRange) -> Range<isize> {
+	Range::new(cf_range.location, cf_range.location + cf_range.length)
 }

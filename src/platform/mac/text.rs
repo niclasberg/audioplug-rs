@@ -5,7 +5,7 @@ use objc2_core_graphics::{CGColor, CGPath, CGPathCreateWithRect, CGPathGetBoundi
 use objc2_core_text::{kCTFontAttributeName, kCTForegroundColorAttributeName, CTFont, CTFrame, CTFrameGetLineOrigins, CTFrameGetLines, CTFrameGetPath, CTFrameGetVisibleStringRange, CTFramesetter, CTFramesetterCreateFrame, CTFramesetterCreateWithAttributedString, CTFramesetterSuggestFrameSizeWithConstraints, CTLine, CTLineGetOffsetForStringIndex, CTLineGetStringIndexForPosition, CTLineGetStringRange};
 use crate::{text::FontWeight, core::{Color, Size, Point, Rectangle}};
 
-use super::conversions::{cfstring_from_str, cgcolor_from_color};
+use super::conversions::{cfrange_contains, cfstring_from_str, cgcolor_from_color};
 
 struct TextLine {
 	line: CFRetained<CTLine>,
@@ -112,6 +112,7 @@ fn get_lines_from_frame(frame: &CTFrame) -> Vec<TextLine> {
 	lines.into_iter().zip(origins.into_iter())
 		.map(|(line, origin)| TextLine::new(line, origin)).collect()
 }
+
 pub struct TextLayout{
     pub(super) attributed_string: CFRetained<CFMutableAttributedString>,
 	pub(super) frame_setter: CFRetained<CTFramesetter>,
@@ -189,7 +190,7 @@ impl TextLayout {
     pub fn point_at_text_index(&self, index: usize) -> Point {
 		let index = index as CFIndex;
 		self.text_frame.lines.iter()
-			.find(|line| line.char_range.contains(index))
+			.find(|line| cfrange_contains(&line.char_range, index))
 			.map(|line| {
 				let origin: Point = line.origin.into();
 				let line_index = index - line.char_range.location;
