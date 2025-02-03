@@ -1,4 +1,4 @@
-use taffy::{AvailableSpace, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree};
+use taffy::{AvailableSpace, CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree};
 use crate::{core::{Point, Size}, style::{DisplayStyle, LayoutStyle}};
 
 use super::{invalidate_window, WidgetFlags, AppState, WidgetId, WindowId};
@@ -126,6 +126,33 @@ impl<'a> LayoutFlexboxContainer for LayoutContext<'a> {
     }
 }
 
+impl<'a> CacheTree for LayoutContext<'a> {
+    fn cache_get(
+        &self,
+        node_id: taffy::NodeId,
+        known_dimensions: taffy::Size<Option<f32>>,
+        available_space: taffy::Size<AvailableSpace>,
+        run_mode: taffy::RunMode,
+    ) -> Option<taffy::LayoutOutput> {
+        self.app_state.widget_data[node_id.into()].cache.get(known_dimensions, available_space, run_mode)
+    }
+
+    fn cache_store(
+        &mut self,
+        node_id: taffy::NodeId,
+        known_dimensions: taffy::Size<Option<f32>>,
+        available_space: taffy::Size<AvailableSpace>,
+        run_mode: taffy::RunMode,
+        layout_output: taffy::LayoutOutput,
+    ) {
+        self.app_state.widget_data[node_id.into()].cache.store(known_dimensions, available_space, run_mode, layout_output)
+    }
+
+    fn cache_clear(&mut self, node_id: taffy::NodeId) {
+        self.app_state.widget_data[node_id.into()].cache.clear()
+    }
+}
+
 /*impl<'a> LayoutGridContainer for LayoutContext<'a> {
     type GridContainerStyle<'b> = LayoutStyle<'b> where Self: 'b;
     type GridItemStyle<'b> = LayoutStyle<'b> where Self: 'b;
@@ -141,7 +168,6 @@ impl<'a> LayoutFlexboxContainer for LayoutContext<'a> {
 
 impl<'a> LayoutPartialTree for LayoutContext<'a> {
     type CoreContainerStyle<'b> = LayoutStyle<'b> where Self : 'b;
-    type CacheMut<'b> = &'b mut taffy::Cache where Self : 'b;
     
     fn get_core_container_style(&self, node_id: taffy::NodeId) -> Self::CoreContainerStyle<'_> {
 		self.get_layout_style(node_id)
@@ -149,10 +175,6 @@ impl<'a> LayoutPartialTree for LayoutContext<'a> {
 
     fn set_unrounded_layout(&mut self, node_id: taffy::NodeId, layout: &taffy::Layout) {
         self.app_state.widget_data[node_id.into()].layout = *layout;
-    }
-
-    fn get_cache_mut(&mut self, node_id: taffy::NodeId) -> &mut taffy::Cache {
-        &mut self.app_state.widget_data[node_id.into()].cache
     }
 
     fn compute_child_layout(&mut self, node_id: taffy::NodeId, inputs: taffy::LayoutInput) -> taffy::LayoutOutput {

@@ -14,7 +14,7 @@ mod text;
 mod theme;
 pub mod style;
 pub mod util;
-pub mod view;
+pub mod views;
 pub mod wrapper;
 
 pub use app::App;

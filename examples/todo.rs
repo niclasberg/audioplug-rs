@@ -1,6 +1,6 @@
 use std::sync::atomic::AtomicUsize;
 
-use audioplug::{app::*, core::Color, style::Length, view::*, App};
+use audioplug::{app::*, core::Color, style::Length, views::*, App};
 
 struct Todos(pub Vec<Todo>);
 

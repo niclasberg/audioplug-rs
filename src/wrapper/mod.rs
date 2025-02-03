@@ -52,39 +52,30 @@ macro_rules! audioplug_auv3_plugin{
 }
 
 #[macro_export]
-#[cfg(target_os = "windows")]
 macro_rules! audioplug_vst3_plugin{
     ($plugin: ty) => {
+        #[cfg(target_os = "windows")]
         #[no_mangle]
         #[allow(non_snake_case)]
         pub extern "system" fn InitDll() -> bool {
             true
         }
         
+        #[cfg(target_os = "windows")]
         #[no_mangle]
         #[allow(non_snake_case)]
         pub extern "system" fn ExitDll() -> bool {
             true
         }
 
-        #[no_mangle]
-        #[allow(non_snake_case)]
-        pub unsafe extern "system" fn GetPluginFactory() -> *mut std::ffi::c_void {
-            Box::into_raw($crate::wrapper::vst3::Factory::<$plugin>::new()) as *mut std::ffi::c_void
-        }
-    };
-}
-
-#[macro_export]
-#[cfg(target_os = "macos")]
-macro_rules! audioplug_vst3_plugin{
-    ($plugin: ty) => {
+        #[cfg(target_os = "macos")]
         #[no_mangle]
         #[allow(non_snake_case)]
         pub extern "system" fn bundleEntry() -> bool {
             true
         }
 
+        #[cfg(target_os = "macos")]
         #[no_mangle]
         #[allow(non_snake_case)]
         pub extern "system" fn bundleExit() -> bool {

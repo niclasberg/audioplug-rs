@@ -79,7 +79,12 @@ impl AudioDevice {
 
     pub fn create_output_stream(&self) -> Result<Stream> {
         let audio_client = self.get_audio_client()?;
-        //audio_client.Initialize(sharemode, streamflags, hnsbufferduration, hnsperiodicity, pformat, audiosessionguid)
+
+        let stream_flags = Audio::AUDCLNT_STREAMFLAGS_EVENTCALLBACK | Audio::AUDCLNT_STREAMFLAGS_NOPERSIST;
+        let buffer_duration = 1000;
+        let format = unsafe { audio_client.GetMixFormat()}?;
+        unsafe { audio_client.Initialize(Audio::AUDCLNT_SHAREMODE_SHARED, stream_flags, buffer_duration, 0, format, None) }?;
+
         let sample_ready_event = unsafe { CreateEventExW(None, None, CREATE_EVENT_MANUAL_RESET, (EVENT_MODIFY_STATE | SYNCHRONIZATION_SYNCHRONIZE).0)? };
         unsafe { audio_client.SetEventHandle(sample_ready_event) }?;
         

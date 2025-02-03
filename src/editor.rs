@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{app::{AnyView, View}, core::Size, param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params}, style::{Length, UiRect}, view::{Flex, Label, ParameterSlider, ViewExt}};
+use crate::{app::{AnyView, View}, core::Size, param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params}, style::{Length, UiRect}, views::{Flex, Label, ParameterSlider, ViewExt}};
 
 pub trait Editor: 'static {
 	type Parameters: Params;
@@ -80,21 +80,6 @@ impl<P: Params> Editor for GenericEditor<P> {
     fn view(&self, parameters: &P) -> impl View + 'static {
 		let mut visitor = CreateParameterViewsVisitor::new();
 		parameters.visit(&mut visitor);
-		/*for param in parameters.visit() {
-			match param {
-				ParamRef::Float(p) => {
-					let view = Row::new((
-						Label::new(p.info().name()),
-						ParameterSlider::new(p).as_any(),
-					));
-					views.push(view.as_any());
-				},
-				ParamRef::Int(_) => todo!(),
-				ParamRef::StringList(_) => todo!(),
-				ParamRef::ByPass(_) => todo!(),
-				ParamRef::Bool(_) => todo!(),
-			}
-		}*/
         Flex::column(visitor.views).as_any_view()
     }
 }

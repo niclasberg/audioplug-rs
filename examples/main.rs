@@ -2,7 +2,7 @@ use std::path::Path;
 use audioplug::app::*;
 use audioplug::core::{Color, Size};
 use audioplug::style::Length;
-use audioplug::view::*;
+use audioplug::views::*;
 use audioplug::App;
 
 fn main() {

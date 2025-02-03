@@ -1,7 +1,7 @@
 use audioplug::core::{Color, Size};
 use audioplug::param::{BoolParameter, FloatParameter, FloatRange, Parameter, ParameterId, Params};
 use audioplug::style::UiRect;
-use audioplug::view::*;
+use audioplug::views::*;
 use audioplug::app::*;
 use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, params, AudioLayout, Bus, ChannelType, Editor, Plugin, ProcessContext, VST3Plugin};
 

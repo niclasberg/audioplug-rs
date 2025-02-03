@@ -429,6 +429,7 @@ impl Widget for TextBoxWidget {
             },
             MouseEvent::Up { button, .. } if button == MouseButton::LEFT => {
                 self.is_mouse_selecting = false;
+                ctx.release_capture();;
                 EventStatus::Handled
             },
             MouseEvent::Moved { position } => {

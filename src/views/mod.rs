@@ -8,7 +8,7 @@ mod filled;
 mod image;
 mod key_down;
 mod linear_layout;
-//mod scroll;
+mod scroll;
 mod scoped;
 mod slider;
 mod styled;

@@ -1,4 +1,4 @@
-use audioplug::{app::*, core::{Color, Size}, keyboard::Key, style::{Length, UiRect}, view::*, App};
+use audioplug::{app::*, core::{Color, Size}, keyboard::Key, style::{Length, UiRect}, views::*, App};
 
 fn main() {
     let mut app = App::new();
