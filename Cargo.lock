@@ -34,6 +34,8 @@ dependencies = [
  "num",
  "objc2",
  "objc2-app-kit",
+ "objc2-audio-toolbox",
+ "objc2-avf-audio",
  "objc2-core-audio",
  "objc2-core-audio-types",
  "objc2-core-foundation",
@@ -223,6 +225,36 @@ dependencies = [
  "objc2-core-image",
  "objc2-foundation",
  "objc2-quartz-core",
+]
+
+[[package]]
+name = "objc2-audio-toolbox"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6c2736f2e27584ca5c75640186542e772ce550a3c5182fc358526dea242c068"
+dependencies = [
+ "bitflags",
+ "block2",
+ "libc",
+ "objc2",
+ "objc2-core-audio",
+ "objc2-core-audio-types",
+ "objc2-core-foundation",
+ "objc2-foundation",
+]
+
+[[package]]
+name = "objc2-avf-audio"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2fe5d8f6b9904a2028e9168bbdc77d06f944a39a0aef7076857db09f1298c9a"
+dependencies = [
+ "bitflags",
+ "block2",
+ "objc2",
+ "objc2-audio-toolbox",
+ "objc2-core-audio-types",
+ "objc2-foundation",
 ]
 
 [[package]]

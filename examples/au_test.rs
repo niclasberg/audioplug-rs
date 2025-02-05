@@ -32,12 +32,11 @@ impl Plugin for TestPlugin {
 
 #[cfg(target_os = "macos")]
 fn main() {
-    use audioplug::platform::audio_toolbox::{AudioComponentFlags, AudioComponentInstantiationOptions};
-	use audioplug::platform::av_foundation::AVAudioUnit;
-	use audioplug::platform::audio_toolbox::{AUAudioUnit, AudioComponentDescription};
 	use audioplug::wrapper::au::MyAudioUnit;
 	use block2::StackBlock;
 	use objc2::msg_send;
+	use objc2_audio_toolbox::{AUAudioUnit, AudioComponentDescription, AudioComponentInstantiationOptions};
+	use objc2_avf_audio::AVAudioUnit;
 	use objc2_foundation::NSError;
 
 	const fn four_cc(str: &[u8; 4]) -> u32 {
@@ -48,28 +47,28 @@ fn main() {
 	}
 
 	let desc: AudioComponentDescription = AudioComponentDescription {
-		component_type: four_cc(b"aufx"),
-		component_sub_type: four_cc(b"demo"),
-		manufacturer: four_cc(b"Nibe"),
-		flags: AudioComponentFlags(0),
-		flags_mask: 0,
+		componentType: four_cc(b"aufx"),
+		componentSubType: four_cc(b"demo"),
+		componentManufacturer: four_cc(b"Nibe"),
+		componentFlags: 0,
+		componentFlagsMask: 0,
 	};
 
 	// let view_controller: ViewController<TestPlugin> = ViewController::new();
 	// view_controller.create_audio_unit(desc, error)
 	
-	let audio_unit = MyAudioUnit::<TestPlugin>::try_with_component_descriptor(desc).unwrap();	
-	let input_busses = audio_unit.input_busses();
-	let output_busses = audio_unit.output_busses();
+	let audio_unit = MyAudioUnit::new_with_component_descriptor_error(TestPlugin::new(), desc, std::ptr::null_mut()).unwrap();	
+	let input_busses = unsafe { audio_unit.inputBusses() };
+	let output_busses = unsafe { audio_unit.outputBusses() };
 
-	let aa = input_busses.count();
-	let bb = unsafe { audio_unit.allocate_render_resources() };
+	let aa = unsafe { input_busses.count() };
+	let bb = unsafe { audio_unit.allocateRenderResourcesAndReturnError() }.unwrap();
 
 	//AUAudioUnit::registerSubclass(MyAudioUnit::<TestPlugin>::class(), desc, ns_string!("RUST: TEST"), 0);
 
-	let view_controller_block = StackBlock::new(|view_controller| {
+	/*let view_controller_block = StackBlock::new(|view_controller| {
 		IS_DONE.store(true, std::sync::atomic::Ordering::Release);
-	});
+	});*/
 
 	let block = StackBlock::new(move |unit, error: *mut NSError| {
 		if let Some(error) = unsafe { error.as_mut() } {
@@ -80,15 +79,15 @@ fn main() {
 			let audio_unit: Option<&AUAudioUnit> = unsafe { msg_send![unit, AUAudioUnit] };
 			let provides_user_interface = unsafe { audio_unit.unwrap().providesUserInterface() };
 
-			unsafe {
+			/*unsafe {
 				audio_unit.unwrap().requestViewControllerWithCompletionHandler(&view_controller_block)
-			};
+			};*/
 		}
 	});
-	AVAudioUnit::instantiateWithComponentDescription_options_completionHandler(
+	unsafe { AVAudioUnit::instantiateWithComponentDescription_options_completionHandler(
 		desc, 
 		AudioComponentInstantiationOptions::LoadOutOfProcess, 
-		&block);
+		&block) };
 
 	while !IS_DONE.load(std::sync::atomic::Ordering::Acquire) {
 

@@ -107,3 +107,15 @@ objc2-core-audio = { version = "0.3.0", features = []}
 objc2-core-audio-types = { version = "0.3.0", features = [
 	"CoreAudioBaseTypes"
 ]}
+objc2-audio-toolbox = { version = "0.3.0", features = [
+	"AUAudioUnit",
+	"AUComponent",
+	"AUParameters",
+	"AudioUnitProperties",
+	"block2",
+	"objc2-core-audio-types"
+]}
+objc2-avf-audio = { version = "0.3.0", features = [
+	"AVAudioFormat",
+	"AVAudioTypes"
+]}

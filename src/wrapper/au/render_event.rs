@@ -1,11 +1,5 @@
 use objc2::{Encode, Encoding, RefEncode};
-
-use super::cf_enum;
-
-type AUEventSampleTime = i64;
-type AUParameterAddress = u64;
-type AUValue = f32;
-type AUAudioFrameCount = u32;
+use objc2_audio_toolbox::{AUAudioFrameCount, AUEventSampleTime, AUParameterAddress, AURenderEventType, AUValue};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -24,17 +18,6 @@ pub struct AURenderEventHeader {
 unsafe impl Encode for AURenderEventHeader {
     const ENCODING: Encoding = Encoding::Struct("AURenderEventHeader", &[]);
 }
-
-cf_enum!(
-	#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-	pub enum AURenderEventType: u8 {
-		Parameter		= 1,
-		ParameterRamp	= 2,
-		MIDI			= 8,
-		MIDISysEx		= 9,
-		MIDIEventList  = 10
-	}
-);
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]

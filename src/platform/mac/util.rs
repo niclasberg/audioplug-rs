@@ -7,6 +7,10 @@ pub const fn four_cc(str: &[u8; 4]) -> i32 {
 	) as i32
 }
 
+pub const fn range_contains(range: &CFRange, index: CFIndex) -> bool {
+	index >= range.location && ((index - range.location) < range.length)
+}
+
 macro_rules! cf_enum {
 	{
 		$( #[$attr:meta] )*
@@ -38,3 +42,4 @@ macro_rules! cf_enum {
 }
 
 pub(super) use cf_enum;
+use objc2_core_foundation::{CFIndex, CFRange};

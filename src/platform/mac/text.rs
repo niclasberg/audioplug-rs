@@ -7,7 +7,7 @@ use crate::{text::FontWeight, core::{Color, Size, Point, Rectangle}};
 
 use super::conversions::{cfrange_contains, cfstring_from_str, cgcolor_from_color};
 
-struct TextLine {
+pub struct TextLine {
 	line: CFRetained<CTLine>,
 	origin: CGPoint,
 	char_range: CFRange
@@ -32,7 +32,7 @@ impl TextLine {
 	}
 }
 
-struct TextFrame {
+pub struct TextFrame {
 	frame: CFRetained<CTFrame>,
 	lines: Vec<TextLine>
 }

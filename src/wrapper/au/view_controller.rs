@@ -3,10 +3,10 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 use block2::RcBlock;
 use objc2::rc::Retained;
 use objc2_app_kit::NSView;
+use objc2_audio_toolbox::{AUAudioUnit, AUParameterAddress, AUParameterAutomationEventType, AUParameterObserverToken, AUParameterTree, AUValue, AudioComponentDescription};
 use objc2_core_foundation::CGSize;
 use objc2_foundation::{MainThreadMarker, NSError};
-use crate::{app::{AppState, HostHandle, MyHandler}, param::{NormalizedValue, ParameterId, ParameterInfo, ParameterMap, PlainValue, Params}, platform::{self, audio_toolbox::{AUParameterAddress, AUParameterAutomationEventType, AUParameterObserverToken, AUParameterTree, AUValue}, dispatch::create_block_dispatching_to_main2, view::View}, Editor, Plugin};
-use crate::platform::mac::audio_toolbox::{AUAudioUnit, AudioComponentDescription};
+use crate::{app::{AppState, HostHandle, MyHandler}, param::{NormalizedValue, ParameterId, ParameterInfo, ParameterMap, Params, PlainValue}, platform::{mac::dispatch::create_block_dispatching_to_main2, view::View}, Editor, Plugin};
 use super::MyAudioUnit;
 
 struct AUV3HostHandle {
@@ -16,23 +16,27 @@ struct AUV3HostHandle {
 
 impl HostHandle for AUV3HostHandle {
 	fn begin_edit(&self, id: ParameterId) {
-		if let Some(parameter) = self.parameter_tree.parameterWithAddress(id.into()) {
-			let value = parameter.value();
-			parameter.setValue_orginator_atHostTime_eventType(value, self.observer_token, 0, AUParameterAutomationEventType::Touch);
+		if let Some(parameter) = unsafe { self.parameter_tree.parameterWithAddress(id.into()) } {
+			unsafe {
+				let value = parameter.value();
+				parameter.setValue_originator_atHostTime_eventType(value, self.observer_token, 0, AUParameterAutomationEventType::Touch);
+			}
 		}
 	}
 
 	fn end_edit(&self, id: ParameterId) {
-		if let Some(parameter) = self.parameter_tree.parameterWithAddress(id.into()) {
-			let value = parameter.value();
-			parameter.setValue_orginator_atHostTime_eventType(value, self.observer_token, 0, AUParameterAutomationEventType::Release);
+		if let Some(parameter) = unsafe { self.parameter_tree.parameterWithAddress(id.into()) } {
+			unsafe {
+				let value = parameter.value();
+				parameter.setValue_originator_atHostTime_eventType(value, self.observer_token, 0, AUParameterAutomationEventType::Release);
+			}
 		}
 	}
 
 	fn perform_edit(&self, info: &dyn ParameterInfo, value: NormalizedValue) {
-		if let Some(parameter) = self.parameter_tree.parameterWithAddress(info.id().into()) {
+		if let Some(parameter) = unsafe { self.parameter_tree.parameterWithAddress(info.id().into()) } {
 			let plain_value = info.denormalize(value);
-			parameter.setValue_orginator(Into::<f64>::into(plain_value) as _, self.observer_token)
+			unsafe { parameter.setValue_originator(Into::<f64>::into(plain_value) as _, self.observer_token) }
 		}
 	}
 }
@@ -75,13 +79,15 @@ impl<P: Plugin + 'static> ViewController<P> {
 	}
 
 	pub fn create_audio_unit(&mut self, desc: AudioComponentDescription, error: *mut *mut NSError) -> *mut AUAudioUnit {
-		let audio_unit = MyAudioUnit::<P>::new_with_component_descriptor_error(desc, error);
+		let plugin = P::new();
+		let Some(audio_unit) = MyAudioUnit::new_with_component_descriptor_error(plugin, desc, error) else { return std::ptr::null_mut() };
 
 		{
-			let param_token = audio_unit.parameter_tree().tokenByAddingParameterObserver(&self.parameter_observer);
+			let parameter_tree = unsafe { audio_unit.parameterTree() }.unwrap();
+			let param_token = unsafe { parameter_tree.tokenByAddingParameterObserver(RcBlock::as_ptr(&self.parameter_observer)) };
 			let handle = AUV3HostHandle {
 				observer_token: param_token,
-				parameter_tree: audio_unit.parameter_tree().clone()
+				parameter_tree: parameter_tree.clone()
 			};
 			let mut app_state = self.app_state.borrow_mut();
 			app_state.set_host_handle(Some(Box::new(handle)));
