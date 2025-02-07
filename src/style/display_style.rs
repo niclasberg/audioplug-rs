@@ -1,3 +1,5 @@
+use std::{borrow::Borrow, ops::Deref};
+
 use taffy::{FlexDirection, FlexWrap};
 
 use super::{Length, Style};
@@ -20,6 +22,24 @@ pub enum DisplayStyle<'a> {
     Flex(&'a FlexStyle),
 	Grid(&'a GridStyle),
     Leaf(&'a dyn Measure),
+}
+
+pub enum OwnedDisplayStyle {
+	Block,
+    Flex(FlexStyle),
+	Grid(GridStyle),
+    Leaf(Box<dyn Measure>),
+}
+
+impl OwnedDisplayStyle {
+	pub fn as_ref(&self) -> DisplayStyle {
+		match self {
+			OwnedDisplayStyle::Block => DisplayStyle::Block,
+			OwnedDisplayStyle::Flex(flex_style) => DisplayStyle::Flex(flex_style),
+			OwnedDisplayStyle::Grid(grid_style) => DisplayStyle::Grid(grid_style),
+			OwnedDisplayStyle::Leaf(measure) => DisplayStyle::Leaf(measure.deref()),
+		}
+	}
 }
 
 #[derive(Debug, Copy, Clone)]

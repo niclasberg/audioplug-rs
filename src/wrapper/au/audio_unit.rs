@@ -7,7 +7,7 @@ use block2::{Block, RcBlock};
 use objc2::{define_class, extern_class, extern_methods, msg_send, rc::Retained, runtime::Bool, AllocAnyThread, DeclaredClass};
 use objc2_audio_toolbox::{AUAudioFrameCount, AUAudioUnit, AUAudioUnitBusArray, AUAudioUnitBusType, AUAudioUnitStatus, AUParameterTree, AURenderEventType, AURenderPullInputBlock, AudioComponentDescription, AudioUnitRenderActionFlags};
 use objc2_avf_audio::AVAudioFormat;
-use objc2_core_audio_types::{AudioBufferList, AudioTimeStamp};
+use objc2_core_audio_types::{AudioBufferList, AudioTimeStamp, AudioTimeStampFlags, SMPTETime};
 use objc2_core_foundation::CGFloat;
 use objc2_foundation::{NSArray, NSError, NSIndexSet, NSInteger, NSNumber, NSObject, NSTimeInterval};
 
@@ -57,10 +57,24 @@ struct Wrapper<P: Plugin> {
     parameters: Rc<ParameterMap<P::Parameters>>,
 	input_buffer: BusBuffer,
 	output_buffer: BusBuffer,
-	rendering_offline: bool
+	rendering_offline: bool,
+	sample_rate: f64,
+	last_sample_time: f64
 }
 
 impl<P: Plugin> Wrapper<P> {
+	fn new(plugin: P, parameters: Rc<ParameterMap<P::Parameters>>, input_buffer: BusBuffer, output_buffer: BusBuffer) -> Self {
+		Self {
+			plugin,
+			parameters, 
+			input_buffer,
+			output_buffer,
+			rendering_offline: false,
+			sample_rate: DEFAULT_SAMPLE_RATE,
+			last_sample_time: f64::MAX
+		}
+	}
+
 	fn process_events(&mut self, realtime_event_list_head: *const AURenderEvent) {
 		let mut event_list = realtime_event_list_head;
 		while !event_list.is_null() {
@@ -91,31 +105,44 @@ impl<P: Plugin> Wrapper<P> {
 impl<P: Plugin> AnyWrapper for Wrapper<P> {
 	fn render(&mut self, 
 		_action_flags: NonNull<AudioUnitRenderActionFlags>, 
-		_timestamp: NonNull<AudioTimeStamp>, 
+		timestamp: NonNull<AudioTimeStamp>, 
 		_frame_count: AUAudioFrameCount, 
 		_output_bus_number: NSInteger, 
 		_output_data: *mut AudioBufferList, 
 		realtime_event_list_head: *const AURenderEvent, 
 		_pull_input_block: AURenderPullInputBlock
 	) -> AUAudioUnitStatus {
-		self.process_events(realtime_event_list_head);
+		// This method gets called once for each bus, we just want to render all busses at the same time,
+		// so check the sample time.
+		let sample_time = unsafe { timestamp.as_ref() }.mSampleTime;
+		if (sample_time - self.last_sample_time).abs() > 1.0e-6 {
+			self.process_events(realtime_event_list_head);
 
-		let input = AudioBuffer::empty();
-        let mut output = AudioBuffer::empty();
+			let input = AudioBuffer::empty();
+			let mut output = AudioBuffer::empty();
 
-        let context = ProcessContext {
-            input: &input,
-            output: &mut output,
-			rendering_offline: self.rendering_offline
-        };
+			//self.input_buffer.pull_inputs(action_flags, timestamp, frame_count, input_bus_number, pull_input_block)
 
-        self.plugin.process(context, self.parameters.parameters_ref());	
+			let context = ProcessContext {
+				input: &input,
+				output: &mut output,
+				rendering_offline: self.rendering_offline
+			};
+
+			self.plugin.process(context, self.parameters.parameters_ref());	
+		}
 		0
 	}
 
 	fn allocate_render_resources(&mut self, max_frames_to_render: usize) {
+		self.sample_rate = self.input_buffer.sample_rate()
+			.or_else(|| self.output_buffer.sample_rate())
+			.unwrap_or(DEFAULT_SAMPLE_RATE);
+
 		self.input_buffer.allocate(max_frames_to_render);
 		self.output_buffer.allocate(max_frames_to_render);
+
+		self.plugin.prepare(self.sample_rate, max_frames_to_render);
 	}
 
 	fn deallocate_render_resources(&mut self) {
@@ -124,7 +151,7 @@ impl<P: Plugin> AnyWrapper for Wrapper<P> {
 	}
 
 	fn latency(&self) -> NSTimeInterval {
-		self.plugin.latency_samples() as f64 / DEFAULT_SAMPLE_RATE
+		self.plugin.latency_samples() as f64 / self.sample_rate
 	}
 
 	fn tail_time(&self) -> NSTimeInterval {
@@ -228,14 +255,7 @@ impl MyAudioUnit {
 		let input_bus_array = NSArray::from_retained_slice(input_buffer.buses());
 		let output_bus_array = NSArray::from_retained_slice(output_buffer.buses());
 
-		let wrapper = Wrapper {
-			plugin,
-			parameters,
-			input_buffer,
-			output_buffer,
-			rendering_offline: false,
-		};
-
+		let wrapper = Wrapper::new(plugin, parameters, input_buffer, output_buffer);
 		let channel_capabilities = NSArray::from_retained_slice(&[
 			NSNumber::new_i16(2), 
 			NSNumber::new_i16(2)]
