@@ -1,15 +1,13 @@
 mod display_style;
 mod layout_style;
 mod length;
-mod style_builder;
 mod ui_rect;
 
 use crate::core::{Color, Cursor, Size};
 pub use display_style::{DisplayStyle, FlexStyle, GridStyle, Measure};
 pub(crate) use layout_style::LayoutStyle;
 pub use length::Length;
-pub use style_builder::StyleBuilder;
-pub use taffy::{FlexDirection, FlexWrap, Overflow};
+pub use taffy::{FlexDirection, FlexWrap, Overflow, AlignContent, AlignItems, AlignSelf, JustifyContent, JustifySelf};
 pub use ui_rect::UiRect;
 
 pub(super) trait ResolveInto<T> {
@@ -43,6 +41,8 @@ pub struct Style {
     pub corner_radius: Size,
 	pub cursor: Option<Cursor>,
     pub border_color: Option<Color>,
+	pub align_self: Option<AlignSelf>,
+	pub justify_self: Option<JustifySelf>
 }
 
 impl Default for Style {
@@ -63,7 +63,9 @@ impl Default for Style {
             background: None,
             corner_radius: Size::ZERO,
 			cursor: None,
-            border_color: None
+            border_color: None,
+			align_self: None,
+			justify_self: None
         }
     }
 }

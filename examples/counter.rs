@@ -1,4 +1,4 @@
-use audioplug::{app::*, core::{Color, Size}, keyboard::Key, style::{Length, UiRect}, views::*, App};
+use audioplug::{app::*, core::{Color, Size}, keyboard::Key, style::{Length, UiRect, JustifySelf, AlignSelf}, views::*, App};
 
 fn main() {
     let mut app = App::new();
@@ -31,6 +31,7 @@ fn main() {
 				.min_width(Length::Px(200.0))
 				.padding(UiRect::all_px(15.0))
 				.corner_radius(Size::new(10.0, 10.0))
+				.align_self(AlignSelf::Center)
 				.background(count.map(|cnt| 
 					if *cnt >= 0 {
 						Color::from_rgb(0.8, 0.8, 0.8)
@@ -38,9 +39,11 @@ fn main() {
 						Color::RED
 					}))
 			)
-		).style(|style| style
+		)
+		.style(|style| style
 			.height(Length::Vh(100.0))
-			.width(Length::Vw(100.0)))
+			.width(Length::Vw(100.0))
+			.border(Length::Px(2.0), Color::RED))
 		.on_key_event(move |cx, event| {
 			match event {
 				audioplug::KeyEvent::KeyDown { key, .. } => match key {

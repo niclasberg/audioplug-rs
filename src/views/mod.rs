@@ -29,7 +29,7 @@ pub use styled::*;
 pub use textbox::TextBox;
 pub use xy_pad::XyPad;
 
-use crate::{app::{EventStatus, View, WriteContext}, style::StyleBuilder, KeyEvent};
+use crate::{app::{EventStatus, View, WriteContext}, KeyEvent};
 
 pub trait ViewExt {
 	fn style(self, f: impl FnOnce(StyleBuilder) -> StyleBuilder) -> Styled<Self> where Self: Sized;

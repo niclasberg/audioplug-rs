@@ -1,26 +1,16 @@
-use taffy::{AlignContent, AlignItems, FlexDirection, FlexWrap};
-
-use crate::{app::{Accessor, BuildContext, Memo, ViewSequence, Widget}, style::{DisplayStyle, FlexStyle, GridStyle, Length}};
+use crate::{app::{Accessor, BuildContext, Memo, ViewSequence, Widget}, style::{DisplayStyle, FlexStyle, GridStyle, Length, FlexWrap, AlignItems, FlexDirection, JustifyContent}};
 
 use super::View;
 
 pub type Row<VS> = FlexContainer<VS, true>;
 pub type Column<VS> = FlexContainer<VS, false>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Align {
-	Start, 
-	End,
-	Center,
-	Stretch
-}
-
 pub struct FlexContainer<VS, const IS_ROW: bool> {
     view_seq: VS,
     spacing: Accessor<Length>,
     wrap: Accessor<FlexWrap>,
-	align_items: Accessor<Option<AlignItems>>,
-	align_content: Accessor<Option<AlignContent>>
+	align_items: Option<Accessor<AlignItems>>,
+	justify_content: Option<Accessor<JustifyContent>>
 }
 
 impl<VS: ViewSequence, const IS_ROW: bool> FlexContainer<VS, IS_ROW> {
@@ -29,8 +19,8 @@ impl<VS: ViewSequence, const IS_ROW: bool> FlexContainer<VS, IS_ROW> {
             view_seq,
             spacing: Accessor::Const(Length::ZERO),
             wrap: Accessor::Const(Default::default()),
-			align_items: Accessor::Const(None),
-			align_content: Accessor::Const(None),
+			align_items: None,
+			justify_content: None,
         }
     }
 
@@ -38,6 +28,58 @@ impl<VS: ViewSequence, const IS_ROW: bool> FlexContainer<VS, IS_ROW> {
         self.spacing = value.into();
         self
     }
+}
+
+impl<VS> Row<VS> {
+	pub fn v_align(mut self, value: impl Into<Accessor<taffy::JustifyContent>>) -> Self {
+		self.justify_content = Some(value.into());
+		self
+	}
+
+	pub fn h_align(mut self, value: impl Into<Accessor<taffy::AlignItems>>) -> Self {
+		self.align_items = Some(value.into());
+		self
+	}
+
+	pub fn v_align_top(self) -> Self {
+		self.v_align(taffy::JustifyContent::Start)
+	}
+
+	pub fn v_align_center(self) -> Self {
+		self.v_align(taffy::JustifyContent::Center)
+	}
+
+	pub fn v_align_bottom(self) -> Self {
+		self.v_align(taffy::JustifyContent::End)
+	}
+
+	pub fn v_align_space_around(self) -> Self {
+		self.v_align(taffy::JustifyContent::SpaceAround)
+	}
+
+	pub fn v_align_space_between(self) -> Self {
+		self.v_align(taffy::JustifyContent::SpaceBetween)
+	}
+
+	pub fn v_align_space_evenly(self) -> Self {
+		self.v_align(taffy::JustifyContent::SpaceEvenly)
+	}
+
+	pub fn h_align_center(self) -> Self {
+		self.h_align(taffy::AlignItems::Center)
+	}
+}
+
+impl<VS> Column<VS> {
+	pub fn v_align(mut self, value: impl Into<Accessor<taffy::AlignItems>>) -> Self {
+		self.align_items = Some(value.into());
+		self
+	}
+
+	pub fn h_align(mut self, value: impl Into<Accessor<taffy::AlignContent>>) -> Self {
+		self.justify_content = Some(value.into());
+		self
+	}
 }
 
 impl<VS: ViewSequence, const IS_ROW: bool> View for FlexContainer<VS, IS_ROW> {
@@ -51,8 +93,8 @@ impl<VS: ViewSequence, const IS_ROW: bool> View for FlexContainer<VS, IS_ROW> {
 					direction: if IS_ROW { FlexDirection::Row } else { FlexDirection::Column }, 
 					wrap: self.wrap.get(cx), 
 					gap: self.spacing.get(cx),
-					align_items: self.align_items.get(cx),
-					align_content: self.align_content.get(cx),
+					align_items: self.align_items.as_ref().map(|x| x.get(cx)),
+					align_content: self.justify_content.as_ref().map(|x| x.get(cx)),
 				})
 			}).into(),
 		}.build(cx)

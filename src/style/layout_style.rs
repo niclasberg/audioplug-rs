@@ -132,8 +132,7 @@ impl<'a> taffy::FlexboxItemStyle for LayoutStyle<'a> {
 	}
 
 	fn align_self(&self) -> Option<taffy::AlignSelf> {
-		//Some(taffy::AlignSelf::Center)
-		taffy::Style::DEFAULT.align_self
+		self.style.align_self
 	}
 }
 
