@@ -100,11 +100,17 @@ impl<'a> taffy::FlexboxContainerStyle for LayoutStyle<'a> {
 	}
 
 	fn align_content(&self) -> Option<taffy::AlignContent> {
-		taffy::Style::DEFAULT.align_content
+		match &self.display_style {
+			DisplayStyle::Flex(flex) => flex.align_content,
+			_ => taffy::Style::DEFAULT.align_content,
+		}
 	}
 
 	fn align_items(&self) -> Option<taffy::AlignItems> {
-		taffy::Style::DEFAULT.align_items
+		match &self.display_style {
+			DisplayStyle::Flex(flex) => flex.align_items,
+			_ => taffy::Style::DEFAULT.align_items,
+		}
 	}
 
 	fn justify_content(&self) -> Option<taffy::JustifyContent> {
@@ -143,21 +149,22 @@ impl<'a> taffy::BlockItemStyle for LayoutStyle<'a> {
 	}
 }
 
-/*impl<'a> taffy::GridContainerStyle for LayoutStyle<'a> {
-	type TemplateTrackList<'a>
-	where
-		Self: 'a;
+impl<'a> taffy::GridContainerStyle for LayoutStyle<'a> {
+	type TemplateTrackList<'b> = &'b [taffy::TrackSizingFunction] where Self: 'b;
+	type AutoTrackList<'b> = &'b [taffy::NonRepeatedTrackSizingFunction] where Self: 'b;
 
-	type AutoTrackList<'a>
-	where
-		Self: 'a;
-
-	fn grid_template_rows(&self) -> Self::TemplateTrackList<'_> {
-		todo!()
+	fn grid_template_rows(&self) -> &[taffy::TrackSizingFunction] {
+		match self.display_style {
+			DisplayStyle::Grid(grid_style) => &grid_style.row_templates,
+			_ => &[],
+		}
 	}
 
 	fn grid_template_columns(&self) -> Self::TemplateTrackList<'_> {
-		todo!()
+		match self.display_style {
+			DisplayStyle::Grid(grid_style) => &grid_style.column_templates,
+			_ => &[],
+		}
 	}
 
 	fn grid_auto_rows(&self) -> Self::AutoTrackList<'_> {
@@ -167,4 +174,4 @@ impl<'a> taffy::BlockItemStyle for LayoutStyle<'a> {
 	fn grid_auto_columns(&self) -> Self::AutoTrackList<'_> {
 		todo!()
 	}
-}*/
+}

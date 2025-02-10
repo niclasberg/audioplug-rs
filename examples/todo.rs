@@ -27,7 +27,7 @@ impl Todo {
 }
 
 fn todo_view(todo: Todo) -> impl View {
-	Flex::row((
+	Row::new((
 		Label::new(todo.name),
 		Button::new(Label::new("Remove"))
 	))
@@ -44,7 +44,7 @@ fn main() {
 		});
 		let text_input = Signal::new(cx, "".to_string());
 		Container::new( 
-			Flex::column((
+			Column::new((
 				Label::new("TODO app"),
 				TextBox::new()
 					.on_input(move |cx, value| text_input.set(cx, value.to_string())),

@@ -30,7 +30,7 @@ impl<V: View> View for Scroll<V> {
         let widget = cx.build(self.child);
 
         cx.update_style(|s| {
-            s.overflow_x = Overflow::Scroll;
+            s.overflow_x = Overflow::Scroll; 
         });
 
         ScrollWidget {

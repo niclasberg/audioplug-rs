@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, ops::Deref};
 
-use taffy::{FlexDirection, FlexWrap};
+use taffy::{AlignContent, AlignItems, FlexDirection, FlexWrap};
 
 use super::{Length, Style};
 use crate::core::Size;
@@ -24,29 +24,13 @@ pub enum DisplayStyle<'a> {
     Leaf(&'a dyn Measure),
 }
 
-pub enum OwnedDisplayStyle {
-	Block,
-    Flex(FlexStyle),
-	Grid(GridStyle),
-    Leaf(Box<dyn Measure>),
-}
-
-impl OwnedDisplayStyle {
-	pub fn as_ref(&self) -> DisplayStyle {
-		match self {
-			OwnedDisplayStyle::Block => DisplayStyle::Block,
-			OwnedDisplayStyle::Flex(flex_style) => DisplayStyle::Flex(flex_style),
-			OwnedDisplayStyle::Grid(grid_style) => DisplayStyle::Grid(grid_style),
-			OwnedDisplayStyle::Leaf(measure) => DisplayStyle::Leaf(measure.deref()),
-		}
-	}
-}
-
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct FlexStyle {
     pub direction: FlexDirection,
     pub wrap: FlexWrap,
     pub gap: Length,
+    pub align_items: Option<AlignItems>,
+    pub align_content: Option<AlignContent>,
 }
 
 impl FlexStyle {
@@ -54,6 +38,8 @@ impl FlexStyle {
         direction: FlexDirection::Row,
         wrap: FlexWrap::NoWrap,
         gap: Length::ZERO,
+        align_items: None,
+        align_content: None
     };
 }
 
@@ -63,7 +49,8 @@ impl Default for FlexStyle {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GridStyle {
-
+    pub column_templates: Vec<taffy::TrackSizingFunction>,
+    pub row_templates: Vec<taffy::TrackSizingFunction>,
 }

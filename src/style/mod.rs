@@ -5,7 +5,7 @@ mod style_builder;
 mod ui_rect;
 
 use crate::core::{Color, Cursor, Size};
-pub use display_style::{DisplayStyle, FlexStyle, Measure};
+pub use display_style::{DisplayStyle, FlexStyle, GridStyle, Measure};
 pub(crate) use layout_style::LayoutStyle;
 pub use length::Length;
 pub use style_builder::StyleBuilder;

@@ -1,12 +1,12 @@
 use std::marker::PhantomData;
 
-use crate::{app::{AnyView, View}, core::Size, param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params}, style::{Length, UiRect}, views::{Flex, Label, ParameterSlider, ViewExt}};
+use crate::{app::{AnyView, View}, core::Size, param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params}, style::{Length, UiRect}, views::{Column, Container, Label, ParameterSlider, Row, ViewExt}};
 
 pub trait Editor: 'static {
 	type Parameters: Params;
 
 	fn new() -> Self;
-    fn view(&self, parameters: &Self::Parameters) -> impl View + 'static;
+    fn view(&self, parameters: &Self::Parameters) -> impl View;
 	fn min_size(&self) -> Option<Size> { None }
 	fn max_size(&self) -> Option<Size> { None }
 	fn prefered_size(&self) -> Option<Size> { None }
@@ -34,15 +34,15 @@ impl ParamVisitor for CreateParameterViewsVisitor {
 	}
 
 	fn float_parameter(&mut self, p: &crate::param::FloatParameter) {
-		let view = Flex::row((
+		let view = Row::new((
 			Label::new(p.info().name()),
-			ParameterSlider::new(p).as_any_view(),
+			ParameterSlider::new(p),
 		));
 		self.views.push(view.as_any_view());
 	}
 
 	fn int_parameter(&mut self, p: &crate::param::IntParameter) {
-		let view = Flex::row((
+		let view = Row::new((
 			Label::new(p.info().name()),
 			ParameterSlider::new(p).as_any_view(),
 		));
@@ -57,9 +57,9 @@ impl ParamVisitor for CreateParameterViewsVisitor {
 		let mut child_visitor = Self::new();
 		group.children().visit(&mut child_visitor);
 
-		let view = Flex::column((
+		let view = Row::new((
 			Label::new(group.name()),
-			Flex::column(child_visitor.views)
+			Column::new(child_visitor.views)
 				.style(|style| style.padding(UiRect::left_px(20.0)))
 		)).style(|style| style.padding(UiRect::top_px(10.0)));
 		self.views.push(view.as_any_view());
@@ -77,9 +77,12 @@ impl<P: Params> Editor for GenericEditor<P> {
 		Self { _phantom: PhantomData }
 	}
 	
-    fn view(&self, parameters: &P) -> impl View + 'static {
+    fn view(&self, parameters: &P) -> impl View {
 		let mut visitor = CreateParameterViewsVisitor::new();
 		parameters.visit(&mut visitor);
-        Flex::column(visitor.views).as_any_view()
+		Container::new(Column::new(visitor.views))
+			.style(|s| s
+				.width(Length::Vw(100.0))
+				.height(Length::Vh(100.0)))
     }
 }

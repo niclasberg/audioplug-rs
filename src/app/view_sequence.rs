@@ -1,7 +1,7 @@
 use std::{collections::HashMap, hash::Hash, ops::Range};
 use super::{Accessor, BindingState, BuildContext, Effect, NodeId, Owner, ReactiveContext, Readable, View, Widget};
 
-pub trait ViewSequence: Sized {
+pub trait ViewSequence: Sized + 'static {
     fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>);
 }
 
@@ -62,7 +62,7 @@ impl<Idx, V, F> ViewSequence for ForRange<Idx, F>
 where 
 	Idx: num::Integer + Clone + 'static,
 	V: View,
-	F: Fn(Idx) -> V
+	F: Fn(Idx) -> V + 'static
 {
 	fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
 		let mut start = self.start.get(cx);
@@ -128,7 +128,8 @@ pub struct RangeForViews<S, F> {
 
 impl<Idx, S, F> ViewSequence for RangeForViews<S, F> 
 where 
-	S: Readable<Value = Range<Idx>>
+	S: Readable<Value = Range<Idx>> + 'static,
+	F: 'static
 {
 	fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>) {
 		

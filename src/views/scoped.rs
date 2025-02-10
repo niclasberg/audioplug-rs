@@ -17,7 +17,7 @@ where
 impl<V, F> View for Scoped<F> 
 where 
     V: View,
-    F: FnOnce(&mut dyn CreateContext) -> V
+    F: FnOnce(&mut dyn CreateContext) -> V + 'static
 {
     type Element = V::Element;
 

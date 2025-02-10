@@ -4,7 +4,7 @@ use super::{AppState, CreateContext, Owner, ParamContext, ReactiveContext, ReadC
 
 pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn Widget>>;
 
-pub trait View: Sized {
+pub trait View: Sized + 'static {
     type Element: Widget + 'static;
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element;

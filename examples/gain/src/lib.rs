@@ -35,17 +35,16 @@ impl Editor for MyEditor {
 		Some(Size::new(540.0, 480.0))
 	}
 
-    fn view(&self, parameters: &MyPluginParams) -> AnyView {
+    fn view(&self, parameters: &MyPluginParams) -> impl View {
         let text = parameters.enabled.as_signal()
-            .map(|value| if *value { "Enabled" } else { "Disabled"}.to_string());
+            .map(|value| if *value { "Enabled" } else { "Disabled" }.to_string());
         
-        Flex::column((
+        Column::new((
             Label::new(text),
             Label::new("Gain").color(Color::BLUE),
             ParameterSlider::new(&parameters.gain)
         ))
         .style(|style| style.padding(UiRect::all_px(10.0)))
-		.as_any_view()
     }
 }
 

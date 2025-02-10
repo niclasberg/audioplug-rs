@@ -11,7 +11,7 @@ fn main() {
 			println!("Count = {}", count.get(cx));
 		});
 		Container::new(
-			Flex::column((
+			Column::new((
 				Label::new(count.map(|cnt| format!("Count: {}", cnt))),
 				Button::new(Label::new("Increase"))
 					.on_click(move |cx| count.update(cx, |value| *value += 1)),
@@ -21,7 +21,7 @@ fn main() {
 					.on_click(move |cx| trigger.notify(cx)),
 				Label::new("No children to show")
 					.style(|style| style.hidden(count.map(|x| *x > 0))),
-				Flex::column(IndexedViewSeq::new(count.map(|&x| x.max(0) as usize), |i| {
+				Column::new(IndexedViewSeq::new(count.map(|&x| x.max(0) as usize), |i| {
 					Label::new(format!("Child {}", i+1))
 				}))
 			))

@@ -17,7 +17,7 @@ mod xy_pad;
 pub use background::Background;
 pub use button::{Button, ButtonWidget};
 pub use checkbox::Checkbox;
-pub use container::Container;
+pub use container::{Container, Row, Column, Grid};
 pub use filled::*;
 pub use image::Image;
 use key_down::OnKeyEvent;
