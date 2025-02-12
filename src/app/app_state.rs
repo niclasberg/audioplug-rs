@@ -1,4 +1,5 @@
 use std::{cell::RefCell, collections::HashSet, rc::{Rc, Weak}};
+use indexmap::IndexSet;
 use slotmap::{Key, SecondaryMap, SlotMap};
 use crate::{app::event_handling::set_mouse_capture_widget, core::Point, param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue}, platform};
 use super::{clipboard::Clipboard, effect::EffectContext, layout_window, BuildContext, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext, ReadContext, Runtime, View, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext};
@@ -43,7 +44,7 @@ pub(super) struct WindowState {
     pub(super) handle: platform::Handle,
     pub(super) root_widget: WidgetId,
     pub(super) focus_widget: Option<WidgetId>,
-    pub(super) requested_animations: HashSet<WidgetId>
+    pub(super) requested_animations: IndexSet<WidgetId>
 }
 
 pub struct AppState {
@@ -98,7 +99,7 @@ impl AppState {
                 handle,
                 root_widget: WidgetId::null(),
                 focus_widget: None,
-                requested_animations: HashSet::new(),
+                requested_animations: IndexSet::new(),
             });
 
 		let widget_id = self.widget_data.insert_with_key(|id| {

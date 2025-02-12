@@ -2,7 +2,7 @@ use std::{any::Any, marker::PhantomData};
 
 use crate::AnimationFrame;
 
-use super::{layout::request_layout, render::invalidate_widget, AppState, NodeId, WidgetId, WindowId};
+use super::{accessor::SourceId, layout::request_layout, render::invalidate_widget, AppState, NodeId, NodeType, ReadContext, Readable, WidgetId, WindowContext, WindowId};
 
 pub(super) fn drive_animations(app_state: &mut AppState, window_id: WindowId, animation_frame: AnimationFrame) {
     let requested_animations = std::mem::take(&mut app_state.window_mut(window_id).requested_animations);
@@ -51,7 +51,12 @@ impl<'a> AnimationContext<'a> {
 }
 
 pub(crate) struct AnimationState {
-	pub(super) value: Box<dyn Any>
+	pub(super) value: Box<dyn Any>,
+	/// Function that drives the animation, the first argument is the current value
+	/// and the second is the delta time since the last frame
+	/// Should return false when the animation is finished, and true otherwise
+	pub(super) drive_fn: Box<dyn Fn(&mut dyn Any, f64) -> bool>,
+	pub(super) window_id: WindowId
 }
 
 pub struct Animation<T> {
@@ -59,3 +64,26 @@ pub struct Animation<T> {
 	_phantom: PhantomData<*const T>
 }
 
+impl<T> Animation<T> {
+	pub fn new(cx: &mut dyn WindowContext) -> Self {
+		todo!()
+	}
+}
+
+impl<T: 'static> Readable for Animation<T> {
+    type Value = T;
+
+	fn get_source_id(&self) -> SourceId {
+        SourceId::Node(self.id)
+    }
+
+    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&T) -> R) -> R {
+        let scope = cx.scope();
+		cx.runtime_mut().track(self.id, scope);
+        let value = match &cx.runtime().get_node(self.id).node_type {
+            NodeType::Animation(animation) => animation.value.as_ref(),
+            _ => unreachable!()
+        };
+        f(value.downcast_ref().expect("Animation value had wrong type"))
+    }
+}

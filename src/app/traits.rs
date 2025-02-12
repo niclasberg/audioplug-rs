@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{accessor::{MappedAccessor, SourceId}, Owner, Runtime, Scope};
+use super::{accessor::{MappedAccessor, SourceId}, Owner, Runtime, Scope, WindowId};
 
 
 pub trait ReactiveContext {
@@ -37,6 +37,10 @@ impl<'a> CreateContext for LocalCreateContext<'a> {
 	fn owner(&self) -> Option<Owner> {
 		Some(self.owner)
 	}
+}
+
+pub trait WindowContext: CreateContext {
+	fn window_id(&self) -> WindowId;
 }
 
 pub trait ReadContext: ReactiveContext {
