@@ -8,7 +8,7 @@ build_all: (build "gain") (build "synth")
 build target="gain" target_dir="target/debug": (_bundle_vst target target_dir) (_bundle_au target target_dir) 
 
 _build target="gain":
-    RUSTFLAGS="-Zsanitizer=adress" cargo build --package {{target}}
+    cargo build --package {{target}}
 
 [windows]
 _bundle_vst name target_dir: (_build name)
