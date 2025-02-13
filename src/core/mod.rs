@@ -32,3 +32,9 @@ pub use shape::*;
 pub use size::Size;
 pub use transform::Transform;
 pub use vector::Vector;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Theme {
+	Light,
+	Dark
+}

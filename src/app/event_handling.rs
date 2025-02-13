@@ -1,5 +1,5 @@
 use crate::{app::StatusChange, core::{Cursor, Rectangle}, keyboard::Key, platform::WindowEvent, KeyEvent, MouseEvent};
-use super::{animation::{drive_animations, request_animation_frame}, clipboard::Clipboard, invalidate_window, layout::request_layout, layout_window, render::invalidate_widget, AppState, EventStatus, WidgetFlags, WidgetId, WindowId};
+use super::{animation::{drive_animations, request_animation_frame}, clipboard::Clipboard, invalidate_window, layout::request_layout, layout_window, render::invalidate_widget, AppState, EventStatus, ReactiveContext, WidgetFlags, WidgetId, WindowId};
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
@@ -66,6 +66,10 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         },
         WindowEvent::MouseCaptureEnded => {
             set_mouse_capture_widget(app_state, None);
+        },
+        WindowEvent::ThemeChanged(theme) => {
+            let signal = app_state.window(window_id).theme_signal;
+            signal.set(app_state.runtime_mut(), theme);
         },
         _ => {}
     };

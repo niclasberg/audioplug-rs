@@ -56,6 +56,13 @@ impl<T: Any> Signal<T> {
         }
 		cx.runtime_mut().notify(self.id);
     }
+
+    pub fn as_read_signal(self) -> ReadSignal<T> {
+        ReadSignal {
+            id: self.id,
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<T: Any> Signal<Vec<T>> {
@@ -65,6 +72,37 @@ impl<T: Any> Signal<Vec<T>> {
 }
 
 impl<T: 'static> Readable for Signal<T> {
+    type Value = T;
+
+	fn get_source_id(&self) -> SourceId {
+        SourceId::Node(self.id)
+    }
+
+    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&T) -> R) -> R {
+        let scope = cx.scope();
+		cx.runtime_mut().track(self.id, scope);
+        let value = match &cx.runtime().get_node(self.id).node_type {
+            NodeType::Signal(signal) => signal.value.as_ref(),
+            _ => unreachable!()
+        };
+        f(value.downcast_ref().expect("Signal had wrong type"))
+    }
+}
+
+pub struct ReadSignal<T> {
+    pub(super) id: NodeId,
+    _marker: PhantomData<*const T>
+}
+
+impl<T> Clone for ReadSignal<T> {
+	fn clone(&self) -> Self {
+		*self
+	}
+}
+
+impl<T> Copy for ReadSignal<T> {}
+
+impl<T: 'static> Readable for ReadSignal<T> {
     type Value = T;
 
 	fn get_source_id(&self) -> SourceId {

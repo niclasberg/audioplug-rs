@@ -11,7 +11,6 @@ pub mod param;
 pub mod platform;
 mod plugin;
 mod text;
-mod theme;
 pub mod style;
 pub mod util;
 pub mod views;

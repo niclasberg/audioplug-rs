@@ -2,11 +2,11 @@ use std::{cell::{Cell, RefCell}, marker::PhantomData, mem::MaybeUninit, rc::Rc, 
 
 use windows::{core::{w, Error, Result, PCWSTR}, 
     Win32::{
-        Foundation::*, Graphics::Gdi::{self, InvalidateRect, ScreenToClient}, System::{LibraryLoader::GetModuleHandleW, Performance}, UI::{HiDpi::GetDpiForWindow, Input::{KeyboardAndMouse::{TrackMouseEvent, VIRTUAL_KEY}, *}, WindowsAndMessaging::*}}};
+        Foundation::*, Graphics::{Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE}, Gdi::{self, InvalidateRect, ScreenToClient}}, System::{LibraryLoader::GetModuleHandleW, Performance}, UI::{HiDpi::GetDpiForWindow, Input::{KeyboardAndMouse::{TrackMouseEvent, VIRTUAL_KEY}, *}, WindowsAndMessaging::*}}};
 use KeyboardAndMouse::{ReleaseCapture, SetCapture};
 
-use super::{com, cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, Handle, Renderer};
-use crate::{core::{Color, Point, Rectangle, Size}, event::{AnimationFrame, KeyEvent, MouseEvent}, keyboard::Key, platform::{WindowEvent, WindowHandler}, MouseButtons};
+use super::{com, cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, util::get_theme, Handle, Renderer};
+use crate::{core::{Color, Point, Rectangle, Size, Theme}, event::{AnimationFrame, KeyEvent, MouseEvent}, keyboard::Key, platform::{WindowEvent, WindowHandler}, MouseButtons};
 use crate::event::MouseButton;
 
 const WINDOW_CLASS: PCWSTR = w!("my_window");
@@ -48,6 +48,7 @@ struct WindowState {
     current_key_event: RefCell<Option<TmpKeyEvent>>,
     scale_factor: Rc<Cell<f64>>,
     captured_mouse_buttons: RefCell<MouseButtons>,
+    theme: Rc<Cell<Theme>>,
 }
 
 impl WindowState {
@@ -61,7 +62,7 @@ impl WindowState {
                 self.scale_factor.replace(get_scale_factor_for_window(hwnd));
 
                 {
-                    self.handler.borrow_mut().init(Handle::new(hwnd, self.scale_factor.clone()));
+                    self.handler.borrow_mut().init(Handle::new(hwnd, self.scale_factor.clone(), self.theme.clone()));
                 }
 
                 unsafe {
@@ -279,9 +280,18 @@ impl WindowState {
 
             WM_DPICHANGED => {
                 self.scale_factor.replace(get_scale_factor_for_window(hwnd));
-                self.publish_event(hwnd, WindowEvent::ScaleFactorChanged { scale_factor: self.scale_factor.get() });                
+                self.publish_event(hwnd, WindowEvent::ScaleFactorChanged { scale_factor: self.scale_factor.get() });
                 Some(LRESULT(0))
-            }
+            },
+
+            WM_SETTINGCHANGE => {
+                let new_theme = get_theme();
+                if new_theme != self.theme.get() {
+                    self.theme.replace(new_theme);
+                    self.publish_event(hwnd, WindowEvent::ThemeChanged(self.theme.get()));
+                }
+                None
+            },
 
             _ => None
         }
@@ -319,11 +329,24 @@ impl WindowState {
 
 impl Window {
     pub fn open(handler: impl WindowHandler + 'static) -> Result<Self> {
-        Self::create(None, WS_OVERLAPPEDWINDOW, handler)
+        let this = Self::create(None, WS_OVERLAPPEDWINDOW, handler)?;
+
+        unsafe {
+            let value: BOOL = match get_theme() {
+                Theme::Light => false,
+                Theme::Dark => true,
+            }.into();
+            DwmSetWindowAttribute(this.handle, DWMWA_USE_IMMERSIVE_DARK_MODE, &value as *const _ as *const _, std::mem::size_of_val(&value) as _)?;
+        }
+        
+        unsafe { ShowWindow(this.handle, SW_SHOW) };
+        Ok(this)
     }
 
     pub fn attach(parent: HWND, handler: impl WindowHandler + 'static) -> Result<Self> {
-        Self::create(Some(parent), WS_CHILD, handler)
+        let this = Self::create(Some(parent), WS_CHILD, handler)?;
+        unsafe { ShowWindow(this.handle, SW_SHOW) };
+        Ok(this)
     }
 
     pub fn set_size(&self, size: Rectangle<i32>) -> Result<()> {
@@ -368,6 +391,7 @@ impl Window {
             current_key_event: RefCell::new(None),
             scale_factor: Rc::new(Cell::new(1.0)),
             captured_mouse_buttons: Default::default(),
+            theme: Rc::new(Cell::new(get_theme())),
         });
 
         let hwnd = unsafe {
@@ -386,14 +410,10 @@ impl Window {
                 Some(Rc::into_raw(window_state) as _))?
         };
 
-        let result = Window {
+        Ok(Window {
             handle: hwnd,
             _phantom: PhantomData
-        };
-
-        unsafe { ShowWindow(hwnd, SW_SHOW) };
-
-        Ok(result)
+        })
     }
 }
 

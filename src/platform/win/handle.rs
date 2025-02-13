@@ -10,8 +10,7 @@ use windows::Win32::Foundation::{HWND, RECT, HGLOBAL, HANDLE};
 use windows::Win32::System::Memory::GMEM_MOVEABLE;
 use windows::Win32::System::{DataExchange, Memory};
 use windows::Win32::Graphics::Gdi::InvalidateRect;
-use windows::Win32::UI::Input::KeyboardAndMouse::{ReleaseCapture, SetCapture};
-use crate::core::Rectangle;
+use crate::core::{Rectangle, Theme};
 
 use super::util::get_client_rect;
 
@@ -27,12 +26,17 @@ impl<F: Fn()> Drop for ScopeExit<F> {
 
 pub struct Handle {
     hwnd: HWND,
-    scale_factor: Rc<Cell<f64>>
+    scale_factor: Rc<Cell<f64>>,
+    theme: Rc<Cell<Theme>>
 }
 
 impl Handle {
-    pub(crate) fn new(hwnd: HWND, scale_factor: Rc<Cell<f64>>) -> Self {
-        Self { hwnd, scale_factor }
+    pub(crate) fn new(hwnd: HWND, scale_factor: Rc<Cell<f64>>, theme: Rc<Cell<Theme>>) -> Self {
+        Self { hwnd, scale_factor, theme }
+    }
+
+    pub fn theme(&self) -> Theme {
+        self.theme.get()
     }
 
     pub fn invalidate_window(&self) {

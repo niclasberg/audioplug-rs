@@ -1,12 +1,6 @@
-use crate::{core::{Point, Rectangle, Size}, event::{AnimationFrame, KeyEvent}, core::Cursor, MouseEvent};
+use crate::{core::{Point, Rectangle, Size, Theme}, event::{AnimationFrame, KeyEvent}, core::Cursor, MouseEvent};
 
 use super::{Handle, RendererRef};
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub enum Appearance {
-	Light,
-	Dark
-}
 
 pub trait WindowHandler {
 	fn init(&mut self, handle: Handle);
@@ -30,5 +24,6 @@ pub enum WindowEvent {
     Key(KeyEvent),
     ScaleFactorChanged {
         scale_factor: f64
-    }
+    },
+    ThemeChanged(Theme)
 }

@@ -1,8 +1,8 @@
-use std::{cell::RefCell, collections::HashSet, rc::{Rc, Weak}};
+use std::{cell::RefCell, rc::{Rc, Weak}};
 use indexmap::IndexSet;
 use slotmap::{Key, SecondaryMap, SlotMap};
-use crate::{app::event_handling::set_mouse_capture_widget, core::Point, param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue}, platform};
-use super::{clipboard::Clipboard, effect::EffectContext, layout_window, BuildContext, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext, ReadContext, Runtime, View, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext};
+use crate::{app::event_handling::set_mouse_capture_widget, core::{Point, Theme}, param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue}, platform};
+use super::{clipboard::Clipboard, effect::EffectContext, layout_window, signal::ReadSignal, BuildContext, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext, ReadContext, Runtime, Signal, View, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext};
 
 pub(super) enum Task {
     RunEffect {
@@ -44,7 +44,8 @@ pub(super) struct WindowState {
     pub(super) handle: platform::Handle,
     pub(super) root_widget: WidgetId,
     pub(super) focus_widget: Option<WidgetId>,
-    pub(super) requested_animations: IndexSet<WidgetId>
+    pub(super) requested_animations: IndexSet<WidgetId>,
+    pub(super) theme_signal: Signal<Theme>
 }
 
 pub struct AppState {
@@ -94,12 +95,15 @@ impl AppState {
     }
 
     pub fn add_window(&mut self, handle: platform::Handle, view: impl View) -> WindowId {
+        let theme_signal = Signal::new(self, handle.theme());
+
 		let window_id = self.windows.insert(
             WindowState {
                 handle,
                 root_widget: WidgetId::null(),
                 focus_widget: None,
                 requested_animations: IndexSet::new(),
+                theme_signal
             });
 
 		let widget_id = self.widget_data.insert_with_key(|id| {
@@ -141,6 +145,7 @@ impl AppState {
     pub fn remove_window(&mut self, id: WindowId) {
         let window = self.windows.remove(id).expect("Window not found");
         self.remove_widget(window.root_widget);
+        self.runtime.remove_node(window.theme_signal.id);
     }
 
     /// Remove a widget and all of its children and associated signals
@@ -283,6 +288,10 @@ impl AppState {
 
     pub(super) fn window_mut(&mut self, id: WindowId) -> &mut WindowState {
         self.windows.get_mut(id).expect("Window handle not found")
+    }
+
+    pub fn theme_signal(&self, id: WidgetId) -> ReadSignal<Theme> {
+        self.window(self.get_window_id_for_widget(id)).theme_signal.as_read_signal()
     }
 
     pub fn get_window_id_for_widget(&self, widget_id: WidgetId) -> WindowId {

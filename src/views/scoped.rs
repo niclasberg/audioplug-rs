@@ -1,8 +1,14 @@
-use crate::app::{AppState, CreateContext, ReactiveContext, View, ViewContext, WidgetId};
+use crate::{app::{AppState, CreateContext, ReactiveContext, ReadSignal, View, ViewContext, WidgetId}, core::Theme};
 
 pub struct ScopeContext<'a> {
     id: WidgetId,
     app_state: &'a mut AppState    
+}
+
+impl<'a> ScopeContext<'a> {
+    pub fn theme(&self) -> ReadSignal<Theme> {
+        self.app_state.theme_signal(self.id).into()
+    }
 }
 
 impl<'a> ReactiveContext for ScopeContext<'a> {

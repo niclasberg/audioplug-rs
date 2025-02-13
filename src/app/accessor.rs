@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::param::ParameterId;
-use super::{BindingState, BuildContext, Mapped, Memo, NodeId, ParamSignal, ReactiveContext, ReadContext, Readable, Signal, Widget, WidgetMut};
+use super::{signal::ReadSignal, BindingState, BuildContext, Mapped, Memo, NodeId, ParamSignal, ReactiveContext, ReadContext, Readable, Signal, Widget, WidgetMut};
 
 pub trait MappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;
@@ -17,6 +17,7 @@ pub enum SourceId {
 #[derive(Clone)]
 pub enum Accessor<T> {
     Signal(Signal<T>),
+    ReadSignal(ReadSignal<T>),
     Memo(Memo<T>),
 	Parameter(ParamSignal<T>),
     Const(T),
@@ -27,6 +28,7 @@ impl<T: 'static> Accessor<T> {
     pub fn get_source_id(&self) -> Option<SourceId> {
 		match self {
 			Accessor::Signal(signal) => Some(SourceId::Node(signal.id)),
+            Accessor::ReadSignal(signal) => Some(SourceId::Node(signal.id)),
             Accessor::Memo(memo) => Some(SourceId::Node(memo.id)),
 			Accessor::Parameter(param) => Some(SourceId::Parameter(param.id)),
             Accessor::Const(_) => None,
@@ -37,6 +39,7 @@ impl<T: 'static> Accessor<T> {
 	pub fn get(&self, cx: &mut dyn ReadContext) -> T where T: Clone {
 		match self {
             Accessor::Signal(signal) => signal.get(cx),
+            Accessor::ReadSignal(signal) => signal.get(cx),
             Accessor::Memo(memo) => memo.get(cx),
             Accessor::Const(value) => value.clone(),
 			Accessor::Parameter(param) => param.get(cx),
@@ -47,6 +50,7 @@ impl<T: 'static> Accessor<T> {
     pub fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&T) -> R) -> R {
         match self {
             Accessor::Signal(signal) => signal.with_ref(cx, f),
+            Accessor::ReadSignal(signal) => signal.with_ref(cx, f),
             Accessor::Memo(memo) => memo.with_ref(cx, f),
             Accessor::Const(value) => f(value),
 			Accessor::Parameter(param) => param.with_ref(cx, f),
@@ -91,6 +95,12 @@ impl<T: 'static> Accessor<T> {
 impl<T> From<Signal<T>> for Accessor<T> {
     fn from(value: Signal<T>) -> Self {
         Self::Signal(value)
+    }
+}
+
+impl<T> From<ReadSignal<T>> for Accessor<T> {
+    fn from(value: ReadSignal<T>) -> Self {
+        Self::ReadSignal(value)
     }
 }
 

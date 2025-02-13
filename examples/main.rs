@@ -1,6 +1,6 @@
 use std::path::Path;
 use audioplug::app::*;
-use audioplug::core::{Color, Size};
+use audioplug::core::{Color, Size, Theme};
 use audioplug::style::Length;
 use audioplug::views::*;
 use audioplug::App;
@@ -15,7 +15,7 @@ fn main() {
         let text = Signal::new(cx, "".to_string());
         let slider_value = Signal::new(cx, 100.0);
 
-        let aa = Animated::new(cx, &slider_value);
+        let theme = cx.theme();
 
         Effect::new_with_state(cx, move |cx, cnt| {
             let cnt = cnt.unwrap_or(0);
@@ -36,7 +36,10 @@ fn main() {
                     .on_value_changed(move |cx, value| slider_value.set(cx, value))
 			)).spacing(Length::Px(5.0))
 			.v_align_center()
-            .style(|s| s.background(Color::RED)),
+            .style(|s| s.background(theme.map(|theme| match theme {
+                Theme::Light => Color::GREEN,
+                Theme::Dark => Color::BLACK,
+            }))),
             Row::new((
 				Label::new("Checkbox"),
 				Checkbox::new(checkbox_enabled)

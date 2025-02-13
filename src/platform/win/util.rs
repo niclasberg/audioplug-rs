@@ -1,7 +1,13 @@
-use windows::Win32::UI::WindowsAndMessaging::GetClientRect;
+use std::mem::MaybeUninit;
+use std::sync::LazyLock;
+
+use windows::core::{PCSTR, s};
+use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
+use windows::Win32::UI::Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTW};
+use windows::Win32::UI::WindowsAndMessaging::{GetClientRect, SystemParametersInfoW, SPI_GETHIGHCONTRAST, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS};
 use windows::Win32::Foundation::{HWND, RECT};
 
-use crate::core::Rectangle;
+use crate::core::{Rectangle, Theme};
 
 pub(super) fn get_client_rect(hwnd: HWND) -> Rectangle<i32> {
     let mut rect: RECT = RECT::default();
@@ -50,4 +56,44 @@ pub(crate) unsafe fn utf16_ptr_to_string(ptr: *const u16) -> Option<String> {
     let slice = std::slice::from_raw_parts(ptr, len);
 
     String::from_utf16(slice).ok()
+}
+
+pub fn get_theme() -> Theme {
+    if should_apps_use_dark_mode() && !is_high_contrast() {
+        Theme::Dark
+    } else {
+        Theme::Light
+    }
+}
+
+fn should_apps_use_dark_mode() -> bool {
+    type ShouldAppsUseDarkMode = unsafe extern "system" fn() -> bool;
+    static SHOULD_APPS_USE_DARK_MODE: LazyLock<Option<ShouldAppsUseDarkMode>> = LazyLock::new(|| unsafe {
+        const UXTHEME_SHOULDAPPSUSEDARKMODE_ORDINAL: PCSTR = PCSTR::from_raw(132 as *mut u8);
+
+        let Ok(module) = LoadLibraryA(s!("uxtheme.dll")) else { return None };
+        let handle = GetProcAddress(module, UXTHEME_SHOULDAPPSUSEDARKMODE_ORDINAL);
+        handle.map(|handle| std::mem::transmute(handle))
+    });
+
+    SHOULD_APPS_USE_DARK_MODE
+        .map(|should_apps_use_dark_mode| unsafe { (should_apps_use_dark_mode)() })
+        .unwrap_or(false)
+}
+
+fn is_high_contrast() -> bool {
+    let hc = unsafe {
+        let mut hc = MaybeUninit::<HIGHCONTRASTW>::uninit();
+        let status = SystemParametersInfoW(SPI_GETHIGHCONTRAST,
+            std::mem::size_of_val(&hc) as _,
+            Some(hc.as_mut_ptr() as _),
+            SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0));
+        
+        if status.is_err() {
+            return false;
+        }
+
+        hc.assume_init()
+    };
+    (hc.dwFlags & HCF_HIGHCONTRASTON).0 != 0
 }
