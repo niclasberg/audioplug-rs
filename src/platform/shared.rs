@@ -2,6 +2,12 @@ use crate::{core::{Point, Rectangle, Size}, event::{AnimationFrame, KeyEvent}, c
 
 use super::{Handle, RendererRef};
 
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub enum Appearance {
+	Light,
+	Dark
+}
+
 pub trait WindowHandler {
 	fn init(&mut self, handle: Handle);
     fn event(&mut self, event: WindowEvent);
