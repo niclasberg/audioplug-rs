@@ -1,4 +1,31 @@
-use crate::app::{CreateContext, View};
+use crate::app::{AppState, CreateContext, ReactiveContext, View, ViewContext, WidgetId};
+
+pub struct ScopeContext<'a> {
+    id: WidgetId,
+    app_state: &'a mut AppState    
+}
+
+impl<'a> ReactiveContext for ScopeContext<'a> {
+    fn runtime(&self) -> &crate::app::Runtime {
+        self.app_state.runtime()
+    }
+
+    fn runtime_mut(&mut self) -> &mut crate::app::Runtime {
+        self.app_state.runtime_mut()
+    }
+}
+
+impl<'a> CreateContext for ScopeContext<'a> {
+    fn owner(&self) -> Option<crate::app::Owner> {
+        Some(crate::app::Owner::Widget(self.id))
+    }
+}
+
+impl<'a> ViewContext for ScopeContext<'a> {
+    fn window_id(&self) -> crate::app::WindowId {
+        self.app_state.get_window_id_for_widget(self.id)
+    }
+}
 
 pub struct Scoped<F> {
     f: F
@@ -7,7 +34,7 @@ pub struct Scoped<F> {
 impl<V, F> Scoped<F> 
 where 
     V: View,
-    F: FnOnce(&mut dyn CreateContext) -> V
+    F: FnOnce(&mut ScopeContext) -> V
 {
     pub fn new(f: F) -> Self {
         Self { f }
@@ -17,12 +44,12 @@ where
 impl<V, F> View for Scoped<F> 
 where 
     V: View,
-    F: FnOnce(&mut dyn CreateContext) -> V + 'static
+    F: FnOnce(&mut ScopeContext) -> V + 'static
 {
     type Element = V::Element;
 
     fn build(self, ctx: &mut crate::app::BuildContext<Self::Element>) -> Self::Element {
-        let inner_view = (self.f)(ctx);
+        let inner_view = (self.f)(&mut ScopeContext { id: ctx.id(), app_state: ctx.app_state });
         inner_view.build(ctx)
     }
 }

@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use crate::style::Style;
-use super::{AppState, CreateContext, Owner, ParamContext, ReactiveContext, ReadContext, Scope, Widget, WidgetFlags, WidgetId};
+use super::{AppState, CreateContext, Owner, ParamContext, ReactiveContext, ReadContext, Scope, ViewContext, Widget, WidgetFlags, WidgetId};
 
 pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn Widget>>;
 
@@ -99,5 +99,11 @@ impl<'b, W: Widget> ReactiveContext for BuildContext<'b, W> {
 impl<'s, W: Widget> CreateContext for BuildContext<'s, W> {
     fn owner(&self) -> Option<Owner> {
         Some(Owner::Widget(self.id))
+    }
+}
+
+impl<'s, W: Widget> ViewContext for BuildContext<'s, W> {
+    fn window_id(&self) -> super::WindowId {
+        self.app_state.get_window_id_for_widget(self.id)
     }
 }

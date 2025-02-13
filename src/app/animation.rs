@@ -2,7 +2,7 @@ use std::{any::Any, marker::PhantomData};
 
 use crate::AnimationFrame;
 
-use super::{accessor::SourceId, layout::request_layout, render::invalidate_widget, AppState, NodeId, NodeType, ReadContext, Readable, WidgetId, WindowContext, WindowId};
+use super::{accessor::SourceId, layout::request_layout, render::invalidate_widget, AppState, NodeId, NodeType, ReadContext, Readable, WidgetId, ViewContext, WindowId};
 
 pub(super) fn drive_animations(app_state: &mut AppState, window_id: WindowId, animation_frame: AnimationFrame) {
     let requested_animations = std::mem::take(&mut app_state.window_mut(window_id).requested_animations);
@@ -59,18 +59,18 @@ pub(crate) struct AnimationState {
 	pub(super) window_id: WindowId
 }
 
-pub struct Animation<T> {
+pub struct Animated<T> {
 	id: NodeId,
 	_phantom: PhantomData<*const T>
 }
 
-impl<T> Animation<T> {
-	pub fn new(cx: &mut dyn WindowContext) -> Self {
+impl<T> Animated<T> {
+	pub fn new<S: Readable<Value = T>>(cx: &mut dyn ViewContext, signal: &S) -> Self {
 		todo!()
 	}
 }
 
-impl<T: 'static> Readable for Animation<T> {
+impl<T: 'static> Readable for Animated<T> {
     type Value = T;
 
 	fn get_source_id(&self) -> SourceId {

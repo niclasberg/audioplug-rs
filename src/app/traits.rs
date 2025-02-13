@@ -39,7 +39,7 @@ impl<'a> CreateContext for LocalCreateContext<'a> {
 	}
 }
 
-pub trait WindowContext: CreateContext {
+pub trait ViewContext: CreateContext {
 	fn window_id(&self) -> WindowId;
 }
 

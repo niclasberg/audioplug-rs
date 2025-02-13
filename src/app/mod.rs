@@ -29,7 +29,7 @@ use std::{cell::RefCell, rc::Rc};
 
 pub use accessor::Accessor;
 pub use binding::BindingState;
-pub use animation::AnimationContext;
+pub use animation::{AnimationContext, Animated};
 pub(crate) use app_state::AppState;
 pub use effect::{Effect, EffectState};
 pub use event_handling::{EventContext, MouseEventContext, handle_window_event};

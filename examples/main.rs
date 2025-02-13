@@ -15,6 +15,8 @@ fn main() {
         let text = Signal::new(cx, "".to_string());
         let slider_value = Signal::new(cx, 100.0);
 
+        let aa = Animated::new(cx, &slider_value);
+
         Effect::new_with_state(cx, move |cx, cnt| {
             let cnt = cnt.unwrap_or(0);
             println!("Cnt: {}, Slider value: {}, enabled: {}", cnt, slider_value.get(cx), checkbox_enabled.get(cx));
