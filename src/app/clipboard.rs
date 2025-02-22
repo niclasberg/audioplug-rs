@@ -6,7 +6,7 @@ pub struct Clipboard<'a> {
 
 impl<'a> Clipboard<'a> {
     pub fn get_text(&mut self) -> Option<String> {
-		self.handle.get_clipboard().ok().flatten()
+	    self.handle.get_clipboard().ok().flatten()
     }
 
     pub fn set_text(&mut self, string: &str) {

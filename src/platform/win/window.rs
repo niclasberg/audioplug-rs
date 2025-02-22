@@ -90,7 +90,7 @@ impl WindowState {
                     Gdi::BeginPaint(hwnd, &mut ps);
     
                     renderer.begin_draw();
-                    renderer.clear(Color::WHITE);
+                    renderer.clear(Color::OFF_WHITE);
                 }
     
                 {

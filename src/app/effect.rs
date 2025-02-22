@@ -1,4 +1,4 @@
-use std::{any::Any, cell::Cell, rc::Rc};
+use std::{any::Any, cell::{Cell, RefCell}, rc::Rc};
 use super::{AppState, CreateContext, NodeId, ReactiveContext, ReadContext, Runtime, Scope, Widget, WidgetId, WidgetMut, WidgetRef, WriteContext};
 
 pub struct EffectContext<'a> {
@@ -61,5 +61,17 @@ impl Effect {
             })
         }, owner);
         Self {}
+    }
+}
+
+pub struct BindingState {
+    pub f: Rc<RefCell<dyn FnMut(&mut AppState)>>,
+}
+
+impl BindingState {
+    pub fn new(f: impl FnMut(&mut AppState) + 'static) -> Self {
+        Self {
+            f: Rc::new(RefCell::new(f))
+        }
     }
 }

@@ -1,4 +1,4 @@
-use crate::{app::{Accessor, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, Shape, Size}, event::MouseButton, keyboard::Key, param::{AnyParameter, NormalizedValue, PlainValue}, style::{DisplayStyle, Length, Measure, Style}, KeyEvent, MouseEvent};
+use crate::{app::{Accessor, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, RoundedRectangle, Shape, Size}, event::MouseButton, keyboard::Key, param::{AnyParameter, NormalizedValue, PlainValue}, style::{DisplayStyle, Length, Measure, Style}, KeyEvent, MouseEvent};
 
 use super::View;
 
@@ -150,13 +150,22 @@ enum State {
 
 impl SliderWidget {
     fn slider_position(&self, bounds: Rectangle) -> Point {
-        let knob_x = bounds.left() + self.position_normalized * bounds.width();
-        let knob_y = bounds.center().y;
+        let slider_bounds = self.inner_bounds(bounds);
+        let knob_x = slider_bounds.left() + self.position_normalized * slider_bounds.width();
+        let knob_y = slider_bounds.center().y;
         Point::new(knob_x, knob_y)
+    }
+
+    fn inner_bounds(&self, bounds: Rectangle) -> Rectangle {
+        bounds.shrink_x(5.0)
     }
 
     fn knob_shape(&self, bounds: Rectangle) -> Shape {
         Shape::circle(self.slider_position(bounds), 5.0)
+    }
+
+    fn absolute_to_normalized_position(position: Point, bounds: Rectangle) -> f64 {
+        ((position.x - bounds.left() - 2.5) / (bounds.width() - 5.0)).clamp(0.0, 1.0)
     }
 
     fn set_position(&mut self, app_state: &mut AppState, normalized_position: f64) -> bool {
@@ -201,7 +210,7 @@ impl Widget for SliderWidget {
             MouseEvent::Down { button, position } => {
 				if button == MouseButton::LEFT && self.state != State::Dragging {
                 	if !self.knob_shape(ctx.bounds()).hit_test(position) {
-						let normalized_position = ((position.x - ctx.bounds().left()) / ctx.bounds().width()).clamp(0.0, 1.0);
+                        let normalized_position = Self::absolute_to_normalized_position(position, ctx.bounds());
 						if self.set_position(ctx.app_state_mut(), normalized_position) {
 							ctx.request_render();
 						}
@@ -230,7 +239,7 @@ impl Widget for SliderWidget {
                         }
                     },
                     State::Dragging => {
-                        let normalized_position = ((position.x - ctx.bounds().left()) / ctx.bounds().width()).clamp(0.0, 1.0);
+                        let normalized_position = Self::absolute_to_normalized_position(position, ctx.bounds());
                         if self.set_position(ctx.app_state_mut(), normalized_position) {
                             ctx.request_render();
                         }
@@ -305,6 +314,7 @@ impl Widget for SliderWidget {
         let bounds = ctx.content_bounds();
         let center = bounds.center();
         let width = bounds.width();
+        let slider_position = self.slider_position(bounds);
         let knob_color = match self.state {
             State::Idle => Color::BLACK,
             State::KnobHover => Color::from_rgb(0.5, 0.5, 0.5),
@@ -314,8 +324,16 @@ impl Widget for SliderWidget {
         if ctx.has_focus() {
             ctx.stroke(bounds, Color::RED, 1.0);
         }
-        
-        ctx.fill(Rectangle::from_center(center, Size::new(width, 2.0)), Color::BLACK);
+
+        let background_rect = Rectangle::from_center(center, Size::new(width, 5.0));
+        let range_indicator_rect = Rectangle::from_ltrb(
+            bounds.left() + 2.5, 
+            center.y - 1.0, 
+            slider_position.x, 
+            center.y + 1.0);
+
+        ctx.fill(RoundedRectangle::new(background_rect, Size::new(2.5, 2.5)), Color::from_rgb(0.8, 0.8, 0.8));
+        ctx.fill(RoundedRectangle::new(range_indicator_rect, Size::new(1.0, 1.0)), Color::NEON_GREEN);
         ctx.fill(self.knob_shape(bounds), knob_color);
     }
 

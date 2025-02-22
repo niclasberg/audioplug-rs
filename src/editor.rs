@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{app::{AnyView, View}, core::Size, param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params}, style::{Length, UiRect}, views::{Column, Container, Label, ParameterSlider, Row, ViewExt}};
+use crate::{app::{AnyView, Signal, View}, core::Size, param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params}, style::{Length, UiRect}, views::{Column, Container, Label, ParameterSlider, Row, Scoped, ViewExt}};
 
 pub trait Editor: 'static {
 	type Parameters: Params;
@@ -56,12 +56,18 @@ impl ParamVisitor for CreateParameterViewsVisitor {
 	fn group<P: ParameterTraversal>(&mut self, group: &crate::param::ParameterGroup<P>) {
 		let mut child_visitor = Self::new();
 		group.children().visit(&mut child_visitor);
+		let name = group.name().to_string();
 
-		let view = Row::new((
-			Label::new(group.name()),
-			Column::new(child_visitor.views)
-				.style(|style| style.padding(UiRect::left_px(20.0)))
-		)).style(|style| style.padding(UiRect::top_px(10.0)));
+		let view = Scoped::new(move |cx| { 
+			let hide_children = Signal::new(cx, false);
+			Column::new((
+				Label::new(name),
+				Column::new(child_visitor.views)
+					.style(|style| style
+						.padding(UiRect::left_px(20.0))
+						.hidden(hide_children))
+			)).style(|style| style.padding(UiRect::top_px(10.0)))
+		});
 		self.views.push(view.as_any_view());
 	}
 }

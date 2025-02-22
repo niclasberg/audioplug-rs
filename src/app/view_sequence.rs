@@ -1,5 +1,5 @@
 use std::{collections::HashMap, hash::Hash, ops::Range};
-use super::{Accessor, BindingState, BuildContext, Effect, NodeId, Owner, ReactiveContext, Readable, View, Widget};
+use super::{Accessor, effect::BindingState, BuildContext, Effect, NodeId, Owner, ReactiveContext, Readable, View, Widget};
 
 pub trait ViewSequence: Sized + 'static {
     fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>);

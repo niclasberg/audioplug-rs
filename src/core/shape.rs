@@ -1,4 +1,4 @@
-use super::{Point, Rectangle, RoundedRectangle, Size, Vector};
+use super::{Ellipse, Point, Rectangle, RoundedRectangle, Size, Vector};
 
 pub enum PathEl {
     MoveTo(Point),
@@ -7,12 +7,11 @@ pub enum PathEl {
 
 
 /// Represents a drawable shape
-/// All shapes are centered at (0, 0)
 #[derive(Debug, Clone, Copy)]
 pub enum Shape {
     Rect(Rectangle),
     Rounded(RoundedRectangle),
-    Ellipse { center: Point, radii: Size },
+    Ellipse(Ellipse),
     Line { p0: Point, p1: Point}
 }
 
@@ -26,11 +25,11 @@ impl Shape {
     }
 
     pub const fn ellipse(center: Point, radii: Size) -> Self {
-        Shape::Ellipse { center, radii }
+        Shape::Ellipse(Ellipse::new(center, radii))
     }
 
     pub const fn circle(center: Point, radius: f64) -> Self {
-        Shape::Ellipse { center, radii: Size::new(radius, radius) }
+        Shape::Ellipse(Ellipse::new(center, Size::new(radius, radius)))
     }
 
     pub const fn line(p0: Point, p1: Point) -> Self {
@@ -42,7 +41,7 @@ impl Shape {
         match self {
             Shape::Rect(rect) => Shape::Rect(rect.offset(delta)),
             Shape::Rounded(rect) => Shape::Rounded(rect.offset(delta)),
-            Shape::Ellipse { center, radii } => Shape::Ellipse { center: center + delta, radii },
+            Shape::Ellipse(ellipse) => Shape::Ellipse(ellipse.offset(delta)),
             Shape::Line { p0, p1 } => Shape::Line { p0: p0 + delta, p1: p1 + delta }
         }
     }
@@ -51,7 +50,7 @@ impl Shape {
         match self {
             Shape::Rect(rect) => *rect,
             Shape::Rounded(RoundedRectangle { rect, ..}) => *rect,
-            Shape::Ellipse { center, radii } => Rectangle::from_center(*center, radii.scale(2.0)),
+            Shape::Ellipse(ell) => Rectangle::from_center(ell.center, ell.radii.scale(2.0)),
             Shape::Line { p0, p1 } => Rectangle::from_points(*p0, *p1)
         }
     }
@@ -60,13 +59,7 @@ impl Shape {
         match self {
             Shape::Rect(rect) => rect.contains(pos),
             Shape::Rounded(rect) => rect.contains(pos),
-            Shape::Ellipse { center, radii } => {
-                if radii.width < f64::EPSILON || radii.height < f64::EPSILON {
-                    false
-                } else {
-                    ((pos.x - center.x) / radii.width).powi(2) + ((pos.y - center.y) / radii.height).powi(2) <= 1.0
-                }
-            },
+            Shape::Ellipse(ell) => ell.contains(pos),
             Shape::Line { .. } => {
                 false
             }
@@ -83,5 +76,11 @@ impl From<Rectangle> for Shape {
 impl From<RoundedRectangle> for Shape {
     fn from(value: RoundedRectangle) -> Self {
         Self::Rounded(value)
+    }
+}
+
+impl From<Ellipse> for Shape {
+    fn from(value: Ellipse) -> Self {
+        Self::Ellipse(value)
     }
 }

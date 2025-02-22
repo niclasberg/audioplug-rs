@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::param::ParameterId;
-use super::{signal::ReadSignal, BindingState, BuildContext, Mapped, Memo, NodeId, ParamSignal, ReactiveContext, ReadContext, Readable, Signal, Widget, WidgetMut};
+use super::{effect::BindingState, signal::ReadSignal, BuildContext, Mapped, Memo, NodeId, ParamSignal, ReactiveContext, ReadContext, Readable, Signal, Widget, WidgetMut};
 
 pub trait MappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;

@@ -33,13 +33,12 @@ fn main() {
 				Slider::new()
                     .range(1.0, 500.0)
 					.value(slider_value)
-                    .on_value_changed(move |cx, value| slider_value.set(cx, value))
-			)).spacing(Length::Px(5.0))
-			.v_align_center()
-            .style(|s| s.background(theme.map(|theme| match theme {
-                Theme::Light => Color::GREEN,
-                Theme::Dark => Color::BLACK,
-            }))),
+                    .on_value_changed(move |cx, value| slider_value.set(cx, value))))
+                .spacing(Length::Px(5.0))
+			    .v_align_center(),
+            Row::new((
+                Label::new("Knob"),
+                Knob::new())),
             Row::new((
 				Label::new("Checkbox"),
 				Checkbox::new(checkbox_enabled)

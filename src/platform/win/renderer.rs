@@ -1,6 +1,6 @@
 use windows::{core::Result, Foundation::Numerics::Matrix3x2, Win32::{Foundation::{HWND, RECT}, Graphics::Direct2D, UI::WindowsAndMessaging::GetClientRect}};
 
-use crate::core::{Color, Point, Rectangle, RoundedRectangle, Size, Transform};
+use crate::core::{Color, Ellipse, Point, Rectangle, RoundedRectangle, Size, Transform};
 use std::mem::MaybeUninit;
 use super::{com::direct2d_factory, ImageSource, TextLayout};
 
@@ -235,25 +235,25 @@ impl Renderer {
         }
     }
 
-    pub fn draw_ellipse(&mut self, origin: Point, radii: Size, color: Color, line_width: f32) {
+    pub fn draw_ellipse(&mut self, ellipse: Ellipse, color: Color, line_width: f32) {
         unsafe {
             self.brush.SetColor(&color.into());
             let ellipse = Direct2D::D2D1_ELLIPSE {
-                point: origin.into(),
-                radiusX: radii.width as f32,
-                radiusY: radii.height as f32,
+                point: ellipse.center.into(),
+                radiusX: ellipse.radii.width as f32,
+                radiusY: ellipse.radii.height as f32,
             };
             self.render_target.DrawEllipse(&ellipse, &self.brush, line_width, None);
         }
     }
 
-    pub fn fill_ellipse(&mut self, origin: Point, radii: Size, color: Color) {
+    pub fn fill_ellipse(&mut self, ellipse: Ellipse, color: Color) {
         unsafe {
             self.brush.SetColor(&color.into());
             let ellipse = Direct2D::D2D1_ELLIPSE {
-                point: origin.into(),
-                radiusX: radii.width as f32,
-                radiusY: radii.height as f32,
+                point: ellipse.center.into(),
+                radiusX: ellipse.radii.width as f32,
+                radiusY: ellipse.radii.height as f32,
             };
             self.render_target.FillEllipse(&ellipse, &self.brush)
         }

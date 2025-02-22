@@ -13,6 +13,12 @@ pub struct Rectangle<T = f64> {
     height: T,
 }
 
+impl<T> Rectangle<T> {
+    pub const fn from_xywh(x: T, y: T, width: T, height: T) -> Self {
+        Self { x, y, width, height }
+    }
+}
+
 impl<T> Rectangle<T> 
 where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + Mul<Output=T> + PartialOrd
 {
@@ -24,10 +30,6 @@ where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + Mul<Output
         assert!(x0.x <= x1.x);
         assert!(x0.y <= x1.y);
         Self { x: x0.x, y: x0.y, width: x1.x - x0.x, height: x1.y - x0.y }
-    }
-
-    pub fn from_xywh(x: T, y: T, width: T, height: T) -> Self {
-        Self { x, y, width, height }
     }
 
     #[inline]
@@ -126,7 +128,15 @@ impl Rectangle<f64> {
         Self::from_center(self.center(), self.size() - Size::new(amount, amount))
     }
 
-    pub fn center(&self) -> Point {
+    pub fn shrink_x(&self, amount: f64) -> Self {
+        Self::from_center(self.center(), self.size() - Size::new(amount, 0.0))
+    }
+
+    pub fn shrink_y(&self, amount: f64) -> Self {
+        Self::from_center(self.center(), self.size() - Size::new(0.0, amount))
+    }
+
+    pub const fn center(&self) -> Point {
         Point::new(self.x + self.width / 2.0, self.y + self.height / 2.0)
     }
 

@@ -54,24 +54,18 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
     pub fn fill(&mut self, shape: impl Into<Shape>, color: impl Into<Color>) {
 		let color = color.into();
         match shape.into() {
-            Shape::Rect(rect) => 
-                self.renderer.fill_rectangle(rect, color),
-            Shape::Rounded(rect) => 
-                self.renderer.fill_rounded_rectangle(rect, color),
-            Shape::Ellipse { center, radii } => 
-                self.renderer.fill_ellipse(center, radii, color),
-            Shape::Line { p0, p1 } =>
-                self.renderer.draw_line(p0, p1, color, 1.0)
+            Shape::Rect(rect) => self.renderer.fill_rectangle(rect, color),
+            Shape::Rounded(rect) => self.renderer.fill_rounded_rectangle(rect, color),
+            Shape::Ellipse(ell) => self.renderer.fill_ellipse(ell, color),
+            Shape::Line { p0, p1 } => self.renderer.draw_line(p0, p1, color, 1.0)
         }
     }
 
     pub fn stroke(&mut self, shape: impl Into<Shape>, color: impl Into<Color>, line_width: f32) {
         match shape.into() {
-            Shape::Rect(rect) => 
-                self.renderer.draw_rectangle(rect, color.into(), line_width),
-            Shape::Rounded(rect) => 
-                self.renderer.draw_rounded_rectangle(rect.into(), color.into(), line_width),
-            Shape::Ellipse { center, radii } => self.renderer.draw_ellipse(center, radii, color.into(), line_width),
+            Shape::Rect(rect) => self.renderer.draw_rectangle(rect, color.into(), line_width),
+            Shape::Rounded(rect) => self.renderer.draw_rounded_rectangle(rect.into(), color.into(), line_width),
+            Shape::Ellipse(ell) => self.renderer.draw_ellipse(ell, color.into(), line_width),
             Shape::Line { p0, p1 } => self.renderer.draw_line(p0, p1, color.into(), line_width)
         }
     }
