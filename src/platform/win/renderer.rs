@@ -1,8 +1,8 @@
 use windows::{core::Result, Foundation::Numerics::Matrix3x2, Win32::{Foundation::{HWND, RECT}, Graphics::Direct2D, UI::WindowsAndMessaging::GetClientRect}};
 
-use crate::core::{Color, Ellipse, Point, Rectangle, RoundedRectangle, Size, Transform};
+use crate::{app::BrushRef, core::{Color, Ellipse, Point, Rectangle, RoundedRectangle, Size, Transform}};
 use std::mem::MaybeUninit;
-use super::{com::direct2d_factory, ImageSource, TextLayout};
+use super::{com::direct2d_factory, NativeImage, TextLayout};
 
 impl Into<Direct2D::Common::D2D1_COLOR_F> for Color {
     fn into(self) -> Direct2D::Common::D2D1_COLOR_F {
@@ -32,6 +32,16 @@ impl Into<Direct2D::D2D1_ROUNDED_RECT> for RoundedRectangle {
             rect: self.rect.into(),
             radiusX: self.corner_radius.width as f32,
             radiusY: self.corner_radius.height as f32,
+        }
+    }
+}
+
+impl Into<Direct2D::D2D1_ELLIPSE> for Ellipse {
+    fn into(self) -> Direct2D::D2D1_ELLIPSE {
+        Direct2D::D2D1_ELLIPSE {
+            point: self.center.into(),
+            radiusX: self.radii.width as f32,
+            radiusY: self.radii.height as f32,
         }
     }
 }
@@ -72,7 +82,7 @@ impl From<Matrix3x2> for Transform {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct RendererGeneration(usize);
+pub(super) struct RendererGeneration(pub(super) usize);
 
 pub type RendererRef<'a> = &'a mut Renderer;
 
@@ -190,73 +200,64 @@ impl Renderer {
         }
     }
 
-    pub fn draw_line(&mut self, p0: Point, p1: Point, color: Color, line_width: f32) {
-		unsafe {
-            self.brush.SetColor(&color.into());
-            self.render_target.DrawLine(p0.into(), p1.into(), &self.brush, line_width, None)
+    pub fn draw_line(&mut self, p0: Point, p1: Point, brush: BrushRef, line_width: f32) {
+		match brush {
+            BrushRef::Solid(color) => unsafe {
+                self.brush.SetColor(&color.into());
+                self.render_target.DrawLine(p0.into(), p1.into(), &self.brush, line_width, None)
+            },
+            BrushRef::LinearGradient(linear_gradient) => todo!(),
         }
 	}
 
-    pub fn draw_rectangle(&mut self, rect: Rectangle, color: Color, line_width: f32) {
-        unsafe {
-            self.brush.SetColor(&color.into());
-            self.render_target.DrawRectangle(
-                &rect.into(), 
-                &self.brush,
-                line_width,
-                None);
-        };
+    pub fn draw_rectangle(&mut self, rect: Rectangle, brush: BrushRef, line_width: f32) {
+        self.use_brush(rect, brush, |render_target, brush| {
+            unsafe { render_target.DrawRectangle(&rect.into(), brush, line_width, None) }
+        });
     }
 
-    pub fn fill_rectangle(&mut self, rect: Rectangle, color: Color) {
-        unsafe {
-            self.brush.SetColor(&color.into());
-            self.render_target.FillRectangle(
-                &rect.into(), 
-                &self.brush)
-        };
-    }
-
-    pub fn draw_rounded_rectangle(&mut self, rect: RoundedRectangle, color: Color, line_width: f32) {
-        unsafe {
-            self.brush.SetColor(&color.into());
-            self.render_target.DrawRoundedRectangle(
-                &rect.into(), 
-                &self.brush, 
-                line_width, 
-                None);
+    fn use_brush(&mut self, rect: Rectangle, brush: BrushRef, f: impl FnOnce(&Direct2D::ID2D1HwndRenderTarget, &Direct2D::ID2D1Brush)) {
+        match brush {
+            BrushRef::Solid(color) => unsafe {
+                self.brush.SetColor(&color.into());
+                f(&self.render_target, &self.brush);
+            },
+            BrushRef::LinearGradient(linear_gradient) => {
+                linear_gradient.0.use_brush(&self.render_target, self.generation, rect, move |render_target, brush| {
+                    f(render_target, brush)
+                }).unwrap()
+            },
         }
     }
 
-    pub fn fill_rounded_rectangle(&mut self, rect: RoundedRectangle, color: Color) {
-        unsafe {
-            self.brush.SetColor(&color.into());
-            self.render_target.FillRoundedRectangle(&rect.into(), &self.brush)
-        }
+    pub fn fill_rectangle(&mut self, rect: Rectangle, brush: BrushRef) {
+        self.use_brush(rect, brush, |render_target, brush| unsafe {
+            render_target.FillRectangle(&rect.into(), brush)
+        });
     }
 
-    pub fn draw_ellipse(&mut self, ellipse: Ellipse, color: Color, line_width: f32) {
-        unsafe {
-            self.brush.SetColor(&color.into());
-            let ellipse = Direct2D::D2D1_ELLIPSE {
-                point: ellipse.center.into(),
-                radiusX: ellipse.radii.width as f32,
-                radiusY: ellipse.radii.height as f32,
-            };
-            self.render_target.DrawEllipse(&ellipse, &self.brush, line_width, None);
-        }
+    pub fn draw_rounded_rectangle(&mut self, rect: RoundedRectangle, brush: BrushRef, line_width: f32) {
+        self.use_brush(rect.rect, brush, |render_target, brush| unsafe {
+            render_target.DrawRoundedRectangle(&rect.into(), brush, line_width, None);
+        });
     }
 
-    pub fn fill_ellipse(&mut self, ellipse: Ellipse, color: Color) {
-        unsafe {
-            self.brush.SetColor(&color.into());
-            let ellipse = Direct2D::D2D1_ELLIPSE {
-                point: ellipse.center.into(),
-                radiusX: ellipse.radii.width as f32,
-                radiusY: ellipse.radii.height as f32,
-            };
-            self.render_target.FillEllipse(&ellipse, &self.brush)
-        }
+    pub fn fill_rounded_rectangle(&mut self, rect: RoundedRectangle, brush: BrushRef) {
+        self.use_brush(rect.rect, brush, |render_target, brush| unsafe {
+            render_target.FillRoundedRectangle(&rect.into(), brush);
+        });
+    }
+
+    pub fn draw_ellipse(&mut self, ellipse: Ellipse, brush: BrushRef, line_width: f32) {
+        self.use_brush(ellipse.bounding_rect(), brush, |render_target, brush| unsafe {
+            render_target.DrawEllipse(&ellipse.into(), brush, line_width, None);
+        });
+    }
+
+    pub fn fill_ellipse(&mut self, ellipse: Ellipse, brush: BrushRef) {
+        self.use_brush(ellipse.bounding_rect(), brush, |render_target, brush| unsafe {
+            render_target.FillEllipse(&ellipse.into(), brush);
+        });
     }
 
     pub fn draw_text(&mut self, text_layout: &TextLayout, position: Point) {
@@ -270,7 +271,7 @@ impl Renderer {
         }
     }
 
-    pub fn draw_bitmap(&mut self, source: &ImageSource, rect: Rectangle) {
+    pub fn draw_bitmap(&mut self, source: &NativeImage, rect: Rectangle) {
         source.draw(&self.render_target, self.generation, rect.into())
     }
 }

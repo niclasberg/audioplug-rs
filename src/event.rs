@@ -23,17 +23,18 @@ pub enum MouseEvent {
         position: Point
     },
     Moved {
-        position: Point
+        position: Point,
+        modifiers: Modifiers
     }
 }
 
 impl MouseEvent {
     pub fn with_offset(&self, offset: Vector) -> Self {
-        match self {
-            MouseEvent::Down { button, position } => MouseEvent::Down { button: *button, position: *position - offset },
-            MouseEvent::Up { button, position } => MouseEvent::Up { button: *button, position: *position - offset },
-            MouseEvent::DoubleClick { button, position } => MouseEvent::DoubleClick { button: *button, position: *position - offset },
-            MouseEvent::Moved { position } => MouseEvent::Moved { position: *position - offset }
+        match *self {
+            MouseEvent::Down { button, position } => MouseEvent::Down { button, position: position - offset },
+            MouseEvent::Up { button, position } => MouseEvent::Up { button, position: position - offset },
+            MouseEvent::DoubleClick { button, position } => MouseEvent::DoubleClick { button, position: position - offset },
+            MouseEvent::Moved { position, modifiers } => MouseEvent::Moved { position: position - offset, modifiers }
         }
     }
 
@@ -42,7 +43,7 @@ impl MouseEvent {
             MouseEvent::Down { position, .. } => *position,
             MouseEvent::Up { position, .. } => *position,
             MouseEvent::DoubleClick { position, .. } => *position,
-            MouseEvent::Moved { position } => *position,
+            MouseEvent::Moved { position, .. } => *position,
         }
     }
 }

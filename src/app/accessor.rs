@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use crate::param::ParameterId;
-use super::{effect::BindingState, signal::ReadSignal, BuildContext, Mapped, Memo, NodeId, ParamSignal, ReactiveContext, ReadContext, Readable, Signal, Widget, WidgetMut};
+use crate::{core::Color, param::ParameterId};
+use super::{effect::BindingState, signal::ReadSignal, Brush, BuildContext, LinearGradient, Mapped, Memo, NodeId, ParamSignal, ReactiveContext, ReadContext, Readable, Signal, Widget, WidgetMut};
 
 pub trait MappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;
@@ -137,3 +137,16 @@ impl From<&str> for Accessor<String> {
         Self::Const(value.to_string())
     }
 }
+
+impl From<Color> for Accessor<Brush> {
+    fn from(value: Color) -> Self {
+        Self::Const(value.into())
+    }
+}
+
+impl From<LinearGradient> for Accessor<Brush> {
+    fn from(value: LinearGradient) -> Self {
+        Self::Const(value.into())
+    }
+}
+

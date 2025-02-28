@@ -1,4 +1,4 @@
-use audioplug::{app::*, core::{Color, Size}, keyboard::Key, style::{Length, UiRect, JustifySelf, AlignSelf}, views::*, App};
+use audioplug::{app::*, core::{Color, Size, UnitPoint}, keyboard::Key, style::{AlignSelf, JustifySelf, Length, UiRect}, views::*, App};
 
 fn main() {
     let mut app = App::new();
@@ -37,13 +37,14 @@ fn main() {
 						Color::from_rgb(0.8, 0.8, 0.8)
 					} else {
 						Color::RED
-					}))
+					}.into()))
 			)
 		)
 		.style(|style| style
 			.height(Length::Vh(100.0))
 			.width(Length::Vw(100.0))
-			.border(Length::Px(2.0), Color::RED))
+			.border(Length::Px(2.0), Color::RED)
+			.background(LinearGradient::new((Color::WHITE, Color::BLACK), UnitPoint::TOP_LEFT, UnitPoint::BOTTOM_RIGHT)))
 		.on_key_event(move |cx, event| {
 			match event {
 				audioplug::KeyEvent::KeyDown { key, .. } => match key {

@@ -10,6 +10,6 @@ impl<'a> Clipboard<'a> {
     }
 
     pub fn set_text(&mut self, string: &str) {
-		self.handle.set_clipboard(string).unwrap();
+		  self.handle.set_clipboard(string).unwrap();
     }
 }

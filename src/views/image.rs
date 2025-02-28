@@ -5,12 +5,12 @@ use crate::{app::Widget, core::{Color, Size}, platform, style::{DisplayStyle, Me
 use super::View;
 
 pub struct Image {
-    source: Option<platform::ImageSource>
+    source: Option<platform::NativeImage>
 }
 
 impl Image {
     pub fn from_file(path: &Path) -> Self {
-        let source = platform::ImageSource::from_file(path).ok();
+        let source = platform::NativeImage::from_file(path).ok();
         Self {
             source
         }
@@ -28,7 +28,7 @@ impl View for Image {
 }
 
 pub struct ImageWidget {
-    source: Option<platform::ImageSource>
+    source: Option<platform::NativeImage>
 }
 
 impl Measure for ImageWidget {

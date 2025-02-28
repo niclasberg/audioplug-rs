@@ -1,4 +1,4 @@
-use super::{Ellipse, Point, Rectangle, RoundedRectangle, Size, Vector};
+use super::{Circle, Ellipse, Point, Rectangle, RoundedRectangle, Size, Vector};
 
 pub enum PathEl {
     MoveTo(Point),
@@ -82,5 +82,11 @@ impl From<RoundedRectangle> for Shape {
 impl From<Ellipse> for Shape {
     fn from(value: Ellipse) -> Self {
         Self::Ellipse(value)
+    }
+}
+
+impl From<Circle> for Shape {
+    fn from(value: Circle) -> Self {
+        Self::Ellipse(value.into())
     }
 }

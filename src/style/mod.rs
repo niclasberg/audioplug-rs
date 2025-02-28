@@ -3,7 +3,7 @@ mod layout_style;
 mod length;
 mod ui_rect;
 
-use crate::core::{Color, Cursor, Size};
+use crate::{app::Brush, core::{Color, Cursor, Size}};
 pub use display_style::{DisplayStyle, FlexStyle, GridStyle, Measure};
 pub(crate) use layout_style::LayoutStyle;
 pub use length::Length;
@@ -23,7 +23,7 @@ impl<U, T: ResolveInto<U>> ResolveInto<taffy::Size<U>> for Size<T> {
 	}
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct Style {
     pub hidden: bool,
     pub size: Size<Length>,
@@ -37,7 +37,7 @@ pub struct Style {
     pub scrollbar_width: f64,
     pub overflow_x: Overflow,
     pub overflow_y: Overflow,
-    pub background: Option<Color>,
+    pub background: Option<Brush>,
     pub corner_radius: Size,
 	pub cursor: Option<Cursor>,
     pub border_color: Option<Color>,

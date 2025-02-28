@@ -25,6 +25,7 @@ impl View for AnyView {
 		self(ctx)
 	}
 }
+
 pub struct BuildContext<'a, W: Widget> {
     id: WidgetId,
     pub(crate) app_state: &'a mut AppState,

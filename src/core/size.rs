@@ -36,6 +36,14 @@ impl<T> Size<T> {
         self.height = height;
         self
     }
+
+    pub fn max(&self, other: &Self) -> Self where T: Ord + Copy {
+        Self::new(self.width.max(other.width), self.height.max(other.height))
+    }
+
+    pub fn min(&self, other: &Self) -> Self where T: Ord + Copy {
+        Self::new(self.width.min(other.width), self.height.min(other.height))
+    }
 }
 
 impl Size<f64> {
@@ -48,14 +56,6 @@ impl Size<f64> {
         width: f64::INFINITY,
         height: f64::INFINITY
     };
-
-    pub fn max(&self, other: &Self) -> Self {
-        Self::new(self.width.max(other.width), self.height.max(other.height))
-    }
-
-    pub fn min(&self, other: &Self) -> Self {
-        Self::new(self.width.min(other.width), self.height.min(other.height))
-    }
 
     pub fn scale(mut self, factor: f64) -> Self {
         self.height *= factor;
@@ -89,14 +89,20 @@ impl<T> Size<Option<T>> {
     }
 }
 
-impl From<[u32; 2]> for Size {
-    fn from([width, height]: [u32; 2]) -> Self {
+impl From<Size<i32>> for Size {
+    fn from(value: Size<i32>) -> Self {
+        Self { width: value.width as f64, height: value.height as f64 }
+    }
+}
+
+impl<T, U: Into<T>> From<[U; 2]> for Size<T> {
+    fn from([width, height]: [U; 2]) -> Self {
         Self { width: width.into(), height: height.into() }
     }
 }
 
-impl From<[u16; 2]> for Size {
-    fn from([width, height]: [u16; 2]) -> Self {
+impl<T, U: Into<T>> From<(U, U)> for Size<T> {
+    fn from((width, height): (U, U)) -> Self {
         Self { width: width.into(), height: height.into() }
     }
 }

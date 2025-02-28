@@ -31,4 +31,32 @@ impl Ellipse<f64> {
             ((pos.x - self.center.x) / self.radii.width).powi(2) + ((pos.y - self.center.y) / self.radii.height).powi(2) <= 1.0
         }
     }
+
+    pub fn bounding_rect(&self) -> Rectangle {
+        Rectangle::from_center(self.center, self.radii.scale(2.0))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Circle<T = f64> {
+    pub center: Point<T>, 
+    pub radius: T,
+}
+
+impl<T> Circle<T> {
+    pub const fn new(center: Point<T>, radius: T) -> Self {
+        Self { center, radius }
+    }
+}
+
+impl Circle<f64> {
+    pub fn contains(&self, pos: Point) -> bool {
+        (pos.x - self.center.x).powi(2) + (pos.y - self.center.y).powi(2) <= self.radius.powi(2)
+    }
+}
+
+impl<T: Clone> From<Circle<T>> for Ellipse<T> {
+    fn from(value: Circle<T>) -> Self {
+        Self::new(value.center, Size::new(value.radius.clone(), value.radius))
+    }
 }

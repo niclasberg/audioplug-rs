@@ -1,8 +1,8 @@
 use crate::{core::{Color, Point, Rectangle, Shape, Transform}, platform, text::TextLayout};
 
-use super::{AppState, WidgetId, WindowId};
+use super::{brush::BrushRef, AppState, WidgetId, WindowId};
 
-pub fn render_window(app_state: &mut AppState, window_id: WindowId, renderer: &mut platform::RendererRef<'_>) {
+pub fn render_window(app_state: &mut AppState, window_id: WindowId, renderer: platform::RendererRef<'_>) {
     let widget_id = app_state.window(window_id).root_widget;
     let mut ctx = RenderContext {
         id: widget_id,
@@ -24,13 +24,13 @@ pub fn invalidate_widget(app_state: &AppState, widget_id: WidgetId) {
     handle.invalidate(bounds);
 }
 
-pub struct RenderContext<'a, 'b, 'c> {
+pub struct RenderContext<'a, 'b> {
     id: WidgetId, 
     app_state: &'a mut AppState,
-    renderer: &'b mut platform::RendererRef<'c>
+    renderer: platform::RendererRef<'b>
 }
 
-impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
+impl<'a, 'b> RenderContext<'a, 'b> {
     pub fn local_bounds(&self) -> Rectangle {
         self.app_state.widget_data_ref(self.id).local_bounds()
     }
@@ -51,26 +51,21 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
         self.app_state.widget_has_captured_mouse(self.id)
     }
 
-    pub fn fill(&mut self, shape: impl Into<Shape>, color: impl Into<Color>) {
-		let color = color.into();
+    pub fn fill<'d>(&mut self, shape: impl Into<Shape>, brush: impl Into<BrushRef<'d>>) {
+        do_fill(&mut self.renderer, shape.into(), brush.into());
+    }
+
+    pub fn stroke<'d>(&mut self, shape: impl Into<Shape>, brush: impl Into<BrushRef<'d>>, line_width: f32) {
+        let brush = brush.into();
         match shape.into() {
-            Shape::Rect(rect) => self.renderer.fill_rectangle(rect, color),
-            Shape::Rounded(rect) => self.renderer.fill_rounded_rectangle(rect, color),
-            Shape::Ellipse(ell) => self.renderer.fill_ellipse(ell, color),
-            Shape::Line { p0, p1 } => self.renderer.draw_line(p0, p1, color, 1.0)
+            Shape::Rect(rect) => self.renderer.draw_rectangle(rect, brush, line_width),
+            Shape::Rounded(rect) => self.renderer.draw_rounded_rectangle(rect, brush, line_width),
+            Shape::Ellipse(ell) => self.renderer.draw_ellipse(ell, brush, line_width),
+            Shape::Line { p0, p1 } => self.renderer.draw_line(p0, p1, brush, line_width)
         }
     }
 
-    pub fn stroke(&mut self, shape: impl Into<Shape>, color: impl Into<Color>, line_width: f32) {
-        match shape.into() {
-            Shape::Rect(rect) => self.renderer.draw_rectangle(rect, color.into(), line_width),
-            Shape::Rounded(rect) => self.renderer.draw_rounded_rectangle(rect.into(), color.into(), line_width),
-            Shape::Ellipse(ell) => self.renderer.draw_ellipse(ell, color.into(), line_width),
-            Shape::Line { p0, p1 } => self.renderer.draw_line(p0, p1, color.into(), line_width)
-        }
-    }
-
-    pub fn draw_bitmap(&mut self, source: &platform::ImageSource, rect: impl Into<Rectangle>) {
+    pub fn draw_bitmap(&mut self, source: &platform::NativeImage, rect: impl Into<Rectangle>) {
         self.renderer.draw_bitmap(source, rect.into())
     }
 
@@ -78,7 +73,7 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
         self.renderer.draw_text(&text_layout.0, position)
     }
 
-    pub fn use_clip(&mut self, rect: impl Into<Rectangle>, f: impl FnOnce(&mut RenderContext<'_, '_, 'c>)) {
+    pub fn use_clip(&mut self, rect: impl Into<Rectangle>, f: impl FnOnce(&mut RenderContext<'_, '_>)) {
         self.renderer.save();
         self.renderer.clip(rect.into());
         f(self);
@@ -96,13 +91,12 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
 				return;
 			}
 
-            let background_color = widget_data.style.background;
             let border_color = widget_data.style.border_color;
             let line_width = widget_data.layout.border.top;
             let shape = widget_data.shape();
 
-            if let Some(background_color) = background_color {
-                self.fill(shape, background_color);
+            if let Some(background) = &widget_data.style.background {
+                do_fill(&mut self.renderer, shape, background.into());
             }
 
             if let Some(border_color) = border_color {
@@ -123,5 +117,14 @@ impl<'a, 'b, 'c> RenderContext<'a, 'b, 'c> {
             self.render_current_widget();
         }
         self.id = old_id;
+    }
+}
+
+fn do_fill(renderer: platform::RendererRef, shape: Shape, brush: BrushRef) {
+    match shape {
+        Shape::Rect(rect) => renderer.fill_rectangle(rect, brush),
+        Shape::Rounded(rect) => renderer.fill_rounded_rectangle(rect, brush),
+        Shape::Ellipse(ell) => renderer.fill_ellipse(ell, brush),
+        Shape::Line { p0, p1 } => renderer.draw_line(p0, p1, brush, 1.0)
     }
 }

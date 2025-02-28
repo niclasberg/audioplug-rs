@@ -15,12 +15,12 @@ struct CachedD2D1Bitmap {
     bitmap: Direct2D::ID2D1Bitmap
 }
 
-pub struct ImageSource {
+pub struct NativeImage {
     converter: Imaging::IWICFormatConverter,
     cached_bitmap: RefCell<Option<CachedD2D1Bitmap>>
 }
 
-impl ImageSource {
+impl NativeImage {
     pub fn from_file(path: &Path) -> Result<Self> {
         let decoder = unsafe { wic_factory().CreateDecoderFromFilename(&HSTRING::from(path), None, GENERIC_READ, Imaging::WICDecodeMetadataCacheOnLoad) }?;
         let converter = unsafe { wic_factory().CreateFormatConverter() }?;

@@ -1,4 +1,4 @@
-use crate::app::{Accessor, BuildContext, Widget};
+use crate::app::{Accessor, Brush, BuildContext, Widget};
 use crate::style::{Style, Length, UiRect, JustifySelf, AlignSelf};
 use crate::core::{Color, Size};
 
@@ -45,7 +45,7 @@ pub struct StyleBuilder {
 	border: Option<Accessor<Length>>,
 	margin: Option<Accessor<UiRect>>,
 	inset: Option<Accessor<UiRect>>,
-    background: Option<Accessor<Color>>,
+    background: Option<Accessor<Brush>>,
 	corner_radius: Option<Accessor<Size>>,
     border_color: Option<Accessor<Color>>,
 	justify_self: Option<Accessor<JustifySelf>>,
@@ -122,7 +122,7 @@ impl StyleBuilder {
         self
     }
 
-    pub fn background(mut self, value: impl Into<Accessor<Color>>) -> Self {
+    pub fn background(mut self, value: impl Into<Accessor<Brush>>) -> Self {
         self.background = Some(value.into());
         self
     }
@@ -149,7 +149,7 @@ impl StyleBuilder {
 	}
 }
 
-fn apply_style<W: Widget, T: Copy + Clone + 'static>(accessor: Option<Accessor<T>>, ctx: &mut BuildContext<W>, apply_fn: impl Fn(T, &mut Style) + 'static + Copy) {
+fn apply_style<W: Widget, T: Clone + 'static>(accessor: Option<Accessor<T>>, ctx: &mut BuildContext<W>, apply_fn: impl Fn(T, &mut Style) + 'static + Copy) {
 	if let Some(accessor) = accessor {
 		let value = accessor.get_and_bind(ctx, move|value, mut widget| {
 			widget.update_style(|style| apply_fn(value, style));

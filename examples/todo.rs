@@ -31,7 +31,7 @@ fn todo_view(todo: Todo) -> impl View {
 		Label::new(todo.name),
 		Button::new(Label::new("Remove"))
 	))
-	.style(|s| s.background(todo.completed.map(|&c| if c { Color::GREEN} else { Color::RED })))
+	.style(|s| s.background(todo.completed.map(|&c| if c { Color::GREEN} else { Color::RED }.into())))
 }
 
 fn main() {

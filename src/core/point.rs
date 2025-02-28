@@ -24,6 +24,20 @@ impl<T> Point<T> {
     pub fn map_y(self, f: impl Fn(T) -> T) -> Self {
         Self::new(self.x, f(self.y))
     }
+
+    pub fn max(&self, other: &Self) -> Self where T: PartialOrd + Copy {
+        Self::new(
+            if self.x > other.x { self.x } else { other.x }, 
+            if self.y > other.y { self.y } else { other.y }
+        )
+    }
+
+    pub fn min(&self, other: &Self) -> Self where T: PartialOrd + Copy {
+        Self::new(
+            if self.x < other.x { self.x } else { other.x }, 
+            if self.y < other.y { self.y } else { other.y }
+        )
+    }
 }
 
 impl<T> Point<Option<T>> {
@@ -70,11 +84,25 @@ impl<T, U: Into<T>> From<[U; 2]> for Point<T> {
     }
 }
 
+impl<T, U: Into<T>> From<(U, U)> for Point<T> {
+    fn from((x, y): (U, U)) -> Self {
+        Self { x: x.into(), y: y.into() }
+    }
+}
+
 impl<T: Add<Output = T>> Add for Point<T> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
         Self { x: self.x + rhs.x, y: self.y + rhs.y }
+    }
+}
+
+impl<T: Add<Output = T>> Add<Size<T>> for Point<T> {
+    type Output = Self;
+
+    fn add(self, rhs: Size<T>) -> Self::Output {
+        Self { x: self.x + rhs.width, y: self.y + rhs.height }
     }
 }
 

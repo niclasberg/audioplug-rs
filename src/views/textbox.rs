@@ -432,7 +432,7 @@ impl Widget for TextBoxWidget {
                 ctx.release_capture();;
                 EventStatus::Handled
             },
-            MouseEvent::Moved { position } => {
+            MouseEvent::Moved { position, .. } => {
                 if self.is_mouse_selecting {
                     if let Some(new_cursor) = self.text_layout.text_index_at_point(position - ctx.bounds().top_left()) {
                         if self.set_caret_position(new_cursor, true) {

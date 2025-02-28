@@ -1,10 +1,12 @@
-use super::Color;
+use super::{Color, Point, UnitPoint};
 
+#[derive(Debug, Clone, Copy)]
 pub struct ColorStop {
     pub position: f32,
     pub color: Color
 }
 
+#[derive(Debug, Clone)]
 pub struct ColorMap {
     pub stops: Vec<ColorStop>
 }
@@ -15,9 +17,10 @@ impl ColorMap {
     }
 
     pub fn new_equidistant(colors: &[Color]) -> Self {
-        let num_colors = colors.len();
+        assert!(colors.len() > 0);
+        let denum = if colors.len() == 1 { 1.0 } else { (colors.len() - 1) as f32 };
         let stops = colors.into_iter().enumerate().map(|(i, &color)| ColorStop {
-            position: (i as f32) / (num_colors as f32),
+            position: (i as f32) / denum,
             color
         }).collect();
 

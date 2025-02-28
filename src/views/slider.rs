@@ -1,4 +1,4 @@
-use crate::{app::{Accessor, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, RoundedRectangle, Shape, Size}, event::MouseButton, keyboard::Key, param::{AnyParameter, NormalizedValue, PlainValue}, style::{DisplayStyle, Length, Measure, Style}, KeyEvent, MouseEvent};
+use crate::{app::{Accessor, AppState, BuildContext, EventContext, EventStatus, LinearGradient, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, RoundedRectangle, Shape, Size, UnitPoint}, event::MouseButton, keyboard::Key, param::{AnyParameter, NormalizedValue, PlainValue}, style::{DisplayStyle, Length, Measure, Style}, KeyEvent, MouseEvent};
 
 use super::View;
 
@@ -224,7 +224,7 @@ impl Widget for SliderWidget {
 				}
                 EventStatus::Handled
             },
-            MouseEvent::Moved { position } => {
+            MouseEvent::Moved { position, .. } => {
                 match self.state {
                     State::Idle => {
                         if self.knob_shape(ctx.bounds()).hit_test(position) {
@@ -322,17 +322,19 @@ impl Widget for SliderWidget {
         };
 
         if ctx.has_focus() {
-            ctx.stroke(bounds, Color::RED, 1.0);
+            //ctx.stroke(bounds, Color::RED, 1.0);
         }
 
-        let background_rect = Rectangle::from_center(center, Size::new(width, 5.0));
+        let background_rect = RoundedRectangle::new(Rectangle::from_center(center, Size::new(width - 2.0, 3.0)), Size::new(1.5, 1.5));
         let range_indicator_rect = Rectangle::from_ltrb(
             bounds.left() + 2.5, 
             center.y - 1.0, 
             slider_position.x, 
             center.y + 1.0);
 
-        ctx.fill(RoundedRectangle::new(background_rect, Size::new(2.5, 2.5)), Color::from_rgb(0.8, 0.8, 0.8));
+        let gradient = LinearGradient::new((Color::BLACK.with_alpha(0.2), Color::WHITE.with_alpha(0.2)), UnitPoint::TOP_CENTER, UnitPoint::BOTTOM_CENTER);
+        ctx.stroke(background_rect, &gradient, 1.0);
+        ctx.fill(background_rect, Color::BLACK.with_alpha(0.3));
         ctx.fill(RoundedRectangle::new(range_indicator_rect, Size::new(1.0, 1.0)), Color::NEON_GREEN);
         ctx.fill(self.knob_shape(bounds), knob_color);
     }

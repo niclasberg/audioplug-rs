@@ -177,7 +177,7 @@ impl WindowState {
                 if let Some(last_mouse_pos) = last_mouse_pos {
                     // Filter out spurious mouse move events
                     if phys_pos != last_mouse_pos {
-                        self.publish_event(hwnd, WindowEvent::Mouse(MouseEvent::Moved { position }));
+                        self.publish_event(hwnd, WindowEvent::Mouse(MouseEvent::Moved { position, modifiers: get_modifiers() }));
                     }
                 } else {
                     unsafe { 
@@ -191,7 +191,7 @@ impl WindowState {
                         TrackMouseEvent(&mut ev).unwrap();
                     };
                     self.publish_event(hwnd, WindowEvent::MouseEnter);
-                    self.publish_event(hwnd, WindowEvent::Mouse(MouseEvent::Moved { position }));
+                    self.publish_event(hwnd, WindowEvent::Mouse(MouseEvent::Moved { position, modifiers: get_modifiers() }));
                 }
                 Some(LRESULT(0))
             },

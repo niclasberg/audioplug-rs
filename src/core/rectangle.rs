@@ -7,56 +7,59 @@ use super::Vector;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Rectangle<T = f64> {
-    x: T,
-    y: T,
-    width: T,
-    height: T,
+    pub pos: Point<T>,
+    pub size: Size<T>,
 }
 
 impl<T> Rectangle<T> {
+    pub const fn new(point: Point<T>, size: Size<T>) -> Self {
+        Self { pos: point, size }
+    }
+
     pub const fn from_xywh(x: T, y: T, width: T, height: T) -> Self {
-        Self { x, y, width, height }
+        Self { pos: Point::new(x, y), size: Size::new(width, height) }
+    }
+
+    #[inline]
+    pub fn from_ltrb(left: T, top: T, right: T, bottom: T) -> Self 
+        where T: PartialOrd + Sub<Output=T> + Copy 
+    {
+        assert!(left <= right);
+        assert!(top <= bottom);
+        Self { pos: Point::new(left, top), size: Size::new(right - left, bottom - top)}
+    }
+
+    #[inline]
+    pub fn from_points(x0: Point<T>, x1: Point<T>) -> Self 
+        where T: PartialOrd + Sub<Output=T> + Copy 
+    {
+        let (x_min, x_max) = if x0.x < x1.x { (x0.x, x1.x) } else { (x1.x, x0.x) };
+        let (y_min, y_max) = if x0.y < x1.y { (x0.y, x1.y) } else { (x1.y, x0.y) };
+        Self { pos: Point::new(x_min, x_max), size: Size::new(x_max - x_min, y_max - y_min) }
     }
 }
 
 impl<T> Rectangle<T> 
 where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + Mul<Output=T> + PartialOrd
 {
-    pub const fn new(point: Point<T>, size: Size<T>) -> Self {
-        Self { x: point.x, y: point.y, width: size.width, height: size.height }
-    }
-
-    pub fn from_points(x0: Point<T>, x1: Point<T>) -> Self {
-        assert!(x0.x <= x1.x);
-        assert!(x0.y <= x1.y);
-        Self { x: x0.x, y: x0.y, width: x1.x - x0.x, height: x1.y - x0.y }
-    }
-
-    #[inline]
-    pub fn from_ltrb(left: T, top: T, right: T, bottom: T) -> Self {
-        assert!(left <= right);
-        assert!(top <= bottom);
-        Self { x: left, y: top, width: right - left, height: bottom - top}
-    }
-
 	#[inline]
     pub fn left(&self) -> T {
-        self.x
+        self.pos.x
     }
 
 	#[inline]
     pub fn right(&self) -> T {
-        self.x + self.width
+        self.pos.x + self.size.width
     }
 
 	#[inline]
     pub fn top(&self) -> T {
-        self.y
+        self.pos.y
     }
 
 	#[inline]
     pub fn bottom(&self) -> T {
-        self.y + self.height
+        self.pos.y + self.size.height
     }
 
     #[inline]
@@ -79,16 +82,16 @@ where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + Mul<Output
         Point::new(self.right(), self.top())
     }
 
-    pub fn position(&self) -> Point<T> {
-        Point::new(self.x, self.y)
+    pub const fn position(&self) -> Point<T> {
+        self.pos
     }
 
     pub fn with_position(&self, position: Point<T>) -> Self {
         Self::new(position, self.size())
     }
 
-    pub fn size(&self) -> Size<T> {
-        Size::new(self.width, self.height)
+    pub const fn size(&self) -> Size<T> {
+        self.size
     }
 
     pub fn with_size(&self, size: Size<T>) -> Self {
@@ -96,16 +99,16 @@ where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + Mul<Output
     }
 
     pub fn width(&self) -> T {
-        self.width
+        self.size.width
     }
 
     pub fn height(&self) -> T {
-        self.height
+        self.size.height
     }
 
     pub fn contains(&self, point: Point<T>) -> bool {
-        point.x >= self.x && (point.x - self.width) <= self.x &&
-        point.y >= self.y && (point.y - self.height) <= self.y
+        point.x >= self.pos.x && (point.x - self.size.width) <= self.pos.x &&
+        point.y >= self.pos.y && (point.y - self.size.height) <= self.pos.y
     }
 
     pub fn intersects(&self, other: &Self) -> bool {
@@ -136,8 +139,8 @@ impl Rectangle<f64> {
         Self::from_center(self.center(), self.size() - Size::new(0.0, amount))
     }
 
-    pub const fn center(&self) -> Point {
-        Point::new(self.x + self.width / 2.0, self.y + self.height / 2.0)
+    pub fn center(&self) -> Point {
+        self.pos + (self.size / 2.0)
     }
 
     pub fn scale(&self, scale: f64) -> Self{
@@ -168,27 +171,23 @@ impl Rectangle<f64> {
 impl From<Rectangle<i32>> for Rectangle<f64> {
     fn from(value: Rectangle<i32>) -> Self {
         Self {
-            height: value.height as f64,
-            width: value.width as f64,
-            x: value.x as f64,
-            y: value.y as f64
+            pos: value.pos.into(),
+            size: value.size.into(),
         }
     }
 }
 
 impl<T: Default> Default for Rectangle<T> {
 	fn default() -> Self {
-		Self { x: Default::default(), y: Default::default(), width: Default::default(), height: Default::default() }
+		Self { pos: Default::default(), size: Default::default() }
 	}
 }
 
 impl<T: Interpolate> Interpolate for Rectangle<T> {
     fn lerp(&self, other: &Self, scalar: f64) -> Self {
         Self {
-            height: self.height.lerp(&other.height, scalar),
-            width: self.width.lerp(&other.width, scalar),
-            x: self.x.lerp(&other.x, scalar),
-            y: self.y.lerp(&other.y, scalar)
+            pos: self.pos.lerp(&other.pos, scalar),
+            size: self.size.lerp(&other.size, scalar)
         }
     }
 }

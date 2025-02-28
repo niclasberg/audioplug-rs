@@ -27,6 +27,11 @@ impl Color {
     pub const fn from_rgb8(r: u8, g: u8, b: u8) -> Self {
         Self::from_rgba8(r, g, b, 1.0)
     }
+
+    pub const fn with_alpha(mut self, a: f32) -> Self {
+        self.a = a;
+        self
+    }
 }
 
 impl Color {

@@ -64,6 +64,7 @@ fn main() {
                     .on_input(move |cx, str| text.set(cx, str.to_string()))
             )).spacing(Length::Px(5.0))
         )).spacing(Length::Px(5.0))
+        .style(|s| s.background(Color::EARTH_YELLOW))
     }));
 
     app.run();

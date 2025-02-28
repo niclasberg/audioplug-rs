@@ -154,6 +154,10 @@ impl<'a> MouseEventContext<'a> {
         self.app_state.widget_has_focus(self.id)
     }
 
+    pub fn has_mouse_capture(&self) -> bool {
+        self.app_state.widget_has_captured_mouse(self.id)
+    }
+
     pub fn app_state(&self) -> &AppState {
         &self.app_state
     }
@@ -248,6 +252,10 @@ impl<'a> EventContext<'a> {
 
 	pub fn has_focus(&self) -> bool {
         self.app_state.widget_has_focus(self.id)
+    }
+
+    pub fn has_mouse_capture(&self) -> bool {
+        self.app_state.widget_has_captured_mouse(self.id)
     }
 
     pub fn app_state(&self) -> &AppState {
