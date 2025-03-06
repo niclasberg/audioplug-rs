@@ -161,7 +161,7 @@ impl SliderWidget {
     }
 
     fn knob_shape(&self, bounds: Rectangle) -> Shape {
-        Shape::circle(self.slider_position(bounds), 5.0)
+        Shape::circle(self.slider_position(bounds), bounds.height())
     }
 
     fn absolute_to_normalized_position(position: Point, bounds: Rectangle) -> f64 {
@@ -192,7 +192,7 @@ impl Measure for SliderWidget {
         let width = width.unwrap_or(match available_width {
             taffy::AvailableSpace::Definite(x) => x.into(),
             taffy::AvailableSpace::MinContent => 5.0,
-            taffy::AvailableSpace::MaxContent => 100.0,
+            taffy::AvailableSpace::MaxContent => 500.0,
         });
         let height = height.unwrap_or(5.0);
 
@@ -272,14 +272,14 @@ impl Widget for SliderWidget {
         match event {
             crate::KeyEvent::KeyDown { key, .. } => {
                 match key {
-                    Key::Left => {
+                    Key::Left | Key::Down => {
                         let new_position = (self.position_normalized - 0.1).clamp(0.0, 1.0);
                         if self.set_position(ctx.app_state_mut(), new_position) {
                             ctx.request_render();
                         }
                         EventStatus::Handled
                     },
-                    Key::Right => {
+                    Key::Right | Key::Up => {
                         let new_position = (self.position_normalized + 0.1).clamp(0.0, 1.0);
                         if self.set_position(ctx.app_state_mut(), new_position) {
                             ctx.request_render();
@@ -315,28 +315,30 @@ impl Widget for SliderWidget {
         let center = bounds.center();
         let width = bounds.width();
         let slider_position = self.slider_position(bounds);
-        let knob_color = match self.state {
-            State::Idle => Color::BLACK,
-            State::KnobHover => Color::from_rgb(0.5, 0.5, 0.5),
-            State::Dragging => Color::from_rgb(0.75, 0.75, 0.75),
-        };
 
         if ctx.has_focus() {
             //ctx.stroke(bounds, Color::RED, 1.0);
         }
 
+        let inner_height_half = bounds.height() / 5.0;
+        let aa = bounds.height() / 10.0;
+
         let background_rect = RoundedRectangle::new(Rectangle::from_center(center, Size::new(width - 2.0, 3.0)), Size::new(1.5, 1.5));
         let range_indicator_rect = Rectangle::from_ltrb(
             bounds.left() + 2.5, 
-            center.y - 1.0, 
+            center.y - bounds.height() / 5.0, 
             slider_position.x, 
-            center.y + 1.0);
+            center.y + bounds.height() / 5.0);
 
+        let knob_gradient_up = LinearGradient::new((Color::from_rgb8(0xA7, 0xA7, 0xA7), Color::from_rgb8(0xDA, 0xDA, 0xDA)), UnitPoint::TOP_CENTER, UnitPoint::BOTTOM_CENTER);
+        let knob_gradient_down = LinearGradient::new((Color::from_rgb8(0xA7, 0xA7, 0xA7), Color::from_rgb8(0xDA, 0xDA, 0xDA)), UnitPoint::BOTTOM_CENTER, UnitPoint::TOP_CENTER);
         let gradient = LinearGradient::new((Color::BLACK.with_alpha(0.2), Color::WHITE.with_alpha(0.2)), UnitPoint::TOP_CENTER, UnitPoint::BOTTOM_CENTER);
+
         ctx.stroke(background_rect, &gradient, 1.0);
         ctx.fill(background_rect, Color::BLACK.with_alpha(0.3));
         ctx.fill(RoundedRectangle::new(range_indicator_rect, Size::new(1.0, 1.0)), Color::NEON_GREEN);
-        ctx.fill(self.knob_shape(bounds), knob_color);
+        ctx.fill(self.knob_shape(bounds), &knob_gradient_down);
+        ctx.fill(self.knob_shape(bounds.shrink(bounds.height() / 5.0)), &knob_gradient_up);
     }
 
     fn display_style(&self) -> DisplayStyle {

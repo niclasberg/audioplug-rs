@@ -43,10 +43,7 @@ impl<W: Widget, F: Fn(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static>
     }
 
     fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
-        if self.widget.key_event(event.clone(), ctx) == EventStatus::Handled {
-            EventStatus::Handled
-        } else {
-            (self.f)(ctx.app_state_mut(), event)
-        }
+        self.widget.key_event(event.clone(), ctx)
+            .or_else(|| (self.f)(ctx.app_state_mut(), event))
     }
 }

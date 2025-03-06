@@ -124,4 +124,8 @@ impl TextLayout {
         unsafe { self.text_layout.GetMetrics(&mut textmetrics as _).unwrap(); }
         Size::new(textmetrics.width as _, textmetrics.height as _)
     }
+
+    pub fn min_word_width(&self) -> f64 {
+        unsafe { self.text_layout.DetermineMinWidth() }.unwrap_or_default() as _
+    }
 }

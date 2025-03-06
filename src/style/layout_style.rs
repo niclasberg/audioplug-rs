@@ -173,4 +173,28 @@ impl<'a> taffy::GridContainerStyle for LayoutStyle<'a> {
 	fn grid_auto_columns(&self) -> Self::AutoTrackList<'_> {
 		todo!()
 	}
+	
+	fn grid_auto_flow(&self) -> taffy::GridAutoFlow {
+		taffy::Style::DEFAULT.grid_auto_flow
+	}
+	
+	fn gap(&self) -> taffy::Size<taffy::LengthPercentage> {
+		taffy::Style::DEFAULT.gap
+	}
+	
+	fn align_content(&self) -> Option<taffy::AlignContent> {
+		taffy::Style::DEFAULT.align_content
+	}
+	
+	fn justify_content(&self) -> Option<taffy::JustifyContent> {
+		taffy::Style::DEFAULT.justify_content
+	}
+	
+	fn align_items(&self) -> Option<taffy::AlignItems> {
+		taffy::Style::DEFAULT.align_items
+	}
+	
+	fn justify_items(&self) -> Option<taffy::AlignItems> {
+		taffy::Style::DEFAULT.justify_items
+	}
 }

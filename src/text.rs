@@ -32,6 +32,10 @@ impl TextLayout {
         self.0.measure()
     }
 
+    pub fn min_word_width(&self) -> f64 {
+        self.0.min_word_width()
+    }
+
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }

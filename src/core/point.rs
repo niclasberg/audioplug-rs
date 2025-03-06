@@ -14,29 +14,38 @@ impl<T> Point<T> {
     }
 
     pub fn map<U>(self, f: impl Fn(T) -> U) -> Point<U> {
-        Point::new(f(self.x), f(self.y))
+        Point {
+            x: f(self.x), 
+            y: f(self.y)
+        }
     }
 
     pub fn map_x(self, f: impl Fn(T) -> T) -> Self {
-        Self::new(f(self.x), self.y)
+        Self {
+            x: f(self.x), 
+            y: self.y
+        }
     }
 
     pub fn map_y(self, f: impl Fn(T) -> T) -> Self {
-        Self::new(self.x, f(self.y))
+        Self { 
+            x: self.x, 
+            y: f(self.y)
+        }
     }
 
     pub fn max(&self, other: &Self) -> Self where T: PartialOrd + Copy {
-        Self::new(
-            if self.x > other.x { self.x } else { other.x }, 
-            if self.y > other.y { self.y } else { other.y }
-        )
+        Self {
+            x: if self.x > other.x { self.x } else { other.x }, 
+            y: if self.y > other.y { self.y } else { other.y }
+        }
     }
 
     pub fn min(&self, other: &Self) -> Self where T: PartialOrd + Copy {
-        Self::new(
-            if self.x < other.x { self.x } else { other.x }, 
-            if self.y < other.y { self.y } else { other.y }
-        )
+        Self {
+            x: if self.x < other.x { self.x } else { other.x }, 
+            y: if self.y < other.y { self.y } else { other.y }
+        }
     }
 }
 

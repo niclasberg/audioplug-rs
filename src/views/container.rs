@@ -24,54 +24,75 @@ impl<VS: ViewSequence, const IS_ROW: bool> FlexContainer<VS, IS_ROW> {
         }
     }
 
+	pub fn wrapping(mut self, value: impl Into<Accessor<FlexWrap>>) -> Self {
+		self.wrap = value.into();
+		self
+	}
+
+	/// Allow children to wrap to a new line (for column) or column (for rows) instead of overflowing
+	pub fn wrap(self) -> Self {
+		self.wrapping(FlexWrap::Wrap)
+	}
+
+	/// Allow children to wrap in reverse order
+	pub fn wrap_reverse(self) -> Self {
+		self.wrapping(FlexWrap::WrapReverse)
+	}
+
     pub fn spacing(mut self, value: impl Into<Accessor<Length>>) -> Self {
         self.spacing = value.into();
         self
     }
+
+	pub fn center(mut self) -> Self {
+		self.justify_content = Some(JustifyContent::Center.into());
+		self.align_items = Some(AlignItems::Center.into());
+		self
+	}
 }
 
 impl<VS> Row<VS> {
-	pub fn v_align(mut self, value: impl Into<Accessor<taffy::JustifyContent>>) -> Self {
+	pub fn h_align(mut self, value: impl Into<Accessor<JustifyContent>>) -> Self {
 		self.justify_content = Some(value.into());
 		self
 	}
 
-	pub fn h_align(mut self, value: impl Into<Accessor<taffy::AlignItems>>) -> Self {
+	pub fn v_align(mut self, value: impl Into<Accessor<AlignItems>>) -> Self {
 		self.align_items = Some(value.into());
 		self
 	}
 
-	pub fn v_align_top(self) -> Self {
-		self.v_align(taffy::JustifyContent::Start)
-	}
-
-	pub fn v_align_center(self) -> Self {
-		self.v_align(taffy::JustifyContent::Center)
-	}
-
-	pub fn v_align_bottom(self) -> Self {
-		self.v_align(taffy::JustifyContent::End)
-	}
-
-	pub fn v_align_space_around(self) -> Self {
-		self.v_align(taffy::JustifyContent::SpaceAround)
-	}
-
-	pub fn v_align_space_between(self) -> Self {
-		self.v_align(taffy::JustifyContent::SpaceBetween)
-	}
-
-	pub fn v_align_space_evenly(self) -> Self {
-		self.v_align(taffy::JustifyContent::SpaceEvenly)
+	pub fn h_align_top(self) -> Self {
+		self.h_align(taffy::JustifyContent::Start)
 	}
 
 	pub fn h_align_center(self) -> Self {
-		self.h_align(taffy::AlignItems::Center)
+		self.h_align(taffy::JustifyContent::Center)
+	}
+
+	pub fn h_align_bottom(self) -> Self {
+		self.h_align(taffy::JustifyContent::End)
+	}
+
+	pub fn h_align_space_around(self) -> Self {
+		self.h_align(taffy::JustifyContent::SpaceAround)
+	}
+
+	pub fn h_align_space_between(self) -> Self {
+		self.h_align(taffy::JustifyContent::SpaceBetween)
+	}
+
+	pub fn h_align_space_evenly(self) -> Self {
+		self.h_align(taffy::JustifyContent::SpaceEvenly)
+	}
+
+	pub fn v_align_center(self) -> Self {
+		self.v_align(taffy::AlignItems::Center)
 	}
 }
 
 impl<VS> Column<VS> {
-	pub fn v_align(mut self, value: impl Into<Accessor<taffy::AlignItems>>) -> Self {
+	pub fn v_align(mut self, value: impl Into<Accessor<AlignItems>>) -> Self {
 		self.align_items = Some(value.into());
 		self
 	}

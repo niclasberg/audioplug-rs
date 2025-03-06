@@ -4,10 +4,19 @@ use crate::{style::DisplayStyle, AnimationFrame, KeyEvent, MouseEvent};
 
 use super::{animation::AnimationContext, EventContext, MouseEventContext, RenderContext};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EventStatus {
     Handled,
     Ignored
+}
+
+impl EventStatus {
+    pub fn or_else(self, f: impl FnOnce() -> Self) -> Self {
+        match self {
+            Self::Handled => Self::Handled,
+            Self::Ignored => f(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

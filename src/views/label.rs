@@ -54,8 +54,10 @@ impl Measure for TextWidget {
         available_width: taffy::AvailableSpace, 
         available_height: taffy::AvailableSpace) -> Size
     {
+        let mut text_layout = self.text_layout.borrow_mut();
+
         let width_constraint = width.unwrap_or(match available_width {
-            taffy::AvailableSpace::MinContent => 0.0,
+            taffy::AvailableSpace::MinContent => text_layout.min_word_width(),
             taffy::AvailableSpace::MaxContent => f64::INFINITY,
             taffy::AvailableSpace::Definite(width) => width.into(),
         });
@@ -66,7 +68,6 @@ impl Measure for TextWidget {
             taffy::AvailableSpace::Definite(height) => height.into(),
         }); 
 
-		let mut text_layout = self.text_layout.borrow_mut();
         text_layout.set_max_size(Size::new(width_constraint, height_constraint));
         text_layout.measure()
     }
@@ -83,7 +84,8 @@ impl Widget for TextWidget {
 
     fn render(&mut self, ctx: &mut RenderContext) {
 		let mut text_layout = self.text_layout.borrow_mut();
-        text_layout.set_max_size(ctx.content_bounds().size());
-        ctx.draw_text(&text_layout, ctx.content_bounds().top_left())
+        let bounds = ctx.content_bounds();
+        text_layout.set_max_size(bounds.size());
+        ctx.draw_text(&text_layout, bounds.top_left())
     }
 }
