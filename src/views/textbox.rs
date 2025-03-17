@@ -309,11 +309,11 @@ const CURSOR_DELAY_SECONDS: f64 = 0.5;
 
 impl Measure for TextBoxWidget {
     fn measure(&self, 
-        style: &Style,
-        width: Option<f64>, 
-        height: Option<f64>, 
-        available_width: taffy::AvailableSpace, 
-        available_height: taffy::AvailableSpace) -> Size 
+        _style: &Style,
+        _width: Option<f64>, 
+        _height: Option<f64>, 
+        _available_width: taffy::AvailableSpace, 
+        _available_height: taffy::AvailableSpace) -> Size 
     {
         let size = self.text_layout.measure();
         Size::new(self.width, size.height)
@@ -417,7 +417,7 @@ impl Widget for TextBoxWidget {
 
     fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         match event {
-            MouseEvent::Down { button, position } if button == MouseButton::LEFT => {
+            MouseEvent::Down { button, position, .. } if button == MouseButton::LEFT => {
                 ctx.capture_mouse();
                 if let Some(new_cursor) = self.text_layout.text_index_at_point(position - ctx.bounds().top_left()) {
                     self.is_mouse_selecting = true;
@@ -429,7 +429,7 @@ impl Widget for TextBoxWidget {
             },
             MouseEvent::Up { button, .. } if button == MouseButton::LEFT => {
                 self.is_mouse_selecting = false;
-                ctx.release_capture();;
+                ctx.release_capture();
                 EventStatus::Handled
             },
             MouseEvent::Moved { position, .. } => {

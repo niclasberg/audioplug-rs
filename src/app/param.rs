@@ -57,11 +57,18 @@ impl<P: AnyParameter> ParamEditor<P> {
 	}
 }
 
-#[derive(Clone, Copy)]
 pub struct ParamSignal<T> {
 	pub(super) id: ParameterId,
-	_phantom: PhantomData<T>
+	_phantom: PhantomData<*const T>
 }
+
+impl<T> Clone for ParamSignal<T> {
+	fn clone(&self) -> Self {
+		*self
+	}
+}
+
+impl<T> Copy for ParamSignal<T> {}
 
 impl<T> ParamSignal<T> {
 	pub fn new(p: &impl Parameter<T>) -> Self {

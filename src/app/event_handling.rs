@@ -1,5 +1,5 @@
 use crate::{app::StatusChange, core::{Cursor, Rectangle}, keyboard::Key, platform::WindowEvent, KeyEvent, MouseEvent};
-use super::{animation::{drive_animations, request_animation_frame}, clipboard::Clipboard, invalidate_window, layout::request_layout, layout_window, render::invalidate_widget, AppState, EventStatus, ReactiveContext, WidgetFlags, WidgetId, WindowId};
+use super::{animation::{drive_animations, request_animation_frame}, clipboard::Clipboard, invalidate_window, layout::request_layout, layout_window, render::invalidate_widget, AppState, EventStatus, ParamContext, ReactiveContext, ReadContext, Scope, WidgetFlags, WidgetId, WindowId, WriteContext};
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
@@ -11,6 +11,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         WindowEvent::Mouse(mouse_event) => {
             match mouse_event {
                 MouseEvent::Down { position, .. } => {
+                    println!("{}", position);
                     let mut new_focus_view = None;
                     app_state.for_each_widget_at_rev(window_id, position, |app_state, id| {
                         if app_state.widget_data[id].flag_is_set(WidgetFlags::FOCUSABLE) {
@@ -21,7 +22,10 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                         }
                     });
                     set_focus_widget(app_state, window_id, new_focus_view);
-                }
+                },
+                MouseEvent::Wheel { delta, position, modifiers } => {
+                    println!("{}", position);
+                },
                 _ => {}
             };
 
@@ -162,6 +166,13 @@ impl<'a> MouseEventContext<'a> {
         &self.app_state
     }
 
+    pub fn as_callback_context(&mut self) -> CallbackContext {
+        CallbackContext {
+            id: self.id,
+            app_state: &mut self.app_state,
+        }
+    }
+
     pub fn app_state_mut(&mut self) -> &mut AppState {
         &mut self.app_state
     }
@@ -266,6 +277,13 @@ impl<'a> EventContext<'a> {
         &mut self.app_state
     }
 
+    pub fn as_callback_context(&mut self) -> CallbackContext {
+        CallbackContext {
+            id: self.id,
+            app_state: &mut self.app_state,
+        }
+    }
+
     pub fn request_layout(&mut self) {
         request_layout(&mut self.app_state, self.id);
     }
@@ -285,5 +303,34 @@ impl<'a> EventContext<'a> {
 
     pub fn set_cursor(&mut self, _cursor: Cursor) {
         //self.app_state.cursor = cursor;
+    }
+}
+
+pub struct CallbackContext<'a> {
+    id: WidgetId, 
+    app_state: &'a mut AppState,
+}
+
+impl<'s> ParamContext for CallbackContext<'s> {
+    fn host_handle(&self) -> &dyn super::HostHandle {
+        self.app_state.host_handle()
+    }
+}
+
+impl<'s> ReadContext for CallbackContext<'s> {
+    fn scope(&self) -> Scope {
+        Scope::Root
+    }
+}
+
+impl<'a> WriteContext for CallbackContext<'a> {}
+
+impl<'b> ReactiveContext for CallbackContext<'b> {
+    fn runtime(&self) -> &super::Runtime {
+        self.app_state.runtime()
+    }
+
+    fn runtime_mut(&mut self) -> &mut super::Runtime {
+        self.app_state.runtime_mut()
     }
 }

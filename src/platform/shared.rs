@@ -1,4 +1,4 @@
-use crate::{core::{Cursor, Point, Rectangle, Size, Theme, UnitPoint}, event::{AnimationFrame, KeyEvent}, MouseEvent};
+use crate::{core::{Cursor, Point, Rectangle, Size, WindowTheme}, event::{AnimationFrame, KeyEvent}, MouseEvent};
 
 use super::{Handle, RendererRef};
 
@@ -25,5 +25,5 @@ pub enum WindowEvent {
     ScaleFactorChanged {
         scale_factor: f64
     },
-    ThemeChanged(Theme)
+    ThemeChanged(WindowTheme)
 }

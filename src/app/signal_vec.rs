@@ -1,6 +1,6 @@
 use std::{any::Any, cell::RefCell, collections::VecDeque, marker::PhantomData, rc::Rc};
 
-use super::{accessor::SourceId, signal::SignalState, CreateContext, NodeId, NodeType, Owner, Runtime, Readable, Trigger, WriteContext};
+use super::{accessor::SourceId, signal::SignalState, CreateContext, NodeId, NodeType, Owner, ReactiveContext, Readable, Runtime, Trigger, WriteContext};
 
 #[derive(Copy, Clone)]
 pub struct SignalVec<T> {
@@ -13,6 +13,7 @@ impl<T: Any> SignalVec<T> {
         let state = SignalState::new(Inner::<T> {
             values: Vec::new(),
             triggers: Vec::new(),
+			len_trigger: None
         });
 		let owner = cx.owner();
         let id = cx.runtime_mut().create_signal_node(state, owner);
@@ -35,6 +36,14 @@ impl<T: Any> SignalVec<T> {
 		self.with_inner_mut(cx.runtime_mut(), move |inner| {
 			inner.values.extend(iter);
 		});
+		cx.runtime_mut().notify(self.id);
+	}
+
+	pub fn retain(&self, cx: &mut impl WriteContext, f: impl Fn(&T) -> bool) {
+		self.with_inner_mut(cx.runtime_mut(), move |inner| {
+			inner.values.retain(f);
+		});
+		cx.runtime_mut().notify(self.id);
 	}
 
 	fn with_inner<R>(&self, cx: &Runtime, f: impl FnOnce(&Inner<T>) -> R) -> R {
@@ -50,7 +59,15 @@ impl<T: Any> SignalVec<T> {
             NodeType::Signal(signal) => signal.value.as_mut(),
             _ => unreachable!()
         };
-        f(value.downcast_mut().expect("Signal had wrong type"))
+		let inner: &mut Inner<T> = value.downcast_mut().expect("Signal had wrong type");
+		let size_before = inner.values.len();
+        let result = f(inner);
+		if let Some(len_trigger) = inner.len_trigger {
+			if size_before != inner.values.len() {
+				len_trigger.notify(cx);
+			}
+		}
+		result
 	}
 }
 
@@ -89,28 +106,10 @@ impl<T: Any> Readable for AtIndex<SignalVec<T>, T> {
 	}
 }
 
-pub struct SignalVecElem<T> {
-    parent_id: NodeId,
-    index: usize,
-    _phantom1: PhantomData<*mut T>
-}
-
-impl<T: Any> Readable for SignalVecElem<T> {
-    type Value = T;
-
-    fn get_source_id(&self) -> super::accessor::SourceId {
-        todo!()
-    }
-
-    fn with_ref<R>(&self, cx: &mut dyn super::ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-        //cx.get_node_mut(self.id, child_path)
-        todo!()
-    }
-}
-
 struct Inner<T> {
 	values: Vec<T>,
-	triggers: Vec<Trigger>
+	triggers: Vec<Trigger>,
+	len_trigger: Option<Trigger>,
 }
 
 trait StreamStateInner {

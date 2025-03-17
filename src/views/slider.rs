@@ -1,14 +1,22 @@
-use crate::{app::{Accessor, AppState, BuildContext, EventContext, EventStatus, LinearGradient, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, RoundedRectangle, Shape, Size, UnitPoint}, event::MouseButton, keyboard::Key, param::{AnyParameter, NormalizedValue, PlainValue}, style::{DisplayStyle, Length, Measure, Style}, KeyEvent, MouseEvent};
+use crate::{app::{Accessor, BuildContext, CallbackContext, EventContext, EventStatus, LinearGradient, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, RoundedRectangle, Shape, Size, UnitPoint}, event::MouseButton, keyboard::Key, param::{AnyParameter, NormalizedValue, PlainValue}, style::{DisplayStyle, Length, Measure, Style}, KeyEvent, MouseEvent};
 
-use super::View;
+use super::{util::{denormalize_value, normalize_value}, View};
+
+#[derive(Default)]
+enum Direction {
+    #[default]
+    Horizontal,
+    Vertical
+}
 
 pub struct Slider {
     min: f64,
     max: f64,
 	value: Option<Accessor<f64>>,
-    on_drag_start: Option<Box<dyn Fn(&mut AppState)>>, 
-    on_drag_end: Option<Box<dyn Fn(&mut AppState)>>, 
-    on_value_changed: Option<Box<dyn Fn(&mut AppState, f64)>>,
+    on_drag_start: Option<Box<dyn Fn(&mut CallbackContext)>>, 
+    on_drag_end: Option<Box<dyn Fn(&mut CallbackContext)>>, 
+    on_value_changed: Option<Box<dyn Fn(&mut CallbackContext, f64)>>,
+    direction: Direction,
 }
 
 impl Slider {
@@ -19,21 +27,27 @@ impl Slider {
 			value: None,
             on_drag_start: None,
             on_drag_end: None,
-            on_value_changed: None 
+            on_value_changed: None,
+            direction: Default::default()
         }
     }
 
-    pub fn on_value_changed(mut self, f: impl Fn(&mut AppState, f64) + 'static) -> Self {
+    pub fn vertical(mut self) -> Self {
+        self.direction = Direction::Vertical;
+        self
+    }
+
+    pub fn on_value_changed(mut self, f: impl Fn(&mut CallbackContext, f64) + 'static) -> Self {
         self.on_value_changed = Some(Box::new(f));
         self
     }
 
-	pub fn on_drag_start(mut self, f: impl Fn(&mut AppState) + 'static) -> Self {
+	pub fn on_drag_start(mut self, f: impl Fn(&mut CallbackContext) + 'static) -> Self {
 		self.on_drag_start = Some(Box::new(f));
 		self
 	}
 
-	pub fn on_drag_end(mut self, f: impl Fn(&mut AppState) + 'static) -> Self {
+	pub fn on_drag_end(mut self, f: impl Fn(&mut CallbackContext) + 'static) -> Self {
 		self.on_drag_end = Some(Box::new(f));
 		self
 	}
@@ -72,23 +86,21 @@ impl View for Slider {
 
         SliderWidget {
             position_normalized,
-            state: State::Idle,
             min: self.min,
             max: self.max, 
             on_drag_start: self.on_drag_start,
             on_drag_end: self.on_drag_end,
-            on_value_changed: self.on_value_changed
+            on_value_changed: self.on_value_changed,
+            direction: self.direction,
+            ..Default::default()
         }
     }
 }
 
-fn normalize_value(min: f64, max: f64, value: f64) -> f64 {
-	((value - min) / (max - min)).clamp(0.0, 1.0)
-}
-
 pub struct ParameterSlider<P: AnyParameter> {
     editor: ParamEditor<P>,
-	signal: Accessor<NormalizedValue>
+	signal: Accessor<NormalizedValue>,
+    direction: Direction
 }
 
 impl<P: AnyParameter> ParameterSlider<P> {
@@ -97,8 +109,14 @@ impl<P: AnyParameter> ParameterSlider<P> {
         let editor = ParamEditor::new(parameter);
         Self {
             editor,
-			signal
+			signal,
+            direction: Default::default()
         }
+    }
+
+    pub fn vertical(mut self) -> Self {
+        self.direction = Direction::Vertical;
+        self
     }
 }
 
@@ -107,26 +125,31 @@ impl<P: AnyParameter> View for ParameterSlider<P> {
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         let editor = self.editor;
-        let slider = Slider::new()
-            .range(editor.info(ctx).min_value().into(), editor.info(ctx).max_value().into())
-			.on_drag_start(move |cx| {
+        ctx.set_focusable(true);
+        ctx.set_style(Style {
+            size: Size::new(Length::Auto, Length::Px(10.0)),
+            ..Default::default()
+        });
+
+        SliderWidget {
+            position_normalized: self.signal.get_and_bind_mapped(ctx, |value| value.0, |value, mut widget| {
+                widget.position_normalized = value;
+                widget.request_render();
+            }),
+            min: editor.info(ctx).min_value().into(),
+            max: editor.info(ctx).max_value().into(), 
+            on_drag_start: Some(Box::new(move |cx| {
 				editor.begin_edit(cx);
-			})
-			.on_drag_end(move |cx| {
+			})),
+            on_drag_end: Some(Box::new(move |cx| {
 				editor.end_edit(cx);
-			})
-            .on_value_changed(move |cx, value| {
+			})),
+            on_value_changed: Some(Box::new(move |cx, value| {
                 editor.set_value_plain(cx, PlainValue::new(value));
-            });
-
-		let normalized_position = self.signal.get_and_bind(ctx, |value, mut widget| {
-			widget.position_normalized = value.0;
-			widget.request_render();
-		});
-
-        let mut widget = ctx.build(slider);
-		widget.position_normalized = normalized_position.into();
-		widget
+            })),
+            direction: self.direction,
+            ..Default::default()
+        }
     }
 }
 
@@ -136,9 +159,12 @@ pub struct SliderWidget {
     state: State,
     min: f64,
     max: f64,
-    on_drag_start: Option<Box<dyn Fn(&mut AppState)>>, 
-    on_drag_end: Option<Box<dyn Fn(&mut AppState)>>, 
-    on_value_changed: Option<Box<dyn Fn(&mut AppState, f64)>>
+    on_drag_start: Option<Box<dyn Fn(&mut CallbackContext)>>, 
+    on_drag_end: Option<Box<dyn Fn(&mut CallbackContext)>>, 
+    on_value_changed: Option<Box<dyn Fn(&mut CallbackContext, f64)>>,
+    direction: Direction,
+    knob_gradient_up: LinearGradient,
+    knob_gradient_down: LinearGradient,
 }
 
 #[derive(Debug, PartialEq)]
@@ -151,32 +177,63 @@ enum State {
 impl SliderWidget {
     fn slider_position(&self, bounds: Rectangle) -> Point {
         let slider_bounds = self.inner_bounds(bounds);
-        let knob_x = slider_bounds.left() + self.position_normalized * slider_bounds.width();
-        let knob_y = slider_bounds.center().y;
-        Point::new(knob_x, knob_y)
+        match self.direction {
+            Direction::Horizontal => Point {
+                x: slider_bounds.left() + self.position_normalized * slider_bounds.width(),
+                y: slider_bounds.center().y,
+            },
+            Direction::Vertical => Point {
+                x: slider_bounds.center().x,
+                y: slider_bounds.top() + self.position_normalized * slider_bounds.height(),
+            },
+        }
     }
 
     fn inner_bounds(&self, bounds: Rectangle) -> Rectangle {
-        bounds.shrink_x(5.0)
+        match self.direction {
+            Direction::Horizontal => bounds.shrink_x(self.knob_radius(bounds)),
+            Direction::Vertical => bounds.shrink_y(self.knob_radius(bounds)),
+        }
     }
 
     fn knob_shape(&self, bounds: Rectangle) -> Shape {
-        Shape::circle(self.slider_position(bounds), bounds.height())
+        Shape::circle(self.slider_position(bounds), self.knob_radius(bounds))
+    }
+
+    fn knob_radius(&self, bounds: Rectangle) -> f64 {
+        bounds.height().min(bounds.width()) / 2.0
     }
 
     fn absolute_to_normalized_position(position: Point, bounds: Rectangle) -> f64 {
         ((position.x - bounds.left() - 2.5) / (bounds.width() - 5.0)).clamp(0.0, 1.0)
     }
 
-    fn set_position(&mut self, app_state: &mut AppState, normalized_position: f64) -> bool {
+    fn set_position(&mut self, cx: &mut CallbackContext, normalized_position: f64) -> bool {
         if normalized_position != self.position_normalized {
             self.position_normalized = normalized_position;
             if let Some(f) = self.on_value_changed.as_ref() {
-                f(app_state, self.min + (self.max - self.min) * self.position_normalized);
+                f(cx, denormalize_value(self.min, self.max, self.position_normalized));
             }
             true
         } else {
             false
+        }
+    }
+}
+
+impl Default for SliderWidget {
+    fn default() -> Self {
+        Self { 
+            position_normalized: 0.0, 
+            state: State::Idle, 
+            min: 0.0, 
+            max: 1.0, 
+            on_drag_start: None, 
+            on_drag_end: None, 
+            on_value_changed: None,
+            direction: Default::default(),
+            knob_gradient_up: LinearGradient::new((Color::from_rgb8(0xA7, 0xA7, 0xA7), Color::from_rgb8(0xDA, 0xDA, 0xDA)), UnitPoint::TOP_CENTER, UnitPoint::BOTTOM_CENTER),
+            knob_gradient_down: LinearGradient::new((Color::from_rgb8(0xA7, 0xA7, 0xA7), Color::from_rgb8(0xDA, 0xDA, 0xDA)), UnitPoint::BOTTOM_CENTER, UnitPoint::TOP_CENTER),
         }
     }
 }
@@ -207,18 +264,18 @@ impl Widget for SliderWidget {
 
     fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         match event {
-            MouseEvent::Down { button, position } => {
+            MouseEvent::Down { button, position, .. } => {
 				if button == MouseButton::LEFT && self.state != State::Dragging {
                 	if !self.knob_shape(ctx.bounds()).hit_test(position) {
                         let normalized_position = Self::absolute_to_normalized_position(position, ctx.bounds());
-						if self.set_position(ctx.app_state_mut(), normalized_position) {
+						if self.set_position(&mut ctx.as_callback_context(), normalized_position) {
 							ctx.request_render();
 						}
 					}
 					ctx.capture_mouse();
 					ctx.request_render();
 					if let Some(f) = self.on_drag_start.as_ref() {
-						f(ctx.app_state_mut());
+						f(&mut ctx.as_callback_context());
 					}
 					self.state = State::Dragging;
 				}
@@ -240,18 +297,18 @@ impl Widget for SliderWidget {
                     },
                     State::Dragging => {
                         let normalized_position = Self::absolute_to_normalized_position(position, ctx.bounds());
-                        if self.set_position(ctx.app_state_mut(), normalized_position) {
+                        if self.set_position(&mut ctx.as_callback_context(), normalized_position) {
                             ctx.request_render();
                         }
                     },
                 }
                 EventStatus::Handled
             },
-            MouseEvent::Up { button, position } => {
+            MouseEvent::Up { button, position, .. } => {
                 if button == MouseButton::LEFT {
                     if self.state == State::Dragging {
                         if let Some(f) = self.on_drag_end.as_ref() {
-                            f(ctx.app_state_mut())
+                            f(&mut ctx.as_callback_context())
                         }
                     }
                     ctx.release_capture();
@@ -274,14 +331,14 @@ impl Widget for SliderWidget {
                 match key {
                     Key::Left | Key::Down => {
                         let new_position = (self.position_normalized - 0.1).clamp(0.0, 1.0);
-                        if self.set_position(ctx.app_state_mut(), new_position) {
+                        if self.set_position(&mut ctx.as_callback_context(), new_position) {
                             ctx.request_render();
                         }
                         EventStatus::Handled
                     },
                     Key::Right | Key::Up => {
                         let new_position = (self.position_normalized + 0.1).clamp(0.0, 1.0);
-                        if self.set_position(ctx.app_state_mut(), new_position) {
+                        if self.set_position(&mut ctx.as_callback_context(), new_position) {
                             ctx.request_render();
                         }
                         EventStatus::Handled
@@ -302,7 +359,7 @@ impl Widget for SliderWidget {
                 if self.state == State::Dragging {
                     self.state = State::Idle;
                     if let Some(f) = self.on_drag_end.as_ref() {
-                        f(ctx.app_state_mut())
+                        f(&mut ctx.as_callback_context())
                     }
                 }
             },
@@ -314,6 +371,7 @@ impl Widget for SliderWidget {
         let bounds = ctx.content_bounds();
         let center = bounds.center();
         let width = bounds.width();
+        let knob_radius = self.knob_radius(bounds);
         let slider_position = self.slider_position(bounds);
 
         if ctx.has_focus() {
@@ -324,21 +382,20 @@ impl Widget for SliderWidget {
         let aa = bounds.height() / 10.0;
 
         let background_rect = RoundedRectangle::new(Rectangle::from_center(center, Size::new(width - 2.0, 3.0)), Size::new(1.5, 1.5));
-        let range_indicator_rect = Rectangle::from_ltrb(
-            bounds.left() + 2.5, 
+        /*let range_indicator_rect = Rectangle::from_ltrb(
+            bounds.left(), 
             center.y - bounds.height() / 5.0, 
             slider_position.x, 
-            center.y + bounds.height() / 5.0);
+            center.y + bounds.height() / 5.0);*/
 
-        let knob_gradient_up = LinearGradient::new((Color::from_rgb8(0xA7, 0xA7, 0xA7), Color::from_rgb8(0xDA, 0xDA, 0xDA)), UnitPoint::TOP_CENTER, UnitPoint::BOTTOM_CENTER);
-        let knob_gradient_down = LinearGradient::new((Color::from_rgb8(0xA7, 0xA7, 0xA7), Color::from_rgb8(0xDA, 0xDA, 0xDA)), UnitPoint::BOTTOM_CENTER, UnitPoint::TOP_CENTER);
+        
         let gradient = LinearGradient::new((Color::BLACK.with_alpha(0.2), Color::WHITE.with_alpha(0.2)), UnitPoint::TOP_CENTER, UnitPoint::BOTTOM_CENTER);
 
         ctx.stroke(background_rect, &gradient, 1.0);
         ctx.fill(background_rect, Color::BLACK.with_alpha(0.3));
-        ctx.fill(RoundedRectangle::new(range_indicator_rect, Size::new(1.0, 1.0)), Color::NEON_GREEN);
-        ctx.fill(self.knob_shape(bounds), &knob_gradient_down);
-        ctx.fill(self.knob_shape(bounds.shrink(bounds.height() / 5.0)), &knob_gradient_up);
+        //ctx.fill(RoundedRectangle::new(range_indicator_rect, Size::new(1.0, 1.0)), Color::NEON_GREEN);
+        ctx.fill(self.knob_shape(bounds), &self.knob_gradient_down);
+        ctx.fill(self.knob_shape(bounds.shrink(knob_radius / 5.0)), &self.knob_gradient_up);
     }
 
     fn display_style(&self) -> DisplayStyle {

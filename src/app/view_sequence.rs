@@ -52,6 +52,14 @@ impl<V: View> ViewSequence for Option<V> {
     }
 }
 
+impl<const N: usize, V: View> ViewSequence for [V; N] {
+	fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+		for child in self {
+			cx.add_child(child);
+		}
+	}
+}
+
 pub struct ForRange<Idx, F> {
 	start: Accessor<Idx>,
 	end: Accessor<Idx>, 
@@ -191,7 +199,7 @@ where
 			std::mem::swap(&mut indices, &mut new_indices);
 		});
 
-		cx.runtime_mut().create_binding_node(source_id, state, Some(Owner::Widget(widget_id)));
+		cx.runtime_mut().create_binding_node(source_id, state, Some(Owner::Widget(widget_id.id)));
 
 		/*
 		view_indices.insert((self.key_fn)(&value), i);

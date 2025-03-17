@@ -1,10 +1,10 @@
-use crate::{app::{AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Rectangle, RoundedRectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, style::{DisplayStyle, FlexStyle, Length, Style, UiRect}, MouseEvent};
+use crate::{app::{AppState, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Rectangle, RoundedRectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::Key, style::{DisplayStyle, FlexStyle, Length, Style, UiRect}, MouseEvent};
 
 use super::View;
 
 pub struct Button<V> {
     child: V,
-    click_fn: Option<Box<dyn Fn(&mut AppState)>>
+    click_fn: Option<Box<dyn Fn(&mut CallbackContext)>>
 }
 
 impl<V: View> Button<V> {
@@ -12,7 +12,7 @@ impl<V: View> Button<V> {
         Self { child, click_fn: None }
     }
 
-    pub fn on_click(mut self, f: impl Fn(&mut AppState) + 'static) -> Self {
+    pub fn on_click(mut self, f: impl Fn(&mut CallbackContext) + 'static) -> Self {
         self.click_fn = Some(Box::new(f));
         self
     }
@@ -44,7 +44,7 @@ const FLEX_STYLE: FlexStyle = FlexStyle::DEFAULT;
 pub struct ButtonWidget {
     is_hot: bool,
     mouse_down: bool,
-    click_fn: Option<Box<dyn Fn(&mut AppState)>>
+    click_fn: Option<Box<dyn Fn(&mut CallbackContext)>>
 }
 
 impl Widget for ButtonWidget {
@@ -54,18 +54,18 @@ impl Widget for ButtonWidget {
 
     fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         match event {
-            MouseEvent::Down { button, position } | MouseEvent::DoubleClick { button, position } if ctx.bounds().contains(position) => {
+            MouseEvent::Down { button, position, .. } | MouseEvent::DoubleClick { button, position, .. } if ctx.bounds().contains(position) => {
                 if button == MouseButton::LEFT {
                     ctx.capture_mouse();
                     ctx.request_render();
                 }
                 EventStatus::Handled
             },
-            MouseEvent::Up { button, position } if button == MouseButton::LEFT => {
+            MouseEvent::Up { button, position, .. } if button == MouseButton::LEFT => {
                 ctx.release_capture();
 				if ctx.bounds().contains(position) {
 					if let Some(f) = self.click_fn.as_ref() {
-						f(ctx.app_state_mut());
+						f(&mut ctx.as_callback_context());
 					}
 				}
 				ctx.request_render();
@@ -99,7 +99,7 @@ impl Widget for ButtonWidget {
 		match event {
 			KeyEvent::KeyDown { key, ..} if key == Key::Enter => {
 				if let Some(f) = self.click_fn.as_ref() {
-					f(ctx.app_state_mut());
+					f(&mut ctx.as_callback_context());
 				} 
 				EventStatus::Handled
 			},

@@ -44,7 +44,7 @@ fn main() {
 			.height(Length::Vh(100.0))
 			.width(Length::Vw(100.0))
 			.border(Length::Px(2.0), Color::RED)
-			.background(LinearGradient::new((Color::WHITE, Color::BLACK), UnitPoint::TOP_LEFT, UnitPoint::BOTTOM_RIGHT)))
+			.background(LinearGradient::new((Color::WHITE, Color::GRAY90), UnitPoint::TOP_LEFT, UnitPoint::BOTTOM_RIGHT)))
 		.on_key_event(move |cx, event| {
 			match event {
 				audioplug::KeyEvent::KeyDown { key, .. } => match key {

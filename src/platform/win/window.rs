@@ -1,33 +1,17 @@
 use std::{cell::{Cell, RefCell}, marker::PhantomData, mem::MaybeUninit, rc::Rc, sync::Once};
 
-use windows::{core::{w, Error, Result, PCWSTR}, 
+use windows::{core::{w, Result, PCWSTR}, 
     Win32::{
         Foundation::*, Graphics::{Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE}, Gdi::{self, InvalidateRect, ScreenToClient}}, System::{LibraryLoader::GetModuleHandleW, Performance}, UI::{HiDpi::GetDpiForWindow, Input::{KeyboardAndMouse::{TrackMouseEvent, VIRTUAL_KEY}, *}, WindowsAndMessaging::*}}};
 use KeyboardAndMouse::{ReleaseCapture, SetCapture};
 
 use super::{com, cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, util::get_theme, Handle, Renderer};
-use crate::{core::{Color, Point, Rectangle, Size, Theme}, event::{AnimationFrame, KeyEvent, MouseEvent}, keyboard::Key, platform::{WindowEvent, WindowHandler}, MouseButtons};
+use crate::{core::{Color, Point, Rectangle, Size, Vector, WindowTheme}, event::{AnimationFrame, KeyEvent, MouseEvent}, keyboard::Key, platform::{WindowEvent, WindowHandler}, MouseButtons};
 use crate::event::MouseButton;
 
 const WINDOW_CLASS: PCWSTR = w!("my_window");
 static REGISTER_WINDOW_CLASS: Once = Once::new();
 const ANIMATION_FRAME_TIMER: usize = 10;
-
-pub trait CheckOk {
-    type Output: Sized;
-    fn ok(self) -> Result<Self::Output>;
-}
-
-impl CheckOk for BOOL {
-    type Output = ();
-    fn ok(self) -> Result<Self::Output> {
-        if self == BOOL(0) {
-            Err(Error::from_win32())
-        } else {
-            Ok(())
-        }
-    }
-}
 
 pub struct Window {
     handle: HWND,
@@ -48,7 +32,7 @@ struct WindowState {
     current_key_event: RefCell<Option<TmpKeyEvent>>,
     scale_factor: Rc<Cell<f64>>,
     captured_mouse_buttons: RefCell<MouseButtons>,
-    theme: Rc<Cell<Theme>>,
+    theme: Rc<Cell<WindowTheme>>,
 }
 
 impl WindowState {
@@ -124,7 +108,7 @@ impl WindowState {
                 let new_size = new_size.scale(self.scale_factor.get());
                 let window_event = WindowEvent::Resize { new_size };
                 self.publish_event(hwnd, window_event);
-                unsafe { InvalidateRect(Some(hwnd), None, false) };
+                let _ = unsafe { InvalidateRect(Some(hwnd), None, false) };
                 Some(LRESULT(0))
             },
 
@@ -169,9 +153,7 @@ impl WindowState {
 
             WM_MOUSEMOVE => {
                 let phys_pos = point_from_lparam(lparam);
-                let position: Point = phys_pos.into();
-                let scale_factor = self.scale_factor.get();
-                let position = position.map(|x| x / scale_factor);
+                let position = self.position_from_lparam(lparam);
                 let last_mouse_pos = self.last_mouse_pos.replace(Some(phys_pos));
 
                 if let Some(last_mouse_pos) = last_mouse_pos {
@@ -193,6 +175,25 @@ impl WindowState {
                     self.publish_event(hwnd, WindowEvent::MouseEnter);
                     self.publish_event(hwnd, WindowEvent::Mouse(MouseEvent::Moved { position, modifiers: get_modifiers() }));
                 }
+                Some(LRESULT(0))
+            },
+
+            WM_MOUSEWHEEL | WM_MOUSEHWHEEL => {
+                let lines = (wparam.0 >> 16) as i16;
+                let lines = lines as f64 / WHEEL_DELTA as f64;
+                let delta = if message == WM_MOUSEWHEEL {
+                    Vector::new(0.0, lines)
+                } else {
+                    Vector::new(lines, 0.0)
+                };
+
+                let position = self.position_from_screen_lparam(hwnd, lparam);
+                self.publish_event(hwnd, WindowEvent::Mouse(MouseEvent::Wheel { 
+                    delta, 
+                    position, 
+                    modifiers: get_modifiers() 
+                }));
+
                 Some(LRESULT(0))
             },
 
@@ -249,20 +250,6 @@ impl WindowState {
                     };
                     
                     self.publish_event(hwnd, WindowEvent::Key(key_event));
-
-                    /*match wparam.0 as u16 {
-                        0x08 | 0x0A | 0x1B  => { // backspace, linefeed, escape
-                            None
-                        },
-                        str => {
-                            if let Ok(str) = String::from_utf16(&[str]) {
-                                
-                                Some(LRESULT(0))
-                            } else {
-                                None
-                            }
-                        }
-                    }*/
                 }
                 Some(LRESULT(0))
             },
@@ -305,16 +292,16 @@ impl WindowState {
             _ => unreachable!()
         };
 
-        let position: Point = point_from_lparam(lparam).into();
-        let position = position.scale(1.0 / self.scale_factor.get());
+        let position = self.position_from_lparam(lparam);
+        let modifiers = get_modifiers();
 
         match message {
             WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN => 
-                MouseEvent::Down { button, position },
+                MouseEvent::Down { button, position, modifiers },
             WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP =>
-                MouseEvent::Up { button, position },
+                MouseEvent::Up { button, position, modifiers },
             WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK =>
-                MouseEvent::DoubleClick { button, position },
+                MouseEvent::DoubleClick { button, position, modifiers },
             _ => unreachable!()
         }
     }
@@ -325,6 +312,17 @@ impl WindowState {
             .map(|_| (lpperformancecount as f64) / self.ticks_per_second)
             .ok()
     }
+
+    fn position_from_lparam(&self, lparam: LPARAM) -> Point {
+        let position: Point = point_from_lparam(lparam).into();
+        position.scale(1.0 / self.scale_factor.get())
+    }
+
+    fn position_from_screen_lparam(&self, hwnd: HWND, lparam: LPARAM) -> Point {
+        let screen_pos = point_from_lparam(lparam);
+        let client_pos: Point = screen_to_client_pos(hwnd, screen_pos.x, screen_pos.y).into();
+        client_pos.scale(1.0 / self.scale_factor.get())
+    }
 }
 
 impl Window {
@@ -333,19 +331,19 @@ impl Window {
 
         unsafe {
             let value: BOOL = match get_theme() {
-                Theme::Light => false,
-                Theme::Dark => true,
+                WindowTheme::Light => false,
+                WindowTheme::Dark => true,
             }.into();
             DwmSetWindowAttribute(this.handle, DWMWA_USE_IMMERSIVE_DARK_MODE, &value as *const _ as *const _, std::mem::size_of_val(&value) as _)?;
         }
         
-        unsafe { ShowWindow(this.handle, SW_SHOW) };
+        let _ = unsafe { ShowWindow(this.handle, SW_SHOW) };
         Ok(this)
     }
 
     pub fn attach(parent: HWND, handler: impl WindowHandler + 'static) -> Result<Self> {
         let this = Self::create(Some(parent), WS_CHILD, handler)?;
-        unsafe { ShowWindow(this.handle, SW_SHOW) };
+        let _ = unsafe { ShowWindow(this.handle, SW_SHOW) };
         Ok(this)
     }
 
@@ -429,14 +427,20 @@ fn point_from_lparam(lparam: LPARAM) -> Point<i32> {
     Point::new((lparam.0 & 0xFFFF) as i16 as i32, ((lparam.0 >> 16) & 0xFFFF) as i16 as i32)
 }
 
+fn screen_to_client_pos(hwnd: HWND, x: i32, y: i32) -> Point<i32> {
+    let mut screen_pos = POINT { x, y };
+    if unsafe { ScreenToClient(hwnd, &mut screen_pos as *mut _) }.as_bool() {
+        Point::new(screen_pos.x, screen_pos.y)
+    } else {
+        Point::new(0, 0)
+    }
+}
+
 fn get_message_pos(hwnd: HWND) -> Point<i32> {
     let pos = unsafe { GetMessagePos() };
     let x = ((pos & 0xFFFF) as u16) as i32;
     let y = (((pos >> 16) & 0xFFFF) as u16) as i32;
-                
-    let mut screen_pos = POINT { x, y };
-    unsafe { ScreenToClient(hwnd, &mut screen_pos as *mut _) };
-    Point::new(screen_pos.x, screen_pos.y)
+    screen_to_client_pos(hwnd, x, y)
 }
 
 fn peek_message(hwnd: HWND, msgmin: u32, msgmax: u32) -> Option<MSG> {

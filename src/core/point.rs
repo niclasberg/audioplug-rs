@@ -1,4 +1,4 @@
-use std::ops::{Add, Sub};
+use std::{fmt::Display, ops::{Add, Sub}};
 
 use super::{Interpolate, Size, Vector};
 
@@ -78,6 +78,12 @@ impl Point<f64> {
 
     pub fn scale_y(self, s: f64) -> Self {
         Self::new(self.x, self.y * s)
+    }
+}
+
+impl<T: Display> Display for Point<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {}))", self.x, self.y)
     }
 }
 

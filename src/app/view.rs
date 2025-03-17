@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use crate::style::Style;
-use super::{AppState, CreateContext, Owner, ParamContext, ReactiveContext, ReadContext, Scope, ViewContext, Widget, WidgetFlags, WidgetId};
+use super::{AppState, CreateContext, Owner, ParamContext, ReactiveContext, ReadContext, Scope, TypedWidgetId, ViewContext, Widget, WidgetFlags, WidgetId};
 
 pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn Widget>>;
 
@@ -41,8 +41,8 @@ impl<'a, W: Widget> BuildContext<'a, W> {
         }
     }
 
-    pub fn id(&self) -> WidgetId {
-        self.id
+    pub fn id(&self) -> TypedWidgetId<W> {
+        TypedWidgetId::new(self.id)
     }
 
     pub fn set_focusable(&mut self, focusable: bool) {

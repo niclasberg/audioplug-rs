@@ -1,4 +1,4 @@
-use std::{any::Any, marker::PhantomData};
+use std::{any::Any, hash::Hash, marker::PhantomData};
 
 use super::{accessor::{MappedAccessor, SourceId}, Owner, Runtime, Scope, WindowId};
 
@@ -77,6 +77,19 @@ pub trait Readable {
             _marker: PhantomData,
         }
     }
+
+    fn with_key<T, K, F>(self, f: F) -> Keyed<Self, F> 
+    where   
+        Self: Sized,
+        Self::Value: IntoIterator<Item = T>,
+        K: Hash + PartialEq + Copy,
+        F: Fn(&T) -> K
+    {
+        Keyed {
+            signal: self,
+            key_fn: f
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -120,5 +133,29 @@ where
 
     fn evaluate(&self, ctx: &mut dyn ReadContext) -> B {
         self.parent.with_ref(ctx, &self.f)
+    }
+}
+
+pub struct Keyed<S, F> {
+    signal: S,
+    key_fn: F
+}
+
+impl<S: Readable, F> Readable for Keyed<S, F> {
+    type Value = S::Value;
+
+    fn get_source_id(&self) -> SourceId {
+        self.signal.get_source_id()
+    }
+
+    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+        self.signal.with_ref(cx, f)
+    }
+    
+    fn get(&self, cx: &mut dyn ReadContext) -> Self::Value
+    where
+        Self::Value: Clone,
+    {
+        self.signal.get(cx)
     }
 }

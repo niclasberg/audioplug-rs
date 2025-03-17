@@ -36,7 +36,9 @@ pub use unit_point::UnitPoint;
 pub use vector::Vector;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Theme {
+pub enum WindowTheme {
+    /// Light mode
     Light,
+    /// Dark mode
     Dark,
 }

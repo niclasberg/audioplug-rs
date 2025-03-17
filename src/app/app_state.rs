@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::{Rc, Weak}};
 use indexmap::IndexSet;
 use slotmap::{Key, SecondaryMap, SlotMap};
-use crate::{app::event_handling::set_mouse_capture_widget, core::{Point, Theme}, param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue}, platform};
+use crate::{app::event_handling::set_mouse_capture_widget, core::{Point, WindowTheme}, param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue}, platform};
 use super::{clipboard::Clipboard, effect::EffectContext, layout_window, signal::ReadSignal, BuildContext, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext, ReadContext, Runtime, Signal, View, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext};
 
 pub(super) enum Task {
@@ -45,7 +45,7 @@ pub(super) struct WindowState {
     pub(super) root_widget: WidgetId,
     pub(super) focus_widget: Option<WidgetId>,
     pub(super) requested_animations: IndexSet<WidgetId>,
-    pub(super) theme_signal: Signal<Theme>
+    pub(super) theme_signal: Signal<WindowTheme>
 }
 
 pub struct AppState {
@@ -290,7 +290,7 @@ impl AppState {
         self.windows.get_mut(id).expect("Window handle not found")
     }
 
-    pub fn theme_signal(&self, id: WidgetId) -> ReadSignal<Theme> {
+    pub fn window_theme_signal(&self, id: WidgetId) -> ReadSignal<WindowTheme> {
         self.window(self.get_window_id_for_widget(id)).theme_signal.as_read_signal()
     }
 

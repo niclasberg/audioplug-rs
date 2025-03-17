@@ -1,8 +1,10 @@
 use core::f32;
 
 use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, midi::{Note, NoteEvent}, param::Parameter, AudioLayout, Bus, ChannelType, GenericEditor, Plugin, VST3Plugin};
+use editor::SynthEditor;
 use params::SynthParams;
 
+mod editor;
 mod views;
 mod params;
 
@@ -38,7 +40,7 @@ impl Plugin for SynthPlugin {
     };
     const ACCEPTS_MIDI: bool = true;
 
-    type Editor = GenericEditor<SynthParams>;
+    type Editor = SynthEditor;
     type Parameters = SynthParams;
 
     fn new() -> Self {

@@ -118,7 +118,7 @@ impl Into<bool> for NormalizedValue {
 
 /// Plain parameter value
 #[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
-pub struct PlainValue(f64);
+pub struct PlainValue(pub f64);
 
 impl PlainValue {
     #[inline]

@@ -10,7 +10,7 @@ use windows::Win32::Foundation::{HWND, RECT, HGLOBAL, HANDLE};
 use windows::Win32::System::Memory::GMEM_MOVEABLE;
 use windows::Win32::System::{DataExchange, Memory};
 use windows::Win32::Graphics::Gdi::InvalidateRect;
-use crate::core::{Rectangle, Theme};
+use crate::core::{Rectangle, WindowTheme};
 
 use super::util::get_client_rect;
 
@@ -27,15 +27,15 @@ impl<F: Fn()> Drop for ScopeExit<F> {
 pub struct Handle {
     hwnd: HWND,
     scale_factor: Rc<Cell<f64>>,
-    theme: Rc<Cell<Theme>>
+    theme: Rc<Cell<WindowTheme>>
 }
 
 impl Handle {
-    pub(crate) fn new(hwnd: HWND, scale_factor: Rc<Cell<f64>>, theme: Rc<Cell<Theme>>) -> Self {
+    pub(crate) fn new(hwnd: HWND, scale_factor: Rc<Cell<f64>>, theme: Rc<Cell<WindowTheme>>) -> Self {
         Self { hwnd, scale_factor, theme }
     }
 
-    pub fn theme(&self) -> Theme {
+    pub fn theme(&self) -> WindowTheme {
         self.theme.get()
     }
 

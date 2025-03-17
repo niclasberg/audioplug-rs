@@ -7,7 +7,7 @@ use windows::Win32::UI::Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTW};
 use windows::Win32::UI::WindowsAndMessaging::{GetClientRect, SystemParametersInfoW, SPI_GETHIGHCONTRAST, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS};
 use windows::Win32::Foundation::{HWND, RECT};
 
-use crate::core::{Rectangle, Theme};
+use crate::core::{Rectangle, WindowTheme};
 
 pub(super) fn get_client_rect(hwnd: HWND) -> Rectangle<i32> {
     let mut rect: RECT = RECT::default();
@@ -58,11 +58,11 @@ pub(crate) unsafe fn utf16_ptr_to_string(ptr: *const u16) -> Option<String> {
     String::from_utf16(slice).ok()
 }
 
-pub fn get_theme() -> Theme {
+pub fn get_theme() -> WindowTheme {
     if should_apps_use_dark_mode() && !is_high_contrast() {
-        Theme::Dark
+        WindowTheme::Dark
     } else {
-        Theme::Light
+        WindowTheme::Light
     }
 }
 

@@ -1,5 +1,5 @@
 use std::{any::Any, cell::{Cell, RefCell}, rc::Rc};
-use super::{AppState, CreateContext, NodeId, ReactiveContext, ReadContext, Runtime, Scope, Widget, WidgetId, WidgetMut, WidgetRef, WriteContext};
+use super::{TypedWidgetId, AppState, CreateContext, NodeId, ReactiveContext, ReadContext, Runtime, Scope, Widget, WidgetId, WidgetMut, WidgetRef, WriteContext};
 
 pub struct EffectContext<'a> {
     pub(super) effect_id: NodeId,
@@ -7,12 +7,12 @@ pub struct EffectContext<'a> {
 }
 
 impl<'b> EffectContext<'b> {
-	pub fn widget_ref(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget> {
-        WidgetRef::new(&self.app_state, id)
+	pub fn widget_ref<W: Widget>(&self, id: TypedWidgetId<W>) -> WidgetRef<'_, W> {
+        WidgetRef::new(&self.app_state, id.id)
     }
 
-    pub fn widget_mut(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
-        WidgetMut::new(&mut self.app_state, id)
+    pub fn widget_mut<W: Widget>(&mut self, id: TypedWidgetId<W>) -> WidgetMut<'_, W> {
+        WidgetMut::new(&mut self.app_state, id.id)
     }
 }
 
@@ -36,6 +36,14 @@ impl<'a> WriteContext for EffectContext<'a> {}
 
 pub struct EffectState {
     pub(super) f: Rc<dyn Fn(&mut EffectContext)>,
+}
+
+impl EffectState {
+    pub fn new(f: impl Fn(&mut EffectContext) + 'static) -> Self {
+        Self {
+            f: Rc::new(f)
+        }
+    }
 }
 
 pub struct Effect {

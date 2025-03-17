@@ -1,4 +1,4 @@
-use crate::{app::{AppState, CreateContext, ReactiveContext, ReadSignal, View, ViewContext, WidgetId}, core::Theme};
+use crate::{app::{AppState, CreateContext, ReactiveContext, ReadSignal, View, ViewContext, WidgetId}, core::WindowTheme};
 
 pub struct ScopeContext<'a> {
     id: WidgetId,
@@ -6,8 +6,8 @@ pub struct ScopeContext<'a> {
 }
 
 impl<'a> ScopeContext<'a> {
-    pub fn theme(&self) -> ReadSignal<Theme> {
-        self.app_state.theme_signal(self.id).into()
+    pub fn theme(&self) -> ReadSignal<WindowTheme> {
+        self.app_state.window_theme_signal(self.id).into()
     }
 }
 
@@ -55,7 +55,7 @@ where
     type Element = V::Element;
 
     fn build(self, ctx: &mut crate::app::BuildContext<Self::Element>) -> Self::Element {
-        let inner_view = (self.f)(&mut ScopeContext { id: ctx.id(), app_state: ctx.app_state });
+        let inner_view = (self.f)(&mut ScopeContext { id: ctx.id().id, app_state: ctx.app_state });
         inner_view.build(ctx)
     }
 }

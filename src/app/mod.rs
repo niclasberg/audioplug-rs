@@ -25,14 +25,14 @@ mod widget_data;
 mod widget_ref;
 mod window;
 
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
-pub use accessor::Accessor;
+pub use accessor::{Accessor, Computed};
 pub use animation::{AnimationContext, Animated};
 pub(crate) use app_state::AppState;
 pub use brush::{Brush, BrushRef, LinearGradient, RadialGradient};
 pub use effect::{Effect, EffectState};
-pub use event_handling::{EventContext, MouseEventContext, handle_window_event};
+pub use event_handling::{CallbackContext, EventContext, MouseEventContext, handle_window_event};
 pub use host_handle::HostHandle;
 pub use layout::{LayoutContext, layout_window};
 pub use memo::{Memo, MemoContext};
@@ -40,11 +40,12 @@ pub use param::{ParamContext, ParamEditor, ParamSignal};
 pub use render::{RenderContext, render_window, invalidate_window};
 pub use runtime::*;
 pub use signal::{Signal, ReadSignal};
+pub use signal_vec::SignalVec;
 pub use traits::*;
 pub use trigger::{Trigger, DependentField};
 pub use view::*;
 pub use view_sequence::*;
-pub use widget::{EventStatus, StatusChange, Widget};
+pub use widget::{EventStatus, StatusChange, Widget, WrappedWidget};
 pub use widget_ref::{WidgetRef, WidgetMut};
 pub use widget_data::{WidgetData, WidgetId, WidgetFlags};
 pub use window::Window;
@@ -60,6 +61,30 @@ slotmap::new_key_type! {
 slotmap::new_key_type! {
     pub struct WindowId;
 }
+
+pub struct TypedWidgetId<W: Widget> {
+    pub id: WidgetId,
+    _phantom: PhantomData<fn() -> W>
+}
+
+impl<W: Widget> TypedWidgetId<W> {
+    pub fn new(id: WidgetId) -> Self {
+        Self {
+            id,
+            _phantom: PhantomData
+        }
+    }
+}
+
+pub type AnyWidgetId = TypedWidgetId<dyn Widget>;
+
+impl<T: Widget> Clone for TypedWidgetId<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: Widget> Copy for TypedWidgetId<T> {}
 
 pub struct App {
     native: platform::Application,

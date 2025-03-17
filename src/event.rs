@@ -12,29 +12,38 @@ pub enum MouseButton {
 pub enum MouseEvent {
     Down {
         button: MouseButton,
-        position: Point
+        position: Point,
+        modifiers: Modifiers
     },
     Up {
         button: MouseButton,
-        position: Point
+        position: Point,
+        modifiers: Modifiers
     },
     DoubleClick {
         button: MouseButton,
-        position: Point
+        position: Point,
+        modifiers: Modifiers
     },
     Moved {
         position: Point,
         modifiers: Modifiers
+    },
+    Wheel {
+        delta: Vector,
+        position: Point,
+        modifiers: Modifiers,   
     }
 }
 
 impl MouseEvent {
     pub fn with_offset(&self, offset: Vector) -> Self {
         match *self {
-            MouseEvent::Down { button, position } => MouseEvent::Down { button, position: position - offset },
-            MouseEvent::Up { button, position } => MouseEvent::Up { button, position: position - offset },
-            MouseEvent::DoubleClick { button, position } => MouseEvent::DoubleClick { button, position: position - offset },
-            MouseEvent::Moved { position, modifiers } => MouseEvent::Moved { position: position - offset, modifiers }
+            MouseEvent::Down { button, position, modifiers } => MouseEvent::Down { button, position: position - offset, modifiers },
+            MouseEvent::Up { button, position, modifiers } => MouseEvent::Up { button, position: position - offset, modifiers },
+            MouseEvent::DoubleClick { button, position, modifiers } => MouseEvent::DoubleClick { button, position: position - offset, modifiers },
+            MouseEvent::Moved { position, modifiers } => MouseEvent::Moved { position: position - offset, modifiers },
+            MouseEvent::Wheel { delta, position, modifiers } => MouseEvent::Wheel { delta, position: position - offset, modifiers }
         }
     }
 
@@ -44,6 +53,7 @@ impl MouseEvent {
             MouseEvent::Up { position, .. } => *position,
             MouseEvent::DoubleClick { position, .. } => *position,
             MouseEvent::Moved { position, .. } => *position,
+            MouseEvent::Wheel { position, .. } => *position,
         }
     }
 }

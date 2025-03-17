@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::{core::Color, param::ParameterId};
-use super::{effect::BindingState, signal::ReadSignal, Brush, BuildContext, LinearGradient, Mapped, Memo, NodeId, ParamSignal, ReactiveContext, ReadContext, Readable, Signal, Widget, WidgetMut};
+use super::{effect::BindingState, signal::ReadSignal, Brush, BuildContext, EffectState, LinearGradient, Mapped, Memo, NodeId, Owner, ParamSignal, ReactiveContext, ReadContext, Readable, Signal, Widget, WidgetMut};
 
 pub trait MappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;
@@ -15,46 +15,51 @@ pub enum SourceId {
 }
 
 #[derive(Clone)]
+pub struct Computed<T> {
+    f: Rc<dyn Fn(&mut dyn ReadContext) -> T>
+}
+
+impl<T> Computed<T> {
+    pub fn new(f: impl Fn(&mut dyn ReadContext) -> T + 'static) -> Self {
+        Self {
+            f: Rc::new(f)
+        }
+    }
+}
+
+#[derive(Clone)]
 pub enum Accessor<T> {
     Signal(Signal<T>),
     ReadSignal(ReadSignal<T>),
     Memo(Memo<T>),
 	Parameter(ParamSignal<T>),
     Const(T),
-    Mapped(Rc<dyn MappedAccessor<T>>)
+    Mapped(Rc<dyn MappedAccessor<T>>),
+    Computed(Computed<T>)
 }
 
 impl<T: 'static> Accessor<T> {
-    pub fn get_source_id(&self) -> Option<SourceId> {
-		match self {
-			Accessor::Signal(signal) => Some(SourceId::Node(signal.id)),
-            Accessor::ReadSignal(signal) => Some(SourceId::Node(signal.id)),
-            Accessor::Memo(memo) => Some(SourceId::Node(memo.id)),
-			Accessor::Parameter(param) => Some(SourceId::Parameter(param.id)),
-            Accessor::Const(_) => None,
-            Accessor::Mapped(mapped) => Some(mapped.get_source_id())
-		}
-	}
-
 	pub fn get(&self, cx: &mut dyn ReadContext) -> T where T: Clone {
 		match self {
-            Accessor::Signal(signal) => signal.get(cx),
-            Accessor::ReadSignal(signal) => signal.get(cx),
-            Accessor::Memo(memo) => memo.get(cx),
-            Accessor::Const(value) => value.clone(),
-			Accessor::Parameter(param) => param.get(cx),
-            Accessor::Mapped(mapped) => mapped.evaluate(cx)
+            Self::Signal(signal) => signal.get(cx),
+            Self::ReadSignal(signal) => signal.get(cx),
+            Self::Memo(memo) => memo.get(cx),
+            Self::Const(value) => value.clone(),
+			Self::Parameter(param) => param.get(cx),
+            Self::Mapped(mapped) => mapped.evaluate(cx),
+            Self::Computed(computed) => (computed.f)(cx)
         }
 	}
 
     pub fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&T) -> R) -> R {
         match self {
-            Accessor::Signal(signal) => signal.with_ref(cx, f),
-            Accessor::ReadSignal(signal) => signal.with_ref(cx, f),
-            Accessor::Memo(memo) => memo.with_ref(cx, f),
-            Accessor::Const(value) => f(value),
-			Accessor::Parameter(param) => param.with_ref(cx, f),
-            Accessor::Mapped(mapped) => f(&mapped.evaluate(cx))
+            Self::Signal(signal) => signal.with_ref(cx, f),
+            Self::ReadSignal(signal) => signal.with_ref(cx, f),
+            Self::Memo(memo) => memo.with_ref(cx, f),
+            Self::Const(value) => f(value),
+			Self::Parameter(param) => param.with_ref(cx, f),
+            Self::Mapped(mapped) => f(&mapped.evaluate(cx)),
+            Self::Computed(computed) => f(&(computed.f)(cx))
         }
     }
 
@@ -72,22 +77,47 @@ impl<T: 'static> Accessor<T> {
 		self.bind_mapped(cx, T::clone, f);
 	}
 
-    pub fn bind_mapped<W: Widget, U: 'static>(self, cx: &mut BuildContext<W>, f_map: fn(&T) -> U, f: impl Fn(U, WidgetMut<'_, W>) + 'static) {
-		if let Some(source_id) = self.get_source_id() {
-			let widget_id = cx.id();
+    pub fn bind_mapped<W: Widget, U: 'static, F>(self, cx: &mut BuildContext<W>, f_map: fn(&T) -> U, f: F) 
+    where 
+        F: Fn(U, WidgetMut<'_, W>) + 'static
+    {
+        let create_binding = move |_self: Self, f: F, cx: &mut BuildContext<W>, source_id| {
+            let widget_id = cx.id();
             let state = BindingState::new(move |app_state| {
-                let value = self.with_ref(app_state, f_map);
+                let value = _self.with_ref(app_state, f_map);
 				// Widget might have been removed
-				if app_state.widgets.contains_key(widget_id) {
-					let node = WidgetMut::new(app_state, widget_id);
+				if app_state.widgets.contains_key(widget_id.id) {
+					let node = WidgetMut::new(app_state, widget_id.id);
 					f(value, node);
 				}
-				if app_state.widgets.contains_key(widget_id) {
-					app_state.merge_widget_flags(widget_id);
+				if app_state.widgets.contains_key(widget_id.id) {
+					app_state.merge_widget_flags(widget_id.id);
 				}
             });
 
-            cx.runtime_mut().create_binding_node(source_id, state, Some(super::Owner::Widget(widget_id)));
+            cx.runtime_mut().create_binding_node(source_id, state, Some(Owner::Widget(widget_id.id)));
+        };
+
+        match self {
+			Self::Signal(signal) => create_binding(self, f, cx, SourceId::Node(signal.id)),
+            Self::ReadSignal(signal) => create_binding(self, f, cx, SourceId::Node(signal.id)),
+            Self::Memo(memo) => create_binding(self, f, cx, SourceId::Node(memo.id)),
+			Self::Parameter(param) => create_binding(self, f, cx, SourceId::Parameter(param.id)),
+            Self::Mapped(ref mapped) => {
+                let id = mapped.get_source_id();
+                create_binding(self, f, cx, id)
+            },
+            Self::Computed(computed) => {
+                let value_fn = computed.f.clone();
+                let widget_id = cx.id();
+                let state = EffectState::new(move |cx| {
+                    let value = f_map(&value_fn(cx));
+                    let widget = cx.widget_mut(widget_id);
+                    f(value, widget);
+                });
+                cx.runtime_mut().create_effect_node(state, Some(Owner::Widget(widget_id.id)));
+            },
+            Accessor::Const(_) => {},
 		}
     }
 }
@@ -150,3 +180,8 @@ impl From<LinearGradient> for Accessor<Brush> {
     }
 }
 
+impl<T> From<Computed<T>> for Accessor<T> {
+    fn from(value: Computed<T>) -> Self {
+        Self::Computed(value)
+    }
+}

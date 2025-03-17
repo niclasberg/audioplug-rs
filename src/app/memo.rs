@@ -23,11 +23,18 @@ impl<'b> ReadContext for MemoContext<'b> {
     }
 }
 
-#[derive(Clone, Copy)]
 pub struct Memo<T> {
     pub(super) id: NodeId,
     _marker: PhantomData<fn() -> T>
 }
+
+impl<T> Clone for Memo<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for Memo<T> {}
 
 impl<T: Any> Memo<T> {
     pub fn new(cx: &mut impl CreateContext, f: impl Fn(&mut MemoContext, Option<&T>) -> T + 'static) -> Self 

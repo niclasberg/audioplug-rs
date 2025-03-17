@@ -14,6 +14,7 @@ mod slider;
 mod styled;
 mod textbox;
 mod xy_pad;
+mod util;
 
 pub use background::Background;
 pub use button::{Button, ButtonWidget};
@@ -23,7 +24,7 @@ pub use filled::*;
 pub use image::Image;
 use key_down::OnKeyEvent;
 pub use label::Label;
-pub use knob::{KnobWidget, Knob};
+pub use knob::{KnobWidget, Knob, ParameterKnob};
 //pub use scroll::*;
 pub use scoped::Scoped;
 pub use slider::{Slider, ParameterSlider};

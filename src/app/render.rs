@@ -1,4 +1,4 @@
-use crate::{core::{Color, Point, Rectangle, Shape, Transform}, platform, text::TextLayout};
+use crate::{core::{Point, Rectangle, Shape, Transform}, platform, text::TextLayout};
 
 use super::{brush::BrushRef, AppState, WidgetId, WindowId};
 

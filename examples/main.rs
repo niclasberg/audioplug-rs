@@ -1,6 +1,6 @@
 use std::path::Path;
 use audioplug::app::*;
-use audioplug::core::{Color, Size, Theme};
+use audioplug::core::{Color, Size, WindowTheme};
 use audioplug::style::Length;
 use audioplug::views::*;
 use audioplug::App;
@@ -22,7 +22,7 @@ fn main() {
         });
 
         Column::new((
-            Label::new(text)
+            Label::new(Computed::new(move |cx| format!("{}. Slider value: {}", text.get(cx), slider_value.get(cx))))
 				.style(|s| s
 					.border(Length::Px(2.0), Color::GRAY90)
 					.corner_radius(Size::new(2.0, 2.0))),

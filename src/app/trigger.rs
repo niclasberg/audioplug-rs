@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{accessor::{MappedAccessor, SourceId}, CreateContext, NodeId, Owner, ReactiveContext, ReadContext, Readable, WriteContext};
+use super::{accessor::SourceId, CreateContext, NodeId, Owner, ReactiveContext, ReadContext, Readable, WriteContext};
 
 #[derive(Clone, Copy)]
 pub struct Trigger {
