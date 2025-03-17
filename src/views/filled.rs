@@ -1,4 +1,4 @@
-use crate::{app::{BuildContext, RenderContext, Widget}, core::{Color, Rectangle, Shape, Size}, style::{DisplayStyle, Length, Measure, Style}};
+use crate::{app::{BuildContext, RenderContext, Widget}, core::{Color, Rectangle, Shape, Size}, style::{AvailableSpace, DisplayStyle, Length, Measure, Style}};
 use super::View;
 
 
@@ -40,10 +40,8 @@ impl View for Filled {
 impl Measure for Filled {
     fn measure(&self, 
         style: &Style,
-        _width: Option<f64>, 
-        _height: Option<f64>, 
-        _available_width: taffy::AvailableSpace, 
-        _available_height: taffy::AvailableSpace) -> Size 
+        _width: AvailableSpace, 
+        _height: AvailableSpace) -> Size 
     {
         self.shape.bounds().size()
     }

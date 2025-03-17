@@ -4,7 +4,7 @@ mod length;
 mod ui_rect;
 
 use crate::{app::Brush, core::{Color, Cursor, Size}};
-pub use display_style::{DisplayStyle, FlexStyle, GridStyle, Measure};
+pub use display_style::{DisplayStyle, FlexStyle, GridStyle, Measure, AvailableSpace};
 pub(crate) use layout_style::LayoutStyle;
 pub use length::Length;
 pub use taffy::{FlexDirection, FlexWrap, Overflow, AlignContent, AlignItems, AlignSelf, JustifyContent, JustifySelf};

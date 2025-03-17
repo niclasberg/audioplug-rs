@@ -5,14 +5,37 @@ use taffy::{AlignContent, AlignItems, FlexDirection, FlexWrap};
 use super::{Length, Style};
 use crate::core::Size;
 
+#[derive(Debug, Clone, Copy)]
+pub enum AvailableSpace {
+    Exact(f64),
+    MinContent,
+    MaxContent
+}
+
+impl AvailableSpace {
+    pub fn unwrap_or(self, value: f64) -> f64 {
+        match self {
+            Self::Exact(value) => value,
+            _ => value
+        }
+    }
+}
+
+impl Into<Option<f64>> for AvailableSpace {
+    fn into(self) -> Option<f64> {
+        match self {
+            Self::Exact(value) => Some(value),
+            _ => None,
+        }
+    }
+}
+
 pub trait Measure {
     fn measure(
         &self,
         style: &Style,
-        width: Option<f64>,
-        height: Option<f64>,
-        available_width: taffy::AvailableSpace,
-        available_height: taffy::AvailableSpace,
+        width: AvailableSpace,
+        height: AvailableSpace,
     ) -> Size;
 }
 

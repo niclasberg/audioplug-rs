@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::{app::Widget, core::{Color, Size}, platform, style::{DisplayStyle, Measure}};
+use crate::{app::Widget, core::{Color, Size}, platform, style::{AvailableSpace, DisplayStyle, Measure}};
 
 use super::View;
 
@@ -32,19 +32,14 @@ pub struct ImageWidget {
 }
 
 impl Measure for ImageWidget {
-    fn measure(&self, 
-        _style: &crate::style::Style,
-        width: Option<f64>, 
-        height: Option<f64>, 
-        _available_width: taffy::AvailableSpace, 
-        _available_height: taffy::AvailableSpace) -> Size 
+    fn measure(&self, _style: &crate::style::Style, width: AvailableSpace, height: AvailableSpace) -> Size 
     {
         let image_size = self.source.as_ref().map(|source| source.size())
             .unwrap_or(Size::new(20.0, 20.0));
 
         match (width, height) {
-            (Some(width), Some(height)) => Size::new(width, height),
-            (Some(width), None) => {
+            (AvailableSpace::Exact(width), AvailableSpace::Exact(height)) => Size::new(width, height),
+            (AvailableSpace::Exact(width), _) => {
                 let height = if image_size.width > 1e-8 {
                     image_size.height * width / image_size.width
                 } else {
@@ -52,7 +47,7 @@ impl Measure for ImageWidget {
                 };
                 Size::new(width, height)
             },
-            (None, Some(height)) => {
+            (_, AvailableSpace::Exact(height)) => {
                 let width = if image_size.height > 1e-8 {
                     image_size.width * height / image_size.height
                 } else {
@@ -60,7 +55,7 @@ impl Measure for ImageWidget {
                 };
                 Size::new(width, height)
             },
-            (None, None) => { 
+            (_, _) => { 
                 image_size
             }
         }

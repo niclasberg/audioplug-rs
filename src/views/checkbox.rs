@@ -1,4 +1,4 @@
-use crate::{app::{Accessor, BuildContext, EventStatus, MouseEventContext, RenderContext, Widget, WidgetMut}, core::{Color, Shape, Size}, style::{DisplayStyle, Length, Measure, Style}, MouseEvent};
+use crate::{app::{Accessor, BuildContext, EventStatus, MouseEventContext, RenderContext, Widget, WidgetMut}, core::{Color, Shape, Size}, style::{AvailableSpace, DisplayStyle, Length, Measure, Style}, MouseEvent};
 
 use super::View;
 
@@ -35,8 +35,8 @@ pub struct CheckboxWidget {
 }
 
 impl Measure for CheckboxWidget {
-    fn measure(&self, _: &Style, width: Option<f64>, height: Option<f64>, _: taffy::AvailableSpace, _: taffy::AvailableSpace) -> Size<f64>  {
-        if let (Some(width), Some(height)) = (width, height) {
+    fn measure(&self, _: &Style, width: AvailableSpace, height: AvailableSpace) -> Size<f64>  {
+        if let (Some(width), Some(height)) = (width.into(), height.into()) {
             Size::new(width, height)
         } else {
             Size::ZERO

@@ -1,4 +1,4 @@
-use crate::{app::{Accessor, BuildContext, CallbackContext, EventContext, EventStatus, LinearGradient, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, RoundedRectangle, Shape, Size, UnitPoint}, event::MouseButton, keyboard::Key, param::{AnyParameter, NormalizedValue, PlainValue}, style::{DisplayStyle, Length, Measure, Style}, KeyEvent, MouseEvent};
+use crate::{app::{Accessor, BuildContext, CallbackContext, EventContext, EventStatus, LinearGradient, MouseEventContext, ParamEditor, ParamSignal, RenderContext, StatusChange, Widget}, core::{Color, Point, Rectangle, RoundedRectangle, Shape, Size, UnitPoint}, event::MouseButton, keyboard::Key, param::{AnyParameter, NormalizedValue, PlainValue}, style::{AvailableSpace, DisplayStyle, Length, Measure, Style}, KeyEvent, MouseEvent};
 
 use super::{util::{denormalize_value, normalize_value}, View};
 
@@ -239,18 +239,12 @@ impl Default for SliderWidget {
 }
 
 impl Measure for SliderWidget {
-    fn measure(&self, 
-        _style: &Style,
-        width: Option<f64>, 
-        height: Option<f64>, 
-        available_width: taffy::AvailableSpace, 
-        _available_height: taffy::AvailableSpace) -> Size<f64> 
-    {
-        let width = width.unwrap_or(match available_width {
-            taffy::AvailableSpace::Definite(x) => x.into(),
-            taffy::AvailableSpace::MinContent => 5.0,
-            taffy::AvailableSpace::MaxContent => 500.0,
-        });
+    fn measure(&self, _style: &Style, width: AvailableSpace, height: AvailableSpace) -> Size<f64> {
+        let width = match width {
+            AvailableSpace::Exact(x) => x,
+            AvailableSpace::MinContent => 5.0,
+            AvailableSpace::MaxContent => 500.0,
+        };
         let height = height.unwrap_or(5.0);
 
         Size::new(width, height)

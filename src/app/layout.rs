@@ -1,5 +1,5 @@
-use taffy::{AvailableSpace, CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree};
-use crate::{core::{Point, Size}, style::{DisplayStyle, LayoutStyle}};
+use taffy::{CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree};
+use crate::{core::{Point, Size}, style::{AvailableSpace, DisplayStyle, LayoutStyle}};
 
 use super::{invalidate_window, WidgetFlags, AppState, WidgetId, WindowId};
 
@@ -131,7 +131,7 @@ impl<'a> CacheTree for LayoutContext<'a> {
         &self,
         node_id: taffy::NodeId,
         known_dimensions: taffy::Size<Option<f32>>,
-        available_space: taffy::Size<AvailableSpace>,
+        available_space: taffy::Size<taffy::AvailableSpace>,
         run_mode: taffy::RunMode,
     ) -> Option<taffy::LayoutOutput> {
         self.app_state.widget_data[node_id.into()].cache.get(known_dimensions, available_space, run_mode)
@@ -141,7 +141,7 @@ impl<'a> CacheTree for LayoutContext<'a> {
         &mut self,
         node_id: taffy::NodeId,
         known_dimensions: taffy::Size<Option<f32>>,
-        available_space: taffy::Size<AvailableSpace>,
+        available_space: taffy::Size<taffy::AvailableSpace>,
         run_mode: taffy::RunMode,
         layout_output: taffy::LayoutOutput,
     ) {
@@ -204,12 +204,16 @@ impl<'a> LayoutPartialTree for LayoutContext<'a> {
 					(DisplayStyle::Grid(_), _) => unreachable!(),
                     (DisplayStyle::Leaf(measure), _) => {
                         let style = &tree.app_state.widget_data[node.into()].style;    
-                        let measure_function = |known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<AvailableSpace>| {
-                            let size = measure.measure(&style, 
-                                known_dimensions.width.map(|x| x as _), 
-                                known_dimensions.height.map(|x| x as _), 
-                                available_space.width, 
-                                available_space.height);
+                        let measure_function = |known_dimensions: taffy::Size<Option<f32>>, available_space: taffy::Size<taffy::AvailableSpace>| {
+                            let available_size = known_dimensions.zip_map(available_space, |known, available| {
+                                known.map(|x| AvailableSpace::Exact(x as f64)).unwrap_or_else(|| match available {
+                                    taffy::AvailableSpace::Definite(x) => AvailableSpace::Exact(x as f64),
+                                    taffy::AvailableSpace::MinContent => AvailableSpace::MinContent,
+                                    taffy::AvailableSpace::MaxContent => AvailableSpace::MaxContent,
+                                })
+                            });
+
+                            let size = measure.measure(&style, available_size.width, available_size.height);
                             taffy::Size {
                                 width: size.width as _,
                                 height: size.height as _,

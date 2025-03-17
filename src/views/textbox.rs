@@ -1,5 +1,5 @@
 use std::ops::Range;
-use crate::{app::{Accessor, AnimationContext, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Cursor, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, style::{DisplayStyle, Length, Measure, Style, UiRect}, text::TextLayout, MouseEvent};
+use crate::{app::{Accessor, AnimationContext, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Cursor, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, style::{AvailableSpace, DisplayStyle, Length, Measure, Style, UiRect}, text::TextLayout, MouseEvent};
 use unicode_segmentation::{UnicodeSegmentation, GraphemeCursor};
 
 use super::View;
@@ -308,13 +308,7 @@ impl TextBoxWidget {
 const CURSOR_DELAY_SECONDS: f64 = 0.5;
 
 impl Measure for TextBoxWidget {
-    fn measure(&self, 
-        _style: &Style,
-        _width: Option<f64>, 
-        _height: Option<f64>, 
-        _available_width: taffy::AvailableSpace, 
-        _available_height: taffy::AvailableSpace) -> Size 
-    {
+    fn measure(&self, _style: &Style, _width: AvailableSpace, _height: AvailableSpace) -> Size {
         let size = self.text_layout.measure();
         Size::new(self.width, size.height)
     }

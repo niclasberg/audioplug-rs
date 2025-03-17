@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use crate::{app::{Accessor, BuildContext, RenderContext, Widget, WidgetMut}, core::{Color, Size}, style::{DisplayStyle, Measure}, text::TextLayout};
+use crate::{app::{Accessor, BuildContext, RenderContext, Widget, WidgetMut}, core::{Color, Size}, style::{AvailableSpace, DisplayStyle, Measure}, text::TextLayout};
 
 use super::View;
 
@@ -47,26 +47,21 @@ pub struct TextWidget {
 }
 
 impl Measure for TextWidget {
-    fn measure(&self, 
-        _style: &crate::style::Style,
-        width: Option<f64>, 
-        height: Option<f64>, 
-        available_width: taffy::AvailableSpace, 
-        available_height: taffy::AvailableSpace) -> Size
+    fn measure(&self, _style: &crate::style::Style, width: AvailableSpace, height: AvailableSpace) -> Size
     {
         let mut text_layout = self.text_layout.borrow_mut();
 
-        let width_constraint = width.unwrap_or(match available_width {
-            taffy::AvailableSpace::MinContent => text_layout.min_word_width(),
-            taffy::AvailableSpace::MaxContent => f64::INFINITY,
-            taffy::AvailableSpace::Definite(width) => width.into(),
-        });
+        let width_constraint = match width {
+            AvailableSpace::MinContent => text_layout.min_word_width(),
+            AvailableSpace::MaxContent => f64::INFINITY,
+            AvailableSpace::Exact(width) => width.into(),
+        };
 
-        let height_constraint = height.unwrap_or(match available_height {
-            taffy::AvailableSpace::MinContent => f64::INFINITY,
-            taffy::AvailableSpace::MaxContent => f64::INFINITY,
-            taffy::AvailableSpace::Definite(height) => height.into(),
-        }); 
+        let height_constraint = match height {
+            AvailableSpace::MinContent => f64::INFINITY,
+            AvailableSpace::MaxContent => f64::INFINITY,
+            AvailableSpace::Exact(height) => height.into(),
+        }; 
 
         text_layout.set_max_size(Size::new(width_constraint, height_constraint));
         text_layout.measure()

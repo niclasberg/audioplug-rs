@@ -1,4 +1,4 @@
-use crate::{app::{Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext, ParamEditor, RenderContext, StatusChange, View, Widget}, core::{Circle, Color, Point, Rectangle, Size}, keyboard::Modifiers, param::{AnyParameter, NormalizedValue, PlainValue}, style::{DisplayStyle, Measure}, MouseButton, MouseEvent};
+use crate::{app::{Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext, ParamEditor, RenderContext, StatusChange, View, Widget}, core::{Circle, Color, Point, Rectangle, Size}, keyboard::Modifiers, param::{AnyParameter, NormalizedValue, PlainValue}, style::{AvailableSpace, DisplayStyle, Measure}, MouseButton, MouseEvent};
 
 use super::util::{denormalize_value, round_to_steps};
 
@@ -137,14 +137,7 @@ impl KnobWidget {
 }
 
 impl Measure for KnobWidget {
-    fn measure(
-        &self,
-        _style: &crate::style::Style,
-        width: Option<f64>,
-        height: Option<f64>,
-        _available_width: taffy::AvailableSpace,
-        _available_height: taffy::AvailableSpace,
-    ) -> Size {
+    fn measure(&self, _style: &crate::style::Style, width: AvailableSpace, height: AvailableSpace) -> Size {
         Size::new(width.unwrap_or(20.0), height.unwrap_or(20.0))
     }
 }
