@@ -7,7 +7,7 @@ pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn
 pub trait View: Sized + 'static {
     type Element: Widget + 'static;
 
-    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element;
+    fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element;
 
     fn as_any_view(self) -> AnyView
     where 

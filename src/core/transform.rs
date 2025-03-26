@@ -23,11 +23,17 @@ impl Transform {
         Self::new(1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
     }
 
-    pub fn translate(v: Vector) -> Self {
+    pub fn from_rotation(angle: f64) -> Self {
+        let c = angle.cos();
+        let s = angle.sin();
+        Self::new(c, -s, s, c, 0.0, 0.0)
+    }
+
+    pub fn from_translation(v: Vector) -> Self {
         Self::new(1.0, 0.0, 0.0, 1.0, v.x, v.y)
     }
 
-	pub fn scale(sx: f64, sy: f64) -> Self {
+	pub fn from_scale(sx: f64, sy: f64) -> Self {
 		Self::new(sx, 0.0, 0.0, sy, 0.0, 0.0)
 	}
 }

@@ -1,6 +1,8 @@
-use windows::{Win32::{Graphics::DirectWrite, Foundation::BOOL}, core::{HSTRING, w}};
+use std::mem::MaybeUninit;
 
-use crate::{core::{Size, Color, Point}, text::FontWeight};
+use windows::{Win32::Graphics::DirectWrite, core::{HSTRING, w, BOOL, Result}};
+
+use crate::core::{Size, Color, Point, FontWeight};
 use super::{com::direct_write_factory, util};
 
 impl Into<DirectWrite::DWRITE_FONT_WEIGHT> for FontWeight {
@@ -127,5 +129,25 @@ impl TextLayout {
 
     pub fn min_word_width(&self) -> f64 {
         unsafe { self.text_layout.DetermineMinWidth() }.unwrap_or_default() as _
+    }
+}
+
+pub struct FontCollection {
+    collection: DirectWrite::IDWriteFontCollection,
+}
+
+impl FontCollection {
+    pub fn new() -> Result<Self> {
+        let collection = unsafe {
+            let mut collection = MaybeUninit::uninit();
+            direct_write_factory().GetSystemFontCollection(collection.as_mut_ptr(), true)?;
+            collection.assume_init()
+        };
+        let collection = collection.unwrap();
+
+
+        Ok(Self { 
+            collection
+        })
     }
 }

@@ -1,11 +1,5 @@
 pub enum FontWeight {
-    UltraLight, 
-    Thin,
-    Light,
-    Regular,
-    Medium,
-    Semibold,
+    Normal,
     Bold,
-    Black
 }
 

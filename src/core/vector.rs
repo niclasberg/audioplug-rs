@@ -8,6 +8,8 @@ pub struct Vector {
 
 impl Vector {
     pub const ZERO: Self = Self { x: 0.0, y: 0.0 };
+    pub const X: Self = Self { x: 1.0, y: 0.0 };
+    pub const Y: Self = Self { x: 0.0, y: 1.0 };
 
     pub fn new(x: f64, y: f64) -> Self {
         Self { x, y }

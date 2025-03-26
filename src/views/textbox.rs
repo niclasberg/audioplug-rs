@@ -1,5 +1,9 @@
 use std::ops::Range;
-use crate::{app::{Accessor, AnimationContext, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, StatusChange, Widget}, core::{Color, Cursor, Rectangle, Shape, Size}, event::{KeyEvent, MouseButton}, keyboard::{Key, Modifiers}, style::{AvailableSpace, DisplayStyle, Length, Measure, Style, UiRect}, text::TextLayout, MouseEvent};
+use crate::app::{Accessor, AnimationContext, AppState, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext, Shape, StatusChange, TextLayout, Widget};
+use crate::core::{Color, Rectangle, Size, Key, Modifiers};
+use crate::event::{KeyEvent, MouseButton}; 
+use crate::style::{AvailableSpace, DisplayStyle, Length, Measure, Style, UiRect};
+use crate::MouseEvent;
 use unicode_segmentation::{UnicodeSegmentation, GraphemeCursor};
 
 use super::View;
@@ -480,13 +484,13 @@ impl Widget for TextBoxWidget {
                 ctx.fill(rect, Color::from_rgb8(68, 85, 90));
             }
 
-            ctx.draw_text(&self.text_layout, text_bounds.position());
+            ctx.draw_text(&self.text_layout, text_bounds.origin());
             
             if ctx.has_focus() && self.cursor_on {
                 let cursor_point = self.text_layout.point_at_text_index(self.position);
                 let p0 = text_bounds.bottom_left() + cursor_point; 
                 let p1 = text_bounds.top_left() + cursor_point;
-                ctx.fill(Shape::line(p0, p1), Color::BLACK);
+                ctx.draw_line(p0, p1, Color::BLACK, 1.0);
             }
         });
     }

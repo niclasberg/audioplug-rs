@@ -28,11 +28,19 @@ where T: Debug + Copy + PartialEq + Add<Output = T> + Sub<Output=T> + Mul<Output
             true
         }
     }
+
+    pub fn bounds(&self) -> Rectangle<T> {
+        self.rect
+    }
 }
 
 impl RoundedRectangle<f64> {
     pub fn offset(&self, delta: impl Into<Vector>) -> Self {
         Self::new(self.rect.offset(delta), self.corner_radius)
+    }
+
+    pub fn shrink(&self, amount: f64) -> Self {
+        Self::new(self.rect.shrink(amount), self.corner_radius - Size::new(amount, amount))
     }
 
     pub fn scale(&self, scale: f64) -> Self{

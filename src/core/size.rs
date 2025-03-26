@@ -11,27 +11,49 @@ pub struct Size<T = f64> {
 }
 
 impl<T> Size<T> {
+    #[inline(always)]
+    #[must_use]
     pub const fn new(width: T, height: T) -> Self {
         Self { width, height }
     }
 
+    /// Create a Size with both `width` and `height` set to `v`
+    #[inline]
+    #[must_use]
+    pub fn splat(v: T) -> Self where T: Clone {
+        Self { width: v.clone(), height: v }
+    }
+
+    /// Returns a new Size with the `height` and `width` modified by the mapping function `f`
+    #[inline]
+    #[must_use]
     pub fn map<U>(self, f: impl Fn(T) -> U) -> Size<U> {
         Size::new(f(self.width), f(self.height))
     }
 
+    /// Returns a new Size with the `width` modified by the mapping function `f`
+    #[inline]
+    #[must_use]
     pub fn map_width(self, f: impl Fn(T) -> T) -> Self {
         Self::new(f(self.width), self.height)
     }
 
+    /// Returns a new Size with the `height` modified by the mapping function `f`
+    #[inline]
+    #[must_use]
     pub fn map_height(self, f: impl Fn(T) -> T) -> Self {
         Self::new(self.width, f(self.height))
     }
 
+    #[inline]
+    #[must_use]
     pub fn with_width(mut self, width: T) -> Self {
         self.width = width;
         self
     }
 
+    #[inline]
+    #[must_use]
     pub fn with_height(mut self, height: T) -> Self {
         self.height = height;
         self
@@ -77,6 +99,14 @@ impl Size<f64> {
         let height = self.height.clamp(min.height, max.height);
         let width = self.width.clamp(min.width, max.width);
         Self { width, height }
+    }
+
+    pub fn max_element(&self) -> f64 {
+        self.width.max(self.height)
+    }
+
+    pub fn min_element(&self) -> f64 {
+        self.width.min(self.height)
     }
 }
 

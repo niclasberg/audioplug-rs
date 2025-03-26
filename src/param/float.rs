@@ -27,11 +27,13 @@ impl FloatParameter {
 
     pub fn with_range(mut self, range: impl Into<FloatRange>) -> Self {
         self.info.range = range.into();
+		*self.value.get_mut() = self.value.get().clamp(self.info.min_value().0, self.info().max_value().0);
         self
     }
 
 	pub fn with_linear_range(mut self, min: f64, max: f64) -> Self {
         self.info.range = FloatRange::Linear { min, max };
+		*self.value.get_mut() = self.value.get().clamp(self.info.min_value().0, self.info().max_value().0);
         self
     }
 

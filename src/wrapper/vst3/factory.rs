@@ -2,15 +2,17 @@ use std::ffi::c_void;
 use std::marker::PhantomData;
 
 use vst3_sys::{VST3, IID};
-use vst3_sys::base::{IPluginFactory, PFactoryInfo, PClassInfo, tresult, FactoryFlags, kResultOk, kInvalidArgument, ClassCardinality, kResultFalse};
+use vst3_sys::base::{kInvalidArgument, kResultFalse, kResultOk, tresult, ClassCardinality, FactoryFlags, IPluginFactory, IPluginFactory2, PClassInfo, PClassInfo2, PFactoryInfo};
 use vst3_sys as vst3_com;
-use crate::{Plugin, VST3Plugin};
+use crate::VST3Plugin;
 use super::editcontroller::EditController;
 
 use super::AudioProcessor;
 use super::util::strcpy;
 
-#[VST3(implements(IPluginFactory))]
+pub const VST3_SDK_VERSION: &str = "VST 3.6.14";
+
+#[VST3(implements(IPluginFactory, IPluginFactory2))]
 pub struct Factory<P: VST3Plugin> {
     _phantom: PhantomData<P>,
 }
@@ -83,5 +85,36 @@ impl<P: VST3Plugin> IPluginFactory for Factory<P> {
 		} else {
 			kResultFalse
 		}
+    }
+}
+
+impl<P: VST3Plugin> IPluginFactory2 for Factory<P> {
+    unsafe fn get_class_info2(&self, index: i32, info: *mut PClassInfo2) -> tresult {
+        if info.is_null() {
+            return kInvalidArgument;
+        }
+
+        let info = &mut *info;
+        match index {
+            0 => {
+                strcpy(P::NAME, &mut info.name);
+                info.cid = Self::PROCESSOR_CID;
+                info.cardinality = ClassCardinality::kManyInstances as i32;
+                strcpy("Audio Module Class", &mut info.category);
+                strcpy(VST3_SDK_VERSION, &mut info.sdk_version);
+                strcpy(&P::CATEGORIES.to_string(), &mut info.subcategories);
+                kResultOk
+            },
+            1 => {
+                info.cid = Self::EDITOR_CID;
+                strcpy((P::NAME.to_owned() + " edit controller").as_str(), &mut info.name);
+                strcpy("Component Controller Class", &mut info.category);
+                info.cardinality = ClassCardinality::kManyInstances as i32;
+                strcpy(VST3_SDK_VERSION, &mut info.sdk_version);
+                strcpy(&P::CATEGORIES.to_string(), &mut info.subcategories);
+                kResultOk
+            },
+            _ => kInvalidArgument
+        }
     }
 }

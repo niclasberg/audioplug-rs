@@ -42,6 +42,7 @@ impl From<LinearGradient> for Brush {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum BrushRef<'a> {
     Solid(Color),
     LinearGradient(&'a LinearGradient),

@@ -1,12 +1,16 @@
 use std::{cell::{Cell, RefCell}, marker::PhantomData, mem::MaybeUninit, rc::Rc, sync::Once};
 
-use windows::{core::{w, Result, PCWSTR}, 
+use windows::{core::{w, Result, PCWSTR, BOOL}, 
     Win32::{
-        Foundation::*, Graphics::{Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE}, Gdi::{self, InvalidateRect, ScreenToClient}}, System::{LibraryLoader::GetModuleHandleW, Performance}, UI::{HiDpi::GetDpiForWindow, Input::{KeyboardAndMouse::{TrackMouseEvent, VIRTUAL_KEY}, *}, WindowsAndMessaging::*}}};
+        Foundation::*, 
+        Graphics::{Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE}, Gdi::{self, InvalidateRect, ScreenToClient}}, 
+        System::{LibraryLoader::GetModuleHandleW, Performance}, 
+        UI::{HiDpi::GetDpiForWindow, Input::{KeyboardAndMouse::{TrackMouseEvent, VIRTUAL_KEY}, *}, WindowsAndMessaging::*}
+    }};
 use KeyboardAndMouse::{ReleaseCapture, SetCapture};
 
 use super::{com, cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, util::get_theme, Handle, Renderer};
-use crate::{core::{Color, Point, Rectangle, Size, Vector, WindowTheme}, event::{AnimationFrame, KeyEvent, MouseEvent}, keyboard::Key, platform::{WindowEvent, WindowHandler}, MouseButtons};
+use crate::{core::{Color, Key, Point, Rectangle, Size, Vector, WindowTheme}, event::{AnimationFrame, KeyEvent, MouseEvent}, platform::{WindowEvent, WindowHandler}, MouseButtons};
 use crate::event::MouseButton;
 
 const WINDOW_CLASS: PCWSTR = w!("my_window");
@@ -80,7 +84,7 @@ impl WindowState {
                 {
                     let rect: Rectangle = super::util::get_client_rect(hwnd).into();
                     self.handler.borrow_mut()
-                        .render(Rectangle::new(Point::ZERO, rect.size()), renderer);
+                        .render(Rectangle::from_origin(Point::ZERO, rect.size()), renderer);
                 }
     
                 unsafe {

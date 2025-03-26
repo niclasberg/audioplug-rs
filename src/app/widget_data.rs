@@ -1,9 +1,9 @@
 use bitflags::bitflags;
 use slotmap::{new_key_type, Key, KeyData};
 
-use crate::{core::{Point, Rectangle, RoundedRectangle, Shape, Size}, style::Style};
+use crate::{core::{Point, Rectangle, RoundedRectangle, Size}, style::Style};
 
-use super::WindowId;
+use super::{Shape, WindowId};
 
 new_key_type! {
     pub struct WidgetId;
@@ -72,12 +72,12 @@ impl WidgetData {
 
     /// Local bounds of the widget, relative to its parent 
     pub fn local_bounds(&self) -> Rectangle {
-        Rectangle::new(self.offset(), self.size())
+        Rectangle::from_origin(self.offset(), self.size())
     }
 
     /// Bounds of the widget, in global coords, including borders and padding
     pub fn global_bounds(&self) -> Rectangle {
-        Rectangle::new(self.origin(), self.size())
+        Rectangle::from_origin(self.origin(), self.size())
     }
 
     fn subtract_padding_and_border(&self, rect: Rectangle) -> Rectangle {

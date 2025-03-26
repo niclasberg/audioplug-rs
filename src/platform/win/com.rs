@@ -1,6 +1,5 @@
 use std::sync::OnceLock;
 use windows::Win32::System::Com::{self, CoCreateInstance, CLSCTX_INPROC_SERVER};
-use windows::Win32::Media::Audio;
 use windows::Win32::Graphics::{DirectWrite, Direct2D, Imaging};
 
 thread_local! { static COM_INITIALIZED: ComInitialized = {

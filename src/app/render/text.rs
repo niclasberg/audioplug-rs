@@ -1,9 +1,4 @@
-use crate::{platform, core::{Size, Point}, core::Color};
-
-pub enum FontWeight {
-    Normal,
-    Bold,
-}
+use crate::{core::{Color, FontWeight, Point, Size}, platform};
 
 pub struct TextLayout(pub(crate) platform::TextLayout);
 

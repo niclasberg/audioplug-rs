@@ -13,6 +13,13 @@ impl<T> Point<T> {
         Self { x, y }
     }
 
+    /// Create a Point with both `x` and `y` set to `v`
+    #[inline]
+    #[must_use]
+    pub fn splat(v: T) -> Self where T: Clone {
+        Self { x: v.clone(), y: v }
+    }
+
     pub fn map<U>(self, f: impl Fn(T) -> U) -> Point<U> {
         Point {
             x: f(self.x), 
@@ -78,6 +85,18 @@ impl Point<f64> {
 
     pub fn scale_y(self, s: f64) -> Self {
         Self::new(self.x, self.y * s)
+    }
+    
+    pub fn max_element(&self) -> f64 {
+        self.x.max(self.y)
+    }
+
+    pub fn min_element(&self) -> f64 {
+        self.x.min(self.y)
+    }
+
+    pub fn as_vector(self) -> Vector {
+        Vector::new(self.x, self.y)
     }
 }
 

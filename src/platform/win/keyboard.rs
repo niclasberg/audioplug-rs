@@ -1,6 +1,6 @@
 use windows::Win32::{UI::Input::KeyboardAndMouse::*, Foundation::LPARAM};
 
-use crate::keyboard::{Key, Modifiers};
+use crate::core::{Key, Modifiers};
 
 pub fn get_modifiers() -> Modifiers {
     let mut modifiers = Modifiers::empty();

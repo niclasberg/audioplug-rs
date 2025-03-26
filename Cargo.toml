@@ -12,20 +12,20 @@ members = ["examples/gain", "examples/synth"]
 [dependencies]
 async-task = "4.7.1"
 num = { version = "0.4.3" }
-bitflags = "2.8.0"
+bitflags = "2.9.0"
 vst3-sys = { git = "https://github.com/RustAudio/vst3-sys.git" }
 raw-window-handle = "0.6.2"
 unicode-segmentation = "1.12.0"
 slotmap = "1.0.7"
 taffy = "0.7.7"
-rtrb = "0.3.1"
+rtrb = "0.3.2"
 midi-consts = "0.1.0"
-serde = "1.0.215"
+serde = "1.0.219"
 atomic_refcell = "0.1.13"
-indexmap = "2.6.0"
+indexmap = "2.8.0"
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.59.0", features = [
+windows = { version = "0.61.1", features = [
 	"Win32_Foundation",
 	"Win32_Graphics_Dwm",
 	"Win32_Graphics_Gdi",
@@ -54,6 +54,7 @@ windows = { version = "0.59.0", features = [
 	"Win32_Graphics_DirectWrite",
 	"Win32_Graphics_Imaging",
 ] }
+windows-numerics = "0.2.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 c-enum = "0.2.3"

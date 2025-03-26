@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use crate::{app::{Accessor, BuildContext, RenderContext, Widget, WidgetMut}, core::{Color, Size}, style::{AvailableSpace, DisplayStyle, Measure}, text::TextLayout};
+use crate::{app::{Accessor, BuildContext, RenderContext, TextLayout, Widget, WidgetMut}, core::{Color, Size}, style::{AvailableSpace, DisplayStyle, Measure}};
 
 use super::View;
 
@@ -54,13 +54,13 @@ impl Measure for TextWidget {
         let width_constraint = match width {
             AvailableSpace::MinContent => text_layout.min_word_width(),
             AvailableSpace::MaxContent => f64::INFINITY,
-            AvailableSpace::Exact(width) => width.into(),
+            AvailableSpace::Exact(width) => width,
         };
 
         let height_constraint = match height {
             AvailableSpace::MinContent => f64::INFINITY,
             AvailableSpace::MaxContent => f64::INFINITY,
-            AvailableSpace::Exact(height) => height.into(),
+            AvailableSpace::Exact(height) => height,
         }; 
 
         text_layout.set_max_size(Size::new(width_constraint, height_constraint));

@@ -1,8 +1,9 @@
 use audioplug::core::{Color, Size};
-use audioplug::param::{BoolParameter, FloatParameter, FloatRange, Parameter, ParameterId, Params};
+use audioplug::param::{BoolParameter, FloatParameter, Parameter, ParameterId, Params};
 use audioplug::style::UiRect;
 use audioplug::views::*;
 use audioplug::app::*;
+use audioplug::wrapper::vst3::VST3Categories;
 use audioplug::{audioplug_auv3_plugin, audioplug_vst3_plugin, params, AudioLayout, Bus, ChannelType, Editor, Plugin, ProcessContext, VST3Plugin};
 
 params!(
@@ -85,6 +86,7 @@ impl Plugin for MyPlugin {
 impl VST3Plugin for MyPlugin {
 	const PROCESSOR_UUID: [u8; 16] = *b"audiopluggainprc";
 	const EDITOR_UUID: [u8; 16] = *b"audiopluggainedt";
+    const CATEGORIES: VST3Categories = VST3Categories::FX_TOOLS;
 }
 
 audioplug_vst3_plugin!(MyPlugin);

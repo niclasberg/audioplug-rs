@@ -1,4 +1,4 @@
-use crate::{app::{BuildContext, RenderContext, Widget}, core::{Color, Rectangle, Shape, Size}, style::{AvailableSpace, DisplayStyle, Length, Measure, Style}};
+use crate::{app::{BuildContext, RenderContext, Shape, Widget}, core::{Color, Rectangle, Size}, style::{AvailableSpace, DisplayStyle, Length, Measure, Style}};
 use super::View;
 
 
@@ -53,7 +53,7 @@ impl Widget for Filled {
 	}
 
     fn render(&mut self, ctx: &mut RenderContext) {
-        ctx.fill(self.shape.offset(ctx.global_bounds().top_left()), self.color)
+        ctx.fill(&self.shape.offset(ctx.global_bounds().top_left()), self.color)
     }
 
     fn display_style(&self) -> DisplayStyle {

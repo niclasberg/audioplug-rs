@@ -1,6 +1,12 @@
-use crate::{core::{Point, Rectangle, Shape, Transform}, platform, text::TextLayout};
+use crate::{core::{Point, Rectangle, Transform}, platform};
 
-use super::{brush::BrushRef, AppState, WidgetId, WindowId};
+mod brush;
+mod shape;
+mod text;
+pub use brush::{Brush, BrushRef, LinearGradient, RadialGradient};
+pub use shape::{PathGeometry, PathGeometryBuilder, Shape, ShapeRef};
+pub use text::TextLayout;
+use super::{AppState, WidgetId, WindowId};
 
 pub fn render_window(app_state: &mut AppState, window_id: WindowId, renderer: platform::RendererRef<'_>) {
     let widget_id = app_state.window(window_id).root_widget;
@@ -51,17 +57,28 @@ impl<'a, 'b> RenderContext<'a, 'b> {
         self.app_state.widget_has_captured_mouse(self.id)
     }
 
-    pub fn fill<'d>(&mut self, shape: impl Into<Shape>, brush: impl Into<BrushRef<'d>>) {
+    pub fn fill<'c, 'd>(&mut self, shape: impl Into<ShapeRef<'c>>, brush: impl Into<BrushRef<'d>>) {
         do_fill(&mut self.renderer, shape.into(), brush.into());
     }
 
-    pub fn stroke<'d>(&mut self, shape: impl Into<Shape>, brush: impl Into<BrushRef<'d>>, line_width: f32) {
+    pub fn stroke<'c, 'd>(&mut self, shape: impl Into<ShapeRef<'c>>, brush: impl Into<BrushRef<'d>>, line_width: f32) {
         let brush = brush.into();
         match shape.into() {
-            Shape::Rect(rect) => self.renderer.draw_rectangle(rect, brush, line_width),
-            Shape::Rounded(rect) => self.renderer.draw_rounded_rectangle(rect, brush, line_width),
-            Shape::Ellipse(ell) => self.renderer.draw_ellipse(ell, brush, line_width),
-            Shape::Line { p0, p1 } => self.renderer.draw_line(p0, p1, brush, line_width)
+            ShapeRef::Rect(rect) => self.renderer.draw_rectangle(rect, brush, line_width),
+            ShapeRef::Rounded(rect) => self.renderer.draw_rounded_rectangle(rect, brush, line_width),
+            ShapeRef::Ellipse(ell) => self.renderer.draw_ellipse(ell, brush, line_width),
+            ShapeRef::Geometry(geometry) => self.renderer.draw_geometry(&geometry.0, brush, line_width),
+        }
+    }
+
+    pub fn draw_line<'c>(&mut self, p0: Point, p1: Point, brush: impl Into<BrushRef<'c>>, line_width: f32) {
+        self.renderer.draw_line(p0, p1, brush.into(), line_width)
+    }
+
+    pub fn draw_lines<'c>(&mut self, points: &[Point], brush: impl Into<BrushRef<'c>>, line_width: f32) {
+        let brush = brush.into();
+        for p in points.windows(2) {
+            self.renderer.draw_line(p[0], p[1], brush, line_width)
         }
     }
 
@@ -96,11 +113,11 @@ impl<'a, 'b> RenderContext<'a, 'b> {
             let shape = widget_data.shape();
 
             if let Some(background) = &widget_data.style.background {
-                do_fill(&mut self.renderer, shape, background.into());
+                do_fill(&mut self.renderer, (&shape).into(), background.into());
             }
 
             if let Some(border_color) = border_color {
-                self.stroke(shape, border_color, line_width);
+                self.stroke(&shape, border_color, line_width);
             }
         }
 
@@ -120,11 +137,11 @@ impl<'a, 'b> RenderContext<'a, 'b> {
     }
 }
 
-fn do_fill(renderer: platform::RendererRef, shape: Shape, brush: BrushRef) {
+fn do_fill(renderer: platform::RendererRef, shape: ShapeRef, brush: BrushRef) {
     match shape {
-        Shape::Rect(rect) => renderer.fill_rectangle(rect, brush),
-        Shape::Rounded(rect) => renderer.fill_rounded_rectangle(rect, brush),
-        Shape::Ellipse(ell) => renderer.fill_ellipse(ell, brush),
-        Shape::Line { p0, p1 } => renderer.draw_line(p0, p1, brush, 1.0)
+        ShapeRef::Rect(rect) => renderer.fill_rectangle(rect, brush),
+        ShapeRef::Rounded(rect) => renderer.fill_rounded_rectangle(rect, brush),
+        ShapeRef::Ellipse(ell) => renderer.fill_ellipse(ell, brush),
+        ShapeRef::Geometry(geometry) => renderer.fill_geometry(&geometry.0, brush),
     }
 }

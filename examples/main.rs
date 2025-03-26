@@ -1,6 +1,6 @@
 use std::path::Path;
 use audioplug::app::*;
-use audioplug::core::{Color, Size, WindowTheme};
+use audioplug::core::{Color, Size};
 use audioplug::style::Length;
 use audioplug::views::*;
 use audioplug::App;
@@ -31,17 +31,18 @@ fn main() {
 				Slider::new()
                     .range(1.0, 500.0)
 					.value(slider_value)
-                    .on_value_changed(move |cx, value| slider_value.set(cx, value))))
+                    .on_value_changed(move |cx, value| slider_value.set(cx, value))
+                    .style(|s| s.height(Length::Px(25.0)))
+                ))
                 .spacing(Length::Px(5.0))
-			    .v_align_center()
-                .style(|s| s.height(Length::Px(20.0))),
+			    .v_align_center(),
             Row::new((
                 Label::new("Knob"),
                 Knob::new()))
                 .v_align_center(),
             Row::new((
 				Label::new("Checkbox"),
-				Checkbox::new(checkbox_enabled)))
+				Checkbox::new().checked(checkbox_enabled)))
                 .v_align_center()
                 .spacing(Length::Px(5.0)),
             Row::new((
@@ -54,7 +55,7 @@ fn main() {
                 .v_align_center(),
             Row::new((
                 Label::new("Image"),
-                Image::from_file(Path::new("/Users/niklas.berg/Desktop/Screenshot 2024-04-24 at 09.49.30.png"))
+                Image::from_file(Path::new("./ferris.png"))
                     .style(|style| style
                         .max_width(Length::Px(200.0))
                         .height(slider_value.map(Length::from_px))

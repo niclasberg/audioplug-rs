@@ -1,4 +1,4 @@
-use crate::{core::{Point, Vector}, keyboard::{Key, Modifiers}};
+use crate::core::{Point, Vector, Key, Modifiers};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]

@@ -12,7 +12,7 @@ pub struct Rectangle<T = f64> {
 }
 
 impl<T> Rectangle<T> {
-    pub const fn new(point: Point<T>, size: Size<T>) -> Self {
+    pub const fn from_origin(point: Point<T>, size: Size<T>) -> Self {
         Self { pos: point, size }
     }
 
@@ -35,7 +35,21 @@ impl<T> Rectangle<T> {
     {
         let (x_min, x_max) = if x0.x < x1.x { (x0.x, x1.x) } else { (x1.x, x0.x) };
         let (y_min, y_max) = if x0.y < x1.y { (x0.y, x1.y) } else { (x1.y, x0.y) };
-        Self { pos: Point::new(x_min, x_max), size: Size::new(x_max - x_min, y_max - y_min) }
+        Self { pos: Point::new(x_min, y_min), size: Size::new(x_max - x_min, y_max - y_min) }
+    }
+
+    pub fn with_origin(self, position: Point<T>) -> Self {
+        Self {
+            pos: position,
+            size: self.size
+        }
+    }
+
+    pub fn with_size(self, size: Size<T>) -> Self {
+        Self {
+            pos: self.pos,
+            size
+        }
     }
 }
 
@@ -69,7 +83,7 @@ where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + Mul<Output
 
     #[inline]
     pub fn top_left(&self) -> Point<T> {
-        Point::new(self.left(), self.top())
+        self.pos
     }
 
     #[inline]
@@ -82,20 +96,16 @@ where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + Mul<Output
         Point::new(self.right(), self.top())
     }
 
-    pub const fn position(&self) -> Point<T> {
-        self.pos
+    pub fn get_relative_point(&self, rel_x: T, rel_y: T) -> Point<T> {
+        Point::new(self.pos.x + rel_x * self.size.width, self.pos.y + rel_y * self.size.height)
     }
 
-    pub fn with_position(&self, position: Point<T>) -> Self {
-        Self::new(position, self.size())
+    pub const fn origin(&self) -> Point<T> {
+        self.pos
     }
 
     pub const fn size(&self) -> Size<T> {
         self.size
-    }
-
-    pub fn with_size(&self, size: Size<T>) -> Self {
-        Self::new(self.position(), size)
     }
 
     pub fn width(&self) -> T {
@@ -119,24 +129,50 @@ where T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output=T> + Mul<Output
             self.bottom() > other.bottom()
         )
     }
+
+    /// Shrink the rectangle by `amount` from each side. Retains the 
+    /// center position and reduces the size by 2 times `amount`
+    pub fn shrink(&self, amount: T) -> Self {
+        Self {
+            pos: self.pos + Point::splat(amount),
+            size: self.size - Size::splat(amount + amount)
+        }
+    }
+
+    /// Shrink the rectangle by `amount` in the x direction, keeping the same center position
+    pub fn shrink_x(&self, amount: T) -> Self {
+        Self {
+            pos: Point::new(self.pos.x + amount, self.pos.y),
+            size: Size::new(self.size.width - (amount + amount), self.size.height)
+        }
+    }
+
+    /// Shrink the rectangle by `amount` in the y direction, keeping the same center position
+    pub fn shrink_y(&self, amount: T) -> Self {
+        Self {
+            pos: Point::new(self.pos.x, self.pos.y + amount),
+            size: Size::new(self.size.width, self.size.height - (amount + amount))
+        }
+    }
 }
 
 impl Rectangle<f64> {
     pub fn from_center(center: Point, size: Size) -> Self {
-        Self::new(center - size / 2.0, size)
+        Self {
+            pos: center - size / 2.0,
+            size
+        }
     }
 
-    /// Shrink the rectangle by `amount`, keeping the same center position
-    pub fn shrink(&self, amount: f64) -> Self {
-        Self::from_center(self.center(), self.size() - Size::new(amount, amount))
+    pub fn with_center(self, center: Point) -> Self {
+        Self::from_center(center, self.size)
     }
 
-    pub fn shrink_x(&self, amount: f64) -> Self {
-        Self::from_center(self.center(), self.size() - Size::new(amount, 0.0))
-    }
-
-    pub fn shrink_y(&self, amount: f64) -> Self {
-        Self::from_center(self.center(), self.size() - Size::new(0.0, amount))
+    pub fn with_size_keeping_center(self, size: Size) -> Self {
+        Self {
+            pos: self.pos - (size - self.size) / 2.0,
+            size
+        }
     }
 
     pub fn center(&self) -> Point {
@@ -144,19 +180,19 @@ impl Rectangle<f64> {
     }
 
     pub fn scale(&self, scale: f64) -> Self{
-        Self::new(self.position(), self.size().scale(scale))
+        Self::from_origin(self.origin(), self.size().scale(scale))
     }
 
     pub fn scale_x(&self, scale: f64) -> Self{
-        Self::new(self.position(), self.size().scale_x(scale))
+        Self::from_origin(self.origin(), self.size().scale_x(scale))
     }
 
     pub fn scale_y(&self, scale: f64) -> Self{
-        Self::new(self.position(), self.size().scale_y(scale))
+        Self::from_origin(self.origin(), self.size().scale_y(scale))
     }
 
     pub fn offset(&self, delta: impl Into<Vector>) -> Self {
-        Self::new(self.position()+delta.into(), self.size())
+        Self::from_origin(self.origin()+delta.into(), self.size())
     }
 
 	pub fn combine_with(&self, other: &Self) -> Self {
@@ -194,7 +230,7 @@ impl<T: Interpolate> Interpolate for Rectangle<T> {
 
 #[cfg(test)]
 mod test {
-    /*use super::*;
+    use super::*;
 
     #[test]
     fn from_points() {
@@ -202,10 +238,10 @@ mod test {
         let p1 = Point::new(3.0, 2.0);
         let rect = Rectangle::from_points(p0, p1);
 
-        assert_eq!(rect.left(), p0.x);
-        assert_eq!(rect.top(), p0.y);
-        assert_eq!(rect.right(), p1.x);
-        assert_eq!(rect.bottom(), p1.y);
+        assert_eq!(rect.left(), 1.0);
+        assert_eq!(rect.top(), 2.0);
+        assert_eq!(rect.right(), 3.0);
+        assert_eq!(rect.bottom(), 4.0);
     }
 
     #[test]
@@ -213,7 +249,7 @@ mod test {
         let p0 = Point::new(1, 22);
         let p1 = Point::new(16, 2);
         let rect = Rectangle::from_points(p0, p1);
-        println!("{:?}", rect);
+        
         assert!(rect.contains(p0));
         assert!(rect.contains(p1));
         assert!(rect.contains(Point::new(10, 18)));
@@ -223,5 +259,5 @@ mod test {
         
         assert!(!rect.contains(Point::new(0, 4)));
         assert!(!rect.contains(Point::new(17, 4)));
-    }*/
+    }
 }

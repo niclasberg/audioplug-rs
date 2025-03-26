@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use windows::{core::Result, Win32::Graphics::Direct2D::Common::D2D1_GRADIENT_STOP};
-use windows::Win32::Graphics::Direct2D::{self, D2D1_EXTEND_MODE_CLAMP, D2D1_GAMMA, D2D1_GAMMA1, D2D1_GAMMA_2_2};
+use windows::Win32::Graphics::Direct2D;
 use crate::core::{ColorMap, Rectangle, UnitPoint};
 
 use super::renderer::RendererGeneration;
@@ -47,7 +47,7 @@ impl NativeLinearGradient {
 
             let brush_properties = Direct2D::D2D1_BRUSH_PROPERTIES {
                 opacity: 1.0,
-                transform: windows::Foundation::Numerics::Matrix3x2::identity(),
+                transform: windows_numerics::Matrix3x2::identity(),
             };
 
             let brush = unsafe { 
@@ -81,7 +81,7 @@ fn create_gradient_stop_collection(render_target: &Direct2D::ID2D1HwndRenderTarg
         color: stop.color.into(),
     }).collect();
     unsafe {
-        render_target.CreateGradientStopCollection(stops.as_slice(), D2D1_GAMMA_2_2, D2D1_EXTEND_MODE_CLAMP)
+        render_target.CreateGradientStopCollection(stops.as_slice(), Direct2D::D2D1_GAMMA_2_2, Direct2D::D2D1_EXTEND_MODE_CLAMP)
     }
 }
 

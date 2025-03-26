@@ -1,8 +1,8 @@
-use windows::{core::Result, Foundation::Numerics::Matrix3x2, Win32::{Foundation::{HWND, RECT}, Graphics::Direct2D, UI::WindowsAndMessaging::GetClientRect}};
+use windows::{core::Result, Win32::{Foundation::{HWND, RECT}, Graphics::Direct2D, UI::WindowsAndMessaging::GetClientRect}};
 
 use crate::{app::BrushRef, core::{Color, Ellipse, Point, Rectangle, RoundedRectangle, Size, Transform}};
 use std::mem::MaybeUninit;
-use super::{com::direct2d_factory, NativeImage, TextLayout};
+use super::{com::direct2d_factory, geometry::NativeGeometry, NativeImage, TextLayout};
 
 impl Into<Direct2D::Common::D2D1_COLOR_F> for Color {
     fn into(self) -> Direct2D::Common::D2D1_COLOR_F {
@@ -26,6 +26,12 @@ impl Into<Direct2D::Common::D2D_RECT_F> for Rectangle {
     }
 }
 
+impl From<Direct2D::Common::D2D_RECT_F> for Rectangle {
+    fn from(value: Direct2D::Common::D2D_RECT_F) -> Self {
+        Self::from_ltrb(value.left.into(), value.top.into(), value.right.into(), value.bottom.into())
+    }
+}
+
 impl Into<Direct2D::D2D1_ROUNDED_RECT> for RoundedRectangle {
     fn into(self) -> Direct2D::D2D1_ROUNDED_RECT {
         Direct2D::D2D1_ROUNDED_RECT {
@@ -46,18 +52,18 @@ impl Into<Direct2D::D2D1_ELLIPSE> for Ellipse {
     }
 }
 
-impl Into<Direct2D::Common::D2D_POINT_2F> for Point {
-    fn into(self) -> Direct2D::Common::D2D_POINT_2F {
-        Direct2D::Common::D2D_POINT_2F {
-            x: self.x as f32,
-            y: self.y as f32
+impl Into<windows_numerics::Vector2> for Point {
+    fn into(self) -> windows_numerics::Vector2 {
+        windows_numerics::Vector2 {
+            X: self.x as f32,
+            Y: self.y as f32
         }
     }
 }
 
-impl Into<Matrix3x2> for Transform {
-    fn into(self) -> Matrix3x2 {
-        Matrix3x2 { 
+impl Into<windows_numerics::Matrix3x2> for Transform {
+    fn into(self) -> windows_numerics::Matrix3x2 {
+        windows_numerics::Matrix3x2 { 
             M11: self.m11 as f32, 
             M12: self.m12 as f32, 
             M21: self.m21 as f32, 
@@ -68,8 +74,8 @@ impl Into<Matrix3x2> for Transform {
     }
 }
 
-impl From<Matrix3x2> for Transform {
-    fn from(value: Matrix3x2) -> Self {
+impl From<windows_numerics::Matrix3x2> for Transform {
+    fn from(value: windows_numerics::Matrix3x2) -> Self {
         Transform { 
             m11: value.M11.into(), 
             m12: value.M12.into(), 
@@ -92,7 +98,7 @@ enum SavedAction {
 }
 
 struct SavedState {
-    transform: Matrix3x2,
+    transform: windows_numerics::Matrix3x2,
     actions: Vec<SavedAction>
 }
 
@@ -158,7 +164,7 @@ impl Renderer {
         self.get_d2d1_transform().into()
     }
 
-    fn get_d2d1_transform(&self) -> Matrix3x2 {
+    fn get_d2d1_transform(&self) -> windows_numerics::Matrix3x2 {
         let mut transform = MaybeUninit::uninit();
         unsafe {
             self.render_target.GetTransform(transform.as_mut_ptr());
@@ -216,6 +222,7 @@ impl Renderer {
         });
     }
 
+    #[inline(always)]
     fn use_brush(&mut self, rect: Rectangle, brush: BrushRef, f: impl FnOnce(&Direct2D::ID2D1HwndRenderTarget, &Direct2D::ID2D1Brush)) {
         match brush {
             BrushRef::Solid(color) => unsafe {
@@ -249,14 +256,28 @@ impl Renderer {
     }
 
     pub fn draw_ellipse(&mut self, ellipse: Ellipse, brush: BrushRef, line_width: f32) {
-        self.use_brush(ellipse.bounding_rect(), brush, |render_target, brush| unsafe {
+        self.use_brush(ellipse.bounds(), brush, |render_target, brush| unsafe {
             render_target.DrawEllipse(&ellipse.into(), brush, line_width, None);
         });
     }
 
     pub fn fill_ellipse(&mut self, ellipse: Ellipse, brush: BrushRef) {
-        self.use_brush(ellipse.bounding_rect(), brush, |render_target, brush| unsafe {
+        self.use_brush(ellipse.bounds(), brush, |render_target, brush| unsafe {
             render_target.FillEllipse(&ellipse.into(), brush);
+        });
+    }
+
+    pub fn draw_geometry(&mut self, geometry: &NativeGeometry, brush: BrushRef, line_width: f32) {
+        let bounds = unsafe { geometry.0.GetBounds(None) }.expect("Getting transform should not fail");
+        self.use_brush(bounds.into(), brush, |render_target, brush| unsafe {
+            render_target.DrawGeometry(&geometry.0, brush, line_width, None);
+        });
+    }
+
+    pub fn fill_geometry(&mut self, geometry: &NativeGeometry, brush: BrushRef) {
+        let bounds = unsafe { geometry.0.GetBounds(None) }.expect("Getting transform should not fail");
+        self.use_brush(bounds.into(), brush, |render_target, brush| unsafe {
+            render_target.FillGeometry(&geometry.0, brush, None);
         });
     }
 

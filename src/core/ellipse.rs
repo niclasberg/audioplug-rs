@@ -32,7 +32,7 @@ impl Ellipse<f64> {
         }
     }
 
-    pub fn bounding_rect(&self) -> Rectangle {
+    pub fn bounds(&self) -> Rectangle {
         Rectangle::from_center(self.center, self.radii.scale(2.0))
     }
 }
@@ -46,6 +46,11 @@ pub struct Circle<T = f64> {
 impl<T> Circle<T> {
     pub const fn new(center: Point<T>, radius: T) -> Self {
         Self { center, radius }
+    }
+
+    pub fn with_radius(mut self, radius: T) -> Self {
+        self.radius = radius;
+        self
     }
 }
 

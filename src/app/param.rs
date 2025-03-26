@@ -42,6 +42,7 @@ impl<P: AnyParameter> ParamEditor<P> {
 		param_ref.internal_set_value_normalized(value);
 		let info = param_ref.info();
 		cx.host_handle().perform_edit(info, value);
+		cx.runtime_mut().notify_parameter_subscribers(self.id);
 	}
 
 	pub fn set_value_plain(&self, cx: &mut impl ParamContext, value: PlainValue) {
@@ -50,6 +51,7 @@ impl<P: AnyParameter> ParamEditor<P> {
 		let info = param_ref.info();
 		let value = info.normalize(value);
 		cx.host_handle().perform_edit(info, value);
+		cx.runtime_mut().notify_parameter_subscribers(self.id);
 	}
 
 	pub fn end_edit(&self, cx: &mut impl ParamContext) {
