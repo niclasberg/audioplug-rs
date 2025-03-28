@@ -2,7 +2,6 @@ mod label;
 //mod stack;
 mod background;
 mod button;
-mod canvas;
 mod container;
 mod checkbox;
 mod filled;
@@ -19,7 +18,6 @@ mod util;
 
 pub use background::Background;
 pub use button::{Button, ButtonWidget};
-pub use canvas::{Canvas, CanvasWidget};
 pub use checkbox::Checkbox;
 pub use container::{Container, Row, Column, Grid};
 pub use filled::*;

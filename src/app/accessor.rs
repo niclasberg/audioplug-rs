@@ -115,7 +115,7 @@ impl<T: 'static> Accessor<T> {
                     let widget = cx.widget_mut(widget_id);
                     f(value, widget);
                 });
-                cx.runtime_mut().create_effect_node(state, Some(Owner::Widget(widget_id.id)));
+                cx.runtime_mut().create_effect_node(state, Some(Owner::Widget(widget_id.id)), false);
             },
             Accessor::Const(_) => {},
 		}

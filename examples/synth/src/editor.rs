@@ -1,4 +1,4 @@
-use audioplug::{app::{Computed, PathGeometry, Readable, View}, core::{Color, Size}, param::{AnyParameter, Parameter}, style::{AlignItems, Length, UiRect}, views::{Canvas, Checkbox, Column, Label, ParameterKnob, ParameterSlider, Row, Scoped, ViewExt}, Editor};
+use audioplug::{app::{Canvas, PathGeometry, Readable, View}, core::{Color, Size}, param::{AnyParameter, FloatParameter, Parameter}, style::{AlignItems, Length, UiRect}, views::{Checkbox, Column, Label, ParameterKnob, ParameterSlider, Row, ViewExt}, Editor};
 
 use crate::params::{AmpEnvelopeParams, FilterParams, OscillatorParams, SynthParams};
 
@@ -37,8 +37,10 @@ fn header_view() -> impl View {
 }
 
 fn main_view(parameters: &SynthParams) -> impl View {
+    let oscillator_views: Vec<_> = parameters.oscillators.iter().map(|p| oscillator_view(p.children())).collect();
+
     Row::new((
-        Column::new(parameters.oscillators.iter().map(|p| oscillator_view(p.children())).collect::<Vec<_>>())
+        Column::new(oscillator_views)
             .spacing(SPACER)
             .style(|s| s.width(Length::Percent(30.0))),
         Column::new((
@@ -88,37 +90,9 @@ fn filter_view(params: &FilterParams) -> impl View {
 }
 
 fn amp_envelope_view(params: &AmpEnvelopeParams) -> impl View {
-    let a = params.attack.as_signal();
-    let d = params.decay.as_signal(); 
-    let s = params.sustain.as_signal();
-    let r = params.release.as_signal();
-    let max_env_time = params.attack.info().max_value().0 + params.decay.info().max_value().0 + params.release.info().max_value().0;
-
     Column::new((
         Label::new("Amp. envelope"),
-        Canvas::new(Computed::new(move |cx| (a.get(cx), d.get(cx), s.get(cx), r.get(cx))), move |cx, &(a, d, s, r)| {
-            let bounds = cx.content_bounds();
-            let graph_bounds = bounds.shrink_x(1.0);
-            let s_width = 0.2;
-            let a_d_r_width = (1.0 - s_width) / max_env_time;
-            let a_end = a * a_d_r_width;
-            let d_end = a_end + d * a_d_r_width;
-            let s_end = d_end + s_width;
-            let r_end = s_end + r * a_d_r_width;
-
-            let geometry = PathGeometry::new(|b| b
-                .move_to(graph_bounds.get_relative_point(0.0, 1.0))
-                .add_line_to(graph_bounds.get_relative_point(a_end, 0.0))
-                .add_line_to(graph_bounds.get_relative_point(d_end, 1.0 - s))
-                .add_line_to(graph_bounds.get_relative_point(s_end, 1.0 - s))
-                .add_line_to(graph_bounds.get_relative_point(r_end, 1.0))
-                .close());
-
-            cx.fill(bounds, Color::WHITE.with_alpha(0.2));
-            cx.fill(&geometry, Color::BLACK);
-        }).style(|s| s
-            .width(Length::Percent(100.0))
-            .height(Length::Px(30.0))),
+        envelope_graph(&params.attack, &params.decay, &params.sustain, &params.release),
         Row::new((
             Column::new((
                 ParameterKnob::new(&params.attack),
@@ -143,4 +117,36 @@ fn amp_envelope_view(params: &AmpEnvelopeParams) -> impl View {
     .style(|s| s.padding(PADDING)
         .corner_radius(Size::new(5.0, 5.0))
         .background(Color::BLACK.with_alpha(0.2)))
+}
+
+fn envelope_graph(attack: &FloatParameter, decay: &FloatParameter, sustain: &FloatParameter, release: &FloatParameter) -> impl View {
+    let a = attack.as_signal();
+    let d = decay.as_signal(); 
+    let s = sustain.as_signal();
+    let r = release.as_signal();
+    let max_env_time = attack.info().max_value().0 + decay.info().max_value().0 + release.info().max_value().0;
+
+    Canvas::new(move |cx, _| {
+        let bounds = cx.bounds();
+        let s_width = 0.2;
+        let a_d_r_width = (1.0 - s_width) / max_env_time;
+        let a_end = a.get(cx) * a_d_r_width;
+        let d_end = a_end + d.get(cx) * a_d_r_width;
+        let s_end = d_end + s_width;
+        let r_end = s_end + r.get(cx) * a_d_r_width;
+
+        let geometry = PathGeometry::new(|b| b
+            .move_to(bounds.get_relative_point(0.0, 1.0))
+            .add_line_to(bounds.get_relative_point(a_end, 0.0))
+            .add_line_to(bounds.get_relative_point(d_end, 1.0 - s.get(cx)))
+            .add_line_to(bounds.get_relative_point(s_end, 1.0 - s.get(cx)))
+            .add_line_to(bounds.get_relative_point(r_end, 1.0))
+            .close());
+
+        cx.fill(&geometry, Color::BLACK);
+    }).style(|s| s
+        .background(Color::WHITE.with_alpha(0.2))
+        .padding(UiRect::all_px(2.0))
+        .width(Length::Percent(100.0))
+        .height(Length::Px(30.0)))
 }

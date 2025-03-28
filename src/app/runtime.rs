@@ -162,10 +162,12 @@ impl Runtime {
         self.create_node(NodeType::Memo(state), NodeState::Dirty, owner)
     }
 
-    pub(crate) fn create_effect_node(&mut self, state: EffectState, owner: Option<Owner>) -> NodeId {
+    pub(crate) fn create_effect_node(&mut self, state: EffectState, owner: Option<Owner>, run_effect: bool) -> NodeId {
         let f = Rc::downgrade(&state.f);
         let id = self.create_node(NodeType::Effect(state), NodeState::Dirty, owner);
-        self.pending_tasks.push_back(Task::RunEffect { id, f });
+        if run_effect {
+            self.pending_tasks.push_back(Task::RunEffect { id, f });
+        }
         id
     }
 

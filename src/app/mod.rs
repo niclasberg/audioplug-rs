@@ -35,7 +35,7 @@ pub use host_handle::HostHandle;
 pub use layout::{LayoutContext, layout_window};
 pub use memo::{Memo, MemoContext};
 pub use param::{ParamContext, ParamEditor, ParamSignal};
-pub use render::{RenderContext, render_window, invalidate_window, Brush, BrushRef, LinearGradient, RadialGradient, TextLayout, PathGeometry, PathGeometryBuilder, Shape, ShapeRef};
+pub use render::{RenderContext, render_window, invalidate_window, Brush, BrushRef, Canvas, CanvasContext, CanvasWidget, LinearGradient, RadialGradient, TextLayout, PathGeometry, PathGeometryBuilder, Shape, ShapeRef};
 pub use runtime::*;
 pub use signal::{Signal, ReadSignal};
 pub use signal_vec::SignalVec;

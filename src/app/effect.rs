@@ -55,7 +55,7 @@ impl Effect {
 		let owner = cx.owner();
         cx.runtime_mut().create_effect_node(EffectState { 
             f: Rc::new(f)
-        }, owner);
+        }, owner, true);
         Self {}
     }
 
@@ -67,7 +67,7 @@ impl Effect {
                 let new_state = f(cx, state.replace(None));
                 state.replace(Some(new_state));
             })
-        }, owner);
+        }, owner, true);
         Self {}
     }
 }
