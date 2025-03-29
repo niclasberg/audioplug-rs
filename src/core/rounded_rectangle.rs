@@ -1,6 +1,6 @@
-use std::ops::{Add, Mul, Sub};
-use std::fmt::Debug;
 use super::{Point, Rectangle, Size, Vector};
+use std::fmt::Debug;
+use std::ops::{Add, Mul, Sub};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct RoundedRectangle<T = f64> {
@@ -11,14 +11,15 @@ pub struct RoundedRectangle<T = f64> {
 impl<T> RoundedRectangle<T> {
     pub fn new(rect: Rectangle<T>, corner_radius: Size<T>) -> Self {
         Self {
-            rect, 
-            corner_radius
+            rect,
+            corner_radius,
         }
     }
 }
 
-impl<T> RoundedRectangle<T> 
-where T: Debug + Copy + PartialEq + Add<Output = T> + Sub<Output=T> + Mul<Output=T> + PartialOrd
+impl<T> RoundedRectangle<T>
+where
+    T: Debug + Copy + PartialEq + Add<Output = T> + Sub<Output = T> + Mul<Output = T> + PartialOrd,
 {
     pub fn contains(&self, pos: Point<T>) -> bool {
         if !self.rect.contains(pos) {
@@ -40,18 +41,21 @@ impl RoundedRectangle<f64> {
     }
 
     pub fn shrink(&self, amount: f64) -> Self {
-        Self::new(self.rect.shrink(amount), self.corner_radius - Size::new(amount, amount))
+        Self::new(
+            self.rect.shrink(amount),
+            self.corner_radius - Size::new(amount, amount),
+        )
     }
 
-    pub fn scale(&self, scale: f64) -> Self{
+    pub fn scale(&self, scale: f64) -> Self {
         Self::new(self.rect.scale(scale), self.corner_radius.scale(scale))
     }
 
-    pub fn scale_x(&self, scale: f64) -> Self{
+    pub fn scale_x(&self, scale: f64) -> Self {
         Self::new(self.rect.scale_x(scale), self.corner_radius.scale_x(scale))
     }
 
-    pub fn scale_y(&self, scale: f64) -> Self{
+    pub fn scale_y(&self, scale: f64) -> Self {
         Self::new(self.rect.scale_y(scale), self.corner_radius.scale_y(scale))
     }
 }

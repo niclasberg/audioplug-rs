@@ -25,7 +25,7 @@ impl Alignment {
         match self {
             Self::TopLeading | Self::Top | Self::TopTrailing => 0.0,
             Self::Leading | Self::Center | Self::Trailing => (frame_height - height) / 2.0,
-            Self::BottomLeading | Self::Bottom | Self::BottomTrailing => frame_height - height
+            Self::BottomLeading | Self::Bottom | Self::BottomTrailing => frame_height - height,
         }
     }
 

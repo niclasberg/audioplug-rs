@@ -22,8 +22,16 @@ impl PathGeometryBuilder {
         Self(self.0.add_line_to(point))
     }
 
-    pub fn add_cubic_curve_to(self, control_point1: Point, control_point2: Point, end: Point) -> Self {
-        Self(self.0.add_cubic_curve_to(control_point1, control_point2, end))
+    pub fn add_cubic_curve_to(
+        self,
+        control_point1: Point,
+        control_point2: Point,
+        end: Point,
+    ) -> Self {
+        Self(
+            self.0
+                .add_cubic_curve_to(control_point1, control_point2, end),
+        )
     }
 
     pub fn add_quad_curve_to(self, control_point: Point, end: Point) -> Self {
@@ -44,14 +52,15 @@ pub struct PathGeometry(pub(crate) platform::NativeGeometry);
 
 impl Debug for PathGeometry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PathGeometry")
-            .finish()
+        f.debug_struct("PathGeometry").finish()
     }
 }
 
 impl PathGeometry {
     pub fn new(f: impl FnOnce(PathGeometryBuilder) -> PathGeometryBuilder) -> Self {
-        let geometry = platform::NativeGeometry::new(move |builder| f(PathGeometryBuilder(builder)).0).expect("Creating native geometry failed");
+        let geometry =
+            platform::NativeGeometry::new(move |builder| f(PathGeometryBuilder(builder)).0)
+                .expect("Creating native geometry failed");
         Self(geometry)
     }
 
@@ -99,7 +108,9 @@ impl Shape {
             Shape::Rect(rect) => Shape::Rect(rect.offset(delta)),
             Shape::Rounded(rect) => Shape::Rounded(rect.offset(delta)),
             Shape::Ellipse(ellipse) => Shape::Ellipse(ellipse.offset(delta)),
-            Shape::Geometry(geometry) => Shape::Geometry(geometry.with_transform(Transform::from_translation(delta))),
+            Shape::Geometry(geometry) => {
+                Shape::Geometry(geometry.with_transform(Transform::from_translation(delta)))
+            }
         }
     }
 

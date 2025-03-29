@@ -1,18 +1,20 @@
-use crate::{core::{Color, FontWeight, Point, Size}, platform};
+use crate::{
+    core::{Color, FontWeight, Point, Size},
+    platform,
+};
 
 pub struct TextLayout(pub(crate) platform::TextLayout);
 
 impl TextLayout {
     pub fn new(str: &str, color: Color, max_size: Size) -> Self {
-        Self(
-            platform::TextLayout::new(
-                str, 
-                "arial", 
-                FontWeight::Normal, 
-                12.0, 
-                max_size, 
-                color)
-        )
+        Self(platform::TextLayout::new(
+            str,
+            "arial",
+            FontWeight::Normal,
+            12.0,
+            max_size,
+            color,
+        ))
     }
 
     pub fn text_index_at_point(&self, point: impl Into<Point>) -> Option<usize> {
@@ -35,9 +37,7 @@ impl TextLayout {
         self.0.as_str()
     }
 
-    pub fn set_color(&mut self, _color: Color) {
-        
-    }
+    pub fn set_color(&mut self, _color: Color) {}
 
     pub fn set_max_size(&mut self, size: Size) {
         self.0.set_max_size(size)

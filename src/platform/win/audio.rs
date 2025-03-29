@@ -1,13 +1,21 @@
-use std::{sync::OnceLock, cell::{RefCell, OnceCell}, rc::Rc, thread::JoinHandle};
+use std::{
+    cell::{OnceCell, RefCell},
+    rc::Rc,
+    sync::OnceLock,
+    thread::JoinHandle,
+};
 
 use windows::{
     core::*,
     Win32::{
-        Media::Audio, 
-        System::Com::{self, StructuredStorage::PropVariantGetStringElem},
         Devices::Properties,
-        System::Threading::{CreateEventExW, EVENT_MODIFY_STATE, SYNCHRONIZATION_SYNCHRONIZE, CREATE_EVENT_MANUAL_RESET}
-    }
+        Media::Audio,
+        System::Com::{self, StructuredStorage::PropVariantGetStringElem},
+        System::Threading::{
+            CreateEventExW, CREATE_EVENT_MANUAL_RESET, EVENT_MODIFY_STATE,
+            SYNCHRONIZATION_SYNCHRONIZE,
+        },
+    },
 };
 
 use super::com;
@@ -16,30 +24,38 @@ pub struct AudioHost;
 
 impl AudioHost {
     pub fn default_input_device() -> Result<AudioDevice> {
-        let device = unsafe { device_enumerator().GetDefaultAudioEndpoint(Audio::eCapture, Audio::eConsole)? };
+        let device = unsafe {
+            device_enumerator().GetDefaultAudioEndpoint(Audio::eCapture, Audio::eConsole)?
+        };
         Ok(AudioDevice::new(device))
     }
 
     pub fn default_output_device() -> Result<AudioDevice> {
-        let device = unsafe { device_enumerator().GetDefaultAudioEndpoint(Audio::eRender, Audio::eConsole)? };
+        let device = unsafe {
+            device_enumerator().GetDefaultAudioEndpoint(Audio::eRender, Audio::eConsole)?
+        };
         Ok(AudioDevice::new(device))
     }
 
     pub fn devices() -> Result<Vec<AudioDevice>> {
-        let endpoints = unsafe { device_enumerator().EnumAudioEndpoints(Audio::eAll, Audio::DEVICE_STATE_ACTIVE)? };
+        let endpoints = unsafe {
+            device_enumerator().EnumAudioEndpoints(Audio::eAll, Audio::DEVICE_STATE_ACTIVE)?
+        };
         let count = unsafe { endpoints.GetCount()? };
-        (0..count).map(|i| {
-            let device = unsafe { endpoints.Item(i)? };
-            Ok(AudioDevice::new(device))
-        }).collect()
+        (0..count)
+            .map(|i| {
+                let device = unsafe { endpoints.Item(i)? };
+                Ok(AudioDevice::new(device))
+            })
+            .collect()
     }
 }
 
 pub struct AudioDevice {
     device: Audio::IMMDevice,
-    audio_client: OnceCell<Audio::IAudioClient>
+    audio_client: OnceCell<Audio::IAudioClient>,
 }
- 
+
 impl AudioDevice {
     pub fn id(&self) -> Result<String> {
         let id = unsafe { self.device.GetId()? };
@@ -48,7 +64,10 @@ impl AudioDevice {
 
     pub fn name(&self) -> Result<String> {
         let property_store = unsafe { self.device.OpenPropertyStore(Com::STGM_READ)? };
-        let friendly_name = unsafe { property_store.GetValue(&Properties::DEVPKEY_Device_FriendlyName as *const _ as *const _)? };
+        let friendly_name = unsafe {
+            property_store
+                .GetValue(&Properties::DEVPKEY_Device_FriendlyName as *const _ as *const _)?
+        };
         let str = unsafe { PropVariantGetStringElem(&friendly_name, 0)? };
         Ok(unsafe { str.to_string()? })
     }
@@ -57,7 +76,10 @@ impl AudioDevice {
         if let Some(audio_client) = self.audio_client.get() {
             Ok(audio_client)
         } else {
-            let audio_client = unsafe { self.device.Activate::<Audio::IAudioClient>(Com::CLSCTX_INPROC_SERVER, None)? };
+            let audio_client = unsafe {
+                self.device
+                    .Activate::<Audio::IAudioClient>(Com::CLSCTX_INPROC_SERVER, None)?
+            };
             self.audio_client.set(audio_client).unwrap();
             Ok(self.audio_client.get().unwrap())
         }
@@ -65,8 +87,8 @@ impl AudioDevice {
 
     fn get_mix_format(&self) -> Result<&Audio::WAVEFORMATEX> {
         let audio_client = self.get_audio_client()?;
-        let mix_format = unsafe { audio_client.GetMixFormat() }?;    
-        Ok(unsafe { &*mix_format} )
+        let mix_format = unsafe { audio_client.GetMixFormat() }?;
+        Ok(unsafe { &*mix_format })
     }
 
     pub fn sample_rate(&self) -> Result<u32> {
@@ -74,37 +96,57 @@ impl AudioDevice {
     }
 
     pub fn new(device: Audio::IMMDevice) -> Self {
-        Self { device, audio_client: OnceCell::new() }
+        Self {
+            device,
+            audio_client: OnceCell::new(),
+        }
     }
 
     pub fn create_output_stream(&self) -> Result<Stream> {
         let audio_client = self.get_audio_client()?;
 
-        let stream_flags = Audio::AUDCLNT_STREAMFLAGS_EVENTCALLBACK | Audio::AUDCLNT_STREAMFLAGS_NOPERSIST;
+        let stream_flags =
+            Audio::AUDCLNT_STREAMFLAGS_EVENTCALLBACK | Audio::AUDCLNT_STREAMFLAGS_NOPERSIST;
         let buffer_duration = 1000;
-        let format = unsafe { audio_client.GetMixFormat()}?;
-        unsafe { audio_client.Initialize(Audio::AUDCLNT_SHAREMODE_SHARED, stream_flags, buffer_duration, 0, format, None) }?;
+        let format = unsafe { audio_client.GetMixFormat() }?;
+        unsafe {
+            audio_client.Initialize(
+                Audio::AUDCLNT_SHAREMODE_SHARED,
+                stream_flags,
+                buffer_duration,
+                0,
+                format,
+                None,
+            )
+        }?;
 
-        let sample_ready_event = unsafe { CreateEventExW(None, None, CREATE_EVENT_MANUAL_RESET, (EVENT_MODIFY_STATE | SYNCHRONIZATION_SYNCHRONIZE).0)? };
+        let sample_ready_event = unsafe {
+            CreateEventExW(
+                None,
+                None,
+                CREATE_EVENT_MANUAL_RESET,
+                (EVENT_MODIFY_STATE | SYNCHRONIZATION_SYNCHRONIZE).0,
+            )?
+        };
         unsafe { audio_client.SetEventHandle(sample_ready_event) }?;
-        
+
         todo!()
     }
 
     /*pub fn new2() -> Result<Self> {
         //let device_collection: IMMDeviceCollection = unsafe {device_enumerator.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)? };
-        let endpoint = unsafe { device_enumerator().GetDefaultAudioEndpoint(Audio::eRender, Audio::eConsole)? };  
+        let endpoint = unsafe { device_enumerator().GetDefaultAudioEndpoint(Audio::eRender, Audio::eConsole)? };
 
         let mix_format = unsafe { audio_client.GetMixFormat()? };
 
         let latency = 40;
         unsafe {
             audio_client.Initialize(
-                Audio::AUDCLNT_SHAREMODE_SHARED, 
-                Audio::AUDCLNT_STREAMFLAGS_EVENTCALLBACK | Audio::AUDCLNT_STREAMFLAGS_NOPERSIST, 
-                latency * 10_000, 
-                0, 
-                mix_format, 
+                Audio::AUDCLNT_SHAREMODE_SHARED,
+                Audio::AUDCLNT_STREAMFLAGS_EVENTCALLBACK | Audio::AUDCLNT_STREAMFLAGS_NOPERSIST,
+                latency * 10_000,
+                0,
+                mix_format,
                 None)?
         };
         let sample_rate = unsafe { (*mix_format).nSamplesPerSec };
@@ -130,14 +172,16 @@ fn device_enumerator() -> &'static Audio::IMMDeviceEnumerator {
     static INSTANCE: OnceLock<Enumerator> = OnceLock::new();
     let enumerator = INSTANCE.get_or_init(|| {
         com::com_initialized();
-        let enumerator = unsafe { Com::CoCreateInstance(&Audio::MMDeviceEnumerator, None, Com::CLSCTX_ALL) }.unwrap();
+        let enumerator =
+            unsafe { Com::CoCreateInstance(&Audio::MMDeviceEnumerator, None, Com::CLSCTX_ALL) }
+                .unwrap();
         Enumerator(enumerator)
     });
     &enumerator.0
 }
 
 pub struct Stream {
-    thread_handle: Option<JoinHandle<()>>
+    thread_handle: Option<JoinHandle<()>>,
 }
 
 impl Drop for Stream {

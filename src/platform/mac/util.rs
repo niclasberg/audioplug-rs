@@ -1,14 +1,12 @@
 pub const fn four_cc(str: &[u8; 4]) -> i32 {
-	(
-		((str[0] as u32) << 24 & 0xff000000)
-		| ((str[1] as u32) << 16 & 0x00ff0000)
-		| ((str[2] as u32) << 8 & 0x0000ff00)
-		| ((str[3] as u32) & 0x000000ff)
-	) as i32
+    (((str[0] as u32) << 24 & 0xff000000)
+        | ((str[1] as u32) << 16 & 0x00ff0000)
+        | ((str[2] as u32) << 8 & 0x0000ff00)
+        | ((str[3] as u32) & 0x000000ff)) as i32
 }
 
 pub const fn range_contains(range: &CFRange, index: CFIndex) -> bool {
-	index >= range.location && ((index - range.location) < range.length)
+    index >= range.location && ((index - range.location) < range.length)
 }
 
 macro_rules! cf_enum {
@@ -34,7 +32,7 @@ macro_rules! cf_enum {
 		unsafe impl objc2::Encode for $name {
 			const ENCODING: objc2::Encoding = <$inner>::ENCODING;
 		}
-		
+
 		unsafe impl objc2::RefEncode for $name {
 			const ENCODING_REF: objc2::Encoding = objc2::Encoding::Pointer(&<Self as objc2::Encode>::ENCODING);
 		}

@@ -3,31 +3,41 @@ use std::marker::PhantomData;
 pub struct AudioBuffer {
     num_channels: usize,
     num_samples: usize,
-    channel_samples: *mut *mut f32
+    channel_samples: *mut *mut f32,
 }
 
 impl AudioBuffer {
-    pub fn from_slice<const NCHANNELS: usize, const NSAMPLES: usize>(channel_samples: &[&mut [f32; NSAMPLES]; NCHANNELS]) -> Self {
+    pub fn from_slice<const NCHANNELS: usize, const NSAMPLES: usize>(
+        channel_samples: &[&mut [f32; NSAMPLES]; NCHANNELS],
+    ) -> Self {
         let channel_samples = channel_samples as *const _;
         let channel_samples = unsafe { std::mem::transmute(channel_samples) };
-        Self { 
+        Self {
             num_channels: NCHANNELS,
             num_samples: NSAMPLES,
-            channel_samples
+            channel_samples,
         }
     }
 
-    pub unsafe fn from_ptr(channel_samples: *mut *mut f32, num_channels: usize, num_samples: usize) -> Self {
-        Self { num_channels, num_samples, channel_samples }
+    pub unsafe fn from_ptr(
+        channel_samples: *mut *mut f32,
+        num_channels: usize,
+        num_samples: usize,
+    ) -> Self {
+        Self {
+            num_channels,
+            num_samples,
+            channel_samples,
+        }
     }
 
-	pub fn empty() -> Self {
-		Self {
-			num_channels: 0,
-			num_samples: 0,
-			channel_samples: std::ptr::null_mut()
-		}
-	}
+    pub fn empty() -> Self {
+        Self {
+            num_channels: 0,
+            num_samples: 0,
+            channel_samples: std::ptr::null_mut(),
+        }
+    }
 
     pub fn samples(&self) -> usize {
         self.num_samples
@@ -56,40 +66,41 @@ impl AudioBuffer {
     }
 
     pub fn channels_iter<'a>(&'a self) -> ChannelsIter<'a> {
-        ChannelsIter { 
-            current_channel_samples: self.channel_samples as *const _, 
-            end_channel_samples: unsafe { self.channel_samples.offset(self.num_channels as isize) as *const _ }, 
-            num_samples: self.num_samples, 
-            _phantom: PhantomData
+        ChannelsIter {
+            current_channel_samples: self.channel_samples as *const _,
+            end_channel_samples: unsafe {
+                self.channel_samples.offset(self.num_channels as isize) as *const _
+            },
+            num_samples: self.num_samples,
+            _phantom: PhantomData,
         }
     }
 
     pub fn channels_iter_mut<'a>(&'a mut self) -> ChannelsIterMut<'a> {
-        ChannelsIterMut { 
-            current_channel_samples: self.channel_samples, 
-            end_channel_samples: unsafe { self.channel_samples.offset(self.num_channels as isize) as *const _ }, 
-            num_samples: self.num_samples, 
-            _phantom: PhantomData 
+        ChannelsIterMut {
+            current_channel_samples: self.channel_samples,
+            end_channel_samples: unsafe {
+                self.channel_samples.offset(self.num_channels as isize) as *const _
+            },
+            num_samples: self.num_samples,
+            _phantom: PhantomData,
         }
     }
 }
 
 pub struct FrameIterator<'a> {
-    _phantom: PhantomData<&'a f32>
+    _phantom: PhantomData<&'a f32>,
 }
-
 
 pub struct FrameSamples<'a> {
-    _phantom: PhantomData<&'a f32>
+    _phantom: PhantomData<&'a f32>,
 }
-
-
 
 pub struct ChannelsIter<'a> {
     current_channel_samples: *const *const f32,
     end_channel_samples: *const *const f32,
     num_samples: usize,
-    _phantom: PhantomData<&'a &'a f32>
+    _phantom: PhantomData<&'a &'a f32>,
 }
 
 impl<'a> Iterator for ChannelsIter<'a> {
@@ -100,11 +111,15 @@ impl<'a> Iterator for ChannelsIter<'a> {
         if self.current_channel_samples == self.end_channel_samples {
             None
         } else {
-            let channel_samples = unsafe { 
-				// Weird, tried to derefence but ableton gave us an unaligned pointer which caused 
-				// panic. Use read_unaligned instead
+            let channel_samples = unsafe {
+                // Weird, tried to derefence but ableton gave us an unaligned pointer which caused
+                // panic. Use read_unaligned instead
                 let samples = self.current_channel_samples.read_unaligned();
-                ChannelSamples { samples, num_samples: self.num_samples, _phantom: PhantomData }
+                ChannelSamples {
+                    samples,
+                    num_samples: self.num_samples,
+                    _phantom: PhantomData,
+                }
             };
             self.current_channel_samples = unsafe { self.current_channel_samples.offset(1) };
             Some(channel_samples)
@@ -116,7 +131,7 @@ pub struct ChannelsIterMut<'a> {
     current_channel_samples: *const *mut f32,
     end_channel_samples: *const *mut f32,
     num_samples: usize,
-    _phantom: PhantomData<&'a f32>
+    _phantom: PhantomData<&'a f32>,
 }
 
 impl<'a> Iterator for ChannelsIterMut<'a> {
@@ -126,11 +141,15 @@ impl<'a> Iterator for ChannelsIterMut<'a> {
         if self.current_channel_samples == self.end_channel_samples {
             None
         } else {
-            let channel_samples = unsafe { 
-				// Weird, tried to derefence but ableton gave us an unaligned pointer which caused 
-				// panic. Use read_unaligned instead
+            let channel_samples = unsafe {
+                // Weird, tried to derefence but ableton gave us an unaligned pointer which caused
+                // panic. Use read_unaligned instead
                 let samples = self.current_channel_samples.read_unaligned();
-                ChannelSamplesMut { samples, num_samples: self.num_samples, _phantom: PhantomData }
+                ChannelSamplesMut {
+                    samples,
+                    num_samples: self.num_samples,
+                    _phantom: PhantomData,
+                }
             };
             self.current_channel_samples = unsafe { self.current_channel_samples.offset(1) };
             Some(channel_samples)
@@ -141,7 +160,7 @@ impl<'a> Iterator for ChannelsIterMut<'a> {
 pub struct ChannelSamples<'a> {
     samples: *const f32,
     num_samples: usize,
-    _phantom: PhantomData<&'a f32>
+    _phantom: PhantomData<&'a f32>,
 }
 
 impl<'a> ChannelSamples<'a> {
@@ -156,7 +175,7 @@ impl<'a> ChannelSamples<'a> {
     pub fn len(&self) -> usize {
         self.num_samples
     }
-}  
+}
 
 impl<'a> IntoIterator for ChannelSamples<'a> {
     type Item = f32;
@@ -170,7 +189,7 @@ impl<'a> IntoIterator for ChannelSamples<'a> {
 pub struct ChannelSamplesIter<'a> {
     current_sample: *const f32,
     last_sample: *const f32,
-    _phantom: PhantomData<&'a f32>
+    _phantom: PhantomData<&'a f32>,
 }
 
 impl<'a> ChannelSamplesIter<'a> {
@@ -201,7 +220,7 @@ impl<'a> Iterator for ChannelSamplesIter<'a> {
 pub struct ChannelSamplesMut<'a> {
     samples: *mut f32,
     num_samples: usize,
-    _phantom: PhantomData<&'a mut f32>
+    _phantom: PhantomData<&'a mut f32>,
 }
 
 impl<'a> ChannelSamplesMut<'a> {
@@ -235,7 +254,7 @@ impl<'a> ChannelSamplesMut<'a> {
 pub struct ChannelSamplesIterMut<'a> {
     current_sample: *mut f32,
     last_sample: *mut f32,
-    _phantom: PhantomData<&'a mut f32>
+    _phantom: PhantomData<&'a mut f32>,
 }
 
 impl<'a> Iterator for ChannelSamplesIterMut<'a> {
@@ -281,7 +300,7 @@ mod test {
         assert_eq!(samples_iter.next(), Some(2.0f32));
         assert_eq!(samples_iter.next(), Some(3.0f32));
         assert_eq!(samples_iter.next(), None);
-        
+
         let mut samples_iter = channel_iter.next().unwrap().iter();
         assert_eq!(samples_iter.next(), Some(4.0f32));
         assert_eq!(samples_iter.next(), Some(5.0f32));
@@ -289,7 +308,7 @@ mod test {
         assert_eq!(samples_iter.next(), None);
     }
 
-    #[test] 
+    #[test]
     pub fn channel_iter_mut() {
         let mut channel1_data = [0.0f32; 3];
         let mut channel2_data = [0.0f32; 3];

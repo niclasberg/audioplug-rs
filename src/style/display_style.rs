@@ -9,14 +9,14 @@ use crate::core::Size;
 pub enum AvailableSpace {
     Exact(f64),
     MinContent,
-    MaxContent
+    MaxContent,
 }
 
 impl AvailableSpace {
     pub fn unwrap_or(self, value: f64) -> f64 {
         match self {
             Self::Exact(value) => value,
-            _ => value
+            _ => value,
         }
     }
 }
@@ -31,19 +31,14 @@ impl Into<Option<f64>> for AvailableSpace {
 }
 
 pub trait Measure {
-    fn measure(
-        &self,
-        style: &Style,
-        width: AvailableSpace,
-        height: AvailableSpace,
-    ) -> Size;
+    fn measure(&self, style: &Style, width: AvailableSpace, height: AvailableSpace) -> Size;
 }
 
 #[derive(Copy, Clone)]
 pub enum DisplayStyle<'a> {
     Block,
     Flex(&'a FlexStyle),
-	Grid(&'a GridStyle),
+    Grid(&'a GridStyle),
     Leaf(&'a dyn Measure),
 }
 
@@ -62,7 +57,7 @@ impl FlexStyle {
         wrap: FlexWrap::NoWrap,
         gap: Length::ZERO,
         align_items: None,
-        align_content: None
+        align_content: None,
     };
 }
 

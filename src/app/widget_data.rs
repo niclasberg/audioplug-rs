@@ -1,7 +1,10 @@
 use bitflags::bitflags;
 use slotmap::{new_key_type, Key, KeyData};
 
-use crate::{core::{Point, Rectangle, RoundedRectangle, Size}, style::Style};
+use crate::{
+    core::{Point, Rectangle, RoundedRectangle, Size},
+    style::Style,
+};
 
 use super::{Shape, WindowId};
 
@@ -70,7 +73,7 @@ impl WidgetData {
         self.id
     }
 
-    /// Local bounds of the widget, relative to its parent 
+    /// Local bounds of the widget, relative to its parent
     pub fn local_bounds(&self) -> Rectangle {
         Rectangle::from_origin(self.offset(), self.size())
     }
@@ -82,10 +85,11 @@ impl WidgetData {
 
     fn subtract_padding_and_border(&self, rect: Rectangle) -> Rectangle {
         Rectangle::from_ltrb(
-            rect.left() + (self.layout.border.left + self.layout.padding.left) as f64, 
-            rect.top() + (self.layout.border.top + self.layout.padding.top) as f64, 
-            rect.right() - (self.layout.border.right + self.layout.padding.right) as f64, 
-            rect.bottom() - (self.layout.border.bottom + self.layout.padding.bottom) as f64)
+            rect.left() + (self.layout.border.left + self.layout.padding.left) as f64,
+            rect.top() + (self.layout.border.top + self.layout.padding.top) as f64,
+            rect.right() - (self.layout.border.right + self.layout.padding.right) as f64,
+            rect.bottom() - (self.layout.border.bottom + self.layout.padding.bottom) as f64,
+        )
     }
 
     /// Bounds of the widget, in global coords, excluding borders and padding
@@ -95,18 +99,20 @@ impl WidgetData {
 
     pub fn border(&self) -> Rectangle {
         Rectangle::from_ltrb(
-            self.layout.border.left as f64, 
-            self.layout.border.top as f64, 
-            self.layout.border.right as f64, 
-            self.layout.border.bottom as f64)
+            self.layout.border.left as f64,
+            self.layout.border.top as f64,
+            self.layout.border.right as f64,
+            self.layout.border.bottom as f64,
+        )
     }
 
     pub fn padding(&self) -> Rectangle {
         Rectangle::from_ltrb(
-            self.layout.padding.left as f64, 
-            self.layout.padding.top as f64, 
-            self.layout.padding.right as f64, 
-            self.layout.padding.bottom as f64)
+            self.layout.padding.left as f64,
+            self.layout.padding.top as f64,
+            self.layout.padding.right as f64,
+            self.layout.padding.bottom as f64,
+        )
     }
 
     pub fn set_flag(&mut self, flag: WidgetFlags) {
@@ -117,7 +123,7 @@ impl WidgetData {
         self.flags &= !flag;
     }
 
-    pub fn flag_is_set(& self, flag: WidgetFlags) -> bool{
+    pub fn flag_is_set(&self, flag: WidgetFlags) -> bool {
         self.flags.contains(flag)
     }
 
@@ -143,7 +149,7 @@ impl WidgetData {
     }
 
     pub fn shape(&self) -> Shape {
-        if self.style.corner_radius == Size::ZERO{
+        if self.style.corner_radius == Size::ZERO {
             self.global_bounds().into()
         } else {
             RoundedRectangle::new(self.global_bounds(), self.style.corner_radius).into()

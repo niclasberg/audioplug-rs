@@ -22,18 +22,18 @@ pub fn strcpyw(src: &str, dst: &mut [TChar]) {
 }
 
 impl From<ViewRect> for Rectangle<i32> {
-	fn from(value: ViewRect) -> Self {
-		Self::from_ltrb(value.left, value.top, value.right, value.bottom)
-	}
+    fn from(value: ViewRect) -> Self {
+        Self::from_ltrb(value.left, value.top, value.right, value.bottom)
+    }
 }
 
 impl Into<ViewRect> for Rectangle<i32> {
-	fn into(self) -> ViewRect {
-		ViewRect {
-			left: self.left(),
-			top: self.top(),
-			right: self.right(),
-			bottom: self.bottom(),
-		}
-	}
+    fn into(self) -> ViewRect {
+        ViewRect {
+            left: self.left(),
+            top: self.top(),
+            right: self.right(),
+            bottom: self.bottom(),
+        }
+    }
 }

@@ -10,5 +10,5 @@ pub enum Cursor {
     UpDown,
     LeftRight,
     LeftUpRightDown,
-    LeftDownRightUp,    
+    LeftDownRightUp,
 }

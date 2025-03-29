@@ -1,17 +1,46 @@
-use std::{cell::{Cell, RefCell}, marker::PhantomData, mem::MaybeUninit, rc::Rc, sync::Once};
+use std::{
+    cell::{Cell, RefCell},
+    marker::PhantomData,
+    mem::MaybeUninit,
+    rc::Rc,
+    sync::Once,
+};
 
-use windows::{core::{w, Result, PCWSTR, BOOL}, 
+use windows::{
+    core::{w, Result, BOOL, PCWSTR},
     Win32::{
-        Foundation::*, 
-        Graphics::{Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE}, Gdi::{self, InvalidateRect, ScreenToClient}}, 
-        System::{LibraryLoader::GetModuleHandleW, Performance}, 
-        UI::{HiDpi::GetDpiForWindow, Input::{KeyboardAndMouse::{TrackMouseEvent, VIRTUAL_KEY}, *}, WindowsAndMessaging::*}
-    }};
+        Foundation::*,
+        Graphics::{
+            Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE},
+            Gdi::{self, InvalidateRect, ScreenToClient},
+        },
+        System::{LibraryLoader::GetModuleHandleW, Performance},
+        UI::{
+            HiDpi::GetDpiForWindow,
+            Input::{
+                KeyboardAndMouse::{TrackMouseEvent, VIRTUAL_KEY},
+                *,
+            },
+            WindowsAndMessaging::*,
+        },
+    },
+};
 use KeyboardAndMouse::{ReleaseCapture, SetCapture};
 
-use super::{com, cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, util::get_theme, Handle, Renderer};
-use crate::{core::{Color, Key, Point, Rectangle, Size, Vector, WindowTheme}, event::{AnimationFrame, KeyEvent, MouseEvent}, platform::{WindowEvent, WindowHandler}, MouseButtons};
+use super::{
+    com,
+    cursors::get_cursor,
+    keyboard::{get_modifiers, vk_to_key, KeyFlags},
+    util::get_theme,
+    Handle, Renderer,
+};
 use crate::event::MouseButton;
+use crate::{
+    core::{Color, Key, Point, Rectangle, Size, Vector, WindowTheme},
+    event::{AnimationFrame, KeyEvent, MouseEvent},
+    platform::{WindowEvent, WindowHandler},
+    MouseButtons,
+};
 
 const WINDOW_CLASS: PCWSTR = w!("my_window");
 static REGISTER_WINDOW_CLASS: Once = Once::new();
@@ -25,7 +54,7 @@ pub struct Window {
 
 struct TmpKeyEvent {
     chars: Vec<u16>,
-    key: Key
+    key: Key,
 }
 
 struct WindowState {
@@ -44,7 +73,13 @@ impl WindowState {
         self.handler.borrow_mut().event(event.into());
     }
 
-    fn handle_message(&self, hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+    fn handle_message(
+        &self,
+        hwnd: HWND,
+        message: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> Option<LRESULT> {
         match message {
             WM_CREATE => {
                 self.scale_factor.replace(get_scale_factor_for_window(hwnd));
@@ -60,43 +95,43 @@ impl WindowState {
             },
 
             WM_DESTROY => {
-                unsafe { 
+                unsafe {
                     KillTimer(Some(hwnd), ANIMATION_FRAME_TIMER).unwrap();
                     //PostQuitMessage(0);
                 };
                 Some(LRESULT(0))
             },
 
-            WM_PAINT => {   
+            WM_PAINT => {
                 let mut renderer_ref = self.renderer.borrow_mut();
                 let renderer = renderer_ref.get_or_insert_with(|| {
                     Renderer::new(hwnd).unwrap()
                 });
-    
+
                 let mut ps = Gdi::PAINTSTRUCT::default();
-                unsafe { 
+                unsafe {
                     Gdi::BeginPaint(hwnd, &mut ps);
-    
+
                     renderer.begin_draw();
                     renderer.clear(Color::OFF_WHITE);
                 }
-    
+
                 {
                     let rect: Rectangle = super::util::get_client_rect(hwnd).into();
                     self.handler.borrow_mut()
                         .render(Rectangle::from_origin(Point::ZERO, rect.size()), renderer);
                 }
-    
+
                 unsafe {
                     if let Err(error) = renderer.end_draw() {
                         if error.code() == D2DERR_RECREATE_TARGET {
                             // Set renderer to None to force rebuild
                         }
                     }
-    
+
                     Gdi::EndPaint(hwnd, &mut ps).ok().unwrap();
                 }
-    
+
                 Some(LRESULT(0))
             },
 
@@ -104,7 +139,7 @@ impl WindowState {
                 let width = loword(lparam) as u32;
                 let height = hiword(lparam) as u32;
 
-                if let Some(renderer) = self.renderer.borrow_mut().as_ref() {    
+                if let Some(renderer) = self.renderer.borrow_mut().as_ref() {
                     renderer.resize(width, height).unwrap();
                 }
 
@@ -125,9 +160,9 @@ impl WindowState {
                 self.publish_event(hwnd, WindowEvent::Unfocused);
                 Some(LRESULT(0))
             },
-            
-            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | 
-            WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP | 
+
+            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN |
+            WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP |
             WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK => {
                 let mouse_event = self.get_mouse_event(message, wparam, lparam);
                 if let MouseEvent::Down { button, .. } = mouse_event {
@@ -151,7 +186,7 @@ impl WindowState {
                     self.captured_mouse_buttons.borrow_mut().clear();
                     self.publish_event(hwnd, WindowEvent::MouseCaptureEnded);
                 }
-                
+
                 Some(LRESULT(0))
             },
 
@@ -166,7 +201,7 @@ impl WindowState {
                         self.publish_event(hwnd, WindowEvent::Mouse(MouseEvent::Moved { position, modifiers: get_modifiers() }));
                     }
                 } else {
-                    unsafe { 
+                    unsafe {
                         // Setup tracking so that we get notified when the mouse leaves the client area
                         let mut ev = KeyboardAndMouse::TRACKMOUSEEVENT {
                             cbSize: std::mem::size_of::<KeyboardAndMouse::TRACKMOUSEEVENT>() as u32,
@@ -192,10 +227,10 @@ impl WindowState {
                 };
 
                 let position = self.position_from_screen_lparam(hwnd, lparam);
-                self.publish_event(hwnd, WindowEvent::Mouse(MouseEvent::Wheel { 
-                    delta, 
-                    position, 
-                    modifiers: get_modifiers() 
+                self.publish_event(hwnd, WindowEvent::Mouse(MouseEvent::Wheel {
+                    delta,
+                    position,
+                    modifiers: get_modifiers()
                 }));
 
                 Some(LRESULT(0))
@@ -242,17 +277,17 @@ impl WindowState {
                 let flags = KeyFlags::from_lparam(lparam);
                 self.current_key_event.borrow_mut().as_mut().unwrap()
                     .chars.push(wparam.0 as u16);
-                
+
                 if !has_wm_char_message(hwnd, flags) {
                     let current_key_event = self.current_key_event.borrow_mut().take().unwrap();
                     let modifiers = get_modifiers();
                     let str = String::from_utf16(&current_key_event.chars).ok();
-                    let key_event = KeyEvent::KeyDown { 
-                        key: current_key_event.key, 
-                        modifiers, 
+                    let key_event = KeyEvent::KeyDown {
+                        key: current_key_event.key,
+                        modifiers,
                         str
                     };
-                    
+
                     self.publish_event(hwnd, WindowEvent::Key(key_event));
                 }
                 Some(LRESULT(0))
@@ -293,20 +328,29 @@ impl WindowState {
             WM_LBUTTONDOWN | WM_LBUTTONUP | WM_LBUTTONDBLCLK => MouseButton::LEFT,
             WM_RBUTTONDOWN | WM_RBUTTONUP | WM_RBUTTONDBLCLK => MouseButton::RIGHT,
             WM_MBUTTONDOWN | WM_MBUTTONUP | WM_MBUTTONDBLCLK => MouseButton::MIDDLE,
-            _ => unreachable!()
+            _ => unreachable!(),
         };
 
         let position = self.position_from_lparam(lparam);
         let modifiers = get_modifiers();
 
         match message {
-            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN => 
-                MouseEvent::Down { button, position, modifiers },
-            WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP =>
-                MouseEvent::Up { button, position, modifiers },
-            WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK =>
-                MouseEvent::DoubleClick { button, position, modifiers },
-            _ => unreachable!()
+            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN => MouseEvent::Down {
+                button,
+                position,
+                modifiers,
+            },
+            WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP => MouseEvent::Up {
+                button,
+                position,
+                modifiers,
+            },
+            WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK => MouseEvent::DoubleClick {
+                button,
+                position,
+                modifiers,
+            },
+            _ => unreachable!(),
         }
     }
 
@@ -337,10 +381,16 @@ impl Window {
             let value: BOOL = match get_theme() {
                 WindowTheme::Light => false,
                 WindowTheme::Dark => true,
-            }.into();
-            DwmSetWindowAttribute(this.handle, DWMWA_USE_IMMERSIVE_DARK_MODE, &value as *const _ as *const _, std::mem::size_of_val(&value) as _)?;
+            }
+            .into();
+            DwmSetWindowAttribute(
+                this.handle,
+                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                &value as *const _ as *const _,
+                std::mem::size_of_val(&value) as _,
+            )?;
         }
-        
+
         let _ = unsafe { ShowWindow(this.handle, SW_SHOW) };
         Ok(this)
     }
@@ -352,18 +402,24 @@ impl Window {
     }
 
     pub fn set_size(&self, size: Rectangle<i32>) -> Result<()> {
-        unsafe { SetWindowPos(
-            self.handle, 
-            None, 
-            size.left(), 
-            size.top(), 
-            size.width(), 
-            size.height(), 
-            SET_WINDOW_POS_FLAGS::default())
+        unsafe {
+            SetWindowPos(
+                self.handle,
+                None,
+                size.left(),
+                size.top(),
+                size.width(),
+                size.height(),
+                SET_WINDOW_POS_FLAGS::default(),
+            )
         }
     }
 
-    fn create(parent: Option<HWND>, style: WINDOW_STYLE, handler: impl WindowHandler + 'static) -> Result<Self> {
+    fn create(
+        parent: Option<HWND>,
+        style: WINDOW_STYLE,
+        handler: impl WindowHandler + 'static,
+    ) -> Result<Self> {
         let instance = unsafe { GetModuleHandleW(None)? };
         REGISTER_WINDOW_CLASS.call_once(|| {
             let class = WNDCLASSW {
@@ -374,7 +430,11 @@ impl Window {
                 style: CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS,
                 ..WNDCLASSW::default()
             };
-            assert_ne!(unsafe { RegisterClassW(&class) }, 0, "Unable to register window class");
+            assert_ne!(
+                unsafe { RegisterClassW(&class) },
+                0,
+                "Unable to register window class"
+            );
         });
 
         com::com_initialized();
@@ -398,23 +458,24 @@ impl Window {
 
         let hwnd = unsafe {
             CreateWindowExW(
-                WINDOW_EX_STYLE::default(), 
-                WINDOW_CLASS, 
-                w!("My window"), 
-                style, 
-                CW_USEDEFAULT, 
-                CW_USEDEFAULT, 
-                CW_USEDEFAULT, 
-                CW_USEDEFAULT, 
-                parent, 
-                None, 
-                Some(instance.into()), 
-                Some(Rc::into_raw(window_state) as _))?
+                WINDOW_EX_STYLE::default(),
+                WINDOW_CLASS,
+                w!("My window"),
+                style,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                parent,
+                None,
+                Some(instance.into()),
+                Some(Rc::into_raw(window_state) as _),
+            )?
         };
 
         Ok(Window {
             handle: hwnd,
-            _phantom: PhantomData
+            _phantom: PhantomData,
         })
     }
 }
@@ -428,7 +489,10 @@ fn hiword(lparam: LPARAM) -> u16 {
 }
 
 fn point_from_lparam(lparam: LPARAM) -> Point<i32> {
-    Point::new((lparam.0 & 0xFFFF) as i16 as i32, ((lparam.0 >> 16) & 0xFFFF) as i16 as i32)
+    Point::new(
+        (lparam.0 & 0xFFFF) as i16 as i32,
+        ((lparam.0 >> 16) & 0xFFFF) as i16 as i32,
+    )
 }
 
 fn screen_to_client_pos(hwnd: HWND, x: i32, y: i32) -> Point<i32> {
@@ -476,7 +540,12 @@ fn get_scale_factor_for_window(hwnd: HWND) -> f64 {
     dpi_to_scale_factor(dpi)
 }
 
-unsafe extern "system" fn wndproc(hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+unsafe extern "system" fn wndproc(
+    hwnd: HWND,
+    message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
     if message == WM_NCCREATE {
         let create_struct = &*(lparam.0 as *const CREATESTRUCTW);
         let window_state_ptr = create_struct.lpCreateParams;
@@ -491,9 +560,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, message: u32, wparam: WPARAM, lpar
             DefWindowProcW(hwnd, message, wparam, lparam)
         } else {
             let result = (&*window_state_ptr).handle_message(hwnd, message, wparam, lparam);
-            result.unwrap_or_else(|| {
-                DefWindowProcW(hwnd, message, wparam, lparam)
-            })
+            result.unwrap_or_else(|| DefWindowProcW(hwnd, message, wparam, lparam))
         }
     } else {
         DefWindowProcW(hwnd, message, wparam, lparam)

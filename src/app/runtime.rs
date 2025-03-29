@@ -1,12 +1,23 @@
-use std::{collections::{HashMap, HashSet, VecDeque}, rc::Rc};
+use super::{
+    accessor::SourceId,
+    animation::AnimationState,
+    app_state::Task,
+    effect::{BindingState, EffectState},
+    memo::MemoState,
+    signal::SignalState,
+    MemoContext, NodeId, ReactiveContext, ReadContext, Trigger, WidgetId, WriteContext,
+};
+use crate::param::{AnyParameterMap, ParamRef, ParameterId};
 use indexmap::IndexSet;
 use slotmap::{SecondaryMap, SlotMap};
-use crate::param::{AnyParameterMap, ParamRef, ParameterId};
-use super::{accessor::SourceId, animation::AnimationState, app_state::Task, effect::{EffectState, BindingState}, memo::MemoState, signal::SignalState, MemoContext, NodeId, ReactiveContext, ReadContext, Trigger, WidgetId, WriteContext};
+use std::{
+    collections::{HashMap, HashSet, VecDeque},
+    rc::Rc,
+};
 
 pub struct Node {
     pub(super) node_type: NodeType,
-    state: NodeState
+    state: NodeState,
 }
 
 pub struct PathSegment(usize);
@@ -18,13 +29,13 @@ impl Path {
 #[derive(Debug, Clone, Copy)]
 pub enum Owner {
     Widget(WidgetId),
-    Node(NodeId)
+    Node(NodeId),
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum Scope {
     Root,
-    Node(NodeId)
+    Node(NodeId),
 }
 
 /*impl Node {
@@ -44,50 +55,53 @@ enum NodeState {
     /// Reactive value might be stale, check parent nodes to decide whether to recompute
     Check = 1,
     /// Reactive value is invalid, parents have changed, value needs to be recomputed
-    Dirty = 2
+    Dirty = 2,
 }
 
 pub enum NodeType {
     TmpRemoved,
-	Trigger,
+    Trigger,
     Signal(SignalState),
     Memo(MemoState),
     Effect(EffectState),
     Binding(BindingState),
-	Animation(AnimationState)
+    Animation(AnimationState),
 }
 
 pub struct SubscriberMap {
     pub(super) sources: SecondaryMap<NodeId, IndexSet<NodeId>>,
     pub(super) observers: SecondaryMap<NodeId, IndexSet<NodeId>>,
-	parameter_subscriptions: HashMap<ParameterId, IndexSet<NodeId>>,
-	parameter_dependencies: SecondaryMap<NodeId, IndexSet<ParameterId>>,
+    parameter_subscriptions: HashMap<ParameterId, IndexSet<NodeId>>,
+    parameter_dependencies: SecondaryMap<NodeId, IndexSet<ParameterId>>,
 }
 
 impl SubscriberMap {
     fn new(parameter_ids: &Vec<ParameterId>) -> Self {
         let mut parameter_subscriptions = HashMap::new();
-		for &parameter_id in parameter_ids {
+        for &parameter_id in parameter_ids {
             parameter_subscriptions.insert(parameter_id, IndexSet::new());
-		}
+        }
 
         Self {
-            sources: Default::default(), 
-            observers: Default::default(), 
-            parameter_subscriptions, 
-            parameter_dependencies: Default::default() 
+            sources: Default::default(),
+            observers: Default::default(),
+            parameter_subscriptions,
+            parameter_dependencies: Default::default(),
         }
     }
 
     pub fn insert_node(&mut self, node_id: NodeId) {
         self.sources.insert(node_id, IndexSet::new());
         self.observers.insert(node_id, IndexSet::new());
-		self.parameter_dependencies.insert(node_id, IndexSet::new());
+        self.parameter_dependencies.insert(node_id, IndexSet::new());
     }
 
     pub fn remove_node(&mut self, id: NodeId) {
         // Remove the node's subscriptions to other nodes
-        let observers = self.observers.remove(id).expect("Missing observers for node");
+        let observers = self
+            .observers
+            .remove(id)
+            .expect("Missing observers for node");
         for node_id in observers {
             self.sources[node_id].swap_remove(&id);
         }
@@ -98,29 +112,41 @@ impl SubscriberMap {
             self.observers[node_id].swap_remove(&id);
         }
 
-		// Remove parameter subcriptions
-		let parameter_dependencies = self.parameter_dependencies.remove(id).expect("Missing parameter dependencies for node");
-		for parameter_id in parameter_dependencies {
-            self.parameter_subscriptions.get_mut(&parameter_id).expect("Missing parameter subscription").swap_remove(&id);
+        // Remove parameter subcriptions
+        let parameter_dependencies = self
+            .parameter_dependencies
+            .remove(id)
+            .expect("Missing parameter dependencies for node");
+        for parameter_id in parameter_dependencies {
+            self.parameter_subscriptions
+                .get_mut(&parameter_id)
+                .expect("Missing parameter subscription")
+                .swap_remove(&id);
         }
     }
 
     pub fn clear_node_sources(&mut self, node_id: NodeId) {
-        let sources = self.sources.get_mut(node_id).expect("Missing sources for node");
+        let sources = self
+            .sources
+            .get_mut(node_id)
+            .expect("Missing sources for node");
         for node_id in sources.drain(..) {
             self.observers[node_id].swap_remove(&node_id);
         }
     }
 
     pub fn add_parameter_subscription(&mut self, source_id: ParameterId, observer_id: NodeId) {
-        self.parameter_subscriptions.get_mut(&source_id).unwrap().insert(observer_id);
+        self.parameter_subscriptions
+            .get_mut(&source_id)
+            .unwrap()
+            .insert(observer_id);
         self.parameter_dependencies[observer_id].insert(source_id);
-	}
+    }
 
-	pub fn add_node_subscription(&mut self, source_id: NodeId, observer_id: NodeId) {
+    pub fn add_node_subscription(&mut self, source_id: NodeId, observer_id: NodeId) {
         self.sources[observer_id].insert(source_id);
         self.observers[source_id].insert(observer_id);
-	}
+    }
 
     pub fn remove_subscription(&mut self, source_id: NodeId, observer_id: NodeId) {
         self.sources[source_id].swap_remove(&observer_id);
@@ -140,9 +166,9 @@ pub struct Runtime {
 }
 
 impl Runtime {
-    pub fn new(parameter_map: Rc<dyn AnyParameterMap>) -> Self {    
-        Self { 
-            nodes: Default::default(), 
+    pub fn new(parameter_map: Rc<dyn AnyParameterMap>) -> Self {
+        Self {
+            nodes: Default::default(),
             child_nodes: Default::default(),
             subscriptions: SubscriberMap::new(&parameter_map.parameter_ids()),
             pending_tasks: Default::default(),
@@ -153,7 +179,11 @@ impl Runtime {
         }
     }
 
-    pub(crate) fn create_signal_node(&mut self, state: SignalState, owner: Option<Owner>) -> NodeId {
+    pub(crate) fn create_signal_node(
+        &mut self,
+        state: SignalState,
+        owner: Option<Owner>,
+    ) -> NodeId {
         let id = self.create_node(NodeType::Signal(state), NodeState::Clean, owner);
         id
     }
@@ -162,7 +192,12 @@ impl Runtime {
         self.create_node(NodeType::Memo(state), NodeState::Dirty, owner)
     }
 
-    pub(crate) fn create_effect_node(&mut self, state: EffectState, owner: Option<Owner>, run_effect: bool) -> NodeId {
+    pub(crate) fn create_effect_node(
+        &mut self,
+        state: EffectState,
+        owner: Option<Owner>,
+        run_effect: bool,
+    ) -> NodeId {
         let f = Rc::downgrade(&state.f);
         let id = self.create_node(NodeType::Effect(state), NodeState::Dirty, owner);
         if run_effect {
@@ -171,56 +206,83 @@ impl Runtime {
         id
     }
 
-	pub(crate) fn create_trigger(&mut self, owner: Option<Owner>) -> NodeId {
-		self.create_node(NodeType::Trigger, NodeState::Clean, owner)
-	}
+    pub(crate) fn create_trigger(&mut self, owner: Option<Owner>) -> NodeId {
+        self.create_node(NodeType::Trigger, NodeState::Clean, owner)
+    }
 
-	pub(crate) fn create_binding_node(&mut self, source: SourceId, state: BindingState, owner: Option<Owner>) -> NodeId {
-		match source {
-			SourceId::Parameter(source_id) => {
-				self.create_parameter_binding_node(source_id, state, owner)
-			},
-			SourceId::Node(source_id) => {
-				self.create_node_binding_node(source_id, state, owner)
-			}
-		}
-	}
+    pub(crate) fn create_binding_node(
+        &mut self,
+        source: SourceId,
+        state: BindingState,
+        owner: Option<Owner>,
+    ) -> NodeId {
+        match source {
+            SourceId::Parameter(source_id) => {
+                self.create_parameter_binding_node(source_id, state, owner)
+            }
+            SourceId::Node(source_id) => self.create_node_binding_node(source_id, state, owner),
+        }
+    }
 
-    pub(crate) fn create_node_binding_node(&mut self, source_id: NodeId, state: BindingState, owner: Option<Owner>) -> NodeId {
+    pub(crate) fn create_node_binding_node(
+        &mut self,
+        source_id: NodeId,
+        state: BindingState,
+        owner: Option<Owner>,
+    ) -> NodeId {
         let id = self.create_node(NodeType::Binding(state), NodeState::Clean, owner);
         self.subscriptions.add_node_subscription(source_id, id);
         id
     }
 
-	pub(crate) fn create_parameter_binding_node(&mut self, source_id: ParameterId, state: BindingState, owner: Option<Owner>) -> NodeId {
+    pub(crate) fn create_parameter_binding_node(
+        &mut self,
+        source_id: ParameterId,
+        state: BindingState,
+        owner: Option<Owner>,
+    ) -> NodeId {
         let id = self.create_node(NodeType::Binding(state), NodeState::Clean, owner);
         self.subscriptions.add_parameter_subscription(source_id, id);
         id
     }
 
-    pub(crate) fn create_animation_node(&mut self, source_id: NodeId, state: AnimationState, owner: Option<Owner>) -> NodeId {
+    pub(crate) fn create_animation_node(
+        &mut self,
+        source_id: NodeId,
+        state: AnimationState,
+        owner: Option<Owner>,
+    ) -> NodeId {
         let id = self.create_node(NodeType::Animation(state), NodeState::Check, owner);
         self.subscriptions.add_node_subscription(source_id, id);
         id
     }
 
-    fn create_node(&mut self, node_type: NodeType, state: NodeState, owner: Option<Owner>) -> NodeId {
+    fn create_node(
+        &mut self,
+        node_type: NodeType,
+        state: NodeState,
+        owner: Option<Owner>,
+    ) -> NodeId {
         let node = Node { node_type, state };
         let id = self.nodes.insert(node);
         self.subscriptions.insert_node(id);
 
-		match owner {
+        match owner {
             Some(Owner::Widget(widget_id)) => {
-				self.widget_bindings.entry(widget_id).unwrap()
-					.or_default()
-					.insert(id);
-			},
+                self.widget_bindings
+                    .entry(widget_id)
+                    .unwrap()
+                    .or_default()
+                    .insert(id);
+            }
             Some(Owner::Node(node_id)) => {
-				self.child_nodes.entry(node_id).unwrap()
-					.or_default()
-					.insert(id);
-			},
-			_ => {}
+                self.child_nodes
+                    .entry(node_id)
+                    .unwrap()
+                    .or_default()
+                    .insert(id);
+            }
+            _ => {}
         };
 
         id
@@ -246,34 +308,41 @@ impl Runtime {
     pub fn get_node_mut(&mut self, node_id: NodeId) -> &mut Node {
         self.nodes.get_mut(node_id).expect("Node not found")
     }
-	
-	pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
-		self.parameters.get_by_id(parameter_id).expect("Invalid parameter id").as_param_ref()
-	}
+
+    pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
+        self.parameters
+            .get_by_id(parameter_id)
+            .expect("Invalid parameter id")
+            .as_param_ref()
+    }
 
     pub fn notify(&mut self, node_id: NodeId) {
-		let mut observers = std::mem::take(&mut self.scratch_buffer);
+        let mut observers = std::mem::take(&mut self.scratch_buffer);
         observers.clear();
         observers.extend(self.subscriptions.observers[node_id].iter());
         self.notify_source_changed(observers);
-	}
+    }
 
     fn notify_source_changed(&mut self, mut nodes_to_notify: VecDeque<NodeId>) {
         let mut nodes_to_check = HashSet::new();
-        
+
         {
             let direct_child_count = nodes_to_notify.len();
             let mut i = 0;
             while let Some(node_id) = nodes_to_notify.pop_front() {
                 // Mark direct nodes as Dirty and grand-children as Check
-                let new_state = if i < direct_child_count { NodeState::Dirty } else { NodeState::Check };
+                let new_state = if i < direct_child_count {
+                    NodeState::Dirty
+                } else {
+                    NodeState::Check
+                };
                 let node = self.nodes.get_mut(node_id).expect("Node has been removed");
                 if node.state < new_state {
                     node.state = new_state;
                     match &node.node_type {
                         NodeType::Effect(_) | NodeType::Binding(_) | NodeType::Animation(_) => {
                             nodes_to_check.insert(node_id);
-                        },
+                        }
                         _ => {}
                     }
                     nodes_to_notify.extend(self.subscriptions.observers[node_id].iter());
@@ -301,44 +370,46 @@ impl Runtime {
                 if self.nodes[node_id].state == NodeState::Dirty {
                     break;
                 }
-            }   
+            }
         }
 
         if self.nodes[node_id].state == NodeState::Dirty {
-            let mut node_type = std::mem::replace(&mut self.nodes[node_id].node_type, NodeType::TmpRemoved);
+            let mut node_type =
+                std::mem::replace(&mut self.nodes[node_id].node_type, NodeType::TmpRemoved);
             match &mut node_type {
                 NodeType::Effect(effect) => {
                     // Clear the sources, they will be re-populated while running the effect function
                     self.subscriptions.clear_node_sources(node_id);
-                    let task = Task::RunEffect { 
-                        id: node_id, 
-                        f: Rc::downgrade(&effect.f)
+                    let task = Task::RunEffect {
+                        id: node_id,
+                        f: Rc::downgrade(&effect.f),
                     };
                     self.pending_tasks.push_back(task);
-                },
+                }
                 NodeType::Binding(BindingState { f }) => {
-                    let task = Task::UpdateBinding { 
+                    let task = Task::UpdateBinding {
                         f: Rc::downgrade(&f),
-                        node_id
+                        node_id,
                     };
                     self.pending_tasks.push_back(task);
-                },
-                NodeType::Animation(_) => {
-    
-                },
+                }
+                NodeType::Animation(_) => {}
                 NodeType::Memo(memo) => {
                     // Clear the sources, they will be re-populated while running the memo function
                     self.subscriptions.clear_node_sources(node_id);
-                    let mut cx = MemoContext { memo_id: node_id, runtime: self };
+                    let mut cx = MemoContext {
+                        memo_id: node_id,
+                        runtime: self,
+                    };
                     if memo.eval(&mut cx) {
                         for &observer_id in self.subscriptions.observers[node_id].iter() {
                             self.nodes[observer_id].state = NodeState::Dirty;
                         }
                     }
-                },
-				NodeType::Trigger => panic!("Triggers cannot depend on other reactive nodes"),
+                }
+                NodeType::Trigger => panic!("Triggers cannot depend on other reactive nodes"),
                 NodeType::Signal(_) => panic!("Signals cannot depend on other reactive nodes"),
-                NodeType::TmpRemoved => panic!("Circular dependency?")
+                NodeType::TmpRemoved => panic!("Circular dependency?"),
             }
             std::mem::swap(&mut self.nodes[node_id].node_type, &mut node_type);
         }
@@ -346,12 +417,18 @@ impl Runtime {
         self.nodes[node_id].state = NodeState::Clean;
     }
 
-	pub(super) fn notify_parameter_subscribers(&mut self, source_id: ParameterId) {
+    pub(super) fn notify_parameter_subscribers(&mut self, source_id: ParameterId) {
         let mut nodes_to_notify = std::mem::take(&mut self.scratch_buffer);
         nodes_to_notify.clear();
-        nodes_to_notify.extend(self.subscriptions.parameter_subscriptions.get_mut(&source_id).unwrap().iter());
+        nodes_to_notify.extend(
+            self.subscriptions
+                .parameter_subscriptions
+                .get_mut(&source_id)
+                .unwrap()
+                .iter(),
+        );
         self.notify_source_changed(nodes_to_notify);
-	}
+    }
 
     pub(super) fn mark_node_as_clean(&mut self, node_id: NodeId) {
         self.nodes[node_id].state = NodeState::Clean;
@@ -365,19 +442,20 @@ impl Runtime {
         match scope {
             Scope::Node(node_id) => {
                 self.subscriptions.add_node_subscription(source_id, node_id);
-            },
+            }
             _ => {}
         }
-	}
+    }
 
-	pub fn track_parameter(&mut self, source_id: crate::param::ParameterId, scope: Scope) {
+    pub fn track_parameter(&mut self, source_id: crate::param::ParameterId, scope: Scope) {
         match scope {
             Scope::Node(node_id) => {
-                self.subscriptions.add_parameter_subscription(source_id, node_id);
-            },
+                self.subscriptions
+                    .add_parameter_subscription(source_id, node_id);
+            }
             _ => {}
         }
-	}
+    }
 }
 
 impl ReactiveContext for Runtime {
@@ -390,9 +468,7 @@ impl ReactiveContext for Runtime {
     }
 }
 
-impl WriteContext for Runtime {
-
-}
+impl WriteContext for Runtime {}
 
 impl ReadContext for Runtime {
     fn scope(&self) -> Scope {
@@ -408,7 +484,7 @@ mod tests {
     fn map_signal() {
         let mut cx = ReactiveGraph::new();
         let signal = cx.create_signal(0);
-        let mapped_signal = signal.clone().map(|x| x * 2);    
+        let mapped_signal = signal.clone().map(|x| x * 2);
         signal.set(&mut cx, 2);
         cx.create_effect(move |cx| {
             assert_eq!(mapped_signal.get(cx), 4);
@@ -423,7 +499,7 @@ mod tests {
         cx.create_effect(move |cx| {
             signal.set(cx, 1);
         });
-        
+
         assert_eq!(signal.get_untracked(&cx), 1);
     }
 

@@ -1,18 +1,30 @@
-use std::{cell::RefCell, rc::{Rc, Weak}};
+use super::{
+    clipboard::Clipboard, effect::EffectContext, layout_window, signal::ReadSignal, BuildContext,
+    CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext, ReadContext, Runtime, Signal,
+    View, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext,
+};
+use crate::{
+    app::event_handling::set_mouse_capture_widget,
+    core::{Point, WindowTheme},
+    param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
+    platform,
+};
 use indexmap::IndexSet;
 use slotmap::{Key, SecondaryMap, SlotMap};
-use crate::{app::event_handling::set_mouse_capture_widget, core::{Point, WindowTheme}, param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue}, platform};
-use super::{clipboard::Clipboard, effect::EffectContext, layout_window, signal::ReadSignal, BuildContext, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext, ReadContext, Runtime, Signal, View, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext};
+use std::{
+    cell::RefCell,
+    rc::{Rc, Weak},
+};
 
 pub(super) enum Task {
     RunEffect {
         id: NodeId,
-        f: Weak<dyn Fn(&mut EffectContext)>
+        f: Weak<dyn Fn(&mut EffectContext)>,
     },
-	UpdateBinding {
-    	f: Weak<RefCell<dyn FnMut(&mut AppState)>>,
+    UpdateBinding {
+        f: Weak<RefCell<dyn FnMut(&mut AppState)>>,
         node_id: NodeId,
-	},
+    },
 }
 
 impl Task {
@@ -20,24 +32,26 @@ impl Task {
         match self {
             Task::RunEffect { id, f } => {
                 if let Some(f) = f.upgrade() {
-                    let mut cx = EffectContext { effect_id: id, app_state };
+                    let mut cx = EffectContext {
+                        effect_id: id,
+                        app_state,
+                    };
                     f(&mut cx);
-                    app_state.runtime.mark_node_as_clean(id);                    
+                    app_state.runtime.mark_node_as_clean(id);
                 }
-            },
+            }
             Task::UpdateBinding { f, node_id } => {
                 if let Some(f) = f.upgrade() {
                     (RefCell::borrow_mut(&f))(app_state);
                 }
                 app_state.runtime.mark_node_as_clean(node_id);
-            },
+            }
         }
     }
 }
 
 struct Overlay {
     root_widget: WidgetId,
-    
 }
 
 pub(super) struct WindowState {
@@ -45,7 +59,7 @@ pub(super) struct WindowState {
     pub(super) root_widget: WidgetId,
     pub(super) focus_widget: Option<WidgetId>,
     pub(super) requested_animations: IndexSet<WidgetId>,
-    pub(super) theme_signal: Signal<WindowTheme>
+    pub(super) theme_signal: Signal<WindowTheme>,
 }
 
 pub struct AppState {
@@ -54,7 +68,7 @@ pub struct AppState {
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
     pub(super) mouse_capture_widget: Option<WidgetId>,
     pub(super) runtime: Runtime,
-    host_handle: Option<Box<dyn HostHandle>>
+    host_handle: Option<Box<dyn HostHandle>>,
 }
 
 impl AppState {
@@ -65,79 +79,97 @@ impl AppState {
             windows: Default::default(),
             mouse_capture_widget: None,
             runtime: Runtime::new(parameters),
-            host_handle: None
+            host_handle: None,
         }
     }
 
-	pub fn parameters(&self) -> &dyn AnyParameterMap {
-		self.runtime.parameters.as_ref()
-	}
+    pub fn parameters(&self) -> &dyn AnyParameterMap {
+        self.runtime.parameters.as_ref()
+    }
 
     pub(crate) fn set_host_handle(&mut self, host_handle: Option<Box<dyn HostHandle>>) {
         self.host_handle = host_handle;
     }
 
     #[allow(dead_code)]
-	pub(crate) fn set_plain_parameter_value_from_host(&mut self, id: ParameterId, value: PlainValue) -> bool {
-		let Some(param_ref) = self.runtime.parameters.get_by_id(id) else { return false };
-		param_ref.set_value_plain(value);
-		self.runtime.notify_parameter_subscribers(id);
-		self.run_effects();
+    pub(crate) fn set_plain_parameter_value_from_host(
+        &mut self,
+        id: ParameterId,
+        value: PlainValue,
+    ) -> bool {
+        let Some(param_ref) = self.runtime.parameters.get_by_id(id) else {
+            return false;
+        };
+        param_ref.set_value_plain(value);
+        self.runtime.notify_parameter_subscribers(id);
+        self.run_effects();
         true
     }
 
-    pub(crate) fn set_normalized_parameter_value_from_host(&mut self, id: ParameterId, value: NormalizedValue) -> bool {
-        let Some(param_ref) = self.runtime.parameters.get_by_id(id) else { return false };
-		param_ref.set_value_normalized(value);
-		self.runtime.notify_parameter_subscribers(id);
-		self.run_effects();
+    pub(crate) fn set_normalized_parameter_value_from_host(
+        &mut self,
+        id: ParameterId,
+        value: NormalizedValue,
+    ) -> bool {
+        let Some(param_ref) = self.runtime.parameters.get_by_id(id) else {
+            return false;
+        };
+        param_ref.set_value_normalized(value);
+        self.runtime.notify_parameter_subscribers(id);
+        self.run_effects();
         true
     }
 
     pub fn add_window(&mut self, handle: platform::Handle, view: impl View) -> WindowId {
         let theme_signal = Signal::new(self, handle.theme());
 
-		let window_id = self.windows.insert(
-            WindowState {
-                handle,
-                root_widget: WidgetId::null(),
-                focus_widget: None,
-                requested_animations: IndexSet::new(),
-                theme_signal
-            });
+        let window_id = self.windows.insert(WindowState {
+            handle,
+            root_widget: WidgetId::null(),
+            focus_widget: None,
+            requested_animations: IndexSet::new(),
+            theme_signal,
+        });
 
-		let widget_id = self.widget_data.insert_with_key(|id| {
-			WidgetData::new(window_id, id)
-		});
+        let widget_id = self
+            .widget_data
+            .insert_with_key(|id| WidgetData::new(window_id, id));
 
-		self.windows[window_id].root_widget = widget_id;
+        self.windows[window_id].root_widget = widget_id;
 
-		{
+        {
             let widget = view.build(&mut BuildContext::new(widget_id, self));
             self.widgets.insert(widget_id, Box::new(widget));
         }
 
-		layout_window(self, window_id);
+        layout_window(self, window_id);
 
-		window_id
+        window_id
     }
 
     /// Add a new widget
     pub fn add_widget<V: View>(&mut self, parent_id: WidgetId, view: V) -> WidgetId {
-		let window_id = self.widget_data.get(parent_id).expect("Parent not found").window_id;
-        let id = self.widget_data.insert_with_key(|id| {
-			WidgetData::new(window_id, id).with_parent(parent_id)
-		});
-        
-		{
+        let window_id = self
+            .widget_data
+            .get(parent_id)
+            .expect("Parent not found")
+            .window_id;
+        let id = self
+            .widget_data
+            .insert_with_key(|id| WidgetData::new(window_id, id).with_parent(parent_id));
+
+        {
             let widget = view.build(&mut BuildContext::new(id, self));
             self.widgets.insert(id, Box::new(widget));
         }
 
         {
-			let parent_widget_data = self.widget_data.get_mut(parent_id).expect("Parent does not exist");
-			parent_widget_data.children.push(id);
-		}
+            let parent_widget_data = self
+                .widget_data
+                .get_mut(parent_id)
+                .expect("Parent does not exist");
+            parent_widget_data.children.push(id);
+        }
 
         id
     }
@@ -150,25 +182,30 @@ impl AppState {
 
     /// Remove a widget and all of its children and associated signals
     pub fn remove_widget(&mut self, id: WidgetId) {
-		fn do_remove(this: &mut AppState, id: WidgetId) -> WidgetData {
-			let widget_data = this.widget_data.remove(id).unwrap();
-			this.widgets.remove(id).expect("Widget already removed");
-			this.runtime.clear_nodes_for_widget(id);
-			widget_data
-		}
+        fn do_remove(this: &mut AppState, id: WidgetId) -> WidgetData {
+            let widget_data = this.widget_data.remove(id).unwrap();
+            this.widgets.remove(id).expect("Widget already removed");
+            this.runtime.clear_nodes_for_widget(id);
+            widget_data
+        }
 
-		if let Some(mouse_capture_widget) = self.mouse_capture_widget {
-			if mouse_capture_widget == id || self.widget_has_parent(mouse_capture_widget, id) {
+        if let Some(mouse_capture_widget) = self.mouse_capture_widget {
+            if mouse_capture_widget == id || self.widget_has_parent(mouse_capture_widget, id) {
                 set_mouse_capture_widget(self, None);
             }
-		}
+        }
 
         let mut widget_data = do_remove(self, id);
         // Must be removed from parent's child list
         if !widget_data.parent_id.is_null() {
             let parent_id = widget_data.parent_id;
-            let parent_widget_data = self.widget_data.get_mut(parent_id).expect("Parent does not exist");
-            parent_widget_data.children.retain(|child_id| *child_id != id);
+            let parent_widget_data = self
+                .widget_data
+                .get_mut(parent_id)
+                .expect("Parent does not exist");
+            parent_widget_data
+                .children
+                .retain(|child_id| *child_id != id);
         }
 
         let mut children_to_remove = std::mem::take(&mut widget_data.children);
@@ -186,8 +223,14 @@ impl AppState {
         WidgetMut::new(self, id)
     }
 
-    pub fn with_widget_mut<R>(&mut self, id: WidgetId, f: impl FnOnce(&mut Self, &mut dyn Widget) -> R) -> R {
-        let Some(mut widget) = self.widgets.remove(id) else { panic!("Widget does not exist") };
+    pub fn with_widget_mut<R>(
+        &mut self,
+        id: WidgetId,
+        f: impl FnOnce(&mut Self, &mut dyn Widget) -> R,
+    ) -> R {
+        let Some(mut widget) = self.widgets.remove(id) else {
+            panic!("Widget does not exist")
+        };
         let value = f(self, widget.as_mut());
         self.widgets.insert(id, widget);
         value
@@ -206,7 +249,8 @@ impl AppState {
 
     pub fn widget_has_focus(&self, id: WidgetId) -> bool {
         self.window(self.widget_data_ref(id).window_id)
-            .focus_widget.as_ref()
+            .focus_widget
+            .as_ref()
             .is_some_and(|focus_widget_id| *focus_widget_id == id)
     }
 
@@ -223,7 +267,12 @@ impl AppState {
     }
 
     /// Calls `f` for each widget that conatains `pos`. The order is from the root and down the tree (depth first order)
-    pub fn for_each_widget_at(&self, id: WindowId, pos: Point, mut f: impl FnMut(&Self, WidgetId) -> bool) {
+    pub fn for_each_widget_at(
+        &self,
+        id: WindowId,
+        pos: Point,
+        mut f: impl FnMut(&Self, WidgetId) -> bool,
+    ) {
         let mut stack = vec![self.windows[id].root_widget];
         while let Some(current) = stack.pop() {
             if !f(&self, current) {
@@ -238,49 +287,54 @@ impl AppState {
         }
     }
 
-    pub fn for_each_widget_at_rev(&self, id: WindowId, pos: Point, mut f: impl FnMut(&Self, WidgetId) -> bool) {
-		enum Action {
-			VisitChildren(WidgetId),
-			Done(WidgetId)
-		}
+    pub fn for_each_widget_at_rev(
+        &self,
+        id: WindowId,
+        pos: Point,
+        mut f: impl FnMut(&Self, WidgetId) -> bool,
+    ) {
+        enum Action {
+            VisitChildren(WidgetId),
+            Done(WidgetId),
+        }
 
-		let mut stack = vec![Action::VisitChildren(self.windows[id].root_widget)];
-		while let Some(current) = stack.pop() {
-			match current {
-				Action::VisitChildren(widget_id) => {
-					let data = &self.widget_data[widget_id];
-					if data.children.is_empty() {
-						if !f(&self, widget_id) {
-							return;
-						}
-					} else {
-						stack.push(Action::Done(widget_id));
-						for &child in data.children.iter() {
-							if self.widget_data[child].global_bounds().contains(pos) {
-								stack.push(Action::VisitChildren(child))
-							}
-						}
-					}	
-				},
-				Action::Done(widget_id) => {
-					if !f(&self, widget_id) {
-						return;
-					}
-				},
-			}
-		}
+        let mut stack = vec![Action::VisitChildren(self.windows[id].root_widget)];
+        while let Some(current) = stack.pop() {
+            match current {
+                Action::VisitChildren(widget_id) => {
+                    let data = &self.widget_data[widget_id];
+                    if data.children.is_empty() {
+                        if !f(&self, widget_id) {
+                            return;
+                        }
+                    } else {
+                        stack.push(Action::Done(widget_id));
+                        for &child in data.children.iter() {
+                            if self.widget_data[child].global_bounds().contains(pos) {
+                                stack.push(Action::VisitChildren(child))
+                            }
+                        }
+                    }
+                }
+                Action::Done(widget_id) => {
+                    if !f(&self, widget_id) {
+                        return;
+                    }
+                }
+            }
+        }
     }
 
-	pub(super) fn merge_widget_flags(&mut self, source: WidgetId) {
-		let mut current = source;
-		let mut flags_to_apply = WidgetFlags::empty();
-		while !current.is_null() {
-			let data = self.widget_data_mut(current);
-			data.flags = data.flags | flags_to_apply;
-			flags_to_apply = data.flags & (WidgetFlags::NEEDS_LAYOUT);
-			current = data.parent_id;
-		}
-	}
+    pub(super) fn merge_widget_flags(&mut self, source: WidgetId) {
+        let mut current = source;
+        let mut flags_to_apply = WidgetFlags::empty();
+        while !current.is_null() {
+            let data = self.widget_data_mut(current);
+            data.flags = data.flags | flags_to_apply;
+            flags_to_apply = data.flags & (WidgetFlags::NEEDS_LAYOUT);
+            current = data.parent_id;
+        }
+    }
 
     pub(super) fn window(&self, id: WindowId) -> &WindowState {
         self.windows.get(id).expect("Window handle not found")
@@ -291,7 +345,9 @@ impl AppState {
     }
 
     pub fn window_theme_signal(&self, id: WidgetId) -> ReadSignal<WindowTheme> {
-        self.window(self.get_window_id_for_widget(id)).theme_signal.as_read_signal()
+        self.window(self.get_window_id_for_widget(id))
+            .theme_signal
+            .as_read_signal()
     }
 
     pub fn get_window_id_for_widget(&self, widget_id: WidgetId) -> WindowId {
@@ -315,12 +371,14 @@ impl AppState {
         }
 
         // Layout if needed
-        let windows_needing_layout: Vec<_> = self.windows.iter()
-            .filter_map(|(window_id, window_state)|
+        let windows_needing_layout: Vec<_> = self
+            .windows
+            .iter()
+            .filter_map(|(window_id, window_state)| {
                 self.widget_data_ref(window_state.root_widget)
                     .flag_is_set(WidgetFlags::NEEDS_LAYOUT)
                     .then_some(window_id)
-            )
+            })
             .collect();
 
         for window_to_layout in windows_needing_layout {
@@ -329,8 +387,8 @@ impl AppState {
     }
 
     pub fn clipboard(&self, window_id: WindowId) -> Clipboard {
-        Clipboard { 
-            handle: &self.window(window_id).handle
+        Clipboard {
+            handle: &self.window(window_id).handle,
         }
     }
 }
@@ -355,7 +413,9 @@ impl WriteContext for AppState {}
 
 impl ParamContext for AppState {
     fn host_handle(&self) -> &dyn HostHandle {
-        let Some(host_handle) = self.host_handle.as_ref() else { panic!("Host handle not set") };
+        let Some(host_handle) = self.host_handle.as_ref() else {
+            panic!("Host handle not set")
+        };
         host_handle.as_ref()
     }
 }

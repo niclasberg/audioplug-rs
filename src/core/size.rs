@@ -1,4 +1,4 @@
-use std::ops::{Add, Mul, Div, Sub};
+use std::ops::{Add, Div, Mul, Sub};
 
 use num::Zero;
 
@@ -20,8 +20,14 @@ impl<T> Size<T> {
     /// Create a Size with both `width` and `height` set to `v`
     #[inline]
     #[must_use]
-    pub fn splat(v: T) -> Self where T: Clone {
-        Self { width: v.clone(), height: v }
+    pub fn splat(v: T) -> Self
+    where
+        T: Clone,
+    {
+        Self {
+            width: v.clone(),
+            height: v,
+        }
     }
 
     /// Returns a new Size with the `height` and `width` modified by the mapping function `f`
@@ -59,11 +65,17 @@ impl<T> Size<T> {
         self
     }
 
-    pub fn max(&self, other: &Self) -> Self where T: Ord + Copy {
+    pub fn max(&self, other: &Self) -> Self
+    where
+        T: Ord + Copy,
+    {
         Self::new(self.width.max(other.width), self.height.max(other.height))
     }
 
-    pub fn min(&self, other: &Self) -> Self where T: Ord + Copy {
+    pub fn min(&self, other: &Self) -> Self
+    where
+        T: Ord + Copy,
+    {
         Self::new(self.width.min(other.width), self.height.min(other.height))
     }
 }
@@ -71,12 +83,12 @@ impl<T> Size<T> {
 impl Size<f64> {
     pub const ZERO: Self = Self {
         width: 0.0,
-        height: 0.0
+        height: 0.0,
     };
 
     pub const INFINITY: Self = Self {
         width: f64::INFINITY,
-        height: f64::INFINITY
+        height: f64::INFINITY,
     };
 
     pub fn scale(mut self, factor: f64) -> Self {
@@ -121,19 +133,28 @@ impl<T> Size<Option<T>> {
 
 impl From<Size<i32>> for Size {
     fn from(value: Size<i32>) -> Self {
-        Self { width: value.width as f64, height: value.height as f64 }
+        Self {
+            width: value.width as f64,
+            height: value.height as f64,
+        }
     }
 }
 
 impl<T, U: Into<T>> From<[U; 2]> for Size<T> {
     fn from([width, height]: [U; 2]) -> Self {
-        Self { width: width.into(), height: height.into() }
+        Self {
+            width: width.into(),
+            height: height.into(),
+        }
     }
 }
 
 impl<T, U: Into<T>> From<(U, U)> for Size<T> {
     fn from((width, height): (U, U)) -> Self {
-        Self { width: width.into(), height: height.into() }
+        Self {
+            width: width.into(),
+            height: height.into(),
+        }
     }
 }
 
@@ -141,7 +162,10 @@ impl<T: Add<Output = T>> Add for Size<T> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self { width: self.width + rhs.width, height: self.height + rhs.height }
+        Self {
+            width: self.width + rhs.width,
+            height: self.height + rhs.height,
+        }
     }
 }
 
@@ -149,7 +173,10 @@ impl<T: Sub<Output = T>> Sub for Size<T> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Self { width: self.width - rhs.width, height: self.height - rhs.height }
+        Self {
+            width: self.width - rhs.width,
+            height: self.height - rhs.height,
+        }
     }
 }
 
@@ -174,9 +201,12 @@ impl Div<f64> for Size {
 }
 
 impl<T: Default> Default for Size<T> {
-	fn default() -> Self {
-		Self { width: Default::default(), height: Default::default() }
-	}
+    fn default() -> Self {
+        Self {
+            width: Default::default(),
+            height: Default::default(),
+        }
+    }
 }
 
 impl<T: Interpolate> Interpolate for Size<T> {
@@ -194,6 +224,9 @@ mod test {
 
     #[test]
     fn size_add() {
-        assert_eq!(Size::new(5.0, 10.0) + Size::new(1.0, 2.0), Size::new(6.0, 12.0));
+        assert_eq!(
+            Size::new(5.0, 10.0) + Size::new(1.0, 2.0),
+            Size::new(6.0, 12.0)
+        );
     }
 }

@@ -1,19 +1,20 @@
 use std::path::Path;
 
-use crate::{app::Widget, core::{Color, Size}, platform, style::{AvailableSpace, DisplayStyle, Measure}};
-
-use super::View;
+use crate::{
+    app::{View, Widget},
+    core::{Color, Size},
+    platform,
+    style::{AvailableSpace, DisplayStyle, Measure},
+};
 
 pub struct Image {
-    source: Option<platform::NativeImage>
+    source: Option<platform::NativeImage>,
 }
 
 impl Image {
     pub fn from_file(path: &Path) -> Self {
         let source = platform::NativeImage::from_file(path).ok();
-        Self {
-            source
-        }
+        Self { source }
     }
 }
 
@@ -22,23 +23,32 @@ impl View for Image {
 
     fn build(self, _ctx: &mut crate::app::BuildContext<Self::Element>) -> Self::Element {
         ImageWidget {
-            source: self.source
+            source: self.source,
         }
     }
 }
 
 pub struct ImageWidget {
-    source: Option<platform::NativeImage>
+    source: Option<platform::NativeImage>,
 }
 
 impl Measure for ImageWidget {
-    fn measure(&self, _style: &crate::style::Style, width: AvailableSpace, height: AvailableSpace) -> Size 
-    {
-        let image_size = self.source.as_ref().map(|source| source.size())
+    fn measure(
+        &self,
+        _style: &crate::style::Style,
+        width: AvailableSpace,
+        height: AvailableSpace,
+    ) -> Size {
+        let image_size = self
+            .source
+            .as_ref()
+            .map(|source| source.size())
             .unwrap_or(Size::new(20.0, 20.0));
 
         match (width, height) {
-            (AvailableSpace::Exact(width), AvailableSpace::Exact(height)) => Size::new(width, height),
+            (AvailableSpace::Exact(width), AvailableSpace::Exact(height)) => {
+                Size::new(width, height)
+            }
             (AvailableSpace::Exact(width), _) => {
                 let height = if image_size.width > 1e-8 {
                     image_size.height * width / image_size.width
@@ -46,7 +56,7 @@ impl Measure for ImageWidget {
                     0.0
                 };
                 Size::new(width, height)
-            },
+            }
             (_, AvailableSpace::Exact(height)) => {
                 let width = if image_size.height > 1e-8 {
                     image_size.width * height / image_size.height
@@ -54,10 +64,8 @@ impl Measure for ImageWidget {
                     0.0
                 };
                 Size::new(width, height)
-            },
-            (_, _) => { 
-                image_size
             }
+            (_, _) => image_size,
         }
     }
 }

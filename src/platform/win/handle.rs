@@ -1,16 +1,16 @@
 use std::cell::Cell;
-use std::ffi::{CString, CStr};
+use std::ffi::{CStr, CString};
 use std::mem::size_of;
 use std::rc::Rc;
 
-use windows::Win32::System::DataExchange::CloseClipboard;
-use windows::Win32::System::Ole::CF_TEXT;
-use windows::core::Result;
-use windows::Win32::Foundation::{HWND, RECT, HGLOBAL, HANDLE};
-use windows::Win32::System::Memory::GMEM_MOVEABLE;
-use windows::Win32::System::{DataExchange, Memory};
-use windows::Win32::Graphics::Gdi::InvalidateRect;
 use crate::core::{Rectangle, WindowTheme};
+use windows::core::Result;
+use windows::Win32::Foundation::{HANDLE, HGLOBAL, HWND, RECT};
+use windows::Win32::Graphics::Gdi::InvalidateRect;
+use windows::Win32::System::DataExchange::CloseClipboard;
+use windows::Win32::System::Memory::GMEM_MOVEABLE;
+use windows::Win32::System::Ole::CF_TEXT;
+use windows::Win32::System::{DataExchange, Memory};
 
 use super::util::get_client_rect;
 
@@ -27,12 +27,20 @@ impl<F: Fn()> Drop for ScopeExit<F> {
 pub struct Handle {
     hwnd: HWND,
     scale_factor: Rc<Cell<f64>>,
-    theme: Rc<Cell<WindowTheme>>
+    theme: Rc<Cell<WindowTheme>>,
 }
 
 impl Handle {
-    pub(crate) fn new(hwnd: HWND, scale_factor: Rc<Cell<f64>>, theme: Rc<Cell<WindowTheme>>) -> Self {
-        Self { hwnd, scale_factor, theme }
+    pub(crate) fn new(
+        hwnd: HWND,
+        scale_factor: Rc<Cell<f64>>,
+        theme: Rc<Cell<WindowTheme>>,
+    ) -> Self {
+        Self {
+            hwnd,
+            scale_factor,
+            theme,
+        }
     }
 
     pub fn theme(&self) -> WindowTheme {
@@ -40,16 +48,16 @@ impl Handle {
     }
 
     pub fn invalidate_window(&self) {
-		let _ = unsafe { InvalidateRect(Some(self.hwnd), None, false) };
-	}
+        let _ = unsafe { InvalidateRect(Some(self.hwnd), None, false) };
+    }
 
     pub fn invalidate(&self, rect: Rectangle) {
         let rect = rect.scale(1.0 / self.scale_factor.get());
         let rect = RECT {
-            left: rect.left().floor() as i32, 
-            top: rect.top().floor() as i32, 
-            right: rect.right().ceil() as i32, 
-            bottom: rect.bottom().ceil() as i32
+            left: rect.left().floor() as i32,
+            top: rect.top().floor() as i32,
+            right: rect.right().ceil() as i32,
+            bottom: rect.bottom().ceil() as i32,
         };
         let _ = unsafe { InvalidateRect(Some(self.hwnd), Some(&rect as _), false) };
     }
@@ -61,14 +69,16 @@ impl Handle {
 
     pub fn set_clipboard(&self, string: &str) -> Result<()> {
         unsafe { DataExchange::OpenClipboard(Some(self.hwnd)) }?;
-        let _close_clipboard = ScopeExit(|| unsafe { CloseClipboard().expect("Error while closing clipboard") });
+        let _close_clipboard =
+            ScopeExit(|| unsafe { CloseClipboard().expect("Error while closing clipboard") });
         unsafe { DataExchange::EmptyClipboard() }?;
 
         if string.len() > 0 {
             let chars = CString::new(string).unwrap();
             let chars = chars.as_bytes_with_nul();
             unsafe {
-                let hmem: HGLOBAL =  Memory::GlobalAlloc(GMEM_MOVEABLE, chars.len() * size_of::<u8>())?;
+                let hmem: HGLOBAL =
+                    Memory::GlobalAlloc(GMEM_MOVEABLE, chars.len() * size_of::<u8>())?;
                 let mem_loc = Memory::GlobalLock(hmem);
                 std::ptr::copy_nonoverlapping(chars.as_ptr(), mem_loc as *mut u8, chars.len());
                 let _ = Memory::GlobalUnlock(hmem);
@@ -80,13 +90,15 @@ impl Handle {
     }
 
     pub fn get_clipboard(&self) -> Result<Option<String>> {
-        let available = unsafe { DataExchange::IsClipboardFormatAvailable(CF_TEXT.0.into()) }.is_ok();
+        let available =
+            unsafe { DataExchange::IsClipboardFormatAvailable(CF_TEXT.0.into()) }.is_ok();
         if !available {
-            return Ok(None); 
+            return Ok(None);
         }
 
         unsafe { DataExchange::OpenClipboard(Some(self.hwnd)) }?;
-        let _close_clipboard = ScopeExit(|| unsafe { CloseClipboard().expect("Error while closing clipboard") });
+        let _close_clipboard =
+            ScopeExit(|| unsafe { CloseClipboard().expect("Error while closing clipboard") });
 
         unsafe {
             let hmem: HANDLE = DataExchange::GetClipboardData(CF_TEXT.0.into())?;

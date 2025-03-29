@@ -1,4 +1,7 @@
-use std::{any::{Any, TypeId}, ops::{Deref, DerefMut}};
+use std::{
+    any::{Any, TypeId},
+    ops::{Deref, DerefMut},
+};
 
 use crate::{style::DisplayStyle, AnimationFrame, KeyEvent, MouseEvent};
 
@@ -7,7 +10,7 @@ use super::{animation::AnimationContext, EventContext, MouseEventContext, Render
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EventStatus {
     Handled,
-    Ignored
+    Ignored,
 }
 
 impl EventStatus {
@@ -26,7 +29,7 @@ pub enum StatusChange {
     MouseEntered,
     MouseExited,
     MouseCaptured,
-    MouseCaptureLost
+    MouseCaptureLost,
 }
 
 pub trait Widget: Any {
@@ -41,25 +44,25 @@ pub trait Widget: Any {
 
     #[allow(unused_variables)]
     fn status_updated(&mut self, event: StatusChange, cx: &mut EventContext) {}
-    
+
     #[allow(unused_variables)]
     fn animation_frame(&mut self, frame: AnimationFrame, cx: &mut AnimationContext) {}
 
     fn display_style(&self) -> DisplayStyle;
 
-	/// Widgets that wrap another widget (like background, styled etc) need to implement this method and return the 
-	/// wrapped widget in order for downcasting to work properly.
-	fn inner_widget(&self) -> Option<&dyn Widget> {
-		None
-	}
+    /// Widgets that wrap another widget (like background, styled etc) need to implement this method and return the
+    /// wrapped widget in order for downcasting to work properly.
+    fn inner_widget(&self) -> Option<&dyn Widget> {
+        None
+    }
 
-	/// Widgets that wrap another widget (like background, styled etc) need to implement this method and return the 
-	/// wrapped widget in order for downcasting to work properly.
-	fn inner_widget_mut(&mut self) -> Option<&mut dyn Widget> {
-		None
-	}
+    /// Widgets that wrap another widget (like background, styled etc) need to implement this method and return the
+    /// wrapped widget in order for downcasting to work properly.
+    fn inner_widget_mut(&mut self) -> Option<&mut dyn Widget> {
+        None
+    }
 
-	fn debug_label(&self) -> &'static str;
+    fn debug_label(&self) -> &'static str;
 
     fn render(&mut self, cx: &mut RenderContext);
 }
@@ -83,9 +86,9 @@ impl dyn Widget + 'static {
 }
 
 impl Widget for Box<dyn Widget> {
-	fn debug_label(&self) -> &'static str {
-		self.deref().debug_label()
-	}
+    fn debug_label(&self) -> &'static str {
+        self.deref().debug_label()
+    }
 
     fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         self.deref_mut().mouse_event(event, ctx)
@@ -104,7 +107,7 @@ impl Widget for Box<dyn Widget> {
     }
 
     fn display_style(&self) -> DisplayStyle {
-        self.deref().display_style()   
+        self.deref().display_style()
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {
@@ -112,8 +115,8 @@ impl Widget for Box<dyn Widget> {
     }
 
     fn inner_widget(&self) -> Option<&dyn Widget> {
-		Some(self.deref())
-	}
+        Some(self.deref())
+    }
 
     fn inner_widget_mut(&mut self) -> Option<&mut dyn Widget> {
         Some(self.deref_mut())
@@ -124,7 +127,7 @@ pub trait WrappedWidget: Any {
     type Inner: Widget;
 
     fn inner(&self) -> &Self::Inner;
-	fn inner_mut(&mut self) -> &mut Self::Inner;
+    fn inner_mut(&mut self) -> &mut Self::Inner;
     fn display_style(&self) -> DisplayStyle {
         self.inner().display_style()
     }
@@ -136,19 +139,19 @@ pub trait WrappedWidget: Any {
     fn render(&mut self, cx: &mut RenderContext) {
         self.inner_mut().render(cx);
     }
-    
+
     fn mouse_event(&mut self, event: MouseEvent, cx: &mut MouseEventContext) -> EventStatus {
         self.inner_mut().mouse_event(event, cx)
     }
-    
+
     fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventStatus {
         self.inner_mut().key_event(event, cx)
     }
-    
+
     fn status_updated(&mut self, event: StatusChange, cx: &mut EventContext) {
         self.inner_mut().status_updated(event, cx);
     }
-    
+
     fn animation_frame(&mut self, frame: AnimationFrame, cx: &mut AnimationContext) {
         self.inner_mut().animation_frame(frame, cx);
     }
@@ -166,27 +169,27 @@ impl<T: WrappedWidget> Widget for T {
     fn render(&mut self, cx: &mut RenderContext) {
         self.render(cx);
     }
-    
+
     fn mouse_event(&mut self, event: MouseEvent, cx: &mut MouseEventContext) -> EventStatus {
         self.mouse_event(event, cx)
     }
-    
+
     fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventStatus {
         self.key_event(event, cx)
     }
-    
+
     fn status_updated(&mut self, event: StatusChange, cx: &mut EventContext) {
         self.status_updated(event, cx);
     }
-    
+
     fn animation_frame(&mut self, frame: AnimationFrame, cx: &mut AnimationContext) {
         self.animation_frame(frame, cx);
     }
-    
+
     fn inner_widget(&self) -> Option<&dyn Widget> {
         Some(self.inner())
     }
-    
+
     fn inner_widget_mut(&mut self) -> Option<&mut dyn Widget> {
         Some(self.inner_mut())
     }

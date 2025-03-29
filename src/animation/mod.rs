@@ -14,10 +14,10 @@ pub trait Transition<T> {
 
 pub struct TweenState<T: Interpolate> {
     from: T,
-    to: T, 
+    to: T,
     progress: f64,
     progress_per_second: f64,
-    tween_fn: fn(progress: f64) -> f64
+    tween_fn: fn(progress: f64) -> f64,
 }
 
 impl<T: Interpolate> TransitionState<T> for TweenState<T> {
@@ -34,15 +34,15 @@ impl<T: Interpolate> TransitionState<T> for TweenState<T> {
 pub struct Tween<T: Interpolate> {
     duration: f64,
     tween_fn: fn(progress: f64) -> f64,
-    _phantom: PhantomData<T>
+    _phantom: PhantomData<T>,
 }
 
 impl<T: Interpolate> Tween<T> {
     pub fn linear(duration: f64) -> Self {
-        Self { 
-            duration, 
+        Self {
+            duration,
             tween_fn: |t| t,
-            _phantom: PhantomData 
+            _phantom: PhantomData,
         }
     }
 }
@@ -53,10 +53,10 @@ impl<T: Interpolate + Clone> Transition<T> for Tween<T> {
     fn create_state(&self, from: &T, to: &T) -> Self::State {
         Self::State {
             from: from.clone(),
-            to: to.clone(), 
+            to: to.clone(),
             progress: 0.0,
             progress_per_second: 1.0 / self.duration,
-            tween_fn: self.tween_fn
+            tween_fn: self.tween_fn,
         }
     }
 }

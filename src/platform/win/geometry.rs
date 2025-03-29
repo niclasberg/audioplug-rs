@@ -1,6 +1,6 @@
+use crate::core::{Point, Rectangle, Transform};
 use windows::core::Result;
 use windows::Win32::Graphics::Direct2D;
-use crate::core::{Point, Rectangle, Transform};
 
 use super::com::direct2d_factory;
 
@@ -12,16 +12,28 @@ impl NativeGeometry {
         let path = unsafe { direct2d_factory().CreatePathGeometry() }?;
         let sink = unsafe { path.Open() }?;
 
-        let builder = f(NativeGeometryBuilder { sink, is_editing_path: false });
+        let builder = f(NativeGeometryBuilder {
+            sink,
+            is_editing_path: false,
+        });
         if builder.is_editing_path {
-            unsafe { builder.sink.EndFigure(Direct2D::Common::D2D1_FIGURE_END_OPEN) };
+            unsafe {
+                builder
+                    .sink
+                    .EndFigure(Direct2D::Common::D2D1_FIGURE_END_OPEN)
+            };
         }
         unsafe { builder.sink.Close() }?;
 
         Ok(Self(path.into()))
     }
 
-    pub fn from_arc(center: Point, radius: f64, start_angle: f64, delta_angle: f64) -> Result<Self> {
+    pub fn from_arc(
+        center: Point,
+        radius: f64,
+        start_angle: f64,
+        delta_angle: f64,
+    ) -> Result<Self> {
         let start_point = center + Point::new(start_angle.cos(), start_angle.sin()).scale(radius);
         let end_angle = start_angle + delta_angle;
         let end_point = center + Point::new(end_angle.cos(), end_angle.sin()).scale(radius);
@@ -42,7 +54,7 @@ impl NativeGeometry {
     pub fn transform(&self, transform: Transform) -> Result<Self> {
         let transform = transform.into();
         unsafe { direct2d_factory().CreateTransformedGeometry(&self.0, &transform as *const _) }
-            .map(|transformed_geometry| Self(transformed_geometry.into()))   
+            .map(|transformed_geometry| Self(transformed_geometry.into()))
     }
 
     pub fn bounds(&self) -> Result<Rectangle> {
@@ -58,10 +70,15 @@ pub struct NativeGeometryBuilder {
 impl NativeGeometryBuilder {
     pub fn move_to(mut self, point: Point) -> Self {
         if self.is_editing_path {
-            unsafe { self.sink.EndFigure(Direct2D::Common::D2D1_FIGURE_END_OPEN); };
+            unsafe {
+                self.sink.EndFigure(Direct2D::Common::D2D1_FIGURE_END_OPEN);
+            };
         }
 
-        unsafe { self.sink.BeginFigure(point.into(), Direct2D::Common::D2D1_FIGURE_BEGIN_FILLED) };
+        unsafe {
+            self.sink
+                .BeginFigure(point.into(), Direct2D::Common::D2D1_FIGURE_BEGIN_FILLED)
+        };
         self.is_editing_path = true;
         self
     }
@@ -71,7 +88,12 @@ impl NativeGeometryBuilder {
         self
     }
 
-    pub fn add_cubic_curve_to(self, control_point1: Point, control_point2: Point, end: Point) -> Self {
+    pub fn add_cubic_curve_to(
+        self,
+        control_point1: Point,
+        control_point2: Point,
+        end: Point,
+    ) -> Self {
         let bezier = Direct2D::Common::D2D1_BEZIER_SEGMENT {
             point1: control_point1.into(),
             point2: control_point2.into(),
@@ -105,7 +127,10 @@ impl NativeGeometryBuilder {
 
     pub fn close(mut self) -> Self {
         self.is_editing_path = false;
-        unsafe { self.sink.EndFigure(Direct2D::Common::D2D1_FIGURE_END_CLOSED); };
+        unsafe {
+            self.sink
+                .EndFigure(Direct2D::Common::D2D1_FIGURE_END_CLOSED);
+        };
         self
     }
 }

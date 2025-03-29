@@ -6,7 +6,7 @@ pub struct UiRect {
     pub left: Length,
     pub right: Length,
     pub top: Length,
-    pub bottom: Length
+    pub bottom: Length,
 }
 
 impl UiRect {
@@ -103,21 +103,21 @@ impl UiRect {
 }
 
 impl Default for UiRect {
-	fn default() -> Self {
-		Self::DEFAULT
-	}
+    fn default() -> Self {
+        Self::DEFAULT
+    }
 }
 
-impl<T> ResolveInto<taffy::Rect<T>> for UiRect 
+impl<T> ResolveInto<taffy::Rect<T>> for UiRect
 where
-    Length: ResolveInto<T>
+    Length: ResolveInto<T>,
 {
     fn resolve_into(self, window_size: crate::core::Size) -> taffy::Rect<T> {
         taffy::Rect {
-			left: self.left.resolve_into(window_size),
-			right: self.right.resolve_into(window_size),
-			top: self.top.resolve_into(window_size),
-			bottom: self.bottom.resolve_into(window_size),
-		}        
+            left: self.left.resolve_into(window_size),
+            right: self.right.resolve_into(window_size),
+            top: self.top.resolve_into(window_size),
+            bottom: self.bottom.resolve_into(window_size),
+        }
     }
 }

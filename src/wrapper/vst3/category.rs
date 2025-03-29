@@ -32,33 +32,33 @@ pub enum VSTCategory {
 impl VSTCategory {
     pub const fn as_str(&self) -> &'static str {
         match self {
-            Self::Fx => "Fx", 
-            Self::Instrument => "Instrument", 
-            Self::Spatial => "Spatial", 
-            Self::Analyzer => "Analyzer", 
+            Self::Fx => "Fx",
+            Self::Instrument => "Instrument",
+            Self::Spatial => "Spatial",
+            Self::Analyzer => "Analyzer",
             Self::Bass => "Bass",
             Self::ChannelStrip => "Channel Strip",
-            Self::Delay => "Delay", 
-            Self::Distortion => "Distortion", 
-            Self::EQ => "EQ", 
-            Self::Filter => "Filter", 
-            Self::Generator => "Generator", 
+            Self::Delay => "Delay",
+            Self::Distortion => "Distortion",
+            Self::EQ => "EQ",
+            Self::Filter => "Filter",
+            Self::Generator => "Generator",
             Self::Mastering => "Mastering",
-            Self::Modulation => "Modulation", 
-            Self::PitchShift => "Pitch Shift", 
-            Self::Restoration => "Restoration", 
-            Self::Reverb => "Reverb", 
-            Self::Surround => "Surround", 
-            Self::Tools => "Tools", 
-            Self::Network => "Network", 
-            Self::Drum => "Drum", 
+            Self::Modulation => "Modulation",
+            Self::PitchShift => "Pitch Shift",
+            Self::Restoration => "Restoration",
+            Self::Reverb => "Reverb",
+            Self::Surround => "Surround",
+            Self::Tools => "Tools",
+            Self::Network => "Network",
+            Self::Drum => "Drum",
             Self::Sample => "Sampler",
-            Self::Synth => "Synth", 
-            Self::External => "External", 
-            Self::OnlyRT => "OnlyRT", 
-            Self::OnlyOfflineProcess => "OnlyOfflineProcess", 
-            Self::NoOfflineProcess => "NoOfflineProcess", 
-            Self::UpDownMix => "Up-Downmix"
+            Self::Synth => "Synth",
+            Self::External => "External",
+            Self::OnlyRT => "OnlyRT",
+            Self::OnlyOfflineProcess => "OnlyOfflineProcess",
+            Self::NoOfflineProcess => "NoOfflineProcess",
+            Self::UpDownMix => "Up-Downmix",
         }
     }
 }
@@ -88,12 +88,15 @@ impl VST3Categories {
     /// Instrument based on Synthesis.
     pub const INSTRUMENT_SYNTH: Self = Self(&[VSTCategory::Instrument, VSTCategory::Synth]);
 
-
     pub const fn new(categories: &'static [VSTCategory]) -> Self {
         Self(categories)
     }
 
     pub fn to_string(&self) -> String {
-        self.0.iter().map(VSTCategory::as_str).collect::<Vec<_>>().join("|")
+        self.0
+            .iter()
+            .map(VSTCategory::as_str)
+            .collect::<Vec<_>>()
+            .join("|")
     }
 }

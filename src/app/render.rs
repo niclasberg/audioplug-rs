@@ -1,16 +1,23 @@
-use crate::{core::{Point, Rectangle, Transform}, platform};
+use crate::{
+    core::{Point, Rectangle, Transform},
+    platform,
+};
 
 mod brush;
 mod canvas;
 mod shape;
 mod text;
+use super::{AppState, ReactiveContext, WidgetId, WindowId};
 pub use brush::{Brush, BrushRef, LinearGradient, RadialGradient};
-pub use canvas::{Canvas, CanvasWidget, CanvasContext};
+pub use canvas::{Canvas, CanvasContext, CanvasWidget};
 pub use shape::{PathGeometry, PathGeometryBuilder, Shape, ShapeRef};
 pub use text::TextLayout;
-use super::{AppState, ReactiveContext, WidgetId, WindowId};
 
-pub fn render_window(app_state: &mut AppState, window_id: WindowId, renderer: platform::RendererRef<'_>) {
+pub fn render_window(
+    app_state: &mut AppState,
+    window_id: WindowId,
+    renderer: platform::RendererRef<'_>,
+) {
     let widget_id = app_state.window(window_id).root_widget;
     let mut ctx = RenderContext {
         id: widget_id,
@@ -33,9 +40,9 @@ pub fn invalidate_widget(app_state: &AppState, widget_id: WidgetId) {
 }
 
 pub struct RenderContext<'a, 'b> {
-    id: WidgetId, 
+    id: WidgetId,
     app_state: &'a mut AppState,
-    renderer: platform::RendererRef<'b>
+    renderer: platform::RendererRef<'b>,
 }
 
 impl<'a, 'b> RenderContext<'a, 'b> {
@@ -63,15 +70,31 @@ impl<'a, 'b> RenderContext<'a, 'b> {
         fill_shape(&mut self.renderer, shape.into(), brush.into());
     }
 
-    pub fn stroke<'c, 'd>(&mut self, shape: impl Into<ShapeRef<'c>>, brush: impl Into<BrushRef<'d>>, line_width: f32) {
+    pub fn stroke<'c, 'd>(
+        &mut self,
+        shape: impl Into<ShapeRef<'c>>,
+        brush: impl Into<BrushRef<'d>>,
+        line_width: f32,
+    ) {
         stroke_shape(&mut self.renderer, shape.into(), brush.into(), line_width);
     }
 
-    pub fn draw_line<'c>(&mut self, p0: Point, p1: Point, brush: impl Into<BrushRef<'c>>, line_width: f32) {
+    pub fn draw_line<'c>(
+        &mut self,
+        p0: Point,
+        p1: Point,
+        brush: impl Into<BrushRef<'c>>,
+        line_width: f32,
+    ) {
         self.renderer.draw_line(p0, p1, brush.into(), line_width)
     }
 
-    pub fn draw_lines<'c>(&mut self, points: &[Point], brush: impl Into<BrushRef<'c>>, line_width: f32) {
+    pub fn draw_lines<'c>(
+        &mut self,
+        points: &[Point],
+        brush: impl Into<BrushRef<'c>>,
+        line_width: f32,
+    ) {
         let brush = brush.into();
         for p in points.windows(2) {
             self.renderer.draw_line(p[0], p[1], brush, line_width)
@@ -86,7 +109,11 @@ impl<'a, 'b> RenderContext<'a, 'b> {
         self.renderer.draw_text(&text_layout.0, position)
     }
 
-    pub fn use_clip(&mut self, rect: impl Into<Rectangle>, f: impl FnOnce(&mut RenderContext<'_, '_>)) {
+    pub fn use_clip(
+        &mut self,
+        rect: impl Into<Rectangle>,
+        f: impl FnOnce(&mut RenderContext<'_, '_>),
+    ) {
         self.renderer.save();
         self.renderer.clip(rect.into());
         f(self);
@@ -100,9 +127,9 @@ impl<'a, 'b> RenderContext<'a, 'b> {
     pub(crate) fn render_current_widget(&mut self) {
         {
             let widget_data = self.app_state.widget_data_ref(self.id);
-			if widget_data.is_hidden() {
-				return;
-			}
+            if widget_data.is_hidden() {
+                return;
+            }
 
             let border_color = widget_data.style.border_color;
             let line_width = widget_data.layout.border.top;
@@ -124,7 +151,13 @@ impl<'a, 'b> RenderContext<'a, 'b> {
 
     pub fn render_children(&mut self) {
         let old_id = self.id;
-        let ids = self.app_state.widget_data.get(self.id).expect("Could not find widget").children.clone();
+        let ids = self
+            .app_state
+            .widget_data
+            .get(self.id)
+            .expect("Could not find widget")
+            .children
+            .clone();
         for id in ids {
             self.id = id;
             self.render_current_widget();
@@ -142,7 +175,12 @@ pub fn fill_shape(renderer: platform::RendererRef, shape: ShapeRef, brush: Brush
     }
 }
 
-pub fn stroke_shape(renderer: platform::RendererRef, shape: ShapeRef, brush: BrushRef, line_width: f32) {
+pub fn stroke_shape(
+    renderer: platform::RendererRef,
+    shape: ShapeRef,
+    brush: BrushRef,
+    line_width: f32,
+) {
     match shape {
         ShapeRef::Rect(rect) => renderer.draw_rectangle(rect, brush, line_width),
         ShapeRef::Rounded(rect) => renderer.draw_rounded_rectangle(rect, brush, line_width),

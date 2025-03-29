@@ -1,8 +1,6 @@
 use windows::Win32::UI::WindowsAndMessaging::*;
 
-pub struct Application {
-
-}
+pub struct Application {}
 
 impl Application {
     pub fn new() -> Self {

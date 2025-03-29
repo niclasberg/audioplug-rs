@@ -1,9 +1,7 @@
-use audioplug::{AudioLayout, GenericEditor, Plugin};
 use audioplug::wrapper::standalone::standalone_main;
+use audioplug::{AudioLayout, GenericEditor, Plugin};
 
-struct TestPlugin {
-
-}
+struct TestPlugin {}
 
 impl Plugin for TestPlugin {
     const NAME: &'static str = "test";
@@ -18,14 +16,11 @@ impl Plugin for TestPlugin {
         Self {}
     }
 
-    fn prepare(&mut self, _sample_rate: f64, _max_samples_per_frame: usize) {
-        
-    }
+    fn prepare(&mut self, _sample_rate: f64, _max_samples_per_frame: usize) {}
 
     fn process(&mut self, _context: audioplug::ProcessContext, _parameters: &()) {
         todo!()
     }
-    
 }
 
 fn main() {

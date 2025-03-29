@@ -1,11 +1,11 @@
 mod audio_busses;
-mod category;
-mod plugview;
-mod factory;
 mod audioprocessor;
-mod util;
+mod category;
 mod editcontroller;
+mod factory;
+mod plugview;
+mod util;
 
 pub use audioprocessor::AudioProcessor;
-pub use category::{VSTCategory, VST3Categories};
+pub use category::{VST3Categories, VSTCategory};
 pub use factory::Factory;

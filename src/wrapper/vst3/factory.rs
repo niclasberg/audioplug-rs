@@ -1,14 +1,17 @@
 use std::ffi::c_void;
 use std::marker::PhantomData;
 
-use vst3_sys::{VST3, IID};
-use vst3_sys::base::{kInvalidArgument, kResultFalse, kResultOk, tresult, ClassCardinality, FactoryFlags, IPluginFactory, IPluginFactory2, PClassInfo, PClassInfo2, PFactoryInfo};
-use vst3_sys as vst3_com;
-use crate::VST3Plugin;
 use super::editcontroller::EditController;
+use crate::VST3Plugin;
+use vst3_sys as vst3_com;
+use vst3_sys::base::{
+    kInvalidArgument, kResultFalse, kResultOk, tresult, ClassCardinality, FactoryFlags,
+    IPluginFactory, IPluginFactory2, PClassInfo, PClassInfo2, PFactoryInfo,
+};
+use vst3_sys::{IID, VST3};
 
-use super::AudioProcessor;
 use super::util::strcpy;
+use super::AudioProcessor;
 
 pub const VST3_SDK_VERSION: &str = "VST 3.6.14";
 
@@ -18,8 +21,12 @@ pub struct Factory<P: VST3Plugin> {
 }
 
 impl<P: VST3Plugin> Factory<P> {
-	const EDITOR_CID: IID = IID { data: P::EDITOR_UUID };
-	const PROCESSOR_CID: IID = IID { data: P::PROCESSOR_UUID };
+    const EDITOR_CID: IID = IID {
+        data: P::EDITOR_UUID,
+    };
+    const PROCESSOR_CID: IID = IID {
+        data: P::PROCESSOR_UUID,
+    };
 
     pub fn new() -> Box<Self> {
         Self::allocate(PhantomData)
@@ -57,34 +64,42 @@ impl<P: VST3Plugin> IPluginFactory for Factory<P> {
                 info.cardinality = ClassCardinality::kManyInstances as i32;
                 strcpy("Audio Module Class", &mut info.category);
                 kResultOk
-            },
+            }
             1 => {
                 info.cid = Self::EDITOR_CID;
-                strcpy((P::NAME.to_owned() + " edit controller").as_str(), &mut info.name);
+                strcpy(
+                    (P::NAME.to_owned() + " edit controller").as_str(),
+                    &mut info.name,
+                );
                 strcpy("Component Controller Class", &mut info.category);
                 info.cardinality = ClassCardinality::kManyInstances as i32;
                 kResultOk
-            },
-            _ => kInvalidArgument
+            }
+            _ => kInvalidArgument,
         }
     }
 
-    unsafe fn create_instance(&self, cid: *const IID, _iid: *const IID, obj: *mut *mut c_void,) -> tresult {
+    unsafe fn create_instance(
+        &self,
+        cid: *const IID,
+        _iid: *const IID,
+        obj: *mut *mut c_void,
+    ) -> tresult {
         println!("Create instance");
         if cid.is_null() || obj.is_null() {
             return kInvalidArgument;
         }
-		let cid = &*cid;
+        let cid = &*cid;
 
-		if *cid == Self::PROCESSOR_CID {
-			*obj = AudioProcessor::<P>::create_instance();
+        if *cid == Self::PROCESSOR_CID {
+            *obj = AudioProcessor::<P>::create_instance();
             kResultOk
-		} else if *cid == Self::EDITOR_CID {
-			*obj = EditController::<P::Editor>::create_instance();
+        } else if *cid == Self::EDITOR_CID {
+            *obj = EditController::<P::Editor>::create_instance();
             kResultOk
-		} else {
-			kResultFalse
-		}
+        } else {
+            kResultFalse
+        }
     }
 }
 
@@ -104,17 +119,20 @@ impl<P: VST3Plugin> IPluginFactory2 for Factory<P> {
                 strcpy(VST3_SDK_VERSION, &mut info.sdk_version);
                 strcpy(&P::CATEGORIES.to_string(), &mut info.subcategories);
                 kResultOk
-            },
+            }
             1 => {
                 info.cid = Self::EDITOR_CID;
-                strcpy((P::NAME.to_owned() + " edit controller").as_str(), &mut info.name);
+                strcpy(
+                    (P::NAME.to_owned() + " edit controller").as_str(),
+                    &mut info.name,
+                );
                 strcpy("Component Controller Class", &mut info.category);
                 info.cardinality = ClassCardinality::kManyInstances as i32;
                 strcpy(VST3_SDK_VERSION, &mut info.sdk_version);
                 strcpy(&P::CATEGORIES.to_string(), &mut info.subcategories);
                 kResultOk
-            },
-            _ => kInvalidArgument
+            }
+            _ => kInvalidArgument,
         }
     }
 }

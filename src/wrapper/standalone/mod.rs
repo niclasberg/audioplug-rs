@@ -1,13 +1,18 @@
-use std::{cell::RefCell, rc::Rc};
 use rtrb::{Consumer, Producer, RingBuffer};
+use std::{cell::RefCell, rc::Rc};
 
-use crate::{app::{AppState, HostHandle, Window}, param::{NormalizedValue, ParameterId, ParameterInfo, ParameterMap, Params}, platform::{self, AudioHost}, App, Editor, Plugin};
+use crate::{
+    app::{AppState, HostHandle, Window},
+    param::{NormalizedValue, ParameterId, ParameterInfo, ParameterMap, Params},
+    platform::{self, AudioHost},
+    App, Editor, Plugin,
+};
 
 const SAMPLES_PER_BLOCK: usize = 128;
 
 pub struct ParameterUpdate {
     id: ParameterId,
-    value: NormalizedValue
+    value: NormalizedValue,
 }
 
 struct AppInner {
@@ -19,17 +24,19 @@ struct StandaloneHostHandle {
 }
 
 impl HostHandle for StandaloneHostHandle {
-    fn begin_edit(&self, id: ParameterId) {
-        
-    }
+    fn begin_edit(&self, id: ParameterId) {}
 
-    fn end_edit(&self, id: ParameterId) {
-        
-    }
+    fn end_edit(&self, id: ParameterId) {}
 
     fn perform_edit(&self, info: &dyn ParameterInfo, value: crate::param::NormalizedValue) {
         let mut app_inner = RefCell::borrow_mut(&self.app_inner);
-        app_inner.parameter_updates.push(ParameterUpdate {id: info.id(), value }).unwrap();
+        app_inner
+            .parameter_updates
+            .push(ParameterUpdate {
+                id: info.id(),
+                value,
+            })
+            .unwrap();
     }
 }
 
@@ -39,9 +46,14 @@ pub struct StandaloneApp<P: Plugin> {
 }
 
 impl<P: Plugin> StandaloneApp<P> {
-    pub fn new(parameter_updates: Producer<ParameterUpdate>, _executor: Rc<platform::Executor>) -> Self {
+    pub fn new(
+        parameter_updates: Producer<ParameterUpdate>,
+        _executor: Rc<platform::Executor>,
+    ) -> Self {
         let app_inner = Rc::new(RefCell::new(AppInner { parameter_updates }));
-        let host_handle = StandaloneHostHandle { app_inner: app_inner.clone() };
+        let host_handle = StandaloneHostHandle {
+            app_inner: app_inner.clone(),
+        };
         let parameters = ParameterMap::new(P::Parameters::new());
         let mut app_state = AppState::new(parameters);
         app_state.set_host_handle(Some(Box::new(host_handle)));
@@ -49,10 +61,7 @@ impl<P: Plugin> StandaloneApp<P> {
         let state = Rc::new(RefCell::new(app_state));
         let app = App::new_with_app_state(state);
         let editor = P::Editor::new();
-        Self {
-            app,
-            editor
-        }
+        Self { app, editor }
     }
 
     pub fn run(mut self) {
@@ -72,9 +81,9 @@ pub struct AudioProcessor<P> {
 
 impl<P: Plugin> AudioProcessor<P> {
     pub fn new(parameter_updates: Consumer<ParameterUpdate>) -> Self {
-        Self { 
+        Self {
             plugin: P::new(),
-            parameter_updates
+            parameter_updates,
         }
     }
 

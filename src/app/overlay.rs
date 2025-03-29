@@ -1,3 +1,1 @@
-pub struct Overlay {
-	
-}
+pub struct Overlay {}

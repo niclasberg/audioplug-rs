@@ -1,18 +1,20 @@
 use std::any::{Any, TypeId};
 
-use super::{AnyParameter, BoolParameter, ByPassParameter, FloatParameter, IntParameter, NormalizedValue, Parameter, ParameterId, ParameterInfo, PlainValue, StringListParameter};
-
+use super::{
+    AnyParameter, BoolParameter, ByPassParameter, FloatParameter, IntParameter, NormalizedValue,
+    Parameter, ParameterId, ParameterInfo, PlainValue, StringListParameter,
+};
 
 fn get_parameter_value_as<T: Any, U: Any>(p: &impl Parameter<U>) -> Option<T> {
-	if TypeId::of::<T>() == TypeId::of::<PlainValue>() {
-		Some(unsafe { std::mem::transmute_copy(&p.plain_value()) })
-	} else if TypeId::of::<T>() == TypeId::of::<NormalizedValue>() {
-		Some(unsafe { std::mem::transmute_copy(&p.normalized_value()) })
-	} else if TypeId::of::<T>() == TypeId::of::<U>() {
-		Some(unsafe { std::mem::transmute_copy(&p.value()) })
-	} else {
-		None
-	}
+    if TypeId::of::<T>() == TypeId::of::<PlainValue>() {
+        Some(unsafe { std::mem::transmute_copy(&p.plain_value()) })
+    } else if TypeId::of::<T>() == TypeId::of::<NormalizedValue>() {
+        Some(unsafe { std::mem::transmute_copy(&p.normalized_value()) })
+    } else if TypeId::of::<T>() == TypeId::of::<U>() {
+        Some(unsafe { std::mem::transmute_copy(&p.value()) })
+    } else {
+        None
+    }
 }
 
 pub enum ParamRef<'a> {
@@ -60,9 +62,9 @@ impl<'a> ParamRef<'a> {
         }
     }
 
-	pub(crate) fn internal_set_value_plain(&self, value: PlainValue) {
-		self.internal_set_value_normalized(self.normalize(value))
-	}
+    pub(crate) fn internal_set_value_plain(&self, value: PlainValue) {
+        self.internal_set_value_normalized(self.normalize(value))
+    }
 
     pub fn plain_value(&self) -> PlainValue {
         match self {
@@ -84,15 +86,15 @@ impl<'a> ParamRef<'a> {
         }
     }
 
-	pub fn value_as<T: Any>(&self) -> Option<T> {
-		match self {
+    pub fn value_as<T: Any>(&self) -> Option<T> {
+        match self {
             Self::Float(p) => get_parameter_value_as(*p),
             Self::Int(p) => get_parameter_value_as(*p),
             Self::StringList(p) => get_parameter_value_as(*p),
             Self::ByPass(p) => get_parameter_value_as(*p),
             Self::Bool(p) => get_parameter_value_as(*p),
         }
-	}
+    }
 
     pub fn normalize(&self, value: PlainValue) -> NormalizedValue {
         self.info().normalize(value)
@@ -106,4 +108,3 @@ impl<'a> ParamRef<'a> {
         self.info().step_count()
     }
 }
-

@@ -3,15 +3,15 @@ pub struct Color {
     pub r: f32,
     pub g: f32,
     pub b: f32,
-    pub a: f32
+    pub a: f32,
 }
 
 impl Color {
-    pub const fn from_rgba(r: f32, g: f32, b: f32, a: f32) -> Self{
-        Self {r, g, b, a}
+    pub const fn from_rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
+        Self { r, g, b, a }
     }
 
-    pub const fn from_rgb(r: f32, g: f32, b: f32) -> Self{
+    pub const fn from_rgb(r: f32, g: f32, b: f32) -> Self {
         Self::from_rgba(r, g, b, 1.0)
     }
 
@@ -20,7 +20,7 @@ impl Color {
             r: r as f32 / 255.0,
             g: g as f32 / 255.0,
             b: b as f32 / 255.0,
-            a
+            a,
         }
     }
 
@@ -461,7 +461,7 @@ impl Color {
     pub const MACARONI_AND_CHEESE: Self = Self::from_rgb8(0xff, 0xbd, 0x88);
     pub const MADDER_LAKE: Self = Self::from_rgb8(0xcc, 0x33, 0x36);
     pub const MAGENTA: Self = Self::from_rgb8(0xff, 0x00, 0xff);
-    pub const MAGENTA_CRAYOLA: Self = Self::from_rgb8(0xf6, 0x53, 0xa6);		
+    pub const MAGENTA_CRAYOLA: Self = Self::from_rgb8(0xf6, 0x53, 0xa6);
     pub const MAGENTA_PANTONE: Self = Self::from_rgb8(0xd0, 0x41, 0x7e);
     pub const MAGENTA_HAZE: Self = Self::from_rgb8(0x9f, 0x45, 0x76);
     pub const MAGIC_MINT: Self = Self::from_rgb8(0xaa, 0xf0, 0xd1);

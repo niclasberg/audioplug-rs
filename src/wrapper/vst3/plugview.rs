@@ -1,14 +1,14 @@
 use raw_window_handle::RawWindowHandle;
+use std::cell::RefCell;
+use std::ffi::{c_void, CStr};
+use std::rc::Rc;
+use vst3_sys::base::*;
 use vst3_sys::gui::IPlugFrame;
 use vst3_sys::gui::IPlugViewContentScaleSupport;
+use vst3_sys::gui::{IPlugView, ViewRect};
 use vst3_sys::utils::SharedVstPtr;
 use vst3_sys::VstPtr;
 use vst3_sys::VST3;
-use vst3_sys::base::*;
-use vst3_sys::gui::{IPlugView, ViewRect};
-use std::cell::RefCell;
-use std::ffi::{CStr, c_void};
-use std::rc::Rc;
 
 use crate::app::{AppState, Window};
 use crate::core::Rectangle;
@@ -16,16 +16,10 @@ use crate::param::ParameterMap;
 use crate::Editor;
 
 #[cfg(target_os = "windows")]
-use {
-	raw_window_handle::Win32WindowHandle,
-	std::num::NonZeroIsize
-};
+use {raw_window_handle::Win32WindowHandle, std::num::NonZeroIsize};
 
 #[cfg(target_os = "macos")]
-use {
-	raw_window_handle::AppKitWindowHandle,
-	std::ptr::NonNull
-};
+use {raw_window_handle::AppKitWindowHandle, std::ptr::NonNull};
 
 #[allow(unused)]
 const VST3_PLATFORM_HWND: &str = "HWND";
@@ -39,17 +33,31 @@ use vst3_sys as vst3_com;
 pub struct PlugView<E: Editor> {
     window: RefCell<Option<Window>>,
     app_state: Rc<RefCell<AppState>>,
-	editor: Rc<RefCell<E>>,
+    editor: Rc<RefCell<E>>,
     plugin_frame: RefCell<Option<VstPtr<dyn IPlugFrame>>>,
-    parameters: Rc<ParameterMap<E::Parameters>>
+    parameters: Rc<ParameterMap<E::Parameters>>,
 }
 
 impl<E: Editor> PlugView<E> {
-    pub fn new(app_state: Rc<RefCell<AppState>>, editor: Rc<RefCell<E>>, parameters: Rc<ParameterMap<E::Parameters>>) -> Box<Self> {
-        Self::allocate(RefCell::new(None), app_state, editor, RefCell::new(None), parameters)
+    pub fn new(
+        app_state: Rc<RefCell<AppState>>,
+        editor: Rc<RefCell<E>>,
+        parameters: Rc<ParameterMap<E::Parameters>>,
+    ) -> Box<Self> {
+        Self::allocate(
+            RefCell::new(None),
+            app_state,
+            editor,
+            RefCell::new(None),
+            parameters,
+        )
     }
 
-    pub fn create_instance(app_state: Rc<RefCell<AppState>>, editor: Rc<RefCell<E>>, parameters: Rc<ParameterMap<E::Parameters>>) -> *mut c_void {
+    pub fn create_instance(
+        app_state: Rc<RefCell<AppState>>,
+        editor: Rc<RefCell<E>>,
+        parameters: Rc<ParameterMap<E::Parameters>>,
+    ) -> *mut c_void {
         Box::into_raw(Self::new(app_state, editor, parameters)) as *mut c_void
     }
 }
@@ -60,7 +68,7 @@ impl<E: Editor> IPlugView for PlugView<E> {
         match type_.to_str() {
             #[cfg(target_os = "windows")]
             Ok(type_) if type_ == VST3_PLATFORM_HWND => kResultOk,
-			#[cfg(target_os = "macos")]
+            #[cfg(target_os = "macos")]
             Ok(type_) if type_ == VST3_PLATFORM_NSVIEW => kResultOk,
             #[cfg(target_os = "linux")]
             Ok(type_) if type_ == VST3_PLATFORM_X11_WINDOW => kResultOk,
@@ -81,12 +89,12 @@ impl<E: Editor> IPlugView for PlugView<E> {
                 Ok(type_) if type_ == VST3_PLATFORM_HWND => {
                     let h = Win32WindowHandle::new(NonZeroIsize::new(parent as isize).unwrap());
                     RawWindowHandle::Win32(h)
-                }, 
-				#[cfg(target_os = "macos")]
-				Ok(type_) if type_ == VST3_PLATFORM_NSVIEW => {
-					let h = AppKitWindowHandle::new(NonNull::new(parent).unwrap());
-					RawWindowHandle::AppKit(h)
-				},
+                }
+                #[cfg(target_os = "macos")]
+                Ok(type_) if type_ == VST3_PLATFORM_NSVIEW => {
+                    let h = AppKitWindowHandle::new(NonNull::new(parent).unwrap());
+                    RawWindowHandle::AppKit(h)
+                }
                 _ => {
                     return kInvalidArgument;
                 }
@@ -123,22 +131,22 @@ impl<E: Editor> IPlugView for PlugView<E> {
     }
 
     unsafe fn get_size(&self, size: *mut ViewRect) -> tresult {
-		if size.is_null() {
+        if size.is_null() {
             return kInvalidArgument;
         }
-		if let Some(window) = self.window.borrow().as_ref() {
-			let new_size = &mut *size;
-			new_size.left = 0;
-			new_size.right = 500;
-			new_size.top = 0;
-			new_size.bottom = 500;
-		} else if let Some(pref_size) = self.editor.borrow().prefered_size() {
-			let new_size = &mut *size;
-			new_size.left = 0;
-			new_size.right = pref_size.width as i32;
-			new_size.top = 0;
-			new_size.bottom = pref_size.height as i32;
-		}
+        if let Some(window) = self.window.borrow().as_ref() {
+            let new_size = &mut *size;
+            new_size.left = 0;
+            new_size.right = 500;
+            new_size.top = 0;
+            new_size.bottom = 500;
+        } else if let Some(pref_size) = self.editor.borrow().prefered_size() {
+            let new_size = &mut *size;
+            new_size.left = 0;
+            new_size.right = pref_size.width as i32;
+            new_size.top = 0;
+            new_size.bottom = pref_size.height as i32;
+        }
 
         kResultOk
     }
@@ -150,7 +158,8 @@ impl<E: Editor> IPlugView for PlugView<E> {
         let new_size = &*new_size;
 
         if let Some(window) = self.window.borrow().as_ref() {
-            let rect = Rectangle::from_ltrb(new_size.left, new_size.top, new_size.right, new_size.bottom);
+            let rect =
+                Rectangle::from_ltrb(new_size.left, new_size.top, new_size.right, new_size.bottom);
             window.set_size(rect);
             kResultOk
         } else {
@@ -177,18 +186,17 @@ impl<E: Editor> IPlugView for PlugView<E> {
     }
 
     unsafe fn check_size_constraint(&self, rect: *mut ViewRect) -> tresult {
-		if rect.is_null() {
+        if rect.is_null() {
             return kInvalidArgument;
         }
         let rect = &mut *rect;
-
 
         kResultOk
     }
 }
 
 impl<E: Editor> IPlugViewContentScaleSupport for PlugView<E> {
-    unsafe fn set_scale_factor(&self, _factor:f32) -> tresult {
+    unsafe fn set_scale_factor(&self, _factor: f32) -> tresult {
         kResultOk
     }
 }

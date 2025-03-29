@@ -3,7 +3,7 @@ use super::{Point, Rectangle};
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct UnitPoint {
     pub x: f64,
-    pub y: f64
+    pub y: f64,
 }
 
 impl UnitPoint {

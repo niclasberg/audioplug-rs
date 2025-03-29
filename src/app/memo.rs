@@ -1,17 +1,20 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
-use super::{accessor::SourceId, CreateContext, NodeId, NodeType, ReactiveContext, ReadContext, Runtime, Scope, Readable};
+use super::{
+    accessor::SourceId, CreateContext, NodeId, NodeType, ReactiveContext, ReadContext, Readable,
+    Runtime, Scope,
+};
 
 pub struct MemoContext<'a> {
     pub(super) memo_id: NodeId,
-    pub(super) runtime: &'a mut Runtime
+    pub(super) runtime: &'a mut Runtime,
 }
 
 impl<'b> ReactiveContext for MemoContext<'b> {
     fn runtime(&self) -> &Runtime {
         &self.runtime
     }
-    
+
     fn runtime_mut(&mut self) -> &mut Runtime {
         &mut self.runtime
     }
@@ -25,7 +28,7 @@ impl<'b> ReadContext for MemoContext<'b> {
 
 pub struct Memo<T> {
     pub(super) id: NodeId,
-    _marker: PhantomData<fn() -> T>
+    _marker: PhantomData<fn() -> T>,
 }
 
 impl<T> Clone for Memo<T> {
@@ -37,19 +40,22 @@ impl<T> Clone for Memo<T> {
 impl<T> Copy for Memo<T> {}
 
 impl<T: Any> Memo<T> {
-    pub fn new(cx: &mut impl CreateContext, f: impl Fn(&mut MemoContext, Option<&T>) -> T + 'static) -> Self 
-	where 
-		T: PartialEq
-	{
+    pub fn new(
+        cx: &mut impl CreateContext,
+        f: impl Fn(&mut MemoContext, Option<&T>) -> T + 'static,
+    ) -> Self
+    where
+        T: PartialEq,
+    {
         Self::new_with_compare(cx, f, PartialEq::eq)
     }
 
-	pub fn new_with_compare(
-		cx: &mut impl CreateContext, 
-		f: impl Fn(&mut MemoContext, Option<&T>) -> T + 'static,
-		compare: fn(&T, &T) -> bool
-	) -> Self {
-		let state = MemoState {
+    pub fn new_with_compare(
+        cx: &mut impl CreateContext,
+        f: impl Fn(&mut MemoContext, Option<&T>) -> T + 'static,
+        compare: fn(&T, &T) -> bool,
+    ) -> Self {
+        let state = MemoState {
             f: Box::new(move |cx, value| {
                 if let Some(value) = value {
                     let value = value.deref_mut().downcast_mut::<T>().unwrap();
@@ -66,41 +72,45 @@ impl<T: Any> Memo<T> {
                     true
                 }
             }),
-            value: None
+            value: None,
         };
-		let owner = cx.owner();
+        let owner = cx.owner();
         let id = cx.runtime_mut().create_memo_node(state, owner);
 
         Self {
             id,
-            _marker: PhantomData
+            _marker: PhantomData,
         }
-	}
+    }
 }
 
 impl<T: 'static> Readable for Memo<T> {
     type Value = T;
 
-	fn get_source_id(&self) -> SourceId {
-		SourceId::Node(self.id)
-	}
+    fn get_source_id(&self) -> SourceId {
+        SourceId::Node(self.id)
+    }
 
     fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         let scope = cx.scope();
-		cx.runtime_mut().update_if_necessary(self.id);
+        cx.runtime_mut().update_if_necessary(self.id);
         let value = match &cx.runtime_mut().get_node_mut(self.id).node_type {
-            NodeType::Memo(state) => state.value.as_ref().expect("Memo should have been evaluated before accessed").as_ref(),
-            _ => unreachable!()
+            NodeType::Memo(state) => state
+                .value
+                .as_ref()
+                .expect("Memo should have been evaluated before accessed")
+                .as_ref(),
+            _ => unreachable!(),
         };
         let r = f(value.downcast_ref().expect("Memo had wrong type"));
-		cx.runtime_mut().track(self.id, scope);
-		r
+        cx.runtime_mut().track(self.id, scope);
+        r
     }
 }
 
 pub struct MemoState {
-	pub(super) f: Box<dyn Fn(&mut MemoContext, &mut Option<Box<dyn Any>>) -> bool>,
-	pub(super) value: Option<Box<dyn Any>>,
+    pub(super) f: Box<dyn Fn(&mut MemoContext, &mut Option<Box<dyn Any>>) -> bool>,
+    pub(super) value: Option<Box<dyn Any>>,
 }
 
 impl MemoState {
@@ -111,9 +121,12 @@ impl MemoState {
 
 #[cfg(test)]
 mod tests {
-    use std::{cell::Cell, rc::Rc};
-    use crate::{app::{AppState, Effect, Signal}, param::ParameterMap};
     use super::*;
+    use crate::{
+        app::{AppState, Effect, Signal},
+        param::ParameterMap,
+    };
+    use std::{cell::Cell, rc::Rc};
 
     fn with_appstate(f: impl FnOnce(&mut AppState)) {
         let mut cx = AppState::new(ParameterMap::new(()));
@@ -147,7 +160,7 @@ mod tests {
                 let _ = memo1.get(cx) + memo2.get(cx);
             });
             cx.run_effects();
-        
+
             signal.set(cx, 2);
             cx.run_effects();
             assert_eq!(call_count.get(), 2);

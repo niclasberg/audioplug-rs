@@ -1,21 +1,28 @@
-use std::ops::{Mul, Add};
+use std::ops::{Add, Mul};
 
-use super::{Vector, Point, Size};
+use super::{Point, Size, Vector};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Transform<T = f64> {
     pub m11: T,
-	pub m12: T, 
-	pub m21: T,
-	pub m22: T,
-	pub tx: T,
-	pub ty: T
+    pub m12: T,
+    pub m21: T,
+    pub m22: T,
+    pub tx: T,
+    pub ty: T,
 }
 
 impl<T> Transform<T> {
-	pub fn new(m11: T, m12: T, m21: T, m22: T, tx: T, ty: T) -> Self {
-		Self { m11, m12, m21, m22, tx, ty }
-	}
+    pub fn new(m11: T, m12: T, m21: T, m22: T, tx: T, ty: T) -> Self {
+        Self {
+            m11,
+            m12,
+            m21,
+            m22,
+            tx,
+            ty,
+        }
+    }
 }
 
 impl Transform {
@@ -33,14 +40,14 @@ impl Transform {
         Self::new(1.0, 0.0, 0.0, 1.0, v.x, v.y)
     }
 
-	pub fn from_scale(sx: f64, sy: f64) -> Self {
-		Self::new(sx, 0.0, 0.0, sy, 0.0, 0.0)
-	}
+    pub fn from_scale(sx: f64, sy: f64) -> Self {
+        Self::new(sx, 0.0, 0.0, sy, 0.0, 0.0)
+    }
 }
 
-impl<T> Mul<Transform<T>> for Transform<T> 
-where 
-	T: Mul<T, Output = T> + Add<T, Output = T> + Copy
+impl<T> Mul<Transform<T>> for Transform<T>
+where
+    T: Mul<T, Output = T> + Add<T, Output = T> + Copy,
 {
     type Output = Transform<T>;
 
@@ -61,9 +68,9 @@ impl Mul<Vector> for Transform {
 
     fn mul(self, rhs: Vector) -> Self::Output {
         Vector::new(
-			self.m11 * rhs.x + self.m12 * rhs.y + self.tx, 
-			self.m21 * rhs.x + self.m22 * rhs.y + self.ty
-		)
+            self.m11 * rhs.x + self.m12 * rhs.y + self.tx,
+            self.m21 * rhs.x + self.m22 * rhs.y + self.ty,
+        )
     }
 }
 
@@ -72,9 +79,9 @@ impl Mul<Point> for Transform {
 
     fn mul(self, rhs: Point) -> Self::Output {
         Point::new(
-			self.m11 * rhs.x + self.m12 * rhs.y + self.tx, 
-			self.m21 * rhs.x + self.m22 * rhs.y + self.ty
-		)
+            self.m11 * rhs.x + self.m12 * rhs.y + self.tx,
+            self.m21 * rhs.x + self.m22 * rhs.y + self.ty,
+        )
     }
 }
 
@@ -83,8 +90,8 @@ impl Mul<Size> for Transform {
 
     fn mul(self, rhs: Size) -> Self::Output {
         Size::new(
-			self.m11 * rhs.width + self.m12 * rhs.height, 
-			self.m21 * rhs.width + self.m22 * rhs.height
-		)
+            self.m11 * rhs.width + self.m12 * rhs.height,
+            self.m21 * rhs.width + self.m22 * rhs.height,
+        )
     }
 }

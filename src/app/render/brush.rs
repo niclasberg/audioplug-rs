@@ -8,7 +8,11 @@ pub struct LinearGradient(pub(crate) Rc<platform::NativeLinearGradient>);
 
 impl LinearGradient {
     pub fn new(color_map: impl Into<ColorMap>, start: UnitPoint, end: UnitPoint) -> Self {
-        Self(Rc::new(platform::NativeLinearGradient::new(color_map.into(), start, end)))
+        Self(Rc::new(platform::NativeLinearGradient::new(
+            color_map.into(),
+            start,
+            end,
+        )))
     }
 }
 

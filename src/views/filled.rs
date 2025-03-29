@@ -1,6 +1,8 @@
-use crate::{app::{BuildContext, RenderContext, Shape, Widget}, core::{Color, Rectangle, Size}, style::{AvailableSpace, DisplayStyle, Length, Measure, Style}};
-use super::View;
-
+use crate::{
+    app::{BuildContext, RenderContext, Shape, View, Widget},
+    core::{Color, Rectangle, Size},
+    style::{AvailableSpace, DisplayStyle, Length, Measure, Style},
+};
 
 pub trait Fill {
     fn fill(self, color: Color) -> Filled;
@@ -8,26 +10,29 @@ pub trait Fill {
 
 impl Fill for Shape {
     fn fill(self, color: Color) -> Filled {
-        Filled { shape: self, color}
+        Filled { shape: self, color }
     }
 }
 
 impl Fill for Rectangle {
     fn fill(self, color: Color) -> Filled {
-        Filled { shape: self.into(), color}
+        Filled {
+            shape: self.into(),
+            color,
+        }
     }
 }
 
 pub struct Filled {
     shape: Shape,
-    color: Color
+    color: Color,
 }
 
 impl View for Filled {
     type Element = Self;
 
-    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self { 
-		let bounds = self.shape.bounds();
+    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self {
+        let bounds = self.shape.bounds();
         ctx.set_style(Style {
             size: Size::new(Length::Px(bounds.width()), Length::Px(bounds.height())),
             ..Default::default()
@@ -38,22 +43,21 @@ impl View for Filled {
 }
 
 impl Measure for Filled {
-    fn measure(&self, 
-        style: &Style,
-        _width: AvailableSpace, 
-        _height: AvailableSpace) -> Size 
-    {
+    fn measure(&self, style: &Style, _width: AvailableSpace, _height: AvailableSpace) -> Size {
         self.shape.bounds().size()
     }
 }
 
 impl Widget for Filled {
-	fn debug_label(&self) -> &'static str {
-		"Filled"
-	}
+    fn debug_label(&self) -> &'static str {
+        "Filled"
+    }
 
     fn render(&mut self, ctx: &mut RenderContext) {
-        ctx.fill(&self.shape.offset(ctx.global_bounds().top_left()), self.color)
+        ctx.fill(
+            &self.shape.offset(ctx.global_bounds().top_left()),
+            self.color,
+        )
     }
 
     fn display_style(&self) -> DisplayStyle {

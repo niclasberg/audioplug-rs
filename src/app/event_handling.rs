@@ -1,13 +1,27 @@
-use crate::{app::StatusChange, core::{Cursor, Key, Rectangle}, platform::WindowEvent, KeyEvent, MouseEvent};
-use super::{animation::{drive_animations, request_animation_frame}, clipboard::Clipboard, invalidate_window, layout::request_layout, layout_window, render::invalidate_widget, AppState, EventStatus, ParamContext, ReactiveContext, ReadContext, Scope, WidgetFlags, WidgetId, WindowId, WriteContext};
+use super::{
+    animation::{drive_animations, request_animation_frame},
+    clipboard::Clipboard,
+    invalidate_window,
+    layout::request_layout,
+    layout_window,
+    render::invalidate_widget,
+    AppState, EventStatus, ParamContext, ReactiveContext, ReadContext, Scope, WidgetFlags,
+    WidgetId, WindowId, WriteContext,
+};
+use crate::{
+    app::StatusChange,
+    core::{Cursor, Key, Rectangle},
+    platform::WindowEvent,
+    KeyEvent, MouseEvent,
+};
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
         WindowEvent::Resize { .. } => {
             layout_window(app_state, window_id);
             invalidate_window(app_state, window_id);
-			return;
-        },
+            return;
+        }
         WindowEvent::Mouse(mouse_event) => {
             match mouse_event {
                 MouseEvent::Down { position, .. } => {
@@ -22,10 +36,14 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                         }
                     });
                     set_focus_widget(app_state, window_id, new_focus_view);
-                },
-                MouseEvent::Wheel { delta, position, modifiers } => {
+                }
+                MouseEvent::Wheel {
+                    delta,
+                    position,
+                    modifiers,
+                } => {
                     println!("{}", position);
-                },
+                }
                 _ => {}
             };
 
@@ -39,10 +57,12 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             let new_mouse_capture_widget = ctx.new_mouse_capture_widget;
             app_state.run_effects();
             set_mouse_capture_widget(app_state, new_mouse_capture_widget);
-        },
+        }
         WindowEvent::Key(key_event) => {
             let mut event_status = EventStatus::Ignored;
-            let mut key_widget = app_state.window(window_id).focus_widget
+            let mut key_widget = app_state
+                .window(window_id)
+                .focus_widget
                 .unwrap_or(app_state.window(window_id).root_widget);
 
             while !slotmap::Key::is_null(&key_widget) && event_status != EventStatus::Handled {
@@ -55,33 +75,43 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             if event_status == EventStatus::Ignored {
                 match key_event {
                     KeyEvent::KeyDown { key, modifiers, .. } => match key {
-                        Key::Escape if modifiers.is_empty() => set_mouse_capture_widget(app_state, None),
+                        Key::Escape if modifiers.is_empty() => {
+                            set_mouse_capture_widget(app_state, None)
+                        }
                         _ => {}
                     },
                     _ => {}
                 }
             }
-        },
+        }
         WindowEvent::Unfocused => {
             set_focus_widget(app_state, window_id, None);
-        },
+        }
         WindowEvent::Animation(animation_frame) => {
             drive_animations(app_state, window_id, animation_frame);
-        },
+        }
         WindowEvent::MouseCaptureEnded => {
             set_mouse_capture_widget(app_state, None);
-        },
+        }
         WindowEvent::ThemeChanged(theme) => {
             let signal = app_state.window(window_id).theme_signal;
             signal.set(app_state.runtime_mut(), theme);
-        },
+        }
         _ => {}
     };
 }
 
-pub fn set_focus_widget(app_state: &mut AppState, window_id: WindowId, new_focus_widget: Option<WidgetId>) {
+pub fn set_focus_widget(
+    app_state: &mut AppState,
+    window_id: WindowId,
+    new_focus_widget: Option<WidgetId>,
+) {
     if new_focus_widget != app_state.window(window_id).focus_widget {
-        println!("Focus change {:?}, {:?}", app_state.window(window_id).focus_widget, new_focus_widget);
+        println!(
+            "Focus change {:?}, {:?}",
+            app_state.window(window_id).focus_widget,
+            new_focus_widget
+        );
 
         if let Some(old_focus_widget) = app_state.window(window_id).focus_widget {
             let mut ctx = EventContext::new(old_focus_widget, app_state);
@@ -105,12 +135,14 @@ pub fn clear_focus_and_mouse_capture(app_state: &mut AppState, widget_id: Widget
     }
 
     let window_id = app_state.get_window_id_for_widget(widget_id);
-
 }
 
 pub fn set_mouse_capture_widget(app_state: &mut AppState, new_capture_widget: Option<WidgetId>) {
     if new_capture_widget != app_state.mouse_capture_widget {
-        println!("Mouse capture change {:?}, {:?}", app_state.mouse_capture_widget, new_capture_widget);
+        println!(
+            "Mouse capture change {:?}, {:?}",
+            app_state.mouse_capture_widget, new_capture_widget
+        );
         if let Some(old_mouse_capture_widget) = app_state.mouse_capture_widget {
             let mut ctx = EventContext::new(old_mouse_capture_widget, app_state);
             ctx.dispatch_status_updated(StatusChange::MouseCaptureLost);
@@ -128,7 +160,7 @@ pub fn set_mouse_capture_widget(app_state: &mut AppState, new_capture_widget: Op
 }
 
 pub struct MouseEventContext<'a> {
-    id: WidgetId, 
+    id: WidgetId,
     app_state: &'a mut AppState,
     can_propagate: bool,
     new_mouse_capture_widget: Option<WidgetId>,
@@ -136,17 +168,21 @@ pub struct MouseEventContext<'a> {
 
 impl<'a> MouseEventContext<'a> {
     fn new(id: WidgetId, app_state: &'a mut AppState, can_propagate: bool) -> Self {
-        let new_mouse_capture_widget =  app_state.mouse_capture_widget;
+        let new_mouse_capture_widget = app_state.mouse_capture_widget;
         Self {
-            id, 
+            id,
             app_state,
             can_propagate,
             new_mouse_capture_widget,
         }
-    }   
+    }
 
     fn dispatch(&mut self, event: MouseEvent) -> EventStatus {
-        let mut widget = self.app_state.widgets.remove(self.id).expect("Widget not found");
+        let mut widget = self
+            .app_state
+            .widgets
+            .remove(self.id)
+            .expect("Widget not found");
         let old_id = self.id;
         let status = widget.mouse_event(event, self);
         self.id = old_id;
@@ -154,7 +190,7 @@ impl<'a> MouseEventContext<'a> {
         status
     }
 
-	pub fn has_focus(&self) -> bool {
+    pub fn has_focus(&self) -> bool {
         self.app_state.widget_has_focus(self.id)
     }
 
@@ -178,22 +214,29 @@ impl<'a> MouseEventContext<'a> {
     }
 
     pub fn forward_to_children(&mut self, event: MouseEvent) -> EventStatus {
-		if !self.can_propagate {
-			return EventStatus::Ignored;
-		}
+        if !self.can_propagate {
+            return EventStatus::Ignored;
+        }
 
         let children = self.app_state.widget_data[self.id].children.clone();
         let old_id = self.id;
         for &child in children.iter().rev() {
-			if !self.app_state.widget_data[child].global_bounds().contains(event.position()) {
-				continue;
-			}
+            if !self.app_state.widget_data[child]
+                .global_bounds()
+                .contains(event.position())
+            {
+                continue;
+            }
 
-			self.id = child;
-            let mut widget = self.app_state.widgets.remove(child).expect("Widget not found");
+            self.id = child;
+            let mut widget = self
+                .app_state
+                .widgets
+                .remove(child)
+                .expect("Widget not found");
             let status = widget.mouse_event(event, self);
             self.app_state.widgets.insert(child, widget);
-            if status  == EventStatus::Handled {
+            if status == EventStatus::Handled {
                 self.id = old_id;
                 return EventStatus::Handled;
             }
@@ -212,7 +255,7 @@ impl<'a> MouseEventContext<'a> {
         }
     }
 
-	pub fn request_layout(&mut self) {
+    pub fn request_layout(&mut self) {
         request_layout(&mut self.app_state, self.id);
     }
 
@@ -220,9 +263,9 @@ impl<'a> MouseEventContext<'a> {
         invalidate_widget(&self.app_state, self.id);
     }
 
-	pub fn request_animation(&mut self) {
-		request_animation_frame(&mut self.app_state, self.id)
-	}
+    pub fn request_animation(&mut self) {
+        request_animation_frame(&mut self.app_state, self.id)
+    }
 
     pub fn bounds(&self) -> Rectangle {
         self.app_state.widget_data_ref(self.id).global_bounds()
@@ -235,12 +278,12 @@ impl<'a> MouseEventContext<'a> {
 }
 
 pub struct EventContext<'a> {
-    id: WidgetId, 
+    id: WidgetId,
     app_state: &'a mut AppState,
 }
 
 impl<'a> EventContext<'a> {
-    fn new(id: WidgetId, app_state: &'a mut AppState) -> Self{
+    fn new(id: WidgetId, app_state: &'a mut AppState) -> Self {
         Self { id, app_state }
     }
 
@@ -261,7 +304,7 @@ impl<'a> EventContext<'a> {
         self.app_state.widget_data_ref(self.id).global_bounds()
     }
 
-	pub fn has_focus(&self) -> bool {
+    pub fn has_focus(&self) -> bool {
         self.app_state.widget_has_focus(self.id)
     }
 
@@ -288,9 +331,9 @@ impl<'a> EventContext<'a> {
         request_layout(&mut self.app_state, self.id);
     }
 
-	pub fn request_animation(&mut self) {
-		request_animation_frame(&mut self.app_state, self.id)
-	}
+    pub fn request_animation(&mut self) {
+        request_animation_frame(&mut self.app_state, self.id)
+    }
 
     pub fn request_render(&mut self) {
         invalidate_widget(&self.app_state, self.id);
@@ -307,7 +350,7 @@ impl<'a> EventContext<'a> {
 }
 
 pub struct CallbackContext<'a> {
-    id: WidgetId, 
+    id: WidgetId,
     app_state: &'a mut AppState,
 }
 

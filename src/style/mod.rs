@@ -1,26 +1,35 @@
+mod builder;
 mod display_style;
 mod layout_style;
 mod length;
 mod ui_rect;
 
-use crate::{app::Brush, core::{Color, Cursor, Size}};
-pub use display_style::{DisplayStyle, FlexStyle, GridStyle, Measure, AvailableSpace};
+use crate::{
+    app::Brush,
+    core::{Color, Cursor, Size},
+};
+pub(crate) use builder::apply_styles;
+pub use builder::StyleBuilder;
+pub use display_style::{AvailableSpace, DisplayStyle, FlexStyle, GridStyle, Measure};
 pub(crate) use layout_style::LayoutStyle;
 pub use length::Length;
-pub use taffy::{FlexDirection, FlexWrap, Overflow, AlignContent, AlignItems, AlignSelf, JustifyContent, JustifySelf};
+pub use taffy::{
+    AlignContent, AlignItems, AlignSelf, FlexDirection, FlexWrap, JustifyContent, JustifySelf,
+    Overflow,
+};
 pub use ui_rect::UiRect;
 
 pub(super) trait ResolveInto<T> {
-	fn resolve_into(self, window_size: Size) -> T;
+    fn resolve_into(self, window_size: Size) -> T;
 }
 
 impl<U, T: ResolveInto<U>> ResolveInto<taffy::Size<U>> for Size<T> {
-	fn resolve_into(self, window_size: Size) -> taffy::Size<U> {
-		taffy::Size {
-			width: self.width.resolve_into(window_size),
-			height: self.height.resolve_into(window_size)
-		}
-	}
+    fn resolve_into(self, window_size: Size) -> taffy::Size<U> {
+        taffy::Size {
+            width: self.width.resolve_into(window_size),
+            height: self.height.resolve_into(window_size),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -39,10 +48,10 @@ pub struct Style {
     pub overflow_y: Overflow,
     pub background: Option<Brush>,
     pub corner_radius: Size,
-	pub cursor: Option<Cursor>,
+    pub cursor: Option<Cursor>,
     pub border_color: Option<Color>,
-	pub align_self: Option<AlignSelf>,
-	pub justify_self: Option<JustifySelf>
+    pub align_self: Option<AlignSelf>,
+    pub justify_self: Option<JustifySelf>,
 }
 
 impl Default for Style {
@@ -62,10 +71,10 @@ impl Default for Style {
             overflow_y: Overflow::Visible,
             background: None,
             corner_radius: Size::ZERO,
-			cursor: None,
+            cursor: None,
             border_color: None,
-			align_self: None,
-			justify_self: None
+            align_self: None,
+            justify_self: None,
         }
     }
 }

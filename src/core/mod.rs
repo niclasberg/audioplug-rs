@@ -25,7 +25,7 @@ pub use color::Color;
 pub use color_map::*;
 pub use constraint::*;
 pub use cursor::Cursor;
-pub use ellipse::{Ellipse, Circle};
+pub use ellipse::{Circle, Ellipse};
 pub use interpolation::Interpolate;
 pub use keyboard::{Key, Modifiers};
 pub use point::Point;

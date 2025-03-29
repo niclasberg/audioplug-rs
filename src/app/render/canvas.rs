@@ -1,21 +1,30 @@
 use std::{any::Any, marker::PhantomData};
 
-use crate::{app::{render::{fill_shape, stroke_shape}, Accessor, AppState, BrushRef, BuildContext, EffectState, NodeId, Owner, ReactiveContext, ReadContext, RenderContext, Runtime, Scope, ShapeRef, TextLayout, View, Widget, WidgetId}, core::{Point, Rectangle}, platform, style::DisplayStyle};
+use crate::{
+    app::{
+        render::{fill_shape, stroke_shape},
+        Accessor, AppState, BrushRef, BuildContext, EffectState, NodeId, Owner, ReactiveContext,
+        ReadContext, RenderContext, Runtime, Scope, ShapeRef, TextLayout, View, Widget, WidgetId,
+    },
+    core::{Point, Rectangle},
+    platform,
+    style::DisplayStyle,
+};
 
 pub struct Canvas<FRender, State = ()> {
     f_render: FRender,
-    state: PhantomData<State>
+    state: PhantomData<State>,
 }
 
-impl<FRender, State> Canvas<FRender, State> 
+impl<FRender, State> Canvas<FRender, State>
 where
     State: 'static,
-    FRender: Fn(&mut CanvasContext, Option<State>) -> State  + 'static
+    FRender: Fn(&mut CanvasContext, Option<State>) -> State + 'static,
 {
     pub fn new(f_render: FRender) -> Self {
         Self {
             f_render,
-            state: PhantomData
+            state: PhantomData,
         }
     }
 }
@@ -23,7 +32,7 @@ where
 impl<FRender, State> View for Canvas<FRender, State>
 where
     State: 'static,
-    FRender: Fn(&mut CanvasContext, Option<State>) -> State + 'static
+    FRender: Fn(&mut CanvasContext, Option<State>) -> State + 'static,
 {
     type Element = CanvasWidget<State>;
 
@@ -32,21 +41,23 @@ where
         let state = EffectState::new(move |cx| {
             cx.widget_mut(widget_id).request_render();
         });
-        let effect_id = cx.runtime_mut().create_effect_node(state, Some(Owner::Widget(widget_id.id)), false);
+        let effect_id =
+            cx.runtime_mut()
+                .create_effect_node(state, Some(Owner::Widget(widget_id.id)), false);
 
         CanvasWidget {
             effect_id,
             state: None,
-            f_render: Box::new(self.f_render)
+            f_render: Box::new(self.f_render),
         }
     }
 }
 
 pub struct CanvasContext<'a, 'b> {
-    effect_id: NodeId, 
+    effect_id: NodeId,
     widget_id: WidgetId,
     app_state: &'a mut AppState,
-    renderer: platform::RendererRef<'b>
+    renderer: platform::RendererRef<'b>,
 }
 
 impl<'a, 'b> CanvasContext<'a, 'b> {
@@ -54,15 +65,31 @@ impl<'a, 'b> CanvasContext<'a, 'b> {
         fill_shape(&mut self.renderer, shape.into(), brush.into());
     }
 
-    pub fn stroke<'c, 'd>(&mut self, shape: impl Into<ShapeRef<'c>>, brush: impl Into<BrushRef<'d>>, line_width: f32) {
+    pub fn stroke<'c, 'd>(
+        &mut self,
+        shape: impl Into<ShapeRef<'c>>,
+        brush: impl Into<BrushRef<'d>>,
+        line_width: f32,
+    ) {
         stroke_shape(&mut self.renderer, shape.into(), brush.into(), line_width);
     }
 
-    pub fn draw_line<'c>(&mut self, p0: Point, p1: Point, brush: impl Into<BrushRef<'c>>, line_width: f32) {
+    pub fn draw_line<'c>(
+        &mut self,
+        p0: Point,
+        p1: Point,
+        brush: impl Into<BrushRef<'c>>,
+        line_width: f32,
+    ) {
         self.renderer.draw_line(p0, p1, brush.into(), line_width)
     }
 
-    pub fn draw_lines<'c>(&mut self, points: &[Point], brush: impl Into<BrushRef<'c>>, line_width: f32) {
+    pub fn draw_lines<'c>(
+        &mut self,
+        points: &[Point],
+        brush: impl Into<BrushRef<'c>>,
+        line_width: f32,
+    ) {
         let brush = brush.into();
         for p in points.windows(2) {
             self.renderer.draw_line(p[0], p[1], brush, line_width)
@@ -78,7 +105,9 @@ impl<'a, 'b> CanvasContext<'a, 'b> {
     }
 
     pub fn bounds(&self) -> Rectangle {
-        self.app_state.widget_data_ref(self.widget_id).content_bounds()
+        self.app_state
+            .widget_data_ref(self.widget_id)
+            .content_bounds()
     }
 }
 
@@ -114,7 +143,10 @@ impl<State: 'static> Widget for CanvasWidget<State> {
     }
 
     fn render(&mut self, cx: &mut crate::app::RenderContext) {
-        cx.app_state.runtime.subscriptions.clear_node_sources(self.effect_id);
+        cx.app_state
+            .runtime
+            .subscriptions
+            .clear_node_sources(self.effect_id);
         let mut cx = CanvasContext {
             widget_id: cx.id,
             effect_id: self.effect_id,

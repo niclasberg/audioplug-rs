@@ -1,7 +1,7 @@
 pub enum ChannelType {
     Empty,
     Mono,
-    Stereo
+    Stereo,
 }
 
 impl ChannelType {
@@ -16,7 +16,7 @@ impl ChannelType {
 
 pub struct Bus {
     pub name: &'static str,
-    pub channel: ChannelType
+    pub channel: ChannelType,
 }
 
 pub struct AudioLayout {
@@ -25,8 +25,8 @@ pub struct AudioLayout {
 }
 
 impl AudioLayout {
-	pub const EMPTY: Self = Self {
-		main_input: None,
-		main_output: None,
-	};
+    pub const EMPTY: Self = Self {
+        main_input: None,
+        main_output: None,
+    };
 }

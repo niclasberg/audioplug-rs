@@ -1,22 +1,20 @@
 use taffy::Overflow;
 
-use crate::app::{Accessor, BuildContext, RenderContext, Widget};
-
-use super::View;
+use crate::app::{Accessor, BuildContext, RenderContext, View, Widget};
 
 enum Direction {
     Horizontal,
-    Vertical
+    Vertical,
 }
 
 pub struct Scroll<V> {
     child: V,
-	overflow_x: Accessor<Overflow>,
+    overflow_x: Accessor<Overflow>,
 }
 
 impl<V: View> Scroll<V> {
     pub fn new(child: V) -> Self {
-        Self { 
+        Self {
             child,
             overflow_x: Accessor::Const(Overflow::Scroll),
         }
@@ -30,13 +28,13 @@ impl<V: View> View for Scroll<V> {
         let widget = cx.build(self.child);
 
         cx.update_style(|s| {
-            s.overflow_x = Overflow::Scroll; 
+            s.overflow_x = Overflow::Scroll;
         });
 
         ScrollWidget {
             scroll_pos_x: None,
             scroll_pos_y: None,
-            widget
+            widget,
         }
     }
 }
@@ -44,18 +42,16 @@ impl<V: View> View for Scroll<V> {
 pub struct ScrollWidget<W: Widget> {
     scroll_pos_x: Option<f64>,
     scroll_pos_y: Option<f64>,
-    widget: W
+    widget: W,
 }
 
 impl<W: Widget> Widget for ScrollWidget<W> {
-	fn debug_label(&self) -> &'static str {
-		"Scroll"
-	}
-
-    fn render(&mut self, ctx: &mut RenderContext) {
-        
+    fn debug_label(&self) -> &'static str {
+        "Scroll"
     }
-    
+
+    fn render(&mut self, ctx: &mut RenderContext) {}
+
     fn display_style(&self) -> crate::style::DisplayStyle {
         todo!()
     }

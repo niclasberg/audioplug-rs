@@ -1,5 +1,5 @@
 pub fn normalize_value(min: f64, max: f64, value: f64) -> f64 {
-	((value - min) / (max - min)).clamp(0.0, 1.0)
+    ((value - min) / (max - min)).clamp(0.0, 1.0)
 }
 
 pub fn denormalize_value(min: f64, max: f64, value: f64) -> f64 {
