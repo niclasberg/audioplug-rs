@@ -27,11 +27,11 @@ pub struct LocalCreateContext<'a> {
 
 impl<'a> ReactiveContext for LocalCreateContext<'a> {
     fn runtime(&self) -> &Runtime {
-        &self.runtime
+        self.runtime
     }
 
     fn runtime_mut(&mut self) -> &mut Runtime {
-        &mut self.runtime
+        self.runtime
     }
 }
 

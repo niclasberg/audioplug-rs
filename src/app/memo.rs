@@ -12,11 +12,11 @@ pub struct MemoContext<'a> {
 
 impl<'b> ReactiveContext for MemoContext<'b> {
     fn runtime(&self) -> &Runtime {
-        &self.runtime
+        self.runtime
     }
 
     fn runtime_mut(&mut self) -> &mut Runtime {
-        &mut self.runtime
+        self.runtime
     }
 }
 
@@ -59,7 +59,7 @@ impl<T: Any> Memo<T> {
             f: Box::new(move |cx, value| {
                 if let Some(value) = value {
                     let value = value.deref_mut().downcast_mut::<T>().unwrap();
-                    let new_value = f(cx, Some(&value));
+                    let new_value = f(cx, Some(value));
                     if !compare(value, &new_value) {
                         *value = new_value;
                         true

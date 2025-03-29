@@ -77,7 +77,7 @@ impl dyn Widget + 'static {
     }
 
     pub fn downcast_mut<T: 'static>(&mut self) -> Option<&mut T> {
-        if (&*self).type_id() == TypeId::of::<T>() {
+        if (*self).type_id() == TypeId::of::<T>() {
             Some(unsafe { &mut *(self as *mut _ as *mut T) })
         } else {
             self.inner_widget_mut().and_then(|w| w.downcast_mut())

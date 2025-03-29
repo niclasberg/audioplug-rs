@@ -116,7 +116,7 @@ impl ParameterInfo for FloatParameterInfo {
     }
 
     fn name(&self) -> &str {
-        &self.name
+        self.name
     }
 
     fn default_value(&self) -> PlainValue {

@@ -73,7 +73,7 @@ pub struct LayoutContext<'a> {
 }
 
 impl<'a> LayoutContext<'a> {
-    fn get_layout_style<'b>(&'b self, node_id: taffy::NodeId) -> LayoutStyle<'b> {
+    fn get_layout_style(&self, node_id: taffy::NodeId) -> LayoutStyle<'_> {
         LayoutStyle {
             style: &self.app_state.widget_data[node_id.into()].style,
             display_style: self.app_state.widgets[node_id.into()].display_style(),
@@ -258,11 +258,8 @@ impl<'a> LayoutPartialTree for LayoutContext<'a> {
                                         })
                                 });
 
-                            let size = measure.measure(
-                                &style,
-                                available_size.width,
-                                available_size.height,
-                            );
+                            let size =
+                                measure.measure(style, available_size.width, available_size.height);
                             taffy::Size {
                                 width: size.width as _,
                                 height: size.height as _,

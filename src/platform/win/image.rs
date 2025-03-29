@@ -8,7 +8,7 @@ use windows::Win32::{
     Graphics::{Direct2D, Imaging},
 };
 
-use crate::core::{Rectangle, Size};
+use crate::core::Size;
 
 use super::com::wic_factory;
 use super::renderer::RendererGeneration;

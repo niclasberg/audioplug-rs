@@ -7,6 +7,7 @@ use crate::{
 
 use super::{Length, Style, UiRect};
 
+#[derive(Default)]
 pub struct StyleBuilder {
     hidden: Option<Accessor<bool>>,
     padding: Option<Accessor<UiRect>>,
@@ -25,30 +26,6 @@ pub struct StyleBuilder {
     border_color: Option<Accessor<Color>>,
     justify_self: Option<Accessor<JustifySelf>>,
     align_self: Option<Accessor<AlignSelf>>,
-}
-
-impl Default for StyleBuilder {
-    fn default() -> Self {
-        Self {
-            hidden: None,
-            padding: None,
-            width: None,
-            height: None,
-            aspect_ratio: None,
-            border: None,
-            margin: None,
-            inset: None,
-            min_width: None,
-            min_height: None,
-            max_width: None,
-            max_height: None,
-            background: None,
-            corner_radius: None,
-            border_color: None,
-            justify_self: None,
-            align_self: None,
-        }
-    }
 }
 
 impl StyleBuilder {

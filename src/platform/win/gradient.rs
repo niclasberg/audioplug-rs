@@ -73,7 +73,7 @@ impl NativeLinearGradient {
             let brush = &cached_brush.as_ref().unwrap().brush;
             unsafe { brush.SetStartPoint(self.start.resolve(bounds).into()) };
             unsafe { brush.SetEndPoint(self.end.resolve(bounds).into()) };
-            f(render_target, &brush)
+            f(render_target, brush)
         }
 
         Ok(())

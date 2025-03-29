@@ -1,6 +1,5 @@
 use std::cell::Cell;
 use std::ffi::{CStr, CString};
-use std::mem::size_of;
 use std::rc::Rc;
 
 use crate::core::{Rectangle, WindowTheme};
@@ -73,12 +72,12 @@ impl Handle {
             ScopeExit(|| unsafe { CloseClipboard().expect("Error while closing clipboard") });
         unsafe { DataExchange::EmptyClipboard() }?;
 
-        if string.len() > 0 {
+        if !string.is_empty() {
             let chars = CString::new(string).unwrap();
             let chars = chars.as_bytes_with_nul();
             unsafe {
                 let hmem: HGLOBAL =
-                    Memory::GlobalAlloc(GMEM_MOVEABLE, chars.len() * size_of::<u8>())?;
+                    Memory::GlobalAlloc(GMEM_MOVEABLE, std::mem::size_of_val(chars))?;
                 let mem_loc = Memory::GlobalLock(hmem);
                 std::ptr::copy_nonoverlapping(chars.as_ptr(), mem_loc as *mut u8, chars.len());
                 let _ = Memory::GlobalUnlock(hmem);

@@ -38,7 +38,7 @@ impl AnyParameter for ByPassParameter {
     }
 
     fn as_param_ref(&self) -> ParamRef {
-        ParamRef::ByPass(&self)
+        ParamRef::ByPass(self)
     }
 }
 

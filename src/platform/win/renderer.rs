@@ -10,28 +10,28 @@ use windows::{
 use super::{com::direct2d_factory, geometry::NativeGeometry, NativeImage, TextLayout};
 use crate::{
     app::BrushRef,
-    core::{Color, Ellipse, Point, Rectangle, RoundedRectangle, Size, Transform},
+    core::{Color, Ellipse, Point, Rectangle, RoundedRectangle, Transform},
 };
 use std::mem::MaybeUninit;
 
-impl Into<Direct2D::Common::D2D1_COLOR_F> for Color {
-    fn into(self) -> Direct2D::Common::D2D1_COLOR_F {
+impl From<Color> for Direct2D::Common::D2D1_COLOR_F {
+    fn from(val: Color) -> Self {
         Direct2D::Common::D2D1_COLOR_F {
-            r: self.r,
-            g: self.g,
-            b: self.b,
-            a: self.a,
+            r: val.r,
+            g: val.g,
+            b: val.b,
+            a: val.a,
         }
     }
 }
 
-impl Into<Direct2D::Common::D2D_RECT_F> for Rectangle {
-    fn into(self) -> Direct2D::Common::D2D_RECT_F {
+impl From<Rectangle> for Direct2D::Common::D2D_RECT_F {
+    fn from(val: Rectangle) -> Self {
         Direct2D::Common::D2D_RECT_F {
-            left: self.left() as f32,
-            top: self.top() as f32,
-            right: self.right() as f32,
-            bottom: self.bottom() as f32,
+            left: val.left() as f32,
+            top: val.top() as f32,
+            right: val.right() as f32,
+            bottom: val.bottom() as f32,
         }
     }
 }
@@ -47,44 +47,44 @@ impl From<Direct2D::Common::D2D_RECT_F> for Rectangle {
     }
 }
 
-impl Into<Direct2D::D2D1_ROUNDED_RECT> for RoundedRectangle {
-    fn into(self) -> Direct2D::D2D1_ROUNDED_RECT {
+impl From<RoundedRectangle> for Direct2D::D2D1_ROUNDED_RECT {
+    fn from(val: RoundedRectangle) -> Self {
         Direct2D::D2D1_ROUNDED_RECT {
-            rect: self.rect.into(),
-            radiusX: self.corner_radius.width as f32,
-            radiusY: self.corner_radius.height as f32,
+            rect: val.rect.into(),
+            radiusX: val.corner_radius.width as f32,
+            radiusY: val.corner_radius.height as f32,
         }
     }
 }
 
-impl Into<Direct2D::D2D1_ELLIPSE> for Ellipse {
-    fn into(self) -> Direct2D::D2D1_ELLIPSE {
+impl From<Ellipse> for Direct2D::D2D1_ELLIPSE {
+    fn from(val: Ellipse) -> Self {
         Direct2D::D2D1_ELLIPSE {
-            point: self.center.into(),
-            radiusX: self.radii.width as f32,
-            radiusY: self.radii.height as f32,
+            point: val.center.into(),
+            radiusX: val.radii.width as f32,
+            radiusY: val.radii.height as f32,
         }
     }
 }
 
-impl Into<windows_numerics::Vector2> for Point {
-    fn into(self) -> windows_numerics::Vector2 {
+impl From<Point> for windows_numerics::Vector2 {
+    fn from(val: Point) -> Self {
         windows_numerics::Vector2 {
-            X: self.x as f32,
-            Y: self.y as f32,
+            X: val.x as f32,
+            Y: val.y as f32,
         }
     }
 }
 
-impl Into<windows_numerics::Matrix3x2> for Transform {
-    fn into(self) -> windows_numerics::Matrix3x2 {
+impl From<Transform> for windows_numerics::Matrix3x2 {
+    fn from(val: Transform) -> Self {
         windows_numerics::Matrix3x2 {
-            M11: self.m11 as f32,
-            M12: self.m12 as f32,
-            M21: self.m21 as f32,
-            M22: self.m22 as f32,
-            M31: self.tx as f32,
-            M32: self.ty as f32,
+            M11: val.m11 as f32,
+            M12: val.m12 as f32,
+            M21: val.m21 as f32,
+            M22: val.m22 as f32,
+            M31: val.tx as f32,
+            M32: val.ty as f32,
         }
     }
 }
@@ -127,7 +127,7 @@ pub struct Renderer {
 impl Renderer {
     pub fn new(hwnd: HWND) -> Result<Self> {
         let mut rect: RECT = RECT::default();
-        unsafe { GetClientRect(hwnd, &mut rect) };
+        unsafe { GetClientRect(hwnd, &mut rect) }?;
 
         let size = Direct2D::Common::D2D_SIZE_U {
             width: (rect.right - rect.left) as u32,
@@ -224,14 +224,10 @@ impl Renderer {
     }
 
     pub fn draw_line(&mut self, p0: Point, p1: Point, brush: BrushRef, line_width: f32) {
-        match brush {
-            BrushRef::Solid(color) => unsafe {
-                self.brush.SetColor(&color.into());
-                self.render_target
-                    .DrawLine(p0.into(), p1.into(), &self.brush, line_width, None)
-            },
-            BrushRef::LinearGradient(linear_gradient) => todo!(),
-        }
+        let bounds = Rectangle::from_points(p0, p1);
+        self.use_brush(bounds, brush, |render_target, brush| unsafe {
+            render_target.DrawLine(p0.into(), p1.into(), brush, line_width, None);
+        });
     }
 
     pub fn draw_rectangle(&mut self, rect: Rectangle, brush: BrushRef, line_width: f32) {

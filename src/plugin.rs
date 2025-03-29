@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::editor::Editor;
 use crate::midi::NoteEvent;
 use crate::param::Params;
-use crate::wrapper::vst3::{VST3Categories, VSTCategory};
+use crate::wrapper::vst3::VST3Categories;
 use crate::{AudioBuffer, AudioLayout};
 
 pub struct PluginInfo {
@@ -25,8 +25,8 @@ impl PluginInfo {
 }
 
 pub struct Preset<P: Params> {
-    name: String,
-    parameters: P,
+    pub name: String,
+    pub parameters: P,
 }
 
 pub struct ProcessContext<'a> {
@@ -62,7 +62,6 @@ pub trait Plugin: Send {
     /// the host can request to be processed in a single call to [process].
     fn prepare(&mut self, sample_rate: f64, max_buffer_size: usize);
 
-    ///
     fn process(&mut self, context: ProcessContext, parameters: &Self::Parameters);
 
     fn process_midi(

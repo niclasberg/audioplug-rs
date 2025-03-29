@@ -35,9 +35,9 @@ impl CreateParameterViewsVisitor {
 }
 
 impl ParamVisitor for CreateParameterViewsVisitor {
-    fn bool_parameter(&mut self, p: &crate::param::BoolParameter) {}
+    fn bool_parameter(&mut self, _p: &crate::param::BoolParameter) {}
 
-    fn bypass_parameter(&mut self, p: &crate::param::ByPassParameter) {}
+    fn bypass_parameter(&mut self, _p: &crate::param::ByPassParameter) {}
 
     fn float_parameter(&mut self, p: &crate::param::FloatParameter) {
         let view = Row::new((Label::new(p.info().name()), ParameterSlider::new(p)));
@@ -52,7 +52,7 @@ impl ParamVisitor for CreateParameterViewsVisitor {
         self.views.push(view.as_any_view());
     }
 
-    fn string_list_parameter(&mut self, p: &crate::param::StringListParameter) {}
+    fn string_list_parameter(&mut self, _p: &crate::param::StringListParameter) {}
 
     fn group<P: ParameterTraversal>(&mut self, group: &crate::param::ParameterGroup<P>) {
         let mut child_visitor = Self::new();

@@ -37,7 +37,7 @@ impl AnyParameter for BoolParameter {
     }
 
     fn as_param_ref(&self) -> ParamRef {
-        ParamRef::Bool(&self)
+        ParamRef::Bool(self)
     }
 }
 
@@ -80,7 +80,7 @@ impl ParameterInfo for BoolParameterInfo {
     }
 
     fn name(&self) -> &str {
-        &self.name
+        self.name
     }
 
     fn default_value(&self) -> super::PlainValue {

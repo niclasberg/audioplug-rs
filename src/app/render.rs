@@ -7,7 +7,7 @@ mod brush;
 mod canvas;
 mod shape;
 mod text;
-use super::{AppState, ReactiveContext, WidgetId, WindowId};
+use super::{AppState, WidgetId, WindowId};
 pub use brush::{Brush, BrushRef, LinearGradient, RadialGradient};
 pub use canvas::{Canvas, CanvasContext, CanvasWidget};
 pub use shape::{PathGeometry, PathGeometryBuilder, Shape, ShapeRef};
@@ -67,7 +67,7 @@ impl<'a, 'b> RenderContext<'a, 'b> {
     }
 
     pub fn fill<'c, 'd>(&mut self, shape: impl Into<ShapeRef<'c>>, brush: impl Into<BrushRef<'d>>) {
-        fill_shape(&mut self.renderer, shape.into(), brush.into());
+        fill_shape(self.renderer, shape.into(), brush.into());
     }
 
     pub fn stroke<'c, 'd>(
@@ -76,7 +76,7 @@ impl<'a, 'b> RenderContext<'a, 'b> {
         brush: impl Into<BrushRef<'d>>,
         line_width: f32,
     ) {
-        stroke_shape(&mut self.renderer, shape.into(), brush.into(), line_width);
+        stroke_shape(self.renderer, shape.into(), brush.into(), line_width);
     }
 
     pub fn draw_line<'c>(
@@ -136,7 +136,7 @@ impl<'a, 'b> RenderContext<'a, 'b> {
             let shape = widget_data.shape();
 
             if let Some(background) = &widget_data.style.background {
-                fill_shape(&mut self.renderer, (&shape).into(), background.into());
+                fill_shape(self.renderer, (&shape).into(), background.into());
             }
 
             if let Some(border_color) = border_color {

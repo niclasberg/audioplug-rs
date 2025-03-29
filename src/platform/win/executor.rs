@@ -17,9 +17,8 @@ use windows::{
         System::LibraryLoader::GetModuleHandleW,
         UI::WindowsAndMessaging::{
             CreateWindowExW, DefWindowProcW, GetClassInfoW, GetWindowLongPtrW, PostMessageA,
-            RegisterClassW, SetWindowLongPtrW, CREATESTRUCTW, CW_USEDEFAULT, GWLP_USERDATA,
-            HWND_MESSAGE, WINDOW_EX_STYLE, WINDOW_STYLE, WM_NCCREATE, WM_NCDESTROY, WM_USER,
-            WNDCLASSW,
+            RegisterClassW, SetWindowLongPtrW, CREATESTRUCTW, GWLP_USERDATA, HWND_MESSAGE,
+            WINDOW_EX_STYLE, WINDOW_STYLE, WM_NCCREATE, WM_NCDESTROY, WM_USER, WNDCLASSW,
         },
     },
 };
@@ -120,7 +119,7 @@ impl Executor {
         Ok(Self { hwnd, sender })
     }
 
-    pub fn dispatch(&self, f: impl Fn()) {}
+    pub fn dispatch(&self, _f: impl Fn()) {}
 
     pub fn dispatch_on_main(&self, f: impl FnOnce() + 'static) {
         self.sender

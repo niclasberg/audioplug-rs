@@ -19,10 +19,7 @@ impl<'a> taffy::CoreStyle for LayoutStyle<'a> {
     }
 
     fn is_block(&self) -> bool {
-        match self.display_style {
-            DisplayStyle::Block => true,
-            _ => false,
-        }
+        matches!(self.display_style, DisplayStyle::Block)
     }
 
     fn box_sizing(&self) -> taffy::BoxSizing {

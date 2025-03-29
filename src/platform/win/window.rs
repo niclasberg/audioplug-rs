@@ -243,13 +243,10 @@ impl WindowState {
             },
 
             WM_TIMER => {
-                match wparam.0 {
-                    ANIMATION_FRAME_TIMER => {
-                        if let Some(timestamp) = self.current_timestamp() {
-                            self.publish_event(hwnd, WindowEvent::Animation(AnimationFrame { timestamp }));
-                        }
-                    },
-                    _ => {}
+                if wparam.0 == ANIMATION_FRAME_TIMER {
+                    if let Some(timestamp) = self.current_timestamp() {
+                        self.publish_event(hwnd, WindowEvent::Animation(AnimationFrame { timestamp }));
+                    }
                 };
 
                 Some(LRESULT(0))
@@ -559,7 +556,7 @@ unsafe extern "system" fn wndproc(
             drop(Rc::from_raw(window_state_ptr));
             DefWindowProcW(hwnd, message, wparam, lparam)
         } else {
-            let result = (&*window_state_ptr).handle_message(hwnd, message, wparam, lparam);
+            let result = (*window_state_ptr).handle_message(hwnd, message, wparam, lparam);
             result.unwrap_or_else(|| DefWindowProcW(hwnd, message, wparam, lparam))
         }
     } else {

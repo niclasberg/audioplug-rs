@@ -4,8 +4,8 @@ use audioplug::{
     audioplug_auv3_plugin, audioplug_vst3_plugin,
     midi::{Note, NoteEvent},
     param::Parameter,
-    wrapper::vst3::{VST3Categories, VSTCategory},
-    AudioLayout, Bus, ChannelType, GenericEditor, Plugin, VST3Plugin,
+    wrapper::vst3::VST3Categories,
+    AudioLayout, Bus, ChannelType, Plugin, VST3Plugin,
 };
 use editor::SynthEditor;
 use params::SynthParams;

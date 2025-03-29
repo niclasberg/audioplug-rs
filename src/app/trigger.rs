@@ -20,15 +20,8 @@ impl Trigger {
         }
     }
 
-    pub(super) fn from_node_id(node_id: NodeId) -> Self {
-        Self {
-            node_id,
-            _marker: PhantomData,
-        }
-    }
-
     pub fn track(&self, cx: &mut dyn ReadContext) {
-        let scope = cx.scope().clone();
+        let scope = cx.scope();
         cx.runtime_mut().track(self.node_id, scope);
     }
 

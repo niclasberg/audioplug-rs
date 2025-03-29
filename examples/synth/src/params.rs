@@ -16,7 +16,7 @@ params!(
 impl OscillatorParams {
     pub fn new(offset: u32) -> Self {
         Self {
-            octave: IntParameter::new(ParameterId(offset + 0), "Octave").with_range(-3..=3),
+            octave: IntParameter::new(ParameterId(offset), "Octave").with_range(-3..=3),
             semitones: IntParameter::new(ParameterId(offset + 1), "Semitones").with_range(-11..=11),
         }
     }
@@ -33,7 +33,7 @@ params!(
 impl FilterParams {
     pub fn new(offset: u32) -> Self {
         Self {
-            enabled: BoolParameter::new(ParameterId(offset + 0), "Enabled", true),
+            enabled: BoolParameter::new(ParameterId(offset), "Enabled", true),
             cutoff: FloatParameter::new(ParameterId(offset + 1), "Filter Cutoff")
                 .with_linear_range(100.0, 3000.0),
             resonance: FloatParameter::new(ParameterId(offset + 2), "Filter Resonance")
@@ -54,7 +54,7 @@ params!(
 impl AmpEnvelopeParams {
     pub fn new(offset: u32) -> Self {
         Self {
-            attack: FloatParameter::new(ParameterId(offset + 0), "Attack")
+            attack: FloatParameter::new(ParameterId(offset), "Attack")
                 .with_linear_range(10.0, 1000.0),
             decay: FloatParameter::new(ParameterId(offset + 1), "Decay")
                 .with_linear_range(10.0, 1000.0),

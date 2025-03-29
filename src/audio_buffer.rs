@@ -11,7 +11,11 @@ impl AudioBuffer {
         channel_samples: &[&mut [f32; NSAMPLES]; NCHANNELS],
     ) -> Self {
         let channel_samples = channel_samples as *const _;
-        let channel_samples = unsafe { std::mem::transmute(channel_samples) };
+        let channel_samples = unsafe {
+            std::mem::transmute::<*const [&mut [f32; NSAMPLES]; NCHANNELS], *mut *mut f32>(
+                channel_samples,
+            )
+        };
         Self {
             num_channels: NCHANNELS,
             num_samples: NSAMPLES,
@@ -19,6 +23,9 @@ impl AudioBuffer {
         }
     }
 
+    /// # Safety
+    ///
+    /// The caller must ensure that channel_samples has a length of num_channels * num_samples
     pub unsafe fn from_ptr(
         channel_samples: *mut *mut f32,
         num_channels: usize,
@@ -47,41 +54,37 @@ impl AudioBuffer {
         self.num_channels
     }
 
-    pub fn channel<'a>(&'a self, index: usize) -> ChannelSamples<'a> {
+    pub fn channel(&self, index: usize) -> ChannelSamples<'_> {
         assert!(index < self.num_channels);
         ChannelSamples {
-            samples: unsafe { *self.channel_samples.offset(index as isize) },
+            samples: unsafe { *self.channel_samples.add(index) },
             num_samples: self.num_samples,
             _phantom: PhantomData,
         }
     }
 
-    pub fn channel_mut<'a>(&'a self, index: usize) -> ChannelSamplesMut<'a> {
+    pub fn channel_mut(&self, index: usize) -> ChannelSamplesMut<'_> {
         assert!(index < self.num_channels);
         ChannelSamplesMut {
-            samples: unsafe { *self.channel_samples.offset(index as isize) },
+            samples: unsafe { *self.channel_samples.add(index) },
             num_samples: self.num_samples,
             _phantom: PhantomData,
         }
     }
 
-    pub fn channels_iter<'a>(&'a self) -> ChannelsIter<'a> {
+    pub fn channels_iter(&self) -> ChannelsIter<'_> {
         ChannelsIter {
             current_channel_samples: self.channel_samples as *const _,
-            end_channel_samples: unsafe {
-                self.channel_samples.offset(self.num_channels as isize) as *const _
-            },
+            end_channel_samples: unsafe { self.channel_samples.add(self.num_channels) as *const _ },
             num_samples: self.num_samples,
             _phantom: PhantomData,
         }
     }
 
-    pub fn channels_iter_mut<'a>(&'a mut self) -> ChannelsIterMut<'a> {
+    pub fn channels_iter_mut(&mut self) -> ChannelsIterMut<'_> {
         ChannelsIterMut {
             current_channel_samples: self.channel_samples,
-            end_channel_samples: unsafe {
-                self.channel_samples.offset(self.num_channels as isize) as *const _
-            },
+            end_channel_samples: unsafe { self.channel_samples.add(self.num_channels) as *const _ },
             num_samples: self.num_samples,
             _phantom: PhantomData,
         }
@@ -175,6 +178,10 @@ impl<'a> ChannelSamples<'a> {
     pub fn len(&self) -> usize {
         self.num_samples
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.num_samples == 0
+    }
 }
 
 impl<'a> IntoIterator for ChannelSamples<'a> {
@@ -196,7 +203,7 @@ impl<'a> ChannelSamplesIter<'a> {
     fn new(current_sample: *const f32, num_samples: usize) -> Self {
         Self {
             current_sample,
-            last_sample: unsafe { current_sample.offset(num_samples as isize) },
+            last_sample: unsafe { current_sample.add(num_samples) },
             _phantom: PhantomData,
         }
     }
@@ -235,6 +242,11 @@ impl<'a> ChannelSamplesMut<'a> {
     pub fn len(&self) -> usize {
         self.num_samples
     }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.num_samples == 0
+    }
 }
 
 impl<'a> ChannelSamplesMut<'a> {
@@ -245,7 +257,7 @@ impl<'a> ChannelSamplesMut<'a> {
     pub fn iter_mut(&mut self) -> ChannelSamplesIterMut<'a> {
         ChannelSamplesIterMut {
             current_sample: self.samples,
-            last_sample: unsafe { self.samples.offset(self.num_samples as _) },
+            last_sample: unsafe { self.samples.add(self.num_samples) },
             _phantom: PhantomData,
         }
     }

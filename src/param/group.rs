@@ -32,7 +32,7 @@ impl<P: ParameterTraversal> AnyParameterGroup for ParameterGroup<P> {
     }
 
     fn name(&self) -> &'static str {
-        &self.name
+        self.name
     }
 }
 

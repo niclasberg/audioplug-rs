@@ -96,7 +96,7 @@ impl MouseEvent {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub struct MouseButtons(u8);
 
 impl MouseButtons {
@@ -122,12 +122,6 @@ impl MouseButtons {
 
     pub fn clear(&mut self) {
         self.0 = 0;
-    }
-}
-
-impl Default for MouseButtons {
-    fn default() -> Self {
-        Self(0)
     }
 }
 

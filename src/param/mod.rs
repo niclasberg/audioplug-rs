@@ -81,7 +81,7 @@ pub struct NormalizedValue(pub(super) f64);
 
 impl NormalizedValue {
     pub fn from_f64(value: f64) -> Option<Self> {
-        if value >= 0.0 && value <= 1.0 {
+        if (0.0..=1.0).contains(&value) {
             Some(Self(value))
         } else {
             None
@@ -89,6 +89,9 @@ impl NormalizedValue {
     }
 
     #[inline]
+    /// # Safety
+    ///
+    /// Caller must ensure that the value is between 0.0 and 1.0
     pub unsafe fn from_f64_unchecked(value: f64) -> Self {
         Self(value)
     }
@@ -104,15 +107,15 @@ impl NormalizedValue {
     }
 }
 
-impl Into<f64> for NormalizedValue {
-    fn into(self) -> f64 {
-        self.0
+impl From<NormalizedValue> for f64 {
+    fn from(val: NormalizedValue) -> Self {
+        val.0
     }
 }
 
-impl Into<bool> for NormalizedValue {
-    fn into(self) -> bool {
-        self.0 > 0.5
+impl From<NormalizedValue> for bool {
+    fn from(val: NormalizedValue) -> Self {
+        val.0 > 0.5
     }
 }
 
@@ -132,9 +135,9 @@ impl PlainValue {
     }
 }
 
-impl Into<f64> for PlainValue {
-    fn into(self) -> f64 {
-        self.0
+impl From<PlainValue> for f64 {
+    fn from(val: PlainValue) -> Self {
+        val.0
     }
 }
 

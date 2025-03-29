@@ -1,5 +1,3 @@
-use std::{borrow::Borrow, ops::Deref};
-
 use taffy::{AlignContent, AlignItems, FlexDirection, FlexWrap};
 
 use super::{Length, Style};
@@ -21,10 +19,10 @@ impl AvailableSpace {
     }
 }
 
-impl Into<Option<f64>> for AvailableSpace {
-    fn into(self) -> Option<f64> {
-        match self {
-            Self::Exact(value) => Some(value),
+impl From<AvailableSpace> for Option<f64> {
+    fn from(val: AvailableSpace) -> Self {
+        match val {
+            AvailableSpace::Exact(value) => Some(value),
             _ => None,
         }
     }

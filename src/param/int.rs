@@ -97,7 +97,7 @@ impl ParameterInfo for IntParameterInfo {
     }
 
     fn name(&self) -> &str {
-        &self.name
+        self.name
     }
 
     fn default_value(&self) -> PlainValue {
@@ -189,7 +189,7 @@ impl IntRange {
 
     pub fn steps(&self) -> usize {
         match self {
-            IntRange::Linear { min, max } => (max - min).abs() as usize,
+            IntRange::Linear { min, max } => (max - min).unsigned_abs() as usize,
         }
     }
 }

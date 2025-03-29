@@ -71,9 +71,9 @@ impl<V: View> WindowHandler for MyHandler<V> {
         handle_window_event(&mut app_state, self.state.window_id(), event)
     }
 
-    fn render(&mut self, _: Rectangle, mut renderer: platform::RendererRef<'_>) {
+    fn render(&mut self, _: Rectangle, renderer: platform::RendererRef<'_>) {
         let mut app_state = self.app_state.borrow_mut();
-        render_window(&mut app_state, self.state.window_id(), &mut renderer)
+        render_window(&mut app_state, self.state.window_id(), renderer)
     }
 
     fn get_cursor(&self, _point: Point) -> Option<Cursor> {

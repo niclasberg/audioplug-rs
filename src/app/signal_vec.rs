@@ -1,8 +1,8 @@
-use std::{any::Any, cell::RefCell, collections::VecDeque, marker::PhantomData, rc::Rc};
+use std::{any::Any, marker::PhantomData};
 
 use super::{
-    accessor::SourceId, signal::SignalState, CreateContext, NodeId, NodeType, Owner,
-    ReactiveContext, Readable, Runtime, Trigger, WriteContext,
+    accessor::SourceId, signal::SignalState, CreateContext, NodeId, NodeType, Owner, Readable,
+    Runtime, Trigger, WriteContext,
 };
 
 #[derive(Copy, Clone)]
@@ -115,12 +115,4 @@ struct Inner<T> {
     values: Vec<T>,
     triggers: Vec<Trigger>,
     len_trigger: Option<Trigger>,
-}
-
-trait StreamStateInner {}
-
-impl<T> StreamStateInner for VecDeque<T> {}
-
-pub struct StreamState {
-    queue: Rc<RefCell<dyn StreamStateInner>>,
 }

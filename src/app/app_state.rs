@@ -50,10 +50,6 @@ impl Task {
     }
 }
 
-struct Overlay {
-    root_widget: WidgetId,
-}
-
 pub(super) struct WindowState {
     pub(super) handle: platform::Handle,
     pub(super) root_widget: WidgetId,
@@ -275,7 +271,7 @@ impl AppState {
     ) {
         let mut stack = vec![self.windows[id].root_widget];
         while let Some(current) = stack.pop() {
-            if !f(&self, current) {
+            if !f(self, current) {
                 return;
             }
 
@@ -304,7 +300,7 @@ impl AppState {
                 Action::VisitChildren(widget_id) => {
                     let data = &self.widget_data[widget_id];
                     if data.children.is_empty() {
-                        if !f(&self, widget_id) {
+                        if !f(self, widget_id) {
                             return;
                         }
                     } else {
@@ -317,7 +313,7 @@ impl AppState {
                     }
                 }
                 Action::Done(widget_id) => {
-                    if !f(&self, widget_id) {
+                    if !f(self, widget_id) {
                         return;
                     }
                 }
@@ -330,7 +326,7 @@ impl AppState {
         let mut flags_to_apply = WidgetFlags::empty();
         while !current.is_null() {
             let data = self.widget_data_mut(current);
-            data.flags = data.flags | flags_to_apply;
+            data.flags |= flags_to_apply;
             flags_to_apply = data.flags & (WidgetFlags::NEEDS_LAYOUT);
             current = data.parent_id;
         }
@@ -361,13 +357,9 @@ impl AppState {
             return;
         }
 
-        loop {
-            if let Some(task) = tasks.pop_front() {
-                task.run(self);
-                tasks.extend(self.runtime.take_tasks().into_iter());
-            } else {
-                break;
-            }
+        while let Some(task) = tasks.pop_front() {
+            task.run(self);
+            tasks.extend(self.runtime.take_tasks().into_iter());
         }
 
         // Layout if needed

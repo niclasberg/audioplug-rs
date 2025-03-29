@@ -12,9 +12,7 @@ pub trait Params: ParameterTraversal {
 }
 
 impl Params for () {
-    fn new() -> Self {
-        ()
-    }
+    fn new() -> Self {}
 }
 
 pub struct ParamIter<'a> {
@@ -101,7 +99,7 @@ impl<P: Params> ParameterMap<P> {
     pub fn new(parameters: P) -> Rc<Self> {
         // Construct the instance first, so that parameters is moved into the correct memory location
         let mut this = Rc::new(Self {
-            parameters: parameters,
+            parameters,
             params_vec: Vec::new(),
             params_map: HashMap::new(),
             groups_vec: Vec::new(),
@@ -123,7 +121,7 @@ impl<P: Params> ParameterMap<P> {
         &self.parameters
     }
 
-    pub fn iter<'s>(&'s self) -> ParamIter<'s> {
+    pub fn iter(&self) -> ParamIter<'_> {
         ParamIter {
             inner_iter: self.params_vec.as_slice().iter(),
         }

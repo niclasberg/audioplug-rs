@@ -24,7 +24,7 @@ impl<'a> Iterator for ChildIter<'a> {
         } else {
             let id = unsafe { *self.current_id };
             self.current_id = unsafe { self.current_id.offset(1) };
-            Some(WidgetRef::new(&self.app_state, id))
+            Some(WidgetRef::new(self.app_state, id))
         }
     }
 }
@@ -120,28 +120,28 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
 
     pub fn add_child<V: View>(&mut self, view: V) {
         let widget_id = self.app_state.add_widget(self.id, view);
-        request_layout(&mut self.app_state, widget_id);
+        request_layout(self.app_state, widget_id);
     }
 
     pub fn remove_child(&mut self, i: usize) {
         let child_id = self.data().children[i];
         self.app_state.remove_widget(child_id);
-        request_layout(&mut self.app_state, self.id);
+        request_layout(self.app_state, self.id);
     }
 
-    pub fn child_iter<'b>(&'b self) -> ChildIter<'b> {
+    pub fn child_iter(&self) -> ChildIter<'_> {
         let ptr_range = self.data().children.as_ptr_range();
         ChildIter {
-            app_state: &self.app_state,
+            app_state: self.app_state,
             current_id: ptr_range.start,
             end_id: ptr_range.end,
         }
     }
 
-    pub fn child_iter_mut<'b>(&'b mut self) -> ChildIterMut<'b> {
+    pub fn child_iter_mut(&mut self) -> ChildIterMut<'_> {
         let ptr_range = self.data_mut().children.as_mut_ptr_range();
         ChildIterMut {
-            app_state: &mut self.app_state,
+            app_state: self.app_state,
             current_id: ptr_range.start,
             end_id: ptr_range.end,
         }
@@ -160,7 +160,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 
     pub fn request_render(&mut self) {
-        invalidate_widget(&mut self.app_state, self.id);
+        invalidate_widget(self.app_state, self.id);
     }
 
     pub fn update_style(&mut self, f: impl FnOnce(&mut Style)) {

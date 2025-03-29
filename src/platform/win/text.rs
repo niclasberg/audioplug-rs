@@ -8,9 +8,9 @@ use windows::{
 use super::{com::direct_write_factory, util};
 use crate::core::{Color, FontWeight, Point, Size};
 
-impl Into<DirectWrite::DWRITE_FONT_WEIGHT> for FontWeight {
-    fn into(self) -> DirectWrite::DWRITE_FONT_WEIGHT {
-        match self {
+impl From<FontWeight> for DirectWrite::DWRITE_FONT_WEIGHT {
+    fn from(val: FontWeight) -> Self {
+        match val {
             FontWeight::Bold => DirectWrite::DWRITE_FONT_WEIGHT_BOLD,
             FontWeight::Normal => DirectWrite::DWRITE_FONT_WEIGHT_NORMAL,
         }

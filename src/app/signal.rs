@@ -53,11 +53,11 @@ impl<T: Any> Signal<T> {
             let signal = cx.runtime_mut().get_node_mut(self.id);
             match &mut signal.node_type {
                 NodeType::Signal(signal) => {
-                    let mut value = signal
+                    let value = signal
                         .value
                         .downcast_mut()
                         .expect("Invalid signal value type");
-                    f(&mut value);
+                    f(value);
                 }
                 _ => unreachable!(),
             }

@@ -1,6 +1,6 @@
 use super::{
     AppState, CreateContext, NodeId, ReactiveContext, ReadContext, Runtime, Scope, TypedWidgetId,
-    Widget, WidgetId, WidgetMut, WidgetRef, WriteContext,
+    Widget, WidgetMut, WidgetRef, WriteContext,
 };
 use std::{
     any::Any,
@@ -15,11 +15,11 @@ pub struct EffectContext<'a> {
 
 impl<'b> EffectContext<'b> {
     pub fn widget_ref<W: Widget>(&self, id: TypedWidgetId<W>) -> WidgetRef<'_, W> {
-        WidgetRef::new(&self.app_state, id.id)
+        WidgetRef::new(self.app_state, id.id)
     }
 
     pub fn widget_mut<W: Widget>(&mut self, id: TypedWidgetId<W>) -> WidgetMut<'_, W> {
-        WidgetMut::new(&mut self.app_state, id.id)
+        WidgetMut::new(self.app_state, id.id)
     }
 }
 

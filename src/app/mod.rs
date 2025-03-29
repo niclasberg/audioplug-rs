@@ -13,7 +13,6 @@ mod param;
 mod render;
 mod runtime;
 mod signal;
-mod signal_range;
 mod signal_vec;
 mod traits;
 mod trigger;
@@ -108,6 +107,12 @@ impl App {
 
     pub fn run(&mut self) {
         self.native.run()
+    }
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

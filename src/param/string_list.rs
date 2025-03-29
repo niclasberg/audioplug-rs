@@ -25,7 +25,7 @@ impl AnyParameter for StringListParameter {
     }
 
     fn as_param_ref(&self) -> ParamRef {
-        ParamRef::StringList(&self)
+        ParamRef::StringList(self)
     }
 }
 

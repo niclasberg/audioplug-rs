@@ -20,7 +20,6 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         WindowEvent::Resize { .. } => {
             layout_window(app_state, window_id);
             invalidate_window(app_state, window_id);
-            return;
         }
         WindowEvent::Mouse(mouse_event) => {
             match mouse_event {
@@ -37,11 +36,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                     });
                     set_focus_widget(app_state, window_id, new_focus_view);
                 }
-                MouseEvent::Wheel {
-                    delta,
-                    position,
-                    modifiers,
-                } => {
+                MouseEvent::Wheel { position, .. } => {
                     println!("{}", position);
                 }
                 _ => {}
@@ -73,14 +68,13 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             app_state.run_effects();
 
             if event_status == EventStatus::Ignored {
-                match key_event {
-                    KeyEvent::KeyDown { key, modifiers, .. } => match key {
+                if let KeyEvent::KeyDown { key, modifiers, .. } = key_event {
+                    match key {
                         Key::Escape if modifiers.is_empty() => {
                             set_mouse_capture_widget(app_state, None)
                         }
                         _ => {}
-                    },
-                    _ => {}
+                    }
                 }
             }
         }
@@ -129,13 +123,13 @@ pub fn set_focus_widget(
     }
 }
 
-pub fn clear_focus_and_mouse_capture(app_state: &mut AppState, widget_id: WidgetId) {
+/*pub fn clear_focus_and_mouse_capture(app_state: &mut AppState, widget_id: WidgetId) {
     if app_state.mouse_capture_widget == Some(widget_id) {
         set_mouse_capture_widget(app_state, None);
     }
 
     let window_id = app_state.get_window_id_for_widget(widget_id);
-}
+}*/
 
 pub fn set_mouse_capture_widget(app_state: &mut AppState, new_capture_widget: Option<WidgetId>) {
     if new_capture_widget != app_state.mouse_capture_widget {
@@ -199,18 +193,18 @@ impl<'a> MouseEventContext<'a> {
     }
 
     pub fn app_state(&self) -> &AppState {
-        &self.app_state
+        self.app_state
     }
 
     pub fn as_callback_context(&mut self) -> CallbackContext {
         CallbackContext {
             id: self.id,
-            app_state: &mut self.app_state,
+            app_state: self.app_state,
         }
     }
 
     pub fn app_state_mut(&mut self) -> &mut AppState {
-        &mut self.app_state
+        self.app_state
     }
 
     pub fn forward_to_children(&mut self, event: MouseEvent) -> EventStatus {
@@ -256,15 +250,15 @@ impl<'a> MouseEventContext<'a> {
     }
 
     pub fn request_layout(&mut self) {
-        request_layout(&mut self.app_state, self.id);
+        request_layout(self.app_state, self.id);
     }
 
     pub fn request_render(&mut self) {
-        invalidate_widget(&self.app_state, self.id);
+        invalidate_widget(self.app_state, self.id);
     }
 
     pub fn request_animation(&mut self) {
-        request_animation_frame(&mut self.app_state, self.id)
+        request_animation_frame(self.app_state, self.id)
     }
 
     pub fn bounds(&self) -> Rectangle {
@@ -313,30 +307,30 @@ impl<'a> EventContext<'a> {
     }
 
     pub fn app_state(&self) -> &AppState {
-        &self.app_state
+        self.app_state
     }
 
     pub fn app_state_mut(&mut self) -> &mut AppState {
-        &mut self.app_state
+        self.app_state
     }
 
     pub fn as_callback_context(&mut self) -> CallbackContext {
         CallbackContext {
             id: self.id,
-            app_state: &mut self.app_state,
+            app_state: self.app_state,
         }
     }
 
     pub fn request_layout(&mut self) {
-        request_layout(&mut self.app_state, self.id);
+        request_layout(self.app_state, self.id);
     }
 
     pub fn request_animation(&mut self) {
-        request_animation_frame(&mut self.app_state, self.id)
+        request_animation_frame(self.app_state, self.id)
     }
 
     pub fn request_render(&mut self) {
-        invalidate_widget(&self.app_state, self.id);
+        invalidate_widget(self.app_state, self.id);
     }
 
     pub fn clipboard(&self) -> Clipboard {

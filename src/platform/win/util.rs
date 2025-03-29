@@ -13,8 +13,11 @@ use crate::core::{Rectangle, WindowTheme};
 
 pub(super) fn get_client_rect(hwnd: HWND) -> Rectangle<i32> {
     let mut rect: RECT = RECT::default();
-    unsafe { GetClientRect(hwnd, &mut rect) };
-    Rectangle::from_ltrb(rect.left, rect.top, rect.right, rect.bottom)
+    if let Ok(()) = unsafe { GetClientRect(hwnd, &mut rect) } {
+        Rectangle::from_ltrb(rect.left, rect.top, rect.right, rect.bottom)
+    } else {
+        Rectangle::default()
+    }
 }
 
 /// Counts the number of utf-16 code units in the given string.
@@ -33,9 +36,8 @@ pub(crate) fn count_utf16(s: &str) -> usize {
 }
 
 pub(crate) fn count_until_utf16(s: &str, utf16_text_position: usize) -> Option<usize> {
-    let mut utf8_count = 0;
     let mut utf16_count = 0;
-    for &b in s.as_bytes() {
+    for (utf8_count, &b) in s.as_bytes().iter().enumerate() {
         if (b as i8) >= -0x40 {
             utf16_count += 1;
         }
@@ -46,8 +48,6 @@ pub(crate) fn count_until_utf16(s: &str, utf16_text_position: usize) -> Option<u
         if utf16_count > utf16_text_position {
             return Some(utf8_count);
         }
-
-        utf8_count += 1;
     }
 
     None

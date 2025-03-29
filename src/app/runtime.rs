@@ -5,7 +5,7 @@ use super::{
     effect::{BindingState, EffectState},
     memo::MemoState,
     signal::SignalState,
-    MemoContext, NodeId, ReactiveContext, ReadContext, Trigger, WidgetId, WriteContext,
+    MemoContext, NodeId, ReactiveContext, ReadContext, WidgetId, WriteContext,
 };
 use crate::param::{AnyParameterMap, ParamRef, ParameterId};
 use indexmap::IndexSet;
@@ -18,12 +18,6 @@ use std::{
 pub struct Node {
     pub(super) node_type: NodeType,
     state: NodeState,
-}
-
-pub struct PathSegment(usize);
-pub struct Path(Vec<PathSegment>);
-impl Path {
-    pub const ROOT: Self = Self(Vec::new());
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -184,8 +178,7 @@ impl Runtime {
         state: SignalState,
         owner: Option<Owner>,
     ) -> NodeId {
-        let id = self.create_node(NodeType::Signal(state), NodeState::Clean, owner);
-        id
+        self.create_node(NodeType::Signal(state), NodeState::Clean, owner)
     }
 
     pub(crate) fn create_memo_node(&mut self, state: MemoState, owner: Option<Owner>) -> NodeId {
@@ -388,7 +381,7 @@ impl Runtime {
                 }
                 NodeType::Binding(BindingState { f }) => {
                     let task = Task::UpdateBinding {
-                        f: Rc::downgrade(&f),
+                        f: Rc::downgrade(f),
                         node_id,
                     };
                     self.pending_tasks.push_back(task);
@@ -439,21 +432,15 @@ impl Runtime {
     }
 
     pub fn track(&mut self, source_id: NodeId, scope: Scope) {
-        match scope {
-            Scope::Node(node_id) => {
-                self.subscriptions.add_node_subscription(source_id, node_id);
-            }
-            _ => {}
+        if let Scope::Node(node_id) = scope {
+            self.subscriptions.add_node_subscription(source_id, node_id);
         }
     }
 
     pub fn track_parameter(&mut self, source_id: crate::param::ParameterId, scope: Scope) {
-        match scope {
-            Scope::Node(node_id) => {
-                self.subscriptions
-                    .add_parameter_subscription(source_id, node_id);
-            }
-            _ => {}
+        if let Scope::Node(node_id) = scope {
+            self.subscriptions
+                .add_parameter_subscription(source_id, node_id);
         }
     }
 }
