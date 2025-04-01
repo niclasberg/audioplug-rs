@@ -1,6 +1,6 @@
 use super::{
-    effect::BindingState, Accessor, BuildContext, Effect, NodeId, Owner, ReactiveContext, Readable,
-    View, Widget,
+    effect::BindingState, Accessor, BuildContext, NodeId, Owner, ReactiveContext, Readable, View,
+    Widget,
 };
 use std::{collections::HashMap, hash::Hash, ops::Range};
 
@@ -116,13 +116,17 @@ impl<V: View, F: Fn(usize) -> V + 'static> ViewSequence for IndexedViewSeq<F> {
 
         let f = self.view_factory;
         self.count.bind(cx, move |value, mut widget| {
-            if widget.child_count() < value {
-                for i in widget.child_count()..value {
-                    widget.add_child(f(i));
+            match widget.child_count().cmp(&value) {
+                std::cmp::Ordering::Equal => {}
+                std::cmp::Ordering::Less => {
+                    for i in widget.child_count()..value {
+                        widget.add_child(f(i));
+                    }
                 }
-            } else if value < widget.child_count() {
-                for i in value..widget.child_count() {
-                    widget.remove_child(i);
+                std::cmp::Ordering::Greater => {
+                    for i in value..widget.child_count() {
+                        widget.remove_child(i);
+                    }
                 }
             }
         });

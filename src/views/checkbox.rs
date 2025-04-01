@@ -24,7 +24,7 @@ impl View for Checkbox {
     type Element = CheckboxWidget;
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
-        ctx.set_style(Style {
+        ctx.set_default_style(Style {
             size: Size::new(Length::Px(12.0), Length::Px(12.0)),
             border: Length::Px(1.0),
             border_color: Some(Color::BLACK),

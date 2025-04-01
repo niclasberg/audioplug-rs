@@ -8,6 +8,7 @@ use crate::{
     core::{Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
+    style::apply_styles,
 };
 use indexmap::IndexSet;
 use slotmap::{Key, SecondaryMap, SlotMap};
@@ -132,15 +133,19 @@ impl AppState {
             .insert_with_key(|id| WidgetData::new(window_id, id));
 
         self.windows[window_id].root_widget = widget_id;
-
-        {
-            let widget = view.build(&mut BuildContext::new(widget_id, self));
-            self.widgets.insert(widget_id, Box::new(widget));
-        }
+        self.build_and_insert_widget(widget_id, view);
 
         layout_window(self, window_id);
 
         window_id
+    }
+
+    fn build_and_insert_widget<V: View>(&mut self, id: WidgetId, view: V) {
+        let mut cx = BuildContext::new(id, self);
+        let widget = view.build(&mut cx);
+        let styles = std::mem::take(&mut cx.style_builder);
+        apply_styles(&mut cx, styles);
+        self.widgets.insert(id, Box::new(widget));
     }
 
     /// Add a new widget
@@ -154,10 +159,7 @@ impl AppState {
             .widget_data
             .insert_with_key(|id| WidgetData::new(window_id, id).with_parent(parent_id));
 
-        {
-            let widget = view.build(&mut BuildContext::new(id, self));
-            self.widgets.insert(id, Box::new(widget));
-        }
+        self.build_and_insert_widget(id, view);
 
         {
             let parent_widget_data = self

@@ -34,7 +34,7 @@ impl<V: View> View for Button<V> {
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         ctx.set_focusable(true);
         ctx.add_child(self.child);
-        ctx.set_style(Style {
+        ctx.set_default_style(Style {
             padding: UiRect::all(Length::Px(4.0)),
             ..Default::default()
         });

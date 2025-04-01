@@ -79,7 +79,7 @@ impl View for Slider {
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         ctx.set_focusable(true);
-        ctx.set_style(Style {
+        ctx.set_default_style(Style {
             size: Size::new(Length::Auto, Length::Px(10.0)),
             ..Default::default()
         });
@@ -136,7 +136,7 @@ impl<P: AnyParameter> View for ParameterSlider<P> {
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         let editor = self.editor;
         ctx.set_focusable(true);
-        ctx.set_style(Style {
+        ctx.set_default_style(Style {
             size: match self.direction {
                 Direction::Horizontal => Size::new(Length::Auto, Length::Px(10.0)),
                 Direction::Vertical => Size::new(Length::Px(10.0), Length::Auto),

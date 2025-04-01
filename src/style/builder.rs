@@ -7,7 +7,7 @@ use crate::{
 
 use super::{Length, Style, UiRect};
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct StyleBuilder {
     hidden: Option<Accessor<bool>>,
     padding: Option<Accessor<UiRect>>,
@@ -214,6 +214,6 @@ fn apply_style<W: Widget, T: Clone + 'static>(
             widget.update_style(|style| apply_fn(value, style));
             widget.request_layout();
         });
-        ctx.update_style(|style| apply_fn(value, style));
+        ctx.update_default_style(|style| apply_fn(value, style));
     }
 }

@@ -76,19 +76,18 @@ impl<V: View> WindowHandler for MyHandler<V> {
         render_window(&mut app_state, self.state.window_id(), renderer)
     }
 
-    fn get_cursor(&self, _point: Point) -> Option<Cursor> {
-        let cursor = None;
-        /*self.widget_node
-        .for_each_view_at(point, &mut |widget_node| {
-            if let Some(c) = widget_node.widget.cursor() {
-                cursor = Some(c);
+    fn get_cursor(&self, pos: Point) -> Option<Cursor> {
+        let app_state = self.app_state.borrow();
+        let mut selected_cursor = None;
+        app_state.for_each_widget_at_rev(self.state.window_id(), pos, |app_state, widget_id| {
+            if let Some(cursor) = app_state.widget_data_ref(widget_id).style.cursor {
+                selected_cursor = Some(cursor);
                 false
             } else {
                 true
             }
-        });*/
-
-        cursor
+        });
+        selected_cursor
     }
 }
 

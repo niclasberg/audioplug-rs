@@ -33,7 +33,7 @@ impl View for Filled {
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self {
         let bounds = self.shape.bounds();
-        ctx.set_style(Style {
+        ctx.set_default_style(Style {
             size: Size::new(Length::Px(bounds.width()), Length::Px(bounds.height())),
             ..Default::default()
         });

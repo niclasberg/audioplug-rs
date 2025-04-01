@@ -52,7 +52,7 @@ impl<V: View> View for Background<V> {
         });
 
         if let Some(border) = border {
-            cx.update_style(|style| {});
+            cx.update_default_style(|style| {});
         }
 
         BackgroundWidget {

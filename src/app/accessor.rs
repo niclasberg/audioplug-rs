@@ -18,9 +18,11 @@ pub enum SourceId {
     Node(NodeId),
 }
 
+type ComputedFn<T> = dyn Fn(&mut dyn ReadContext) -> T;
+
 #[derive(Clone)]
 pub struct Computed<T> {
-    f: Rc<dyn Fn(&mut dyn ReadContext) -> T>,
+    f: Rc<ComputedFn<T>>,
 }
 
 impl<T> Computed<T> {

@@ -2,7 +2,7 @@ use crate::app::{
     Accessor, AnimationContext, AppState, BuildContext, EventContext, EventStatus,
     MouseEventContext, RenderContext, Shape, StatusChange, TextLayout, View, Widget,
 };
-use crate::core::{Color, Key, Modifiers, Rectangle, Size};
+use crate::core::{Color, Cursor, Key, Modifiers, Rectangle, Size};
 use crate::event::{KeyEvent, MouseButton};
 use crate::style::{AvailableSpace, DisplayStyle, Length, Measure, Style, UiRect};
 use crate::MouseEvent;
@@ -42,9 +42,10 @@ impl View for TextBox {
         cx.set_focusable(true);
 
         {
-            cx.set_style(Style {
+            cx.set_default_style(Style {
                 padding: UiRect::all(Length::Px(2.0)),
                 border: Length::Px(1.0),
+                cursor: Some(Cursor::IBeam),
                 ..Default::default()
             });
         }
@@ -110,6 +111,10 @@ impl TextBoxWidget {
         }
         self.position = position;
         changed
+    }
+
+    fn clear_selection(&mut self) -> bool {
+        self.selection_start.take().is_some()
     }
 
     fn select_word_at(&mut self, index: usize) -> bool {
@@ -248,14 +253,12 @@ impl TextBoxWidget {
             self.value.replace_range(selection.clone(), string);
             self.selection_start = None;
             self.position = selection.start + string.len();
+        } else if self.position == self.value.len() {
+            self.value.push_str(string);
+            self.position += string.len();
         } else {
-            if self.position == self.value.len() {
-                self.value.extend(string.chars());
-                self.position += string.len();
-            } else {
-                self.value.insert_str(self.position, string);
-                self.position += string.len();
-            }
+            self.value.insert_str(self.position, string);
+            self.position += string.len();
         }
         true
     }
@@ -416,8 +419,10 @@ impl Widget for TextBoxWidget {
     fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         match event {
             MouseEvent::Down {
-                button, position, ..
-            } if button == MouseButton::LEFT => {
+                button: MouseButton::LEFT,
+                position,
+                ..
+            } => {
                 ctx.capture_mouse();
                 if let Some(new_cursor) = self
                     .text_layout
@@ -430,7 +435,10 @@ impl Widget for TextBoxWidget {
                 }
                 EventStatus::Handled
             }
-            MouseEvent::Up { button, .. } if button == MouseButton::LEFT => {
+            MouseEvent::Up {
+                button: MouseButton::LEFT,
+                ..
+            } => {
                 self.is_mouse_selecting = false;
                 ctx.release_capture();
                 EventStatus::Handled
@@ -471,6 +479,7 @@ impl Widget for TextBoxWidget {
             }
             StatusChange::FocusLost => {
                 self.cursor_on = false;
+                self.clear_selection();
                 ctx.request_render();
             }
             _ => {}

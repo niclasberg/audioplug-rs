@@ -31,7 +31,7 @@ impl View for AnyView {
 pub struct BuildContext<'a, W: Widget> {
     id: WidgetId,
     pub(crate) app_state: &'a mut AppState,
-    style_builder: StyleBuilder,
+    pub(super) style_builder: StyleBuilder,
     _phantom: PhantomData<W>,
 }
 
@@ -83,11 +83,11 @@ impl<'a, W: Widget> BuildContext<'a, W> {
         self.style_builder.merge(style);
     }
 
-    pub fn set_style(&mut self, style: Style) {
+    pub fn set_default_style(&mut self, style: Style) {
         self.app_state.widget_data_mut(self.id).style = style;
     }
 
-    pub fn update_style(&mut self, f: impl FnOnce(&mut Style)) {
+    pub fn update_default_style(&mut self, f: impl FnOnce(&mut Style)) {
         f(&mut self.app_state.widget_data_mut(self.id).style);
     }
 }
