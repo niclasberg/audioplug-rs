@@ -18,9 +18,9 @@ impl From<taffy::NodeId> for WidgetId {
     }
 }
 
-impl Into<taffy::NodeId> for WidgetId {
-    fn into(self) -> taffy::NodeId {
-        self.0.as_ffi().into()
+impl From<WidgetId> for taffy::NodeId {
+    fn from(val: WidgetId) -> Self {
+        val.0.as_ffi().into()
     }
 }
 

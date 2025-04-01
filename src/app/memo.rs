@@ -108,8 +108,10 @@ impl<T: 'static> Readable for Memo<T> {
     }
 }
 
+type MemoFn = dyn Fn(&mut MemoContext, &mut Option<Box<dyn Any>>) -> bool;
+
 pub struct MemoState {
-    pub(super) f: Box<dyn Fn(&mut MemoContext, &mut Option<Box<dyn Any>>) -> bool>,
+    pub(super) f: Box<MemoFn>,
     pub(super) value: Option<Box<dyn Any>>,
 }
 

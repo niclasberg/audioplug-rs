@@ -38,24 +38,18 @@ impl View for Checkbox {
                 .checked
                 .map(|checked| {
                     checked.get_and_bind(ctx, |value, mut widget| {
-                        (*widget).checked = value;
+                        widget.checked = value;
                         widget.request_render();
                     })
                 })
                 .unwrap_or_default(),
-            ..Default::default()
         }
     }
 }
 
+#[derive(Default)]
 pub struct CheckboxWidget {
     checked: bool,
-}
-
-impl Default for CheckboxWidget {
-    fn default() -> Self {
-        Self { checked: false }
-    }
 }
 
 impl Measure for CheckboxWidget {

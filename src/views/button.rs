@@ -9,9 +9,11 @@ use crate::{
     MouseEvent,
 };
 
+type ClickFn = dyn Fn(&mut CallbackContext);
+
 pub struct Button<V> {
     child: V,
-    click_fn: Option<Box<dyn Fn(&mut CallbackContext)>>,
+    click_fn: Option<Box<ClickFn>>,
 }
 
 impl<V: View> Button<V> {
@@ -39,13 +41,11 @@ impl<V: View> View for Button<V> {
             ..Default::default()
         });
 
-        let widget = ButtonWidget {
+        ButtonWidget {
             is_hot: false,
             mouse_down: false,
             click_fn: self.click_fn,
-        };
-
-        widget
+        }
     }
 }
 
@@ -54,7 +54,7 @@ const FLEX_STYLE: FlexStyle = FlexStyle::DEFAULT;
 pub struct ButtonWidget {
     is_hot: bool,
     mouse_down: bool,
-    click_fn: Option<Box<dyn Fn(&mut CallbackContext)>>,
+    click_fn: Option<Box<ClickFn>>,
 }
 
 impl Widget for ButtonWidget {
@@ -77,8 +77,10 @@ impl Widget for ButtonWidget {
                 EventStatus::Handled
             }
             MouseEvent::Up {
-                button, position, ..
-            } if button == MouseButton::LEFT => {
+                button: MouseButton::LEFT,
+                position,
+                ..
+            } => {
                 ctx.release_capture();
                 if ctx.bounds().contains(position) {
                     if let Some(f) = self.click_fn.as_ref() {
@@ -114,7 +116,9 @@ impl Widget for ButtonWidget {
 
     fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
         match event {
-            KeyEvent::KeyDown { key, .. } if key == Key::Enter => {
+            KeyEvent::KeyDown {
+                key: Key::Enter, ..
+            } => {
                 if let Some(f) = self.click_fn.as_ref() {
                     f(&mut ctx.as_callback_context());
                 }
@@ -131,12 +135,10 @@ impl Widget for ButtonWidget {
             } else {
                 Color::from_rgb8(106, 156, 137)
             }
+        } else if self.is_hot {
+            Color::from_rgb8(121, 153, 141)
         } else {
-            if self.is_hot {
-                Color::from_rgb8(121, 153, 141)
-            } else {
-                Color::from_rgb8(106, 156, 137)
-            }
+            Color::from_rgb8(106, 156, 137)
         };
 
         let shape = RoundedRectangle::new(ctx.global_bounds(), Size::new(4.0, 4.0));

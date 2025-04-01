@@ -27,13 +27,13 @@ impl From<ViewRect> for Rectangle<i32> {
     }
 }
 
-impl Into<ViewRect> for Rectangle<i32> {
-    fn into(self) -> ViewRect {
+impl From<Rectangle<i32>> for ViewRect {
+    fn from(val: Rectangle<i32>) -> Self {
         ViewRect {
-            left: self.left(),
-            top: self.top(),
-            right: self.right(),
-            bottom: self.bottom(),
+            left: val.left(),
+            top: val.top(),
+            right: val.right(),
+            bottom: val.bottom(),
         }
     }
 }

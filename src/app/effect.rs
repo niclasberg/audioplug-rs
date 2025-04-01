@@ -81,8 +81,10 @@ impl Effect {
     }
 }
 
+pub(super) type BindingFn = dyn FnMut(&mut AppState);
+
 pub struct BindingState {
-    pub f: Rc<RefCell<dyn FnMut(&mut AppState)>>,
+    pub f: Rc<RefCell<BindingFn>>,
 }
 
 impl BindingState {

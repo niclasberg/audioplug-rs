@@ -266,12 +266,10 @@ impl<P: VST3Plugin> IComponent for AudioProcessor<P> {
                 } else {
                     0
                 }
+            } else if P::AUDIO_LAYOUT.main_output.is_some() {
+                1
             } else {
-                if P::AUDIO_LAYOUT.main_output.is_some() {
-                    1
-                } else {
-                    0
-                }
+                0
             }
         } else if type_ == MediaTypes::kEvent as MediaType {
             if (dir == BusDirections::kInput as BusDirection && P::ACCEPTS_MIDI)

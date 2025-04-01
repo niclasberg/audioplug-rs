@@ -8,7 +8,6 @@ mod event_handling;
 mod host_handle;
 mod layout;
 mod memo;
-mod overlay;
 mod param;
 mod render;
 mod runtime;

@@ -10,7 +10,7 @@ pub struct ScopeContext<'a> {
 
 impl<'a> ScopeContext<'a> {
     pub fn theme(&self) -> ReadSignal<WindowTheme> {
-        self.app_state.window_theme_signal(self.id).into()
+        self.app_state.window_theme_signal(self.id)
     }
 }
 

@@ -3,7 +3,7 @@ use crate::{
         Accessor, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext,
         StatusChange, View, Widget,
     },
-    core::{Border, Color, Cursor},
+    core::{Border, Color},
     style::DisplayStyle,
     KeyEvent, MouseEvent,
 };

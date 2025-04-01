@@ -2,7 +2,7 @@ use super::{
     AppState, CreateContext, Owner, ParamContext, ReactiveContext, ReadContext, Scope,
     TypedWidgetId, ViewContext, Widget, WidgetFlags, WidgetId,
 };
-use crate::style::{apply_styles, Style, StyleBuilder};
+use crate::style::{Style, StyleBuilder};
 use std::marker::PhantomData;
 
 pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn Widget>>;
@@ -12,7 +12,7 @@ pub trait View: Sized + 'static {
 
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element;
 
-    fn as_any_view(self) -> AnyView
+    fn into_any_view(self) -> AnyView
     where
         Self: 'static,
     {

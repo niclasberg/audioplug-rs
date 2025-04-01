@@ -1,4 +1,4 @@
-use super::{Color, Point, UnitPoint};
+use super::Color;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ColorStop {
@@ -19,14 +19,14 @@ impl ColorMap {
     }
 
     pub fn new_equidistant(colors: &[Color]) -> Self {
-        assert!(colors.len() > 0);
+        assert!(!colors.is_empty());
         let denum = if colors.len() == 1 {
             1.0
         } else {
             (colors.len() - 1) as f32
         };
         let stops = colors
-            .into_iter()
+            .iter()
             .enumerate()
             .map(|(i, &color)| ColorStop {
                 position: (i as f32) / denum,

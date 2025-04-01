@@ -49,15 +49,15 @@ impl<'a> AnimationContext<'a> {
     }
 
     pub fn request_render(&mut self) {
-        invalidate_widget(&self.app_state, self.id);
+        invalidate_widget(self.app_state, self.id);
     }
 
     pub fn request_animation(&mut self) {
-        request_animation_frame(&mut self.app_state, self.id)
+        request_animation_frame(self.app_state, self.id)
     }
 
     pub fn request_layout(&mut self) {
-        request_layout(&mut self.app_state, self.id);
+        request_layout(self.app_state, self.id);
     }
 }
 

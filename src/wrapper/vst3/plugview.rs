@@ -134,7 +134,7 @@ impl<E: Editor> IPlugView for PlugView<E> {
         if size.is_null() {
             return kInvalidArgument;
         }
-        if let Some(window) = self.window.borrow().as_ref() {
+        if self.window.borrow().as_ref().is_some() {
             let new_size = &mut *size;
             new_size.left = 0;
             new_size.right = 500;
@@ -176,8 +176,8 @@ impl<E: Editor> IPlugView for PlugView<E> {
     }
 
     unsafe fn set_frame(&self, frame: *mut c_void) -> tresult {
-        //let frame: SharedVstPtr<dyn IPlugFrame> = std::mem::transmute(frame);
-        //self.plugin_frame.replace(frame.upgrade());
+        let frame: SharedVstPtr<dyn IPlugFrame> = std::mem::transmute(frame);
+        self.plugin_frame.replace(frame.upgrade());
         kResultOk
     }
 
@@ -189,7 +189,7 @@ impl<E: Editor> IPlugView for PlugView<E> {
         if rect.is_null() {
             return kInvalidArgument;
         }
-        let rect = &mut *rect;
+        //let rect = &mut *rect;
 
         kResultOk
     }

@@ -159,6 +159,18 @@ impl<T: 'static> Accessor<T> {
     }
 }
 
+impl<T: Default> Default for Accessor<T> {
+    fn default() -> Self {
+        Self::Const(T::default())
+    }
+}
+
+impl<T> From<T> for Accessor<T> {
+    fn from(value: T) -> Self {
+        Self::Const(value)
+    }
+}
+
 impl<T> From<Signal<T>> for Accessor<T> {
     fn from(value: Signal<T>) -> Self {
         Self::Signal(value)
@@ -190,12 +202,6 @@ where
 {
     fn from(value: Mapped<S, T, R, F>) -> Self {
         Self::Mapped(Rc::new(value))
-    }
-}
-
-impl<T> From<T> for Accessor<T> {
-    fn from(value: T) -> Self {
-        Self::Const(value)
     }
 }
 

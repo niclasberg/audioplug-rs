@@ -11,13 +11,17 @@ use crate::{
 
 use super::util::{denormalize_value, round_to_steps};
 
+type DragStartFn = dyn Fn(&mut CallbackContext);
+type DragEndFn = dyn Fn(&mut CallbackContext);
+type ValueChangedFn = dyn Fn(&mut CallbackContext, f64);
+
 pub struct Knob {
     min: f64,
     max: f64,
     value: Option<Accessor<f64>>,
-    on_drag_start: Option<Box<dyn Fn(&mut CallbackContext)>>,
-    on_drag_end: Option<Box<dyn Fn(&mut CallbackContext)>>,
-    on_value_changed: Option<Box<dyn Fn(&mut CallbackContext, f64)>>,
+    on_drag_start: Option<Box<DragStartFn>>,
+    on_drag_end: Option<Box<DragEndFn>>,
+    on_value_changed: Option<Box<ValueChangedFn>>,
 }
 
 impl Knob {
@@ -41,6 +45,12 @@ impl Knob {
     pub fn value(mut self, value: impl Into<Accessor<f64>>) -> Self {
         self.value = Some(value.into());
         self
+    }
+}
+
+impl Default for Knob {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -107,9 +117,9 @@ pub struct KnobWidget {
     steps: usize,
     normalized_value: f64,
     last_mouse_pos: Option<Point>,
-    on_drag_start: Option<Box<dyn Fn(&mut CallbackContext)>>,
-    on_drag_end: Option<Box<dyn Fn(&mut CallbackContext)>>,
-    on_value_changed: Option<Box<dyn Fn(&mut CallbackContext, f64)>>,
+    on_drag_start: Option<Box<DragStartFn>>,
+    on_drag_end: Option<Box<DragEndFn>>,
+    on_value_changed: Option<Box<ValueChangedFn>>,
 }
 
 impl Default for KnobWidget {
@@ -243,14 +253,11 @@ impl Widget for KnobWidget {
     }
 
     fn status_updated(&mut self, event: StatusChange, cx: &mut EventContext) {
-        match event {
-            StatusChange::MouseCaptureLost => {
-                self.last_mouse_pos = None;
-                if let Some(on_drag_end) = &self.on_drag_end {
-                    on_drag_end(&mut cx.as_callback_context());
-                }
+        if event == StatusChange::MouseCaptureLost {
+            self.last_mouse_pos = None;
+            if let Some(on_drag_end) = &self.on_drag_end {
+                on_drag_end(&mut cx.as_callback_context());
             }
-            _ => {}
         }
     }
 

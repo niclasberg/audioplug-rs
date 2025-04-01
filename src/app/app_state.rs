@@ -1,7 +1,11 @@
 use super::{
-    clipboard::Clipboard, effect::EffectContext, layout_window, signal::ReadSignal, BuildContext,
-    CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext, ReadContext, Runtime, Signal,
-    View, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext,
+    clipboard::Clipboard,
+    effect::{BindingFn, EffectContext},
+    layout_window,
+    signal::ReadSignal,
+    BuildContext, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext, ReadContext,
+    Runtime, Signal, View, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef,
+    WindowId, WriteContext,
 };
 use crate::{
     app::event_handling::set_mouse_capture_widget,
@@ -23,7 +27,7 @@ pub(super) enum Task {
         f: Weak<dyn Fn(&mut EffectContext)>,
     },
     UpdateBinding {
-        f: Weak<RefCell<dyn FnMut(&mut AppState)>>,
+        f: Weak<RefCell<BindingFn>>,
         node_id: NodeId,
     },
 }

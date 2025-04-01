@@ -41,15 +41,15 @@ impl ParamVisitor for CreateParameterViewsVisitor {
 
     fn float_parameter(&mut self, p: &crate::param::FloatParameter) {
         let view = Row::new((Label::new(p.info().name()), ParameterSlider::new(p)));
-        self.views.push(view.as_any_view());
+        self.views.push(view.into_any_view());
     }
 
     fn int_parameter(&mut self, p: &crate::param::IntParameter) {
         let view = Row::new((
             Label::new(p.info().name()),
-            ParameterSlider::new(p).as_any_view(),
+            ParameterSlider::new(p).into_any_view(),
         ));
-        self.views.push(view.as_any_view());
+        self.views.push(view.into_any_view());
     }
 
     fn string_list_parameter(&mut self, _p: &crate::param::StringListParameter) {}
@@ -68,7 +68,7 @@ impl ParamVisitor for CreateParameterViewsVisitor {
             ))
             .style(|style| style.padding(UiRect::top_px(10.0)))
         });
-        self.views.push(view.as_any_view());
+        self.views.push(view.into_any_view());
     }
 }
 

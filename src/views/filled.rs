@@ -43,7 +43,7 @@ impl View for Filled {
 }
 
 impl Measure for Filled {
-    fn measure(&self, style: &Style, _width: AvailableSpace, _height: AvailableSpace) -> Size {
+    fn measure(&self, _style: &Style, _width: AvailableSpace, _height: AvailableSpace) -> Size {
         self.shape.bounds().size()
     }
 }

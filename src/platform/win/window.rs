@@ -70,7 +70,7 @@ struct WindowState {
 
 impl WindowState {
     fn publish_event(&self, _hwnd: HWND, event: WindowEvent) {
-        self.handler.borrow_mut().event(event.into());
+        self.handler.borrow_mut().event(event);
     }
 
     fn handle_message(
@@ -129,7 +129,7 @@ impl WindowState {
                         }
                     }
 
-                    Gdi::EndPaint(hwnd, &mut ps).ok().unwrap();
+                    Gdi::EndPaint(hwnd, &ps).ok().unwrap();
                 }
 
                 Some(LRESULT(0))
