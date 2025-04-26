@@ -1,3 +1,5 @@
+use super::Interpolate;
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Color {
     pub r: f32,
@@ -31,6 +33,17 @@ impl Color {
     pub const fn with_alpha(mut self, a: f32) -> Self {
         self.a = a;
         self
+    }
+}
+
+impl Interpolate for Color {
+    fn lerp(&self, other: &Self, scalar: f64) -> Self {
+        Self {
+            r: self.r.lerp(&other.r, scalar).clamp(0.0, 1.0),
+            g: self.g.lerp(&other.g, scalar).clamp(0.0, 1.0),
+            b: self.b.lerp(&other.b, scalar).clamp(0.0, 1.0),
+            a: self.a.lerp(&other.a, scalar).clamp(0.0, 1.0),
+        }
     }
 }
 

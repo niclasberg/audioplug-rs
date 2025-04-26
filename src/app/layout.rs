@@ -1,7 +1,5 @@
-use crate::{
-    core::{Point, Size},
-    style::{AvailableSpace, DisplayStyle, LayoutStyle},
-};
+use crate::core::{Point, Rectangle, Size};
+use crate::style::{AvailableSpace, DisplayStyle, ResolveInto, Style, UiRect};
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree,
     TraversePartialTree, TraverseTree,
@@ -10,6 +8,7 @@ use taffy::{
 use super::{invalidate_window, AppState, WidgetFlags, WidgetId, WindowId};
 
 pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
+    println!("Layout");
     let (window_size, widget_id) = {
         let window = app_state.window(window_id);
         (window.handle.global_bounds().size(), window.root_widget)
@@ -23,8 +22,16 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
         let mut ctx = LayoutContext {
             app_state,
             window_size,
+            region_to_invalidate: None,
         };
         taffy::compute_root_layout(&mut ctx, widget_id.into(), available_space);
+
+        if let Some(region_to_invalidate) = ctx.region_to_invalidate {
+            app_state
+                .window(window_id)
+                .handle
+                .invalidate(region_to_invalidate);
+        }
         //taffy::print_tree(&mut ctx, widget_id.into());
     }
 
@@ -70,20 +77,26 @@ impl<'a> Iterator for LayoutChildIter<'a> {
 pub struct LayoutContext<'a> {
     app_state: &'a mut AppState,
     window_size: Size,
+    region_to_invalidate: Option<Rectangle>,
 }
 
 impl<'a> LayoutContext<'a> {
     fn get_layout_style(&self, node_id: taffy::NodeId) -> LayoutStyle<'_> {
+        let node_id = node_id.into();
         LayoutStyle {
-            style: &self.app_state.widget_data[node_id.into()].style,
-            display_style: self.app_state.widgets[node_id.into()].display_style(),
+            style: &self.app_state.widget_data[node_id].style,
+            display_style: self.app_state.widgets[node_id].display_style(),
             window_size: self.window_size,
+            is_overlay: self.app_state.widget_data[node_id].is_overlay(),
         }
     }
 }
 
 impl<'a> taffy::TraversePartialTree for LayoutContext<'a> {
-    type ChildIter<'b> = LayoutChildIter<'b> where Self: 'b;
+    type ChildIter<'b>
+        = LayoutChildIter<'b>
+    where
+        Self: 'b;
 
     fn child_ids(&self, parent_node_id: taffy::NodeId) -> Self::ChildIter<'_> {
         let inner = self.app_state.widget_data[parent_node_id.into()]
@@ -116,8 +129,14 @@ impl<'a> PrintTree for LayoutContext<'a> {
 }
 
 impl<'a> LayoutBlockContainer for LayoutContext<'a> {
-    type BlockContainerStyle<'b> = LayoutStyle<'b> where Self: 'b;
-    type BlockItemStyle<'b> = LayoutStyle<'b> where Self: 'b;
+    type BlockContainerStyle<'b>
+        = LayoutStyle<'b>
+    where
+        Self: 'b;
+    type BlockItemStyle<'b>
+        = LayoutStyle<'b>
+    where
+        Self: 'b;
 
     fn get_block_container_style(&self, node_id: taffy::NodeId) -> Self::BlockContainerStyle<'_> {
         self.get_layout_style(node_id)
@@ -129,8 +148,14 @@ impl<'a> LayoutBlockContainer for LayoutContext<'a> {
 }
 
 impl<'a> LayoutFlexboxContainer for LayoutContext<'a> {
-    type FlexboxContainerStyle<'b> = LayoutStyle<'b> where Self: 'b;
-    type FlexboxItemStyle<'b> = LayoutStyle<'b>  where Self: 'b;
+    type FlexboxContainerStyle<'b>
+        = LayoutStyle<'b>
+    where
+        Self: 'b;
+    type FlexboxItemStyle<'b>
+        = LayoutStyle<'b>
+    where
+        Self: 'b;
 
     fn get_flexbox_container_style(
         &self,
@@ -176,7 +201,7 @@ impl<'a> CacheTree for LayoutContext<'a> {
     }
 
     fn cache_clear(&mut self, node_id: taffy::NodeId) {
-        self.app_state.widget_data[node_id.into()].cache.clear()
+        self.app_state.widget_data[node_id.into()].cache.clear();
     }
 }
 
@@ -194,14 +219,26 @@ impl<'a> CacheTree for LayoutContext<'a> {
 }*/
 
 impl<'a> LayoutPartialTree for LayoutContext<'a> {
-    type CoreContainerStyle<'b> = LayoutStyle<'b> where Self : 'b;
+    type CoreContainerStyle<'b>
+        = LayoutStyle<'b>
+    where
+        Self: 'b;
 
     fn get_core_container_style(&self, node_id: taffy::NodeId) -> Self::CoreContainerStyle<'_> {
         self.get_layout_style(node_id)
     }
 
     fn set_unrounded_layout(&mut self, node_id: taffy::NodeId, layout: &taffy::Layout) {
+        let old_bounds = self.app_state.widget_data[node_id.into()].global_bounds();
         self.app_state.widget_data[node_id.into()].layout = *layout;
+        let new_bounds = self.app_state.widget_data[node_id.into()].global_bounds();
+        if new_bounds != old_bounds {
+            let rect = new_bounds.combine_with(&old_bounds);
+            self.region_to_invalidate = self
+                .region_to_invalidate
+                .map(|old| old.combine_with(&rect))
+                .or(Some(rect));
+        }
     }
 
     fn compute_child_layout(
@@ -237,37 +274,42 @@ impl<'a> LayoutPartialTree for LayoutContext<'a> {
                     (DisplayStyle::Grid(_), _) => unreachable!(),
                     (DisplayStyle::Leaf(measure), _) => {
                         let style = &tree.app_state.widget_data[node.into()].style;
-                        let measure_function = |known_dimensions: taffy::Size<Option<f32>>,
-                                                available_space: taffy::Size<
-                            taffy::AvailableSpace,
-                        >| {
-                            let available_size =
-                                known_dimensions.zip_map(available_space, |known, available| {
-                                    known
-                                        .map(|x| AvailableSpace::Exact(x as f64))
-                                        .unwrap_or_else(|| match available {
-                                            taffy::AvailableSpace::Definite(x) => {
-                                                AvailableSpace::Exact(x as f64)
-                                            }
-                                            taffy::AvailableSpace::MinContent => {
-                                                AvailableSpace::MinContent
-                                            }
-                                            taffy::AvailableSpace::MaxContent => {
-                                                AvailableSpace::MaxContent
-                                            }
-                                        })
-                                });
+                        let measure_function =
+                            |known_dimensions: taffy::Size<Option<f32>>, available_space| {
+                                let available_size = known_dimensions.zip_map(
+                                    available_space,
+                                    |known, available| {
+                                        known
+                                            .map(|x| AvailableSpace::Exact(x as f64))
+                                            .unwrap_or_else(|| match available {
+                                                taffy::AvailableSpace::Definite(x) => {
+                                                    AvailableSpace::Exact(x as f64)
+                                                }
+                                                taffy::AvailableSpace::MinContent => {
+                                                    AvailableSpace::MinContent
+                                                }
+                                                taffy::AvailableSpace::MaxContent => {
+                                                    AvailableSpace::MaxContent
+                                                }
+                                            })
+                                    },
+                                );
 
-                            let size =
-                                measure.measure(style, available_size.width, available_size.height);
-                            taffy::Size {
-                                width: size.width as _,
-                                height: size.height as _,
-                            }
-                        };
+                                let size = measure.measure(
+                                    style,
+                                    available_size.width,
+                                    available_size.height,
+                                );
+                                taffy::Size {
+                                    width: size.width as _,
+                                    height: size.height as _,
+                                }
+                            };
+
                         taffy::compute_leaf_layout(
                             inputs,
                             &tree.get_layout_style(node_id),
+                            |_val, _basis| 0.0,
                             measure_function,
                         )
                     }
@@ -276,11 +318,220 @@ impl<'a> LayoutPartialTree for LayoutContext<'a> {
                         taffy::compute_leaf_layout(
                             inputs,
                             &tree.get_layout_style(node_id),
+                            |_val, _basis| 0.0,
                             measure_function,
                         )
                     }
                 }
             }
         })
+    }
+}
+
+/// Style used during layout
+pub struct LayoutStyle<'a> {
+    pub(crate) style: &'a Style,
+    pub(crate) display_style: DisplayStyle<'a>,
+    pub(crate) window_size: Size,
+    pub(crate) is_overlay: bool,
+}
+
+impl<'a> taffy::CoreStyle for LayoutStyle<'a> {
+    fn box_generation_mode(&self) -> taffy::BoxGenerationMode {
+        if self.style.hidden {
+            taffy::BoxGenerationMode::None
+        } else {
+            taffy::BoxGenerationMode::Normal
+        }
+    }
+
+    fn is_block(&self) -> bool {
+        matches!(self.display_style, DisplayStyle::Block)
+    }
+
+    fn box_sizing(&self) -> taffy::BoxSizing {
+        taffy::Style::DEFAULT.box_sizing
+    }
+
+    fn overflow(&self) -> taffy::Point<taffy::Overflow> {
+        taffy::Point {
+            x: self.style.overflow_x,
+            y: self.style.overflow_y,
+        }
+    }
+
+    fn scrollbar_width(&self) -> f32 {
+        self.style.scrollbar_width as _
+    }
+
+    fn position(&self) -> taffy::Position {
+        if self.is_overlay {
+            taffy::Position::Absolute
+        } else {
+            taffy::Position::Relative
+        }
+    }
+
+    fn inset(&self) -> taffy::Rect<taffy::LengthPercentageAuto> {
+        self.style.inset.resolve_into(self.window_size)
+    }
+
+    fn size(&self) -> taffy::Size<taffy::Dimension> {
+        self.style.size.resolve_into(self.window_size)
+    }
+
+    fn min_size(&self) -> taffy::Size<taffy::Dimension> {
+        self.style.min_size.resolve_into(self.window_size)
+    }
+
+    fn max_size(&self) -> taffy::Size<taffy::Dimension> {
+        self.style.max_size.resolve_into(self.window_size)
+    }
+
+    fn aspect_ratio(&self) -> Option<f32> {
+        self.style.aspect_ratio.map(|x| x as _)
+    }
+
+    fn margin(&self) -> taffy::Rect<taffy::LengthPercentageAuto> {
+        self.style.margin.resolve_into(self.window_size)
+    }
+
+    fn padding(&self) -> taffy::Rect<taffy::LengthPercentage> {
+        self.style.padding.resolve_into(self.window_size)
+    }
+
+    fn border(&self) -> taffy::Rect<taffy::LengthPercentage> {
+        UiRect::all(self.style.border).resolve_into(self.window_size)
+    }
+}
+
+impl<'a> taffy::FlexboxContainerStyle for LayoutStyle<'a> {
+    fn flex_direction(&self) -> taffy::FlexDirection {
+        match &self.display_style {
+            DisplayStyle::Flex(flex) => flex.direction,
+            _ => taffy::Style::DEFAULT.flex_direction,
+        }
+    }
+
+    fn flex_wrap(&self) -> taffy::FlexWrap {
+        match &self.display_style {
+            DisplayStyle::Flex(flex) => flex.wrap,
+            _ => taffy::Style::DEFAULT.flex_wrap,
+        }
+    }
+
+    fn gap(&self) -> taffy::Size<taffy::LengthPercentage> {
+        match &self.display_style {
+            DisplayStyle::Flex(flex) => taffy::Size {
+                width: flex.gap.resolve_into(self.window_size),
+                height: flex.gap.resolve_into(self.window_size),
+            },
+            _ => taffy::Style::DEFAULT.gap,
+        }
+    }
+
+    fn align_content(&self) -> Option<taffy::AlignContent> {
+        match &self.display_style {
+            DisplayStyle::Flex(flex) => flex.align_content,
+            _ => taffy::Style::DEFAULT.align_content,
+        }
+    }
+
+    fn align_items(&self) -> Option<taffy::AlignItems> {
+        match &self.display_style {
+            DisplayStyle::Flex(flex) => flex.align_items,
+            _ => taffy::Style::DEFAULT.align_items,
+        }
+    }
+
+    fn justify_content(&self) -> Option<taffy::JustifyContent> {
+        taffy::Style::DEFAULT.justify_content
+    }
+}
+
+impl<'a> taffy::FlexboxItemStyle for LayoutStyle<'a> {
+    fn flex_basis(&self) -> taffy::Dimension {
+        taffy::Style::DEFAULT.flex_basis
+    }
+
+    fn flex_grow(&self) -> f32 {
+        taffy::Style::DEFAULT.flex_grow
+    }
+
+    fn flex_shrink(&self) -> f32 {
+        taffy::Style::DEFAULT.flex_shrink
+    }
+
+    fn align_self(&self) -> Option<taffy::AlignSelf> {
+        self.style.align_self
+    }
+}
+
+impl<'a> taffy::BlockContainerStyle for LayoutStyle<'a> {
+    fn text_align(&self) -> taffy::TextAlign {
+        taffy::Style::DEFAULT.text_align
+    }
+}
+
+impl<'a> taffy::BlockItemStyle for LayoutStyle<'a> {
+    fn is_table(&self) -> bool {
+        false
+    }
+}
+
+impl<'a> taffy::GridContainerStyle for LayoutStyle<'a> {
+    type TemplateTrackList<'b>
+        = &'b [taffy::TrackSizingFunction]
+    where
+        Self: 'b;
+    type AutoTrackList<'b>
+        = &'b [taffy::NonRepeatedTrackSizingFunction]
+    where
+        Self: 'b;
+
+    fn grid_template_rows(&self) -> &[taffy::TrackSizingFunction] {
+        match self.display_style {
+            DisplayStyle::Grid(grid_style) => &grid_style.row_templates,
+            _ => &[],
+        }
+    }
+
+    fn grid_template_columns(&self) -> Self::TemplateTrackList<'_> {
+        match self.display_style {
+            DisplayStyle::Grid(grid_style) => &grid_style.column_templates,
+            _ => &[],
+        }
+    }
+
+    fn grid_auto_rows(&self) -> Self::AutoTrackList<'_> {
+        todo!()
+    }
+
+    fn grid_auto_columns(&self) -> Self::AutoTrackList<'_> {
+        todo!()
+    }
+
+    fn grid_auto_flow(&self) -> taffy::GridAutoFlow {
+        taffy::Style::DEFAULT.grid_auto_flow
+    }
+
+    fn gap(&self) -> taffy::Size<taffy::LengthPercentage> {
+        taffy::Style::DEFAULT.gap
+    }
+
+    fn align_content(&self) -> Option<taffy::AlignContent> {
+        taffy::Style::DEFAULT.align_content
+    }
+
+    fn justify_content(&self) -> Option<taffy::JustifyContent> {
+        taffy::Style::DEFAULT.justify_content
+    }
+
+    fn align_items(&self) -> Option<taffy::AlignItems> {
+        taffy::Style::DEFAULT.align_items
+    }
+
+    fn justify_items(&self) -> Option<taffy::AlignItems> {
+        taffy::Style::DEFAULT.justify_items
     }
 }

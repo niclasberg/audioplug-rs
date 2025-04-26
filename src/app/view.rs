@@ -50,19 +50,21 @@ impl<'a, W: Widget> BuildContext<'a, W> {
     }
 
     pub fn set_focusable(&mut self, focusable: bool) {
-        if focusable {
-            self.app_state
-                .widget_data_mut(self.id)
-                .set_flag(WidgetFlags::FOCUSABLE)
-        } else {
-            self.app_state
-                .widget_data_mut(self.id)
-                .clear_flag(WidgetFlags::FOCUSABLE)
-        }
+        self.app_state
+            .widget_data_mut(self.id)
+            .set_or_clear_flag(WidgetFlags::FOCUSABLE, focusable);
     }
 
     pub fn add_child(&mut self, view: impl View) -> WidgetId {
         self.app_state.add_widget(self.id, view)
+    }
+
+    pub fn add_overlay(&mut self, view: impl View) -> WidgetId {
+        let child_id = self.add_child(view);
+        self.app_state
+            .widget_data_mut(child_id)
+            .set_flag(WidgetFlags::OVERLAY);
+        child_id
     }
 
     pub(crate) fn build<V: View>(&mut self, view: V) -> V::Element {

@@ -3,7 +3,7 @@ use std::{
     ops::{Add, Sub},
 };
 
-use super::{Interpolate, Size, Vector};
+use super::{interpolation::SpringPhysics, Interpolate, Size, Vector};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Point<T = f64> {

@@ -7,7 +7,7 @@ rust-version = "1.81.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
-members = ["examples/gain", "examples/synth"]
+members = ["examples/gain", "examples/synth", "xtask"]
 
 [dependencies]
 async-task = "4.7.1"
@@ -17,7 +17,7 @@ vst3-sys = { git = "https://github.com/RustAudio/vst3-sys.git" }
 raw-window-handle = "0.6.2"
 unicode-segmentation = "1.12.0"
 slotmap = "1.0.7"
-taffy = "0.7.7"
+taffy = "0.8.0"
 rtrb = "0.3.2"
 midi-consts = "0.1.0"
 serde = "1.0.219"

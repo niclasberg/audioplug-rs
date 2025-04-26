@@ -67,6 +67,21 @@ pub trait Readable {
         self.with_ref(cx, Self::Value::clone)
     }
 
+    /// Map the current value using `f`
+    fn with_ref_untracked<R>(
+        &self,
+        cx: &mut dyn ReactiveContext,
+        f: impl FnOnce(&Self::Value) -> R,
+    ) -> R;
+
+    /// Get the current value
+    fn get_untracked(&self, cx: &mut dyn ReactiveContext) -> Self::Value
+    where
+        Self::Value: Clone,
+    {
+        self.with_ref_untracked(cx, Self::Value::clone)
+    }
+
     fn map<R, F: Fn(&Self::Value) -> R>(self, f: F) -> Mapped<Self, Self::Value, R, F>
     where
         Self: Sized,
@@ -118,6 +133,21 @@ where
     fn get(&self, cx: &mut dyn ReadContext) -> Self::Value {
         self.parent.with_ref(cx, |x| (self.f)(x))
     }
+
+    fn with_ref_untracked<R2>(
+        &self,
+        cx: &mut dyn ReactiveContext,
+        f: impl FnOnce(&Self::Value) -> R2,
+    ) -> R2 {
+        f(&self.parent.with_ref_untracked(cx, |x| (self.f)(x)))
+    }
+
+    fn get_untracked(&self, cx: &mut dyn ReactiveContext) -> Self::Value
+    where
+        Self::Value: Clone,
+    {
+        self.parent.with_ref_untracked(cx, |x| (self.f)(x))
+    }
 }
 
 impl<S, T, B, F> MappedAccessor<B> for Mapped<S, T, B, F>
@@ -157,5 +187,13 @@ impl<S: Readable, F> Readable for Keyed<S, F> {
         Self::Value: Clone,
     {
         self.signal.get(cx)
+    }
+
+    fn with_ref_untracked<R>(
+        &self,
+        cx: &mut dyn ReactiveContext,
+        f: impl FnOnce(&Self::Value) -> R,
+    ) -> R {
+        self.signal.with_ref_untracked(cx, f)
     }
 }

@@ -86,6 +86,14 @@ impl<T: Any> Readable for SignalVec<T> {
         cx.runtime_mut().track(self.id, scope);
         self.with_inner(cx.runtime(), move |value| f(&value.values))
     }
+
+    fn with_ref_untracked<R>(
+        &self,
+        cx: &mut dyn super::ReactiveContext,
+        f: impl FnOnce(&Self::Value) -> R,
+    ) -> R {
+        self.with_inner(cx.runtime(), move |value| f(&value.values))
+    }
 }
 
 pub struct AtIndex<Parent, T> {
@@ -105,6 +113,16 @@ impl<T: Any> Readable for AtIndex<SignalVec<T>, T> {
     fn with_ref<R>(&self, cx: &mut dyn super::ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         let scope = cx.scope();
         cx.runtime_mut().track(self.id, scope);
+        self.parent.with_inner(cx.runtime(), move |inner| {
+            f(inner.values.get(self.index).unwrap())
+        })
+    }
+
+    fn with_ref_untracked<R>(
+        &self,
+        cx: &mut dyn super::ReactiveContext,
+        f: impl FnOnce(&Self::Value) -> R,
+    ) -> R {
         self.parent.with_inner(cx.runtime(), move |inner| {
             f(inner.values.get(self.index).unwrap())
         })

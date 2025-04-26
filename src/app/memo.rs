@@ -106,6 +106,14 @@ impl<T: 'static> Readable for Memo<T> {
         cx.runtime_mut().track(self.id, scope);
         r
     }
+
+    fn with_ref_untracked<R>(
+        &self,
+        cx: &mut dyn ReactiveContext,
+        f: impl FnOnce(&Self::Value) -> R,
+    ) -> R {
+        todo!()
+    }
 }
 
 type MemoFn = dyn Fn(&mut MemoContext, &mut Option<Box<dyn Any>>) -> bool;
@@ -116,8 +124,9 @@ pub struct MemoState {
 }
 
 impl MemoState {
-    pub fn eval(&mut self, cx: &mut MemoContext) -> bool {
-        (self.f)(cx, &mut self.value)
+    pub fn eval(&mut self, memo_id: NodeId, runtime: &mut Runtime) -> bool {
+        let mut cx = MemoContext { memo_id, runtime };
+        (self.f)(&mut cx, &mut self.value)
     }
 }
 

@@ -1,6 +1,6 @@
 use super::{
-    AppState, CreateContext, NodeId, ReactiveContext, ReadContext, Runtime, Scope, TypedWidgetId,
-    Widget, WidgetMut, WidgetRef, WriteContext,
+    AppState, CreateContext, NodeId, ReactiveContext, ReadContext, Readable, Runtime, Scope,
+    TypedWidgetId, Widget, WidgetMut, WidgetRef, WriteContext,
 };
 use std::{
     any::Any,
@@ -13,7 +13,7 @@ pub struct EffectContext<'a> {
     pub(super) app_state: &'a mut AppState,
 }
 
-impl<'b> EffectContext<'b> {
+impl EffectContext<'_> {
     pub fn widget_ref<W: Widget>(&self, id: TypedWidgetId<W>) -> WidgetRef<'_, W> {
         WidgetRef::new(self.app_state, id.id)
     }
@@ -23,7 +23,7 @@ impl<'b> EffectContext<'b> {
     }
 }
 
-impl<'b> ReactiveContext for EffectContext<'b> {
+impl ReactiveContext for EffectContext<'_> {
     fn runtime(&self) -> &Runtime {
         self.app_state.runtime()
     }
@@ -33,13 +33,39 @@ impl<'b> ReactiveContext for EffectContext<'b> {
     }
 }
 
-impl<'b> ReadContext for EffectContext<'b> {
+impl ReadContext for EffectContext<'_> {
     fn scope(&self) -> Scope {
         Scope::Node(self.effect_id)
     }
 }
 
-impl<'a> WriteContext for EffectContext<'a> {}
+impl WriteContext for EffectContext<'_> {}
+
+pub struct WatchContext<'a> {
+    app_state: &'a mut AppState,
+}
+
+impl WatchContext<'_> {
+    pub fn widget_ref<W: Widget>(&self, id: TypedWidgetId<W>) -> WidgetRef<'_, W> {
+        WidgetRef::new(self.app_state, id.id)
+    }
+
+    pub fn widget_mut<W: Widget>(&mut self, id: TypedWidgetId<W>) -> WidgetMut<'_, W> {
+        WidgetMut::new(self.app_state, id.id)
+    }
+}
+
+impl ReactiveContext for WatchContext<'_> {
+    fn runtime(&self) -> &Runtime {
+        self.app_state.runtime()
+    }
+
+    fn runtime_mut(&mut self) -> &mut Runtime {
+        self.app_state.runtime_mut()
+    }
+}
+
+impl WriteContext for WatchContext<'_> {}
 
 pub struct EffectState {
     pub(super) f: Rc<dyn Fn(&mut EffectContext)>,
@@ -77,6 +103,28 @@ impl Effect {
             owner,
             true,
         );
+        Self {}
+    }
+
+    pub fn watch<T: Clone + 'static>(
+        cx: &mut dyn CreateContext,
+        source: impl Readable<Value = T> + 'static,
+        f: impl Fn(&mut WatchContext, T) + 'static,
+    ) -> Self {
+        let owner = cx.owner();
+        let source_id = source.get_source_id();
+        cx.runtime_mut().create_binding_node(
+            source_id,
+            BindingState {
+                f: Rc::new(RefCell::new(move |app_state: &mut AppState| {
+                    let value = source.get(app_state);
+                    let mut cx = WatchContext { app_state };
+                    f(&mut cx, value);
+                })),
+            },
+            owner,
+        );
+
         Self {}
     }
 }

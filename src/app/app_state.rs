@@ -1,4 +1,5 @@
 use super::{
+    animation::request_node_animation,
     clipboard::Clipboard,
     effect::{BindingFn, EffectContext},
     layout_window,
@@ -30,6 +31,10 @@ pub(super) enum Task {
         f: Weak<RefCell<BindingFn>>,
         node_id: NodeId,
     },
+    UpdateAnimation {
+        node_id: NodeId,
+        window_id: WindowId,
+    },
 }
 
 impl Task {
@@ -51,6 +56,10 @@ impl Task {
                 }
                 app_state.runtime.mark_node_as_clean(node_id);
             }
+            Task::UpdateAnimation { node_id, window_id } => {
+                request_node_animation(app_state, window_id, node_id);
+            }
+            _ => {}
         }
     }
 }
@@ -59,7 +68,8 @@ pub(super) struct WindowState {
     pub(super) handle: platform::Handle,
     pub(super) root_widget: WidgetId,
     pub(super) focus_widget: Option<WidgetId>,
-    pub(super) requested_animations: IndexSet<WidgetId>,
+    pub(super) pending_widget_animations: IndexSet<WidgetId>,
+    pub(super) pending_node_animations: IndexSet<NodeId>,
     pub(super) theme_signal: Signal<WindowTheme>,
 }
 
@@ -128,7 +138,8 @@ impl AppState {
             handle,
             root_widget: WidgetId::null(),
             focus_widget: None,
-            requested_animations: IndexSet::new(),
+            pending_widget_animations: IndexSet::new(),
+            pending_node_animations: IndexSet::new(),
             theme_signal,
         });
 

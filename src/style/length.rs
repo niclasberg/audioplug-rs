@@ -35,14 +35,14 @@ impl Default for Length {
 impl ResolveInto<taffy::LengthPercentageAuto> for Length {
     fn resolve_into(self, window_size: Size) -> taffy::LengthPercentageAuto {
         match self {
-            Length::Auto => taffy::LengthPercentageAuto::Auto,
-            Length::Px(val) => taffy::LengthPercentageAuto::Length(val as f32),
-            Length::Percent(val) => taffy::LengthPercentageAuto::Percent((val / 100.0) as _),
+            Length::Auto => taffy::LengthPercentageAuto::auto(),
+            Length::Px(val) => taffy::LengthPercentageAuto::length(val as f32),
+            Length::Percent(val) => taffy::LengthPercentageAuto::percent((val / 100.0) as _),
             Length::Vh(val) => {
-                taffy::LengthPercentageAuto::Length((window_size.height * val / 100.0) as _)
+                taffy::LengthPercentageAuto::length((window_size.height * val / 100.0) as _)
             }
             Length::Vw(val) => {
-                taffy::LengthPercentageAuto::Length((window_size.width * val / 100.0) as _)
+                taffy::LengthPercentageAuto::length((window_size.width * val / 100.0) as _)
             }
         }
     }
@@ -52,13 +52,13 @@ impl ResolveInto<taffy::LengthPercentage> for Length {
     fn resolve_into(self, window_size: Size) -> taffy::LengthPercentage {
         match self {
             Self::Auto => taffy::LengthPercentage::ZERO,
-            Self::Px(val) => taffy::LengthPercentage::Length(val as _),
-            Self::Percent(val) => taffy::LengthPercentage::Percent((val / 100.0) as _),
+            Self::Px(val) => taffy::LengthPercentage::length(val as _),
+            Self::Percent(val) => taffy::LengthPercentage::percent((val / 100.0) as _),
             Self::Vh(val) => {
-                taffy::LengthPercentage::Length((window_size.height * val / 100.0) as _)
+                taffy::LengthPercentage::length((window_size.height * val / 100.0) as _)
             }
             Self::Vw(val) => {
-                taffy::LengthPercentage::Length((window_size.width * val / 100.0) as _)
+                taffy::LengthPercentage::length((window_size.width * val / 100.0) as _)
             }
         }
     }
@@ -67,11 +67,11 @@ impl ResolveInto<taffy::LengthPercentage> for Length {
 impl ResolveInto<taffy::Dimension> for Length {
     fn resolve_into(self, window_size: Size) -> taffy::Dimension {
         match self {
-            Self::Auto => taffy::Dimension::Auto,
-            Self::Px(val) => taffy::Dimension::Length(val as _),
-            Self::Percent(val) => taffy::Dimension::Percent((val / 100.0) as _),
-            Self::Vh(val) => taffy::Dimension::Length((window_size.height * val / 100.0) as _),
-            Self::Vw(val) => taffy::Dimension::Length((window_size.width * val / 100.0) as _),
+            Self::Auto => taffy::Dimension::auto(),
+            Self::Px(val) => taffy::Dimension::length(val as _),
+            Self::Percent(val) => taffy::Dimension::percent((val / 100.0) as _),
+            Self::Vh(val) => taffy::Dimension::length((window_size.height * val / 100.0) as _),
+            Self::Vw(val) => taffy::Dimension::length((window_size.width * val / 100.0) as _),
         }
     }
 }

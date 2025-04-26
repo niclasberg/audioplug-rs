@@ -32,6 +32,7 @@ bitflags!(
         const NEEDS_RENDER = 1 << 2;
         const NEEDS_REBUILD = 1 << 3;
         const FOCUSABLE = 1 << 4;
+        const OVERLAY = 1 << 5;
 
         const UNDER_MOUSE_CURSOR = 1 << 8;
     }
@@ -115,6 +116,14 @@ impl WidgetData {
         )
     }
 
+    pub fn set_or_clear_flag(&mut self, flag: WidgetFlags, set: bool) {
+        if set {
+            self.flags |= flag;
+        } else {
+            self.flags &= !flag;
+        }
+    }
+
     pub fn set_flag(&mut self, flag: WidgetFlags) {
         self.flags |= flag;
     }
@@ -146,6 +155,10 @@ impl WidgetData {
 
     pub fn is_hidden(&self) -> bool {
         self.style.hidden
+    }
+
+    pub fn is_overlay(&self) -> bool {
+        self.flag_is_set(WidgetFlags::OVERLAY)
     }
 
     pub fn shape(&self) -> Shape {

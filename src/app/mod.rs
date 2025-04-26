@@ -25,7 +25,7 @@ mod window;
 use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 pub use accessor::{Accessor, Computed};
-pub use animation::{Animated, AnimationContext};
+pub use animation::{Animated, AnimationContext, AnyAnimation, Easing, TweenOptions};
 pub(crate) use app_state::AppState;
 pub use effect::{Effect, EffectState};
 pub use event_handling::{handle_window_event, CallbackContext, EventContext, MouseEventContext};

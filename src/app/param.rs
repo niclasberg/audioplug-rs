@@ -111,6 +111,14 @@ impl<T: Any> Readable for ParamSignal<T> {
     fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         let scope = cx.scope();
         cx.runtime_mut().track_parameter(self.id, scope);
+        self.with_ref_untracked(cx, f)
+    }
+
+    fn with_ref_untracked<R>(
+        &self,
+        cx: &mut dyn ReactiveContext,
+        f: impl FnOnce(&Self::Value) -> R,
+    ) -> R {
         let param_ref = cx.runtime_mut().get_parameter_ref(self.id);
         let value = param_ref.value_as().unwrap();
         f(&value)
@@ -122,6 +130,14 @@ impl<T: Any> Readable for ParamSignal<T> {
     {
         let scope = cx.scope();
         cx.runtime_mut().track_parameter(self.id, scope);
+        let param_ref = cx.runtime().get_parameter_ref(self.id);
+        param_ref.value_as().unwrap()
+    }
+
+    fn get_untracked(&self, cx: &mut dyn ReactiveContext) -> Self::Value
+    where
+        Self::Value: Clone,
+    {
         let param_ref = cx.runtime().get_parameter_ref(self.id);
         param_ref.value_as().unwrap()
     }

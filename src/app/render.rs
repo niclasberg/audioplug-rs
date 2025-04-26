@@ -18,6 +18,7 @@ pub fn render_window(
     window_id: WindowId,
     renderer: platform::RendererRef<'_>,
 ) {
+    println!("Render");
     let widget_id = app_state.window(window_id).root_widget;
     let mut ctx = RenderContext {
         id: widget_id,

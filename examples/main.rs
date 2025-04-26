@@ -1,6 +1,6 @@
 use audioplug::app::*;
 use audioplug::core::{Color, Size};
-use audioplug::style::Length;
+use audioplug::style::{Length, UiRect};
 use audioplug::views::*;
 use audioplug::App;
 use std::path::Path;
@@ -26,6 +26,10 @@ fn main() {
                     checkbox_enabled.get(cx)
                 );
                 cnt + 1
+            });
+
+            Effect::watch(cx, slider_value, move |_, value| {
+                println!("Effect::watch: slider_value: {}", value);
             });
 
             Column::new((
@@ -63,11 +67,13 @@ fn main() {
                 .v_align_center(),
                 Row::new((
                     Label::new("Image"),
-                    Image::from_file(Path::new("./ferris.png")).style(|style| {
-                        style
-                            .max_width(Length::Px(200.0))
-                            .height(slider_value.map(Length::from_px))
-                    }),
+                    Image::from_file(Path::new("./ferris.png"))
+                        .style(|style| {
+                            style
+                                .max_width(Length::Px(200.0))
+                                .height(slider_value.map(Length::from_px))
+                        })
+                        .overlay(UiRect::ZERO, Label::new("OVERLAY")),
                 ))
                 .v_align_center(),
                 Row::new((

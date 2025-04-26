@@ -1,6 +1,5 @@
 mod builder;
 mod display_style;
-mod layout_style;
 mod length;
 mod ui_rect;
 
@@ -11,7 +10,6 @@ use crate::{
 pub(crate) use builder::apply_styles;
 pub use builder::StyleBuilder;
 pub use display_style::{AvailableSpace, DisplayStyle, FlexStyle, GridStyle, Measure};
-pub(crate) use layout_style::LayoutStyle;
 pub use length::Length;
 pub use taffy::{
     AlignContent, AlignItems, AlignSelf, FlexDirection, FlexWrap, JustifyContent, JustifySelf,
@@ -19,7 +17,7 @@ pub use taffy::{
 };
 pub use ui_rect::UiRect;
 
-pub(super) trait ResolveInto<T> {
+pub(crate) trait ResolveInto<T> {
     fn resolve_into(self, window_size: Size) -> T;
 }
 

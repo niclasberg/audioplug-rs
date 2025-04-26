@@ -180,7 +180,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 }
 
-impl<'a> Deref for WidgetMut<'a, dyn Widget> {
+impl Deref for WidgetMut<'_, dyn Widget> {
     type Target = dyn Widget;
 
     fn deref(&self) -> &Self::Target {
@@ -196,7 +196,7 @@ impl<'a, W: 'a + Widget> Deref for WidgetMut<'a, W> {
     }
 }
 
-impl<'a> DerefMut for WidgetMut<'a, dyn Widget> {
+impl DerefMut for WidgetMut<'_, dyn Widget> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.app_state.widgets[self.id]
     }
@@ -205,5 +205,11 @@ impl<'a> DerefMut for WidgetMut<'a, dyn Widget> {
 impl<'a, W: 'a + Widget> DerefMut for WidgetMut<'a, W> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.app_state.widgets[self.id].downcast_mut().unwrap()
+    }
+}
+
+impl<'a, W: 'a + Widget + ?Sized> Drop for WidgetMut<'a, W> {
+    fn drop(&mut self) {
+        self.app_state.merge_widget_flags(self.id);
     }
 }

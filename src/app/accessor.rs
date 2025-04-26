@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
 use super::{
-    effect::BindingState, signal::ReadSignal, Brush, BuildContext, EffectState, LinearGradient,
-    Mapped, Memo, NodeId, Owner, ParamSignal, ReactiveContext, ReadContext, Readable, Signal,
-    Widget, WidgetMut,
+    effect::BindingState, signal::ReadSignal, Animated, Brush, BuildContext, EffectState,
+    LinearGradient, Mapped, Memo, NodeId, Owner, ParamSignal, ReactiveContext, ReadContext,
+    Readable, Signal, Widget, WidgetMut,
 };
 use crate::{core::Color, param::ParameterId};
 
@@ -40,6 +40,7 @@ pub enum Accessor<T> {
     Const(T),
     Mapped(Rc<dyn MappedAccessor<T>>),
     Computed(Computed<T>),
+    Animated(Animated<T>),
 }
 
 impl<T: 'static> Accessor<T> {
@@ -55,6 +56,7 @@ impl<T: 'static> Accessor<T> {
             Self::Parameter(param) => param.get(cx),
             Self::Mapped(mapped) => mapped.evaluate(cx),
             Self::Computed(computed) => (computed.f)(cx),
+            Self::Animated(animated) => animated.get(cx),
         }
     }
 
@@ -67,6 +69,7 @@ impl<T: 'static> Accessor<T> {
             Self::Parameter(param) => param.with_ref(cx, f),
             Self::Mapped(mapped) => f(&mapped.evaluate(cx)),
             Self::Computed(computed) => f(&(computed.f)(cx)),
+            Self::Animated(animated) => animated.with_ref(cx, f),
         }
     }
 
@@ -119,9 +122,6 @@ impl<T: 'static> Accessor<T> {
                     let node = WidgetMut::new(app_state, widget_id.id);
                     f(value, node);
                 }
-                if app_state.widgets.contains_key(widget_id.id) {
-                    app_state.merge_widget_flags(widget_id.id);
-                }
             });
 
             cx.runtime_mut().create_binding_node(
@@ -136,6 +136,7 @@ impl<T: 'static> Accessor<T> {
             Self::ReadSignal(signal) => create_binding(self, f, cx, SourceId::Node(signal.id)),
             Self::Memo(memo) => create_binding(self, f, cx, SourceId::Node(memo.id)),
             Self::Parameter(param) => create_binding(self, f, cx, SourceId::Parameter(param.id)),
+            Self::Animated(animated) => create_binding(self, f, cx, SourceId::Node(animated.id)),
             Self::Mapped(ref mapped) => {
                 let id = mapped.get_source_id();
                 create_binding(self, f, cx, id)
@@ -148,11 +149,8 @@ impl<T: 'static> Accessor<T> {
                     let widget = cx.widget_mut(widget_id);
                     f(value, widget);
                 });
-                cx.runtime_mut().create_effect_node(
-                    state,
-                    Some(Owner::Widget(widget_id.id)),
-                    false,
-                );
+                cx.runtime_mut()
+                    .create_effect_node(state, Some(Owner::Widget(widget_id.id)), true);
             }
             Accessor::Const(_) => {}
         }

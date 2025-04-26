@@ -89,6 +89,14 @@ impl<T: 'static> Readable for Signal<T> {
     fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&T) -> R) -> R {
         let scope = cx.scope();
         cx.runtime_mut().track(self.id, scope);
+        self.with_ref_untracked(cx, f)
+    }
+
+    fn with_ref_untracked<R>(
+        &self,
+        cx: &mut dyn super::ReactiveContext,
+        f: impl FnOnce(&Self::Value) -> R,
+    ) -> R {
         let value = match &cx.runtime().get_node(self.id).node_type {
             NodeType::Signal(signal) => signal.value.as_ref(),
             _ => unreachable!(),
@@ -120,6 +128,14 @@ impl<T: 'static> Readable for ReadSignal<T> {
     fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&T) -> R) -> R {
         let scope = cx.scope();
         cx.runtime_mut().track(self.id, scope);
+        self.with_ref_untracked(cx, f)
+    }
+
+    fn with_ref_untracked<R>(
+        &self,
+        cx: &mut dyn super::ReactiveContext,
+        f: impl FnOnce(&Self::Value) -> R,
+    ) -> R {
         let value = match &cx.runtime().get_node(self.id).node_type {
             NodeType::Signal(signal) => signal.value.as_ref(),
             _ => unreachable!(),

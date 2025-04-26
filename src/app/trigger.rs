@@ -79,4 +79,13 @@ where
     fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         self.source_signal.with_ref(cx, move |x| f((self.f)(x)))
     }
+
+    fn with_ref_untracked<R>(
+        &self,
+        cx: &mut dyn ReactiveContext,
+        f: impl FnOnce(&Self::Value) -> R,
+    ) -> R {
+        self.source_signal
+            .with_ref_untracked(cx, move |x| f((self.f)(x)))
+    }
 }

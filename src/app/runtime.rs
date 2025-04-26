@@ -5,7 +5,7 @@ use super::{
     effect::{BindingState, EffectState},
     memo::MemoState,
     signal::SignalState,
-    MemoContext, NodeId, ReactiveContext, ReadContext, WidgetId, WriteContext,
+    NodeId, ReactiveContext, ReadContext, WidgetId, WindowId, WriteContext,
 };
 use crate::param::{AnyParameterMap, ParamRef, ParameterId};
 use indexmap::IndexSet;
@@ -152,7 +152,6 @@ pub struct Runtime {
     nodes: SlotMap<NodeId, Node>,
     pub(super) subscriptions: SubscriberMap,
     pub(super) pending_tasks: VecDeque<Task>,
-    pending_animations: IndexSet<NodeId>,
     pub(super) parameters: Rc<dyn AnyParameterMap>,
     scratch_buffer: VecDeque<NodeId>,
     child_nodes: SecondaryMap<NodeId, HashSet<NodeId>>,
@@ -166,7 +165,6 @@ impl Runtime {
             child_nodes: Default::default(),
             subscriptions: SubscriberMap::new(&parameter_map.parameter_ids()),
             pending_tasks: Default::default(),
-            pending_animations: Default::default(),
             parameters: parameter_map,
             scratch_buffer: Default::default(),
             widget_bindings: Default::default(),
@@ -209,44 +207,29 @@ impl Runtime {
         state: BindingState,
         owner: Option<Owner>,
     ) -> NodeId {
+        let id = self.create_node(NodeType::Binding(state), NodeState::Clean, owner);
         match source {
             SourceId::Parameter(source_id) => {
-                self.create_parameter_binding_node(source_id, state, owner)
+                self.subscriptions.add_parameter_subscription(source_id, id)
             }
-            SourceId::Node(source_id) => self.create_node_binding_node(source_id, state, owner),
-        }
-    }
-
-    pub(crate) fn create_node_binding_node(
-        &mut self,
-        source_id: NodeId,
-        state: BindingState,
-        owner: Option<Owner>,
-    ) -> NodeId {
-        let id = self.create_node(NodeType::Binding(state), NodeState::Clean, owner);
-        self.subscriptions.add_node_subscription(source_id, id);
-        id
-    }
-
-    pub(crate) fn create_parameter_binding_node(
-        &mut self,
-        source_id: ParameterId,
-        state: BindingState,
-        owner: Option<Owner>,
-    ) -> NodeId {
-        let id = self.create_node(NodeType::Binding(state), NodeState::Clean, owner);
-        self.subscriptions.add_parameter_subscription(source_id, id);
+            SourceId::Node(source_id) => self.subscriptions.add_node_subscription(source_id, id),
+        };
         id
     }
 
     pub(crate) fn create_animation_node(
         &mut self,
-        source_id: NodeId,
+        source: SourceId,
         state: AnimationState,
         owner: Option<Owner>,
     ) -> NodeId {
-        let id = self.create_node(NodeType::Animation(state), NodeState::Check, owner);
-        self.subscriptions.add_node_subscription(source_id, id);
+        let id = self.create_node(NodeType::Animation(state), NodeState::Clean, owner);
+        match source {
+            SourceId::Parameter(source_id) => {
+                self.subscriptions.add_parameter_subscription(source_id, id)
+            }
+            SourceId::Node(source_id) => self.subscriptions.add_node_subscription(source_id, id),
+        };
         id
     }
 
@@ -302,11 +285,30 @@ impl Runtime {
         self.nodes.get_mut(node_id).expect("Node not found")
     }
 
+    pub fn try_get_node_mut(&mut self, node_id: NodeId) -> Option<&mut Node> {
+        self.nodes.get_mut(node_id)
+    }
+
     pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
         self.parameters
             .get_by_id(parameter_id)
             .expect("Invalid parameter id")
             .as_param_ref()
+    }
+
+    pub fn try_with_node<R>(
+        &mut self,
+        node_id: NodeId,
+        f: impl FnOnce(&mut Self, &mut NodeType) -> R,
+    ) -> Option<R> {
+        if let Some(node) = self.nodes.get_mut(node_id) {
+            let mut node_type = std::mem::replace(&mut node.node_type, NodeType::TmpRemoved);
+            let ret = f(self, &mut node_type);
+            std::mem::swap(&mut self.nodes[node_id].node_type, &mut node_type);
+            Some(ret)
+        } else {
+            None
+        }
     }
 
     pub fn notify(&mut self, node_id: NodeId) {
@@ -370,12 +372,12 @@ impl Runtime {
             let mut node_type =
                 std::mem::replace(&mut self.nodes[node_id].node_type, NodeType::TmpRemoved);
             match &mut node_type {
-                NodeType::Effect(effect) => {
+                NodeType::Effect(EffectState { f }) => {
                     // Clear the sources, they will be re-populated while running the effect function
                     self.subscriptions.clear_node_sources(node_id);
                     let task = Task::RunEffect {
                         id: node_id,
-                        f: Rc::downgrade(&effect.f),
+                        f: Rc::downgrade(f),
                     };
                     self.pending_tasks.push_back(task);
                 }
@@ -386,15 +388,17 @@ impl Runtime {
                     };
                     self.pending_tasks.push_back(task);
                 }
-                NodeType::Animation(_) => {}
+                NodeType::Animation(AnimationState { window_id, .. }) => {
+                    let task = Task::UpdateAnimation {
+                        node_id,
+                        window_id: *window_id,
+                    };
+                    self.pending_tasks.push_back(task);
+                }
                 NodeType::Memo(memo) => {
                     // Clear the sources, they will be re-populated while running the memo function
                     self.subscriptions.clear_node_sources(node_id);
-                    let mut cx = MemoContext {
-                        memo_id: node_id,
-                        runtime: self,
-                    };
-                    if memo.eval(&mut cx) {
+                    if memo.eval(node_id, self) {
                         for &observer_id in self.subscriptions.observers[node_id].iter() {
                             self.nodes[observer_id].state = NodeState::Dirty;
                         }
