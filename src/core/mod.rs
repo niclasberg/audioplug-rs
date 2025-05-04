@@ -26,7 +26,7 @@ pub use color_map::*;
 pub use constraint::*;
 pub use cursor::Cursor;
 pub use ellipse::{Circle, Ellipse};
-pub use interpolation::Interpolate;
+pub use interpolation::{Interpolate, SpringPhysics, SpringProperties};
 pub use keyboard::{Key, Modifiers};
 pub use point::Point;
 pub use rectangle::Rectangle;

@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
 use super::{
-    effect::BindingState, signal::ReadSignal, Animated, Brush, BuildContext, EffectState,
-    LinearGradient, Mapped, Memo, NodeId, Owner, ParamSignal, ReactiveContext, ReadContext,
-    Readable, Signal, Widget, WidgetMut,
+    effect::BindingState, signal::ReadSignal, Animated, AnimatedFn, Brush, BuildContext,
+    EffectState, LinearGradient, Mapped, Memo, NodeId, Owner, ParamSignal, ReactiveContext,
+    ReadContext, Readable, Signal, Widget, WidgetMut,
 };
 use crate::{core::Color, param::ParameterId};
 
@@ -41,6 +41,7 @@ pub enum Accessor<T> {
     Mapped(Rc<dyn MappedAccessor<T>>),
     Computed(Computed<T>),
     Animated(Animated<T>),
+    AnimatedFn(AnimatedFn<T>),
 }
 
 impl<T: 'static> Accessor<T> {
@@ -57,6 +58,7 @@ impl<T: 'static> Accessor<T> {
             Self::Mapped(mapped) => mapped.evaluate(cx),
             Self::Computed(computed) => (computed.f)(cx),
             Self::Animated(animated) => animated.get(cx),
+            Self::AnimatedFn(animated) => animated.get(cx),
         }
     }
 
@@ -70,6 +72,7 @@ impl<T: 'static> Accessor<T> {
             Self::Mapped(mapped) => f(&mapped.evaluate(cx)),
             Self::Computed(computed) => f(&(computed.f)(cx)),
             Self::Animated(animated) => animated.with_ref(cx, f),
+            Self::AnimatedFn(animated) => animated.with_ref(cx, f),
         }
     }
 
@@ -137,6 +140,7 @@ impl<T: 'static> Accessor<T> {
             Self::Memo(memo) => create_binding(self, f, cx, SourceId::Node(memo.id)),
             Self::Parameter(param) => create_binding(self, f, cx, SourceId::Parameter(param.id)),
             Self::Animated(animated) => create_binding(self, f, cx, SourceId::Node(animated.id)),
+            Self::AnimatedFn(animated) => create_binding(self, f, cx, SourceId::Node(animated.id)),
             Self::Mapped(ref mapped) => {
                 let id = mapped.get_source_id();
                 create_binding(self, f, cx, id)
@@ -190,6 +194,12 @@ impl<T> From<Memo<T>> for Accessor<T> {
 impl<T> From<ParamSignal<T>> for Accessor<T> {
     fn from(value: ParamSignal<T>) -> Self {
         Self::Parameter(value)
+    }
+}
+
+impl<T> From<Animated<T>> for Accessor<T> {
+    fn from(value: Animated<T>) -> Self {
+        Self::Animated(value)
     }
 }
 

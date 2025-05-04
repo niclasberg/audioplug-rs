@@ -10,7 +10,7 @@ pub struct MemoContext<'a> {
     pub(super) runtime: &'a mut Runtime,
 }
 
-impl<'b> ReactiveContext for MemoContext<'b> {
+impl ReactiveContext for MemoContext<'_> {
     fn runtime(&self) -> &Runtime {
         self.runtime
     }
@@ -20,7 +20,7 @@ impl<'b> ReactiveContext for MemoContext<'b> {
     }
 }
 
-impl<'b> ReadContext for MemoContext<'b> {
+impl ReadContext for MemoContext<'_> {
     fn scope(&self) -> Scope {
         Scope::Node(self.memo_id)
     }
@@ -109,8 +109,8 @@ impl<T: 'static> Readable for Memo<T> {
 
     fn with_ref_untracked<R>(
         &self,
-        cx: &mut dyn ReactiveContext,
-        f: impl FnOnce(&Self::Value) -> R,
+        _cx: &mut dyn ReactiveContext,
+        _f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
         todo!()
     }

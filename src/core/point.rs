@@ -3,7 +3,7 @@ use std::{
     ops::{Add, Sub},
 };
 
-use super::{interpolation::SpringPhysics, Interpolate, Size, Vector};
+use super::{Interpolate, Size, SpringPhysics, Vector};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Point<T = f64> {
@@ -223,5 +223,25 @@ impl<T: Interpolate> Interpolate for Point<T> {
             x: self.x.lerp(&other.x, scalar),
             y: self.y.lerp(&other.y, scalar),
         }
+    }
+}
+
+impl<T: SpringPhysics> SpringPhysics for Point<T> {
+    const ZERO: Self = Point::new(T::ZERO, T::ZERO);
+
+    fn apply_spring_update(
+        &mut self,
+        velocity: &mut Self,
+        delta_t: f64,
+        target: &Self,
+        properties: &super::SpringProperties,
+    ) -> bool {
+        let x_converged =
+            self.x
+                .apply_spring_update(&mut velocity.x, delta_t, &target.x, properties);
+        let y_converged =
+            self.x
+                .apply_spring_update(&mut velocity.y, delta_t, &target.y, properties);
+        x_converged && y_converged
     }
 }

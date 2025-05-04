@@ -94,19 +94,19 @@ impl<'a, W: Widget> BuildContext<'a, W> {
     }
 }
 
-impl<'s, W: Widget> ParamContext for BuildContext<'s, W> {
+impl<W: Widget> ParamContext for BuildContext<'_, W> {
     fn host_handle(&self) -> &dyn super::HostHandle {
         self.app_state.host_handle()
     }
 }
 
-impl<'s, W: Widget> ReadContext for BuildContext<'s, W> {
+impl<W: Widget> ReadContext for BuildContext<'_, W> {
     fn scope(&self) -> Scope {
         Scope::Root
     }
 }
 
-impl<'b, W: Widget> ReactiveContext for BuildContext<'b, W> {
+impl<W: Widget> ReactiveContext for BuildContext<'_, W> {
     fn runtime(&self) -> &super::Runtime {
         self.app_state.runtime()
     }
@@ -116,13 +116,13 @@ impl<'b, W: Widget> ReactiveContext for BuildContext<'b, W> {
     }
 }
 
-impl<'s, W: Widget> CreateContext for BuildContext<'s, W> {
+impl<W: Widget> CreateContext for BuildContext<'_, W> {
     fn owner(&self) -> Option<Owner> {
         Some(Owner::Widget(self.id))
     }
 }
 
-impl<'s, W: Widget> ViewContext for BuildContext<'s, W> {
+impl<W: Widget> ViewContext for BuildContext<'_, W> {
     fn window_id(&self) -> super::WindowId {
         self.app_state.get_window_id_for_widget(self.id)
     }

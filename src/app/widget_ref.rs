@@ -75,7 +75,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
     }
 }
 
-impl<'a> Deref for WidgetRef<'a, dyn Widget> {
+impl Deref for WidgetRef<'_, dyn Widget> {
     type Target = dyn Widget;
 
     fn deref(&self) -> &Self::Target {

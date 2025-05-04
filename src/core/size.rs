@@ -2,7 +2,7 @@ use std::ops::{Add, Div, Mul, Sub};
 
 use num::Zero;
 
-use super::Interpolate;
+use super::{Interpolate, SpringPhysics};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Size<T = f64> {

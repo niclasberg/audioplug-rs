@@ -46,7 +46,7 @@ pub struct RenderContext<'a, 'b> {
     renderer: platform::RendererRef<'b>,
 }
 
-impl<'a, 'b> RenderContext<'a, 'b> {
+impl RenderContext<'_, '_> {
     pub fn local_bounds(&self) -> Rectangle {
         self.app_state.widget_data_ref(self.id).local_bounds()
     }

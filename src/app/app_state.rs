@@ -1,5 +1,4 @@
 use super::{
-    animation::request_node_animation,
     clipboard::Clipboard,
     effect::{BindingFn, EffectContext},
     layout_window,
@@ -53,11 +52,14 @@ impl Task {
             Task::UpdateBinding { f, node_id } => {
                 if let Some(f) = f.upgrade() {
                     (RefCell::borrow_mut(&f))(app_state);
+                    app_state.runtime.mark_node_as_clean(node_id);
                 }
-                app_state.runtime.mark_node_as_clean(node_id);
             }
             Task::UpdateAnimation { node_id, window_id } => {
-                request_node_animation(app_state, window_id, node_id);
+                app_state
+                    .window_mut(window_id)
+                    .pending_node_animations
+                    .insert(node_id);
             }
             _ => {}
         }

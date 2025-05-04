@@ -25,7 +25,7 @@ pub struct LocalCreateContext<'a> {
     owner: Owner,
 }
 
-impl<'a> ReactiveContext for LocalCreateContext<'a> {
+impl ReactiveContext for LocalCreateContext<'_> {
     fn runtime(&self) -> &Runtime {
         self.runtime
     }
@@ -35,9 +35,36 @@ impl<'a> ReactiveContext for LocalCreateContext<'a> {
     }
 }
 
-impl<'a> CreateContext for LocalCreateContext<'a> {
+impl CreateContext for LocalCreateContext<'_> {
     fn owner(&self) -> Option<Owner> {
         Some(self.owner)
+    }
+}
+
+pub struct LocalReadContext<'a> {
+    runtime: &'a mut Runtime,
+    scope: Scope,
+}
+
+impl<'a> LocalReadContext<'a> {
+    pub fn new(runtime: &'a mut Runtime, scope: Scope) -> Self {
+        Self { runtime, scope }
+    }
+}
+
+impl ReactiveContext for LocalReadContext<'_> {
+    fn runtime(&self) -> &Runtime {
+        &self.runtime
+    }
+
+    fn runtime_mut(&mut self) -> &mut Runtime {
+        &mut self.runtime
+    }
+}
+
+impl ReadContext for LocalReadContext<'_> {
+    fn scope(&self) -> Scope {
+        self.scope
     }
 }
 

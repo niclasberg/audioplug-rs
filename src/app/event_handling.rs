@@ -348,21 +348,21 @@ pub struct CallbackContext<'a> {
     app_state: &'a mut AppState,
 }
 
-impl<'s> ParamContext for CallbackContext<'s> {
+impl ParamContext for CallbackContext<'_> {
     fn host_handle(&self) -> &dyn super::HostHandle {
         self.app_state.host_handle()
     }
 }
 
-impl<'s> ReadContext for CallbackContext<'s> {
+impl ReadContext for CallbackContext<'_> {
     fn scope(&self) -> Scope {
         Scope::Root
     }
 }
 
-impl<'a> WriteContext for CallbackContext<'a> {}
+impl WriteContext for CallbackContext<'_> {}
 
-impl<'b> ReactiveContext for CallbackContext<'b> {
+impl ReactiveContext for CallbackContext<'_> {
     fn runtime(&self) -> &super::Runtime {
         self.app_state.runtime()
     }

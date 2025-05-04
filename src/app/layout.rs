@@ -66,7 +66,7 @@ pub struct LayoutChildIter<'a> {
     inner: std::slice::Iter<'a, WidgetId>,
 }
 
-impl<'a> Iterator for LayoutChildIter<'a> {
+impl Iterator for LayoutChildIter<'_> {
     type Item = taffy::NodeId;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -80,7 +80,7 @@ pub struct LayoutContext<'a> {
     region_to_invalidate: Option<Rectangle>,
 }
 
-impl<'a> LayoutContext<'a> {
+impl LayoutContext<'_> {
     fn get_layout_style(&self, node_id: taffy::NodeId) -> LayoutStyle<'_> {
         let node_id = node_id.into();
         LayoutStyle {
@@ -92,7 +92,7 @@ impl<'a> LayoutContext<'a> {
     }
 }
 
-impl<'a> taffy::TraversePartialTree for LayoutContext<'a> {
+impl taffy::TraversePartialTree for LayoutContext<'_> {
     type ChildIter<'b>
         = LayoutChildIter<'b>
     where
@@ -116,9 +116,9 @@ impl<'a> taffy::TraversePartialTree for LayoutContext<'a> {
     }
 }
 
-impl<'a> TraverseTree for LayoutContext<'a> {}
+impl TraverseTree for LayoutContext<'_> {}
 
-impl<'a> PrintTree for LayoutContext<'a> {
+impl PrintTree for LayoutContext<'_> {
     fn get_debug_label(&self, node_id: taffy::NodeId) -> &'static str {
         self.app_state.widgets[node_id.into()].debug_label()
     }
@@ -128,7 +128,7 @@ impl<'a> PrintTree for LayoutContext<'a> {
     }
 }
 
-impl<'a> LayoutBlockContainer for LayoutContext<'a> {
+impl LayoutBlockContainer for LayoutContext<'_> {
     type BlockContainerStyle<'b>
         = LayoutStyle<'b>
     where
@@ -147,7 +147,7 @@ impl<'a> LayoutBlockContainer for LayoutContext<'a> {
     }
 }
 
-impl<'a> LayoutFlexboxContainer for LayoutContext<'a> {
+impl LayoutFlexboxContainer for LayoutContext<'_> {
     type FlexboxContainerStyle<'b>
         = LayoutStyle<'b>
     where
@@ -169,7 +169,7 @@ impl<'a> LayoutFlexboxContainer for LayoutContext<'a> {
     }
 }
 
-impl<'a> CacheTree for LayoutContext<'a> {
+impl CacheTree for LayoutContext<'_> {
     fn cache_get(
         &self,
         node_id: taffy::NodeId,
@@ -218,7 +218,7 @@ impl<'a> CacheTree for LayoutContext<'a> {
     }
 }*/
 
-impl<'a> LayoutPartialTree for LayoutContext<'a> {
+impl LayoutPartialTree for LayoutContext<'_> {
     type CoreContainerStyle<'b>
         = LayoutStyle<'b>
     where
@@ -336,7 +336,7 @@ pub struct LayoutStyle<'a> {
     pub(crate) is_overlay: bool,
 }
 
-impl<'a> taffy::CoreStyle for LayoutStyle<'a> {
+impl taffy::CoreStyle for LayoutStyle<'_> {
     fn box_generation_mode(&self) -> taffy::BoxGenerationMode {
         if self.style.hidden {
             taffy::BoxGenerationMode::None
@@ -405,7 +405,7 @@ impl<'a> taffy::CoreStyle for LayoutStyle<'a> {
     }
 }
 
-impl<'a> taffy::FlexboxContainerStyle for LayoutStyle<'a> {
+impl taffy::FlexboxContainerStyle for LayoutStyle<'_> {
     fn flex_direction(&self) -> taffy::FlexDirection {
         match &self.display_style {
             DisplayStyle::Flex(flex) => flex.direction,
@@ -449,7 +449,7 @@ impl<'a> taffy::FlexboxContainerStyle for LayoutStyle<'a> {
     }
 }
 
-impl<'a> taffy::FlexboxItemStyle for LayoutStyle<'a> {
+impl taffy::FlexboxItemStyle for LayoutStyle<'_> {
     fn flex_basis(&self) -> taffy::Dimension {
         taffy::Style::DEFAULT.flex_basis
     }
@@ -467,19 +467,19 @@ impl<'a> taffy::FlexboxItemStyle for LayoutStyle<'a> {
     }
 }
 
-impl<'a> taffy::BlockContainerStyle for LayoutStyle<'a> {
+impl taffy::BlockContainerStyle for LayoutStyle<'_> {
     fn text_align(&self) -> taffy::TextAlign {
         taffy::Style::DEFAULT.text_align
     }
 }
 
-impl<'a> taffy::BlockItemStyle for LayoutStyle<'a> {
+impl taffy::BlockItemStyle for LayoutStyle<'_> {
     fn is_table(&self) -> bool {
         false
     }
 }
 
-impl<'a> taffy::GridContainerStyle for LayoutStyle<'a> {
+impl taffy::GridContainerStyle for LayoutStyle<'_> {
     type TemplateTrackList<'b>
         = &'b [taffy::TrackSizingFunction]
     where

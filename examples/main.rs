@@ -1,9 +1,10 @@
 use audioplug::app::*;
-use audioplug::core::{Color, Size};
+use audioplug::core::{Color, Size, SpringPhysics};
 use audioplug::style::{Length, UiRect};
 use audioplug::views::*;
 use audioplug::App;
 use std::path::Path;
+use std::time::Duration;
 
 fn main() {
     //let device = Device::new()?;
@@ -16,6 +17,23 @@ fn main() {
             let checkbox_enabled = Signal::new(cx, false);
             let text = Signal::new(cx, "".to_string());
             let slider_value = Signal::new(cx, 100.0);
+            let checkbox_bg = AnimatedFn::tween(
+                cx,
+                move |cx| {
+                    if checkbox_enabled.get(cx) {
+                        Color::MAY_GREEN
+                    } else {
+                        Color::FALU_RED
+                    }
+                },
+                TweenOptions {
+                    duration: Duration::from_secs_f64(0.4),
+                    ..Default::default()
+                },
+            );
+
+            let animated =
+                AnimatedFn::spring(cx, move |cx| slider_value.get(cx), SpringOptions::default());
 
             Effect::new_with_state(cx, move |cx, cnt| {
                 let cnt = cnt.unwrap_or(0);
@@ -34,7 +52,11 @@ fn main() {
 
             Column::new((
                 Label::new(Computed::new(move |cx| {
-                    format!("{}. Slider value: {}", text.get(cx), slider_value.get(cx))
+                    format!(
+                        "Slider value: {}, animated: {}",
+                        slider_value.get(cx),
+                        animated.get(cx)
+                    )
                 }))
                 .style(|s| {
                     s.border(Length::Px(2.0), Color::GRAY90)
@@ -53,7 +75,9 @@ fn main() {
                 Row::new((Label::new("Knob"), Knob::new())).v_align_center(),
                 Row::new((
                     Label::new("Checkbox"),
-                    Checkbox::new().checked(checkbox_enabled),
+                    Checkbox::new()
+                        .checked(checkbox_enabled)
+                        .style(|s| s.background(checkbox_bg.map(|c| Brush::Solid(*c)))),
                 ))
                 .v_align_center()
                 .spacing(Length::Px(5.0)),
@@ -71,7 +95,7 @@ fn main() {
                         .style(|style| {
                             style
                                 .max_width(Length::Px(200.0))
-                                .height(slider_value.map(Length::from_px))
+                                .height(animated.map(Length::from_px))
                         })
                         .overlay(UiRect::ZERO, Label::new("OVERLAY")),
                 ))

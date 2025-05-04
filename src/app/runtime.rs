@@ -1,11 +1,11 @@
 use super::{
     accessor::SourceId,
-    animation::AnimationState,
+    animation::{AnimationState, DerivedAnimationState},
     app_state::Task,
     effect::{BindingState, EffectState},
     memo::MemoState,
     signal::SignalState,
-    NodeId, ReactiveContext, ReadContext, WidgetId, WindowId, WriteContext,
+    LocalReadContext, NodeId, ReactiveContext, ReadContext, WidgetId, WindowId, WriteContext,
 };
 use crate::param::{AnyParameterMap, ParamRef, ParameterId};
 use indexmap::IndexSet;
@@ -60,6 +60,7 @@ pub enum NodeType {
     Effect(EffectState),
     Binding(BindingState),
     Animation(AnimationState),
+    DerivedAnimation(DerivedAnimationState),
 }
 
 pub struct SubscriberMap {
@@ -219,17 +220,23 @@ impl Runtime {
 
     pub(crate) fn create_animation_node(
         &mut self,
-        source: SourceId,
         state: AnimationState,
         owner: Option<Owner>,
     ) -> NodeId {
-        let id = self.create_node(NodeType::Animation(state), NodeState::Clean, owner);
-        match source {
-            SourceId::Parameter(source_id) => {
-                self.subscriptions.add_parameter_subscription(source_id, id)
-            }
-            SourceId::Node(source_id) => self.subscriptions.add_node_subscription(source_id, id),
-        };
+        self.create_node(NodeType::Animation(state), NodeState::Clean, owner)
+    }
+
+    pub(crate) fn create_derived_animation_node(
+        &mut self,
+        state_fn: impl FnOnce(&mut Self, NodeId) -> DerivedAnimationState,
+        owner: Option<Owner>,
+    ) -> NodeId {
+        let id = self.create_node(NodeType::TmpRemoved, NodeState::Clean, owner);
+        let state = state_fn(self, id);
+        let _ = std::mem::replace(
+            &mut self.nodes[id].node_type,
+            NodeType::DerivedAnimation(state),
+        );
         id
     }
 
@@ -279,6 +286,10 @@ impl Runtime {
 
     pub fn get_node(&self, node_id: NodeId) -> &Node {
         self.nodes.get(node_id).expect("Node not found")
+    }
+
+    pub fn try_get_node(&self, node_id: NodeId) -> Option<&Node> {
+        self.nodes.get(node_id)
     }
 
     pub fn get_node_mut(&mut self, node_id: NodeId) -> &mut Node {
@@ -335,7 +346,9 @@ impl Runtime {
                 if node.state < new_state {
                     node.state = new_state;
                     match &node.node_type {
-                        NodeType::Effect(_) | NodeType::Binding(_) | NodeType::Animation(_) => {
+                        NodeType::Effect(_)
+                        | NodeType::Binding(_)
+                        | NodeType::DerivedAnimation(_) => {
                             nodes_to_check.insert(node_id);
                         }
                         _ => {}
@@ -388,12 +401,10 @@ impl Runtime {
                     };
                     self.pending_tasks.push_back(task);
                 }
-                NodeType::Animation(AnimationState { window_id, .. }) => {
-                    let task = Task::UpdateAnimation {
-                        node_id,
-                        window_id: *window_id,
-                    };
-                    self.pending_tasks.push_back(task);
+                NodeType::DerivedAnimation(anim) => {
+                    if anim.reset(node_id, self) {
+                        self.request_animation(anim.window_id, node_id);
+                    }
                 }
                 NodeType::Memo(memo) => {
                     // Clear the sources, they will be re-populated while running the memo function
@@ -403,6 +414,9 @@ impl Runtime {
                             self.nodes[observer_id].state = NodeState::Dirty;
                         }
                     }
+                }
+                NodeType::Animation(..) => {
+                    panic!("Animations cannot depend on other reactive nodes")
                 }
                 NodeType::Trigger => panic!("Triggers cannot depend on other reactive nodes"),
                 NodeType::Signal(_) => panic!("Signals cannot depend on other reactive nodes"),
@@ -433,6 +447,11 @@ impl Runtime {
 
     pub(super) fn take_tasks(&mut self) -> VecDeque<Task> {
         std::mem::take(&mut self.pending_tasks)
+    }
+
+    pub(super) fn request_animation(&mut self, window_id: WindowId, node_id: NodeId) {
+        let task = Task::UpdateAnimation { node_id, window_id };
+        self.pending_tasks.push_back(task);
     }
 
     pub fn track(&mut self, source_id: NodeId, scope: Scope) {

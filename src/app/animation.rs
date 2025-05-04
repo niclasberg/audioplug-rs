@@ -1,15 +1,26 @@
 use std::{
     any::Any,
     marker::PhantomData,
+    ops::{Deref, DerefMut},
     time::{Duration, Instant},
 };
 
-use crate::{core::Interpolate, AnimationFrame};
+use crate::{
+    core::{Interpolate, SpringPhysics},
+    AnimationFrame,
+};
 
 use super::{
     accessor::SourceId, layout::request_layout, render::invalidate_widget, AppState, CreateContext,
-    NodeId, NodeType, ReactiveContext, ReadContext, Readable, ViewContext, WidgetId, WindowId,
+    LocalReadContext, NodeId, NodeType, ReactiveContext, ReadContext, Readable, Runtime, Scope,
+    ViewContext, WidgetId, WindowId, WriteContext,
 };
+
+mod spring;
+mod tween;
+
+pub use spring::{SpringAnimation, SpringOptions};
+pub use tween::{Easing, TweenAnimation, TweenOptions};
 
 /// Should be called when the animation timer for a window ticks.
 /// Steps all animations that have been enqueued for window.
@@ -29,16 +40,20 @@ pub(super) fn drive_animations(
 
     let node_ids = std::mem::take(&mut app_state.window_mut(window_id).pending_node_animations);
     let now = Instant::now();
-    let mut should_run_effects = false;
     for node_id in node_ids {
-        let did_change = match &mut app_state.runtime_mut().get_node_mut(node_id).node_type {
-            NodeType::Animation(animation) => animation.inner.drive(now),
-            _ => unreachable!(),
+        let did_change = if let Some(node) = app_state.runtime_mut().try_get_node_mut(node_id) {
+            match &mut node.node_type {
+                NodeType::Animation(animation) => animation.inner.drive(now),
+                NodeType::DerivedAnimation(animation) => animation.inner.drive(now),
+                _ => unreachable!(),
+            }
+        } else {
+            false
         };
 
         if did_change {
-            should_run_effects = true;
             app_state.runtime_mut().notify(node_id);
+            // Re-queue the animation for the next frame
             app_state
                 .window_mut(window_id)
                 .pending_node_animations
@@ -46,9 +61,7 @@ pub(super) fn drive_animations(
         }
     }
 
-    if should_run_effects {
-        app_state.run_effects();
-    }
+    app_state.run_effects();
 }
 
 pub fn request_animation_frame(app_state: &mut AppState, widget_id: WidgetId) {
@@ -57,27 +70,6 @@ pub fn request_animation_frame(app_state: &mut AppState, widget_id: WidgetId) {
         .window_mut(window_id)
         .pending_widget_animations
         .insert(widget_id);
-}
-
-pub(super) fn request_node_animation(
-    app_state: &mut AppState,
-    window_id: WindowId,
-    node_id: NodeId,
-) {
-    let was_found = app_state
-        .runtime_mut()
-        .try_with_node(node_id, |cx, node| match node {
-            NodeType::Animation(animation) => animation.inner.reset(cx),
-            _ => unreachable!(),
-        })
-        .is_some();
-
-    if was_found {
-        app_state
-            .window_mut(window_id)
-            .pending_node_animations
-            .insert(node_id);
-    }
 }
 
 pub struct AnimationContext<'a> {
@@ -110,158 +102,85 @@ impl AnimationContext<'_> {
     }
 }
 
-pub trait AnyAnimation {
-    fn value(&self) -> &dyn Any;
+pub trait Animation {
+    type Value;
+
+    /// Get the current value
+    fn value(&self) -> &Self::Value;
     /// Drives the animation
     /// Should return false when the animation is finished, and true otherwise
     fn drive(&mut self, time: Instant) -> bool;
-    fn reset(&mut self, cx: &mut dyn ReadContext);
+    fn set_target(&mut self, value: &Self::Value) -> bool;
+    fn set_target_and_value(&mut self, value: &Self::Value);
 }
 
-type EasingFn = fn(f64) -> f64;
-
-#[derive(Debug, Default, PartialEq, Eq)]
-pub enum Easing {
-    #[default]
-    Linear,
-    SineIn,
-    SineOut,
-    SineInOut,
-    QuadIn,
-    QuadOut,
-    QuadInOut,
-    CubicIn,
-    CubicOut,
-    CubicInOut,
-    Custom(EasingFn),
+/// Type-erased animation, needed so that we can store them in the runtime
+trait AnyAnimation {
+    fn value_dyn(&self) -> &dyn Any;
+    fn drive(&mut self, time: Instant) -> bool;
+    fn set_target_dyn(&mut self, value: &dyn Any) -> bool;
+    fn set_target_and_value_dyn(&mut self, value: &dyn Any);
 }
 
-impl Easing {
-    fn into_fn(self) -> EasingFn {
-        use std::f64::consts::PI;
-        match self {
-            Self::Linear => |x| x,
-            Self::SineIn => |x| 1.0 - ((x * PI) / 2.0).cos(),
-            Self::SineOut => |x| ((x * PI) / 2.0).sin(),
-            Self::SineInOut => |x| -((PI * x).cos() - 1.0) / 2.0,
-            Self::QuadIn => |x| x.powi(2),
-            Self::QuadOut => |x| 1.0 - (1.0 - x).powi(2),
-            Self::QuadInOut => |x| {
-                if x < 0.5 {
-                    2.0 * x * x
-                } else {
-                    1.0 - (-2.0 * x + 2.0).powi(2) / 2.0
-                }
-            },
-            Self::CubicIn => |x| x.powi(3),
-            Self::CubicOut => |x| 1.0 - (1.0 - x).powi(3),
-            Self::CubicInOut => |x| {
-                if x < 0.5 {
-                    4.0 * x.powi(3)
-                } else {
-                    1.0 - (-2.0 * x + 2.0).powi(3) / 2.0
-                }
-            },
-            Self::Custom(f) => f,
-        }
-    }
-}
-
-pub struct TweenOptions {
-    pub duration: Duration,
-    pub easing: Easing,
-}
-
-impl TweenOptions {
-    pub const fn new() -> Self {
-        Self {
-            duration: Duration::from_secs(1),
-            easing: Easing::Linear,
-        }
-    }
-}
-
-impl Default for TweenOptions {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-enum TweenState<T> {
-    Reset { target: T },
-    Running { start_time: Instant, from: T, to: T },
-    Done,
-}
-
-pub struct TweenAnimation<T: Readable> {
-    source: T,
-    state: TweenState<T::Value>,
-    value: T::Value,
-    duration: f64,
-    tween_fn: fn(progress: f64) -> f64,
-}
-
-impl<T> AnyAnimation for TweenAnimation<T>
+impl<A: Animation> AnyAnimation for A
 where
-    T: Readable,
-    T::Value: Any + Clone + Interpolate + std::fmt::Debug,
+    A::Value: Any,
 {
-    fn value(&self) -> &dyn Any {
-        &self.value
+    fn value_dyn(&self) -> &dyn Any {
+        self.value()
     }
 
     fn drive(&mut self, time: Instant) -> bool {
-        match &mut self.state {
-            TweenState::Reset { target } => {
-                self.state = TweenState::Running {
-                    start_time: time,
-                    from: self.value.clone(),
-                    to: target.clone(),
-                };
-                println!("Reset: {:?}", self.value);
-                true
-            }
-            TweenState::Running {
-                start_time,
-                from,
-                to,
-            } => {
-                let seconds_passed = time.duration_since(*start_time).as_secs_f64();
-                if seconds_passed >= self.duration {
-                    self.value = to.clone();
-                    self.state = TweenState::Done;
-                } else {
-                    self.value = from.lerp(&to, (self.tween_fn)(seconds_passed / self.duration));
-                }
-                println!("Running: {:?}", self.value);
-                true
-            }
-            TweenState::Done => false,
-        }
+        self.drive(time)
     }
 
-    fn reset(&mut self, cx: &mut dyn ReadContext) {
-        self.state = TweenState::Reset {
-            target: self.source.get_untracked(cx),
-        };
+    fn set_target_dyn(&mut self, value: &dyn Any) -> bool {
+        self.set_target(value.downcast_ref().unwrap())
+    }
+
+    fn set_target_and_value_dyn(&mut self, value: &dyn Any) {
+        self.set_target_and_value(value.downcast_ref().unwrap());
     }
 }
 
-pub struct SpringOptions {
-    mass: f64,
-    stiffness: f64,
-    damping: f64,
-}
+impl AnyAnimation for Box<dyn AnyAnimation> {
+    fn value_dyn(&self) -> &dyn Any {
+        self.deref().value_dyn()
+    }
 
-pub struct SpringState<T: Readable> {
-    source: T,
-    current: T::Value,
-    target: T::Value,
+    fn drive(&mut self, time: Instant) -> bool {
+        self.deref_mut().drive(time)
+    }
+
+    fn set_target_dyn(&mut self, value: &dyn Any) -> bool {
+        self.deref_mut().set_target_dyn(value)
+    }
+
+    fn set_target_and_value_dyn(&mut self, value: &dyn Any) {
+        self.deref_mut().set_target_and_value_dyn(value);
+    }
 }
 
 pub struct AnimationState {
     inner: Box<dyn AnyAnimation>,
     pub(super) window_id: WindowId,
+}
+
+type ResetFn = dyn Fn(&mut dyn AnyAnimation, &mut dyn ReadContext) -> bool;
+
+pub struct DerivedAnimationState {
+    inner: Box<dyn AnyAnimation>,
+    reset_fn: Box<ResetFn>,
+    pub(super) window_id: WindowId,
+}
+
+impl DerivedAnimationState {
+    pub fn reset(&mut self, node_id: NodeId, runtime: &mut Runtime) -> bool {
+        (self.reset_fn)(
+            &mut self.inner,
+            &mut LocalReadContext::new(runtime, Scope::Node(node_id)),
+        )
+    }
 }
 
 pub struct Animated<T> {
@@ -277,31 +196,54 @@ impl<T> Clone for Animated<T> {
 
 impl<T> Copy for Animated<T> {}
 
-impl<T> Animated<T> {
-    pub fn tween<S, Ctx>(cx: &mut Ctx, signal: S, options: TweenOptions) -> Self
-    where
-        Ctx: CreateContext + ViewContext,
-        S: Readable<Value = T> + 'static,
-        T: Clone + Interpolate + 'static + std::fmt::Debug,
-    {
+impl<T: 'static> Animated<T> {
+    pub fn new(cx: &mut dyn ViewContext, animation: impl Animation<Value = T> + 'static) -> Self {
         let window_id = cx.window_id();
-        let value = signal.get_untracked(cx);
-        let source_id = signal.get_source_id();
         let owner = cx.owner();
-        let inner = Box::new(TweenAnimation {
-            source: signal,
-            duration: options.duration.as_secs_f64(),
-            tween_fn: options.easing.into_fn(),
-            state: TweenState::Done,
-            value,
-        });
+        let inner = Box::new(animation);
         let state = AnimationState { inner, window_id };
         Self {
-            id: cx
-                .runtime_mut()
-                .create_animation_node(source_id, state, owner),
+            id: cx.runtime_mut().create_animation_node(state, owner),
             _phantom: PhantomData,
         }
+    }
+
+    pub fn spring(cx: &mut dyn ViewContext, initial_value: T, options: SpringOptions) -> Self
+    where
+        T: SpringPhysics + Clone + Any,
+    {
+        Self::new(cx, SpringAnimation::new(initial_value, options))
+    }
+
+    pub fn tween(cx: &mut dyn ViewContext, initial_value: T, options: TweenOptions) -> Self
+    where
+        T: Interpolate + Clone + Any,
+    {
+        Self::new(cx, TweenAnimation::new(initial_value, options))
+    }
+}
+
+impl<T: Any> Animated<T> {
+    pub fn set_target(&self, cx: &mut dyn WriteContext, value: T) {
+        let node = cx.runtime_mut().get_node_mut(self.id);
+        let window_id_if_changed = match &mut node.node_type {
+            NodeType::Animation(anim) => {
+                anim.inner.set_target_dyn(&value).then_some(anim.window_id)
+            }
+            _ => unreachable!(),
+        };
+        if let Some(window_id) = window_id_if_changed {
+            cx.runtime_mut().request_animation(window_id, self.id);
+        }
+    }
+
+    pub fn set_target_and_value(&self, cx: &mut dyn WriteContext, value: T) {
+        let node = cx.runtime_mut().get_node_mut(self.id);
+        match &mut node.node_type {
+            NodeType::Animation(anim) => anim.inner.set_target_and_value_dyn(&value),
+            _ => unreachable!(),
+        };
+        cx.runtime_mut().notify(self.id);
     }
 }
 
@@ -331,9 +273,108 @@ impl<T: 'static> Readable for Animated<T> {
     }
 }
 
+pub struct AnimatedFn<T> {
+    pub(crate) id: NodeId,
+    _phantom: PhantomData<*const T>,
+}
+
+impl<T> Clone for AnimatedFn<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for AnimatedFn<T> {}
+
+impl<T: 'static> AnimatedFn<T> {
+    pub fn new<A: Animation<Value = T> + 'static>(
+        cx: &mut dyn ViewContext,
+        f_value: impl Fn(&mut dyn ReadContext) -> T + 'static,
+        f_anim: impl FnOnce(T) -> A,
+    ) -> Self {
+        let window_id = cx.window_id();
+        let owner = cx.owner();
+        let id = cx.runtime_mut().create_derived_animation_node(
+            move |runtime, id| {
+                let value = f_value(&mut LocalReadContext::new(runtime, Scope::Node(id)));
+                let inner = Box::new(f_anim(value));
+                let reset_fn = Box::new(
+                    move |animation: &mut dyn AnyAnimation, cx: &mut dyn ReadContext| {
+                        animation.set_target_dyn(&f_value(cx))
+                    },
+                );
+                DerivedAnimationState {
+                    inner,
+                    reset_fn,
+                    window_id,
+                }
+            },
+            owner,
+        );
+
+        Self {
+            id,
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn spring(
+        cx: &mut dyn ViewContext,
+        f: impl Fn(&mut dyn ReadContext) -> T + 'static,
+        options: SpringOptions,
+    ) -> Self
+    where
+        T: SpringPhysics + Clone + Any,
+    {
+        Self::new(cx, f, move |initial_value| {
+            SpringAnimation::new(initial_value, options)
+        })
+    }
+
+    pub fn tween(
+        cx: &mut dyn ViewContext,
+        f: impl Fn(&mut dyn ReadContext) -> T + 'static,
+        options: TweenOptions,
+    ) -> Self
+    where
+        T: Interpolate + Clone + Any,
+    {
+        Self::new(cx, f, move |initial_value| {
+            TweenAnimation::new(initial_value, options)
+        })
+    }
+}
+
+impl<T: 'static> Readable for AnimatedFn<T> {
+    type Value = T;
+
+    fn get_source_id(&self) -> SourceId {
+        SourceId::Node(self.id)
+    }
+
+    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&T) -> R) -> R {
+        let scope = cx.scope();
+        cx.runtime_mut().track(self.id, scope);
+        f(get_animation_value_ref(cx, self.id)
+            .downcast_ref()
+            .expect("AnimationFn value had wrong type"))
+    }
+
+    fn with_ref_untracked<R>(
+        &self,
+        cx: &mut dyn ReactiveContext,
+        f: impl FnOnce(&Self::Value) -> R,
+    ) -> R {
+        f(get_animation_value_ref(cx, self.id)
+            .downcast_ref()
+            .expect("AnimationFn value had wrong type"))
+    }
+}
+
 fn get_animation_value_ref(cx: &mut dyn ReactiveContext, node_id: NodeId) -> &dyn Any {
     match &cx.runtime().get_node(node_id).node_type {
-        NodeType::Animation(animation) => animation.inner.value(),
+        NodeType::Animation(animation) => animation.inner.value_dyn(),
+        NodeType::DerivedAnimation(animation) => animation.inner.value_dyn(),
         _ => unreachable!(),
     }
 }
