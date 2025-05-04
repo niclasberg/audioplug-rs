@@ -402,6 +402,8 @@ impl Runtime {
                     self.pending_tasks.push_back(task);
                 }
                 NodeType::DerivedAnimation(anim) => {
+                    // Clear the sources, they will be re-populated while running the reset function
+                    self.subscriptions.clear_node_sources(node_id);
                     if anim.reset(node_id, self) {
                         self.request_animation(anim.window_id, node_id);
                     }
