@@ -10,3 +10,4 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 audioplug = { path = "../../"}
+nalgebra = "0.33.2"

@@ -20,7 +20,7 @@ use vst3_sys as vst3_com;
 use super::util::strcpyw;
 use crate::midi::{Note, NoteEvent};
 use crate::param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap, Params};
-use crate::{AudioBuffer, MidiProcessContext, ProcessContext, VST3Plugin};
+use crate::{AudioBuffer, MidiProcessContext, ProcessContext, ProcessInfo, VST3Plugin};
 
 const NOTE_ON_EVENT: u16 = EventTypes::kNoteOnEvent as u16;
 const NOTE_OFF_EVENT: u16 = EventTypes::kNoteOffEvent as u16;
@@ -125,6 +125,10 @@ impl<P: VST3Plugin> IAudioProcessor for AudioProcessor<P> {
             return kInvalidArgument;
         }
         let data = &mut *data;
+        if data.context.is_null() {
+            return kInvalidArgument;
+        }
+        let process_context = &*data.context;
 
         if let Some(input_param_changes) = data.input_param_changes.upgrade() {
             let parameter_change_count = input_param_changes.get_parameter_count();
@@ -178,15 +182,20 @@ impl<P: VST3Plugin> IAudioProcessor for AudioProcessor<P> {
             )
         };
 
+        let info = ProcessInfo {
+            rendering_offline: data.process_mode == ProcessModes::kOffline as i32,
+            sample_rate: process_context.sample_rate,
+        };
+
         let context = ProcessContext {
             input: &input,
             output: &mut output,
-            rendering_offline: data.process_mode == ProcessModes::kOffline as i32,
+            info,
         };
 
         let mut plugin = self.plugin.borrow_mut();
         if P::ACCEPTS_MIDI {
-            let mut context = MidiProcessContext {};
+            let mut context = MidiProcessContext { info };
             if let Some(input_events) = data.input_events.upgrade() {
                 let event_count = input_events.get_event_count();
                 let mut event = MaybeUninit::uninit();

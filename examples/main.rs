@@ -23,7 +23,7 @@ fn main() {
                     if checkbox_enabled.get(cx) {
                         Color::MAY_GREEN
                     } else {
-                        Color::FALU_RED
+                        Color::MAY_GREEN.with_alpha(0.0)
                     }
                 },
                 TweenOptions {

@@ -9,26 +9,12 @@ use audioplug::{
 };
 use editor::SynthEditor;
 use params::SynthParams;
+use voice::Voice;
 
 mod editor;
 mod params;
 mod views;
-
-struct Voice {
-    note: Note,
-    ang_freq: f32,
-    t: f32,
-}
-
-impl Voice {
-    pub fn new(note: Note) -> Self {
-        Self {
-            note,
-            t: 0.0,
-            ang_freq: note.frequency_hz() * f32::consts::TAU,
-        }
-    }
-}
+mod voice;
 
 struct SynthPlugin {
     active_voice: Option<Voice>,
@@ -78,13 +64,16 @@ impl Plugin for SynthPlugin {
 
     fn process_midi(
         &mut self,
-        _context: &mut audioplug::MidiProcessContext,
+        context: &mut audioplug::MidiProcessContext,
         _parameters: &Self::Parameters,
         event: audioplug::midi::NoteEvent,
     ) {
         match event {
             NoteEvent::NoteOn { note, .. } => {
-                self.active_voice.replace(Voice::new(note));
+                self.active_voice.replace(Voice::new(
+                    context.info.sample_rate as _,
+                    Default::default(),
+                ));
             }
             NoteEvent::NoteOff { note, .. } => {
                 if self

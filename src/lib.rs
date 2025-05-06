@@ -3,6 +3,7 @@ pub mod app;
 mod audio_buffer;
 mod audiolayout;
 pub mod core;
+pub mod dsp;
 mod editor;
 mod event;
 pub mod midi;

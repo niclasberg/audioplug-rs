@@ -29,13 +29,21 @@ pub struct Preset<P: Params> {
     pub parameters: P,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ProcessInfo {
+    pub rendering_offline: bool,
+    pub sample_rate: f64,
+}
+
 pub struct ProcessContext<'a> {
     pub input: &'a AudioBuffer,
     pub output: &'a mut AudioBuffer,
-    pub rendering_offline: bool,
+    pub info: ProcessInfo,
 }
 
-pub struct MidiProcessContext {}
+pub struct MidiProcessContext {
+    pub info: ProcessInfo,
+}
 
 pub trait Plugin: Send {
     /// Name of the plugin
