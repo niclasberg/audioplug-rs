@@ -1,5 +1,6 @@
 mod builder;
 mod display_style;
+mod image_filter;
 mod length;
 mod ui_rect;
 
@@ -10,6 +11,7 @@ use crate::{
 pub(crate) use builder::apply_styles;
 pub use builder::StyleBuilder;
 pub use display_style::{AvailableSpace, DisplayStyle, FlexStyle, GridStyle, Measure};
+pub use image_filter::ImageFilter;
 pub use length::Length;
 pub use taffy::{
     AlignContent, AlignItems, AlignSelf, FlexDirection, FlexWrap, JustifyContent, JustifySelf,

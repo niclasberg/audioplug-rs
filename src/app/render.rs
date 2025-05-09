@@ -102,7 +102,7 @@ impl RenderContext<'_, '_> {
         }
     }
 
-    pub fn draw_bitmap(&mut self, source: &platform::NativeImage, rect: impl Into<Rectangle>) {
+    pub fn draw_bitmap(&mut self, source: &platform::Bitmap, rect: impl Into<Rectangle>) {
         self.renderer.draw_bitmap(source, rect.into())
     }
 

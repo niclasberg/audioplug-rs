@@ -1,12 +1,13 @@
 mod application;
 mod audio;
+mod bitmap;
 mod com;
 mod cursors;
 mod executor;
+mod filters;
 mod geometry;
 mod gradient;
 mod handle;
-mod image;
 mod keyboard;
 mod renderer;
 mod text;
@@ -15,11 +16,11 @@ mod window;
 
 pub(crate) use application::Application;
 pub(crate) use audio::{AudioDevice, AudioHost};
+pub(crate) use bitmap::Bitmap;
 pub(crate) use executor::Executor;
 pub(crate) use geometry::{NativeGeometry, NativeGeometryBuilder};
 pub(crate) use gradient::{NativeLinearGradient, NativeRadialGradient};
 pub(crate) use handle::{Handle, HandleRef};
-pub(crate) use image::NativeImage;
 pub(crate) use renderer::{Renderer, RendererRef};
 pub(crate) use text::TextLayout;
 pub(crate) use window::Window;

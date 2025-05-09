@@ -30,12 +30,12 @@ pub(super) fn direct_write_factory() -> &'static DirectWrite::IDWriteFactory {
     })
 }
 
-pub(super) fn direct2d_factory() -> &'static Direct2D::ID2D1Factory {
-    static INSTANCE: OnceLock<Direct2D::ID2D1Factory> = OnceLock::new();
+pub(super) fn direct2d_factory() -> &'static Direct2D::ID2D1Factory1 {
+    static INSTANCE: OnceLock<Direct2D::ID2D1Factory1> = OnceLock::new();
     INSTANCE.get_or_init(|| {
         com_initialized();
         unsafe {
-            Direct2D::D2D1CreateFactory::<Direct2D::ID2D1Factory>(
+            Direct2D::D2D1CreateFactory::<Direct2D::ID2D1Factory1>(
                 Direct2D::D2D1_FACTORY_TYPE_MULTI_THREADED,
                 None,
             )

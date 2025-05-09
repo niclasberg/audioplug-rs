@@ -5,6 +5,7 @@ use windows::core::{s, PCSTR};
 use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
 use windows::Win32::UI::Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTW};
+use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::WindowsAndMessaging::{
     GetClientRect, SystemParametersInfoW, SPI_GETHIGHCONTRAST, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
 };
@@ -18,6 +19,16 @@ pub(super) fn get_client_rect(hwnd: HWND) -> Rectangle<i32> {
     } else {
         Rectangle::default()
     }
+}
+
+const BASE_DPI: u32 = 96;
+pub fn dpi_to_scale_factor(dpi: u32) -> f64 {
+    dpi as f64 / BASE_DPI as f64
+}
+
+pub fn get_scale_factor_for_window(hwnd: HWND) -> f64 {
+    let dpi = unsafe { GetDpiForWindow(hwnd) };
+    dpi_to_scale_factor(dpi)
 }
 
 /// Counts the number of utf-16 code units in the given string.

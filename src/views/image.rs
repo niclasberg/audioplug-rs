@@ -8,12 +8,12 @@ use crate::{
 };
 
 pub struct Image {
-    source: Option<platform::NativeImage>,
+    source: Option<platform::Bitmap>,
 }
 
 impl Image {
     pub fn from_file(path: &Path) -> Self {
-        let source = platform::NativeImage::from_file(path).ok();
+        let source = platform::Bitmap::from_file(path).ok();
         Self { source }
     }
 }
@@ -29,7 +29,7 @@ impl View for Image {
 }
 
 pub struct ImageWidget {
-    source: Option<platform::NativeImage>,
+    source: Option<platform::Bitmap>,
 }
 
 impl Measure for ImageWidget {

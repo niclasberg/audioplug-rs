@@ -1,10 +1,10 @@
-use std::{any::Any, marker::PhantomData};
+use std::marker::PhantomData;
 
 use crate::{
     app::{
         render::{fill_shape, stroke_shape},
-        Accessor, AppState, BrushRef, BuildContext, EffectState, NodeId, Owner, ReactiveContext,
-        ReadContext, RenderContext, Runtime, Scope, ShapeRef, TextLayout, View, Widget, WidgetId,
+        AppState, BrushRef, BuildContext, EffectState, NodeId, Owner, ReactiveContext, ReadContext,
+        Runtime, Scope, ShapeRef, TextLayout, View, Widget, WidgetId,
     },
     core::{Point, Rectangle},
     platform,
@@ -60,9 +60,9 @@ pub struct CanvasContext<'a, 'b> {
     renderer: platform::RendererRef<'b>,
 }
 
-impl<'a, 'b> CanvasContext<'a, 'b> {
+impl CanvasContext<'_, '_> {
     pub fn fill<'c, 'd>(&mut self, shape: impl Into<ShapeRef<'c>>, brush: impl Into<BrushRef<'d>>) {
-        fill_shape(&mut self.renderer, shape.into(), brush.into());
+        fill_shape(self.renderer, shape.into(), brush.into());
     }
 
     pub fn stroke<'c, 'd>(
@@ -71,7 +71,7 @@ impl<'a, 'b> CanvasContext<'a, 'b> {
         brush: impl Into<BrushRef<'d>>,
         line_width: f32,
     ) {
-        stroke_shape(&mut self.renderer, shape.into(), brush.into(), line_width);
+        stroke_shape(self.renderer, shape.into(), brush.into(), line_width);
     }
 
     pub fn draw_line<'c>(
@@ -96,7 +96,7 @@ impl<'a, 'b> CanvasContext<'a, 'b> {
         }
     }
 
-    pub fn draw_bitmap(&mut self, source: &platform::NativeImage, rect: impl Into<Rectangle>) {
+    pub fn draw_bitmap(&mut self, source: &platform::Bitmap, rect: impl Into<Rectangle>) {
         self.renderer.draw_bitmap(source, rect.into())
     }
 
@@ -111,7 +111,7 @@ impl<'a, 'b> CanvasContext<'a, 'b> {
     }
 }
 
-impl<'a, 'b> ReactiveContext for CanvasContext<'a, 'b> {
+impl ReactiveContext for CanvasContext<'_, '_> {
     fn runtime(&self) -> &Runtime {
         self.app_state.runtime()
     }
@@ -121,16 +121,18 @@ impl<'a, 'b> ReactiveContext for CanvasContext<'a, 'b> {
     }
 }
 
-impl<'a, 'b> ReadContext for CanvasContext<'a, 'b> {
+impl ReadContext for CanvasContext<'_, '_> {
     fn scope(&self) -> Scope {
         Scope::Node(self.effect_id)
     }
 }
 
+type CanvasRenderFn<State> = dyn Fn(&mut CanvasContext, Option<State>) -> State;
+
 pub struct CanvasWidget<State> {
     effect_id: NodeId,
     state: Option<State>,
-    f_render: Box<dyn Fn(&mut CanvasContext, Option<State>) -> State>,
+    f_render: Box<CanvasRenderFn<State>>,
 }
 
 impl<State: 'static> Widget for CanvasWidget<State> {
@@ -150,7 +152,7 @@ impl<State: 'static> Widget for CanvasWidget<State> {
         let mut cx = CanvasContext {
             widget_id: cx.id,
             effect_id: self.effect_id,
-            app_state: &mut cx.app_state,
+            app_state: cx.app_state,
             renderer: cx.renderer,
         };
 

@@ -28,11 +28,7 @@ use windows::{
 use KeyboardAndMouse::{ReleaseCapture, SetCapture};
 
 use super::{
-    com,
-    cursors::get_cursor,
-    keyboard::{get_modifiers, vk_to_key, KeyFlags},
-    util::get_theme,
-    Handle, Renderer,
+    com, cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, renderer::RendererGeneration, util::{get_scale_factor_for_window, get_theme}, Handle, Renderer
 };
 use crate::event::MouseButton;
 use crate::{
@@ -59,6 +55,7 @@ struct TmpKeyEvent {
 
 struct WindowState {
     renderer: RefCell<Option<Renderer>>,
+    renderer_generation: Cell<RendererGeneration>,
     handler: RefCell<Box<dyn WindowHandler>>,
     last_mouse_pos: RefCell<Option<Point<i32>>>,
     ticks_per_second: f64,
@@ -66,6 +63,7 @@ struct WindowState {
     scale_factor: Rc<Cell<f64>>,
     captured_mouse_buttons: RefCell<MouseButtons>,
     theme: Rc<Cell<WindowTheme>>,
+    quit_app_on_exit: bool,
 }
 
 impl WindowState {
@@ -97,38 +95,23 @@ impl WindowState {
             WM_DESTROY => {
                 unsafe {
                     KillTimer(Some(hwnd), ANIMATION_FRAME_TIMER).unwrap();
-                    //PostQuitMessage(0);
+                    if self.quit_app_on_exit {
+                        PostQuitMessage(0);
+                    }
                 };
                 Some(LRESULT(0))
             },
 
             WM_PAINT => {
-                let mut renderer_ref = self.renderer.borrow_mut();
-                let renderer = renderer_ref.get_or_insert_with(|| {
-                    Renderer::new(hwnd).unwrap()
-                });
-
                 let mut ps = Gdi::PAINTSTRUCT::default();
                 unsafe {
                     Gdi::BeginPaint(hwnd, &mut ps);
-
-                    renderer.begin_draw();
-                    renderer.clear(Color::OFF_WHITE);
                 }
-
-                {
-                    let rect: Rectangle = super::util::get_client_rect(hwnd).into();
-                    self.handler.borrow_mut()
-                        .render(Rectangle::from_origin(Point::ZERO, rect.size()), renderer);
-                }
+                
+                let rect: Rectangle = super::util::get_client_rect(hwnd).into();
+                self.render(hwnd, rect.size());
 
                 unsafe {
-                    if let Err(error) = renderer.end_draw() {
-                        if error.code() == D2DERR_RECREATE_TARGET {
-                            // Set renderer to None to force rebuild
-                        }
-                    }
-
                     Gdi::EndPaint(hwnd, &ps).ok().unwrap();
                 }
 
@@ -140,8 +123,10 @@ impl WindowState {
                 let height = hiword(lparam) as u32;
 
                 if let Some(renderer) = self.renderer.borrow_mut().as_ref() {
-                    renderer.resize(width, height).unwrap();
+                    renderer.resize(width, height, self.scale_factor.get() as _).unwrap();
                 }
+
+                //self.render(hwnd, Size::new(width, height).into());
 
                 let new_size: Size = [width, height].into();
                 let new_size = new_size.scale(self.scale_factor.get());
@@ -302,7 +287,11 @@ impl WindowState {
             },
 
             WM_DPICHANGED => {
-                self.scale_factor.replace(get_scale_factor_for_window(hwnd));
+                let scale_factor = get_scale_factor_for_window(hwnd);
+                if let Some(renderer) = self.renderer.borrow_mut().as_ref() {
+                    renderer.update_scale_factor(scale_factor as _).unwrap();
+                }
+                self.scale_factor.replace(scale_factor);
                 self.publish_event(hwnd, WindowEvent::ScaleFactorChanged { scale_factor: self.scale_factor.get() });
                 Some(LRESULT(0))
             },
@@ -317,6 +306,27 @@ impl WindowState {
             },
 
             _ => None
+        }
+    }
+
+    fn render(&self, hwnd: HWND, size: Size) {
+        let mut renderer_ref = self.renderer.borrow_mut();
+        let renderer = renderer_ref.get_or_insert_with(|| {
+            Renderer::new(hwnd).unwrap()
+        });
+
+        renderer.begin_draw();
+        renderer.clear(Color::OFF_WHITE);
+
+        self.handler.borrow_mut()
+            .render(Rectangle::from_origin(Point::ZERO, size), renderer);
+        
+        if let Err(error) = renderer.end_draw() {
+            // Clear the renderer so that it's recreated on next render
+            if error.code() == D2DERR_RECREATE_TARGET {
+                self.renderer.replace(None);
+                self.renderer_generation.set(self.renderer_generation.get().next());
+            }
         }
     }
 
@@ -372,7 +382,7 @@ impl WindowState {
 
 impl Window {
     pub fn open(handler: impl WindowHandler + 'static) -> Result<Self> {
-        let this = Self::create(None, WS_OVERLAPPEDWINDOW, handler)?;
+        let this = Self::create(None, WS_OVERLAPPEDWINDOW, handler, true)?;
 
         unsafe {
             let value: BOOL = match get_theme() {
@@ -393,7 +403,7 @@ impl Window {
     }
 
     pub fn attach(parent: HWND, handler: impl WindowHandler + 'static) -> Result<Self> {
-        let this = Self::create(Some(parent), WS_CHILD, handler)?;
+        let this = Self::create(Some(parent), WS_CHILD, handler, false)?;
         let _ = unsafe { ShowWindow(this.handle, SW_SHOW) };
         Ok(this)
     }
@@ -416,6 +426,7 @@ impl Window {
         parent: Option<HWND>,
         style: WINDOW_STYLE,
         handler: impl WindowHandler + 'static,
+        quit_app_on_exit: bool,
     ) -> Result<Self> {
         let instance = unsafe { GetModuleHandleW(None)? };
         REGISTER_WINDOW_CLASS.call_once(|| {
@@ -444,6 +455,7 @@ impl Window {
 
         let window_state = Rc::new(WindowState {
             renderer: RefCell::new(None),
+            renderer_generation: Cell::new(RendererGeneration(0)),
             handler: RefCell::new(Box::new(handler)),
             last_mouse_pos: RefCell::new(None),
             ticks_per_second,
@@ -451,6 +463,7 @@ impl Window {
             scale_factor: Rc::new(Cell::new(1.0)),
             captured_mouse_buttons: Default::default(),
             theme: Rc::new(Cell::new(get_theme())),
+            quit_app_on_exit,
         });
 
         let hwnd = unsafe {
@@ -525,16 +538,6 @@ fn has_wm_char_message(hwnd: HWND, last_flags: KeyFlags) -> bool {
             flags.scan_code == last_flags.scan_code
         })
         .is_some()
-}
-
-const BASE_DPI: u32 = 96;
-fn dpi_to_scale_factor(dpi: u32) -> f64 {
-    dpi as f64 / BASE_DPI as f64
-}
-
-fn get_scale_factor_for_window(hwnd: HWND) -> f64 {
-    let dpi = unsafe { GetDpiForWindow(hwnd) };
-    dpi_to_scale_factor(dpi)
 }
 
 unsafe extern "system" fn wndproc(

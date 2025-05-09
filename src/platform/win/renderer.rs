@@ -1,18 +1,25 @@
 use windows::{
-    core::Result,
+    core::*,
     Win32::{
-        Foundation::{HWND, RECT},
-        Graphics::Direct2D,
+        Foundation::{HMODULE, HWND, RECT},
+        Graphics::{Direct2D, Direct3D, Direct3D11, Dxgi},
         UI::WindowsAndMessaging::GetClientRect,
     },
 };
 
-use super::{com::direct2d_factory, geometry::NativeGeometry, NativeImage, TextLayout};
+use super::{
+    com::direct2d_factory, geometry::NativeGeometry, util::get_scale_factor_for_window, Bitmap,
+    TextLayout,
+};
 use crate::{
     app::BrushRef,
     core::{Color, Ellipse, Point, Rectangle, RoundedRectangle, Transform},
 };
-use std::mem::MaybeUninit;
+use std::{
+    cell::{Ref, RefCell},
+    mem::MaybeUninit,
+    rc::Rc,
+};
 
 impl From<Color> for Direct2D::Common::D2D1_COLOR_F {
     fn from(val: Color) -> Self {
@@ -104,6 +111,11 @@ impl From<windows_numerics::Matrix3x2> for Transform {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct RendererGeneration(pub(super) usize);
+impl RendererGeneration {
+    pub fn next(&self) -> Self {
+        Self(self.0 + 1)
+    }
+}
 
 pub type RendererRef<'a> = &'a mut Renderer;
 
@@ -118,7 +130,8 @@ struct SavedState {
 }
 
 pub struct Renderer {
-    render_target: Direct2D::ID2D1HwndRenderTarget,
+    render_target: Direct2D::ID2D1DeviceContext,
+    swapchain: Dxgi::IDXGISwapChain1,
     brush: Direct2D::ID2D1SolidColorBrush,
     saved_states: Vec<SavedState>,
     generation: RendererGeneration,
@@ -133,33 +146,92 @@ impl Renderer {
             width: (rect.right - rect.left) as u32,
             height: (rect.bottom - rect.top) as u32,
         };
-        let hwnd_render_target_properies = Direct2D::D2D1_HWND_RENDER_TARGET_PROPERTIES {
-            hwnd,
-            pixelSize: size,
-            ..Default::default()
-        };
-        let render_target_properties = Direct2D::D2D1_RENDER_TARGET_PROPERTIES::default();
+        let scale_factor = get_scale_factor_for_window(hwnd) as f32;
 
-        let render_target = unsafe {
-            direct2d_factory().CreateHwndRenderTarget(
-                &render_target_properties as *const _,
-                &hwnd_render_target_properies as *const _,
-            )?
+        let device = unsafe {
+            let mut device = None;
+            Direct3D11::D3D11CreateDevice(
+                None,
+                Direct3D::D3D_DRIVER_TYPE_HARDWARE,
+                HMODULE::default(),
+                Direct3D11::D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                None,
+                Direct3D11::D3D11_SDK_VERSION,
+                Some(&mut device),
+                None,
+                None,
+            )?;
+            device.unwrap()
         };
+
+        let dxgi_device = device.cast::<Dxgi::IDXGIDevice>()?;
+        let direct2d_device = unsafe { direct2d_factory().CreateDevice(&dxgi_device) }?;
+        let render_target = unsafe {
+            direct2d_device.CreateDeviceContext(Direct2D::D2D1_DEVICE_CONTEXT_OPTIONS_NONE)
+        }?;
+
+        let dxgi_factory: Dxgi::IDXGIFactory2 = unsafe { dxgi_device.GetAdapter()?.GetParent() }?;
+        let swapchain = unsafe {
+            dxgi_factory.CreateSwapChainForHwnd(
+                &device,
+                hwnd,
+                &Dxgi::DXGI_SWAP_CHAIN_DESC1 {
+                    Width: 0,  // Automatic scaling
+                    Height: 0, // Automatic scaling
+                    Format: Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
+                    Stereo: false.into(),
+                    SampleDesc: Dxgi::Common::DXGI_SAMPLE_DESC {
+                        Count: 1, // don't use multi-sampling
+                        Quality: 0,
+                    },
+                    BufferUsage: Dxgi::DXGI_USAGE_RENDER_TARGET_OUTPUT,
+                    BufferCount: 2, // Double buffering
+                    Scaling: Dxgi::DXGI_SCALING_NONE,
+                    SwapEffect: Dxgi::DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
+                    ..Default::default()
+                },
+                None,
+                None,
+            )
+        }?;
+
+        bind_swapchain_bitmap_to_render_target(&render_target, &swapchain, scale_factor)?;
 
         let brush = unsafe { render_target.CreateSolidColorBrush(&Color::GREEN.into(), None)? };
 
         Ok(Renderer {
             render_target,
+            swapchain,
             brush,
             saved_states: Vec::new(),
             generation: RendererGeneration(0),
         })
     }
 
-    pub fn resize(&self, width: u32, height: u32) -> Result<()> {
-        let new_size = Direct2D::Common::D2D_SIZE_U { width, height };
-        unsafe { self.render_target.Resize(&new_size) }
+    pub fn resize(&self, width: u32, height: u32, scale_factor: f32) -> Result<()> {
+        // We need to clear all references to the swapchain buffers before resizing.
+        unsafe { self.render_target.SetTarget(None) };
+
+        unsafe {
+            self.swapchain.ResizeBuffers(
+                0,
+                width,
+                height,
+                Dxgi::Common::DXGI_FORMAT_UNKNOWN,
+                Dxgi::DXGI_SWAP_CHAIN_FLAG(0),
+            )
+        }?;
+
+        bind_swapchain_bitmap_to_render_target(&self.render_target, &self.swapchain, scale_factor)?;
+
+        Ok(())
+    }
+
+    pub fn update_scale_factor(&self, scale_factor: f32) -> Result<()> {
+        unsafe { self.render_target.SetTarget(None) };
+        bind_swapchain_bitmap_to_render_target(&self.render_target, &self.swapchain, scale_factor)?;
+
+        Ok(())
     }
 
     pub fn begin_draw(&self) {
@@ -167,7 +239,8 @@ impl Renderer {
     }
 
     pub fn end_draw(&self) -> Result<()> {
-        unsafe { self.render_target.EndDraw(None, None) }
+        unsafe { self.render_target.EndDraw(None, None) }?;
+        unsafe { self.swapchain.Present(1, Dxgi::DXGI_PRESENT(0)) }.ok()
     }
 
     pub fn clear(&self, color: Color) {
@@ -241,22 +314,27 @@ impl Renderer {
         &mut self,
         rect: Rectangle,
         brush: BrushRef,
-        f: impl FnOnce(&Direct2D::ID2D1HwndRenderTarget, &Direct2D::ID2D1Brush),
+        f: impl FnOnce(&Direct2D::ID2D1RenderTarget, &Direct2D::ID2D1Brush),
     ) {
         match brush {
             BrushRef::Solid(color) => unsafe {
                 self.brush.SetColor(&color.into());
                 f(&self.render_target, &self.brush);
             },
-            BrushRef::LinearGradient(linear_gradient) => linear_gradient
-                .0
-                .use_brush(
-                    &self.render_target,
-                    self.generation,
-                    rect,
-                    move |render_target, brush| f(render_target, brush),
-                )
-                .unwrap(),
+            BrushRef::LinearGradient(linear_gradient) => {
+                let start = linear_gradient.start.resolve(rect);
+                let end = linear_gradient.end.resolve(rect);
+                linear_gradient
+                    .gradient
+                    .use_brush(
+                        &self.render_target,
+                        self.generation,
+                        start,
+                        end,
+                        move |render_target, brush| f(render_target, brush),
+                    )
+                    .unwrap()
+            }
         }
     }
 
@@ -323,7 +401,78 @@ impl Renderer {
         }
     }
 
-    pub fn draw_bitmap(&mut self, source: &NativeImage, rect: Rectangle) {
+    pub fn draw_bitmap(&mut self, source: &Bitmap, rect: Rectangle) {
         source.draw(&self.render_target, self.generation, rect.into())
+    }
+}
+
+fn bind_swapchain_bitmap_to_render_target(
+    render_target: &Direct2D::ID2D1DeviceContext,
+    swapchain: &Dxgi::IDXGISwapChain1,
+    scale_factor: f32,
+) -> Result<()> {
+    let back_buffer: Dxgi::IDXGISurface = unsafe { swapchain.GetBuffer(0) }?;
+    let bitmap_props = Direct2D::D2D1_BITMAP_PROPERTIES1 {
+        pixelFormat: Direct2D::Common::D2D1_PIXEL_FORMAT {
+            format: Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
+            alphaMode: Direct2D::Common::D2D1_ALPHA_MODE_IGNORE,
+        },
+        dpiX: scale_factor * 96.0,
+        dpiY: scale_factor * 96.0,
+        bitmapOptions: Direct2D::D2D1_BITMAP_OPTIONS_TARGET
+            | Direct2D::D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
+        ..Default::default()
+    };
+
+    unsafe {
+        let bitmap =
+            render_target.CreateBitmapFromDxgiSurface(&back_buffer, Some(&bitmap_props))?;
+        render_target.SetTarget(&bitmap);
+    };
+    Ok(())
+}
+
+#[derive(Clone)]
+struct RenderResourceInner<T> {
+    generation: RendererGeneration,
+    resource: T,
+}
+
+/// Utility class that stores a device dependent resource. The current value
+/// is tagged by a renderer generation. The generation is stepped whenever the
+/// render target is recreated, and in that case we can force a rebuild of the
+/// underlying resource.
+#[derive(Clone)]
+pub struct DeviceDependentResource<T> {
+    inner: Rc<RefCell<Option<RenderResourceInner<T>>>>,
+}
+
+impl<T> DeviceDependentResource<T> {
+    pub fn new() -> Self {
+        Self {
+            inner: Rc::new(RefCell::new(None)),
+        }
+    }
+
+    pub fn get_or_insert(
+        &self,
+        generation: RendererGeneration,
+        f: impl FnOnce() -> Result<T>,
+    ) -> Result<Ref<T>> {
+        if !self
+            .inner
+            .borrow()
+            .as_ref()
+            .is_some_and(|inner| inner.generation == generation)
+        {
+            let resource = f()?;
+            self.inner.replace(Some(RenderResourceInner {
+                resource,
+                generation,
+            }));
+        }
+        Ok(Ref::map(self.inner.borrow(), |inner| {
+            &inner.as_ref().unwrap().resource
+        }))
     }
 }

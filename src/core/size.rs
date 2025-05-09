@@ -140,6 +140,15 @@ impl From<Size<i32>> for Size {
     }
 }
 
+impl From<Size<u32>> for Size {
+    fn from(value: Size<u32>) -> Self {
+        Self {
+            width: value.width as f64,
+            height: value.height as f64,
+        }
+    }
+}
+
 impl<T, U: Into<T>> From<[U; 2]> for Size<T> {
     fn from([width, height]: [U; 2]) -> Self {
         Self {

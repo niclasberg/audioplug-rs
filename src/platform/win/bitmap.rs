@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::mem::MaybeUninit;
 use std::path::Path;
 
@@ -11,19 +10,14 @@ use windows::Win32::{
 use crate::core::Size;
 
 use super::com::wic_factory;
-use super::renderer::RendererGeneration;
+use super::renderer::{DeviceDependentResource, RendererGeneration};
 
-struct CachedD2D1Bitmap {
-    generation: RendererGeneration,
-    bitmap: Direct2D::ID2D1Bitmap,
-}
-
-pub struct NativeImage {
+pub struct Bitmap {
     converter: Imaging::IWICFormatConverter,
-    cached_bitmap: RefCell<Option<CachedD2D1Bitmap>>,
+    cached_bitmap: DeviceDependentResource<Direct2D::ID2D1Bitmap>,
 }
 
-impl NativeImage {
+impl Bitmap {
     pub fn from_file(path: &Path) -> Result<Self> {
         let decoder = unsafe {
             wic_factory().CreateDecoderFromFilename(
@@ -49,7 +43,7 @@ impl NativeImage {
 
         Ok(Self {
             converter,
-            cached_bitmap: RefCell::new(None),
+            cached_bitmap: DeviceDependentResource::new(),
         })
     }
 
@@ -71,34 +65,29 @@ impl NativeImage {
 
     pub(super) fn draw(
         &self,
-        render_target: &Direct2D::ID2D1HwndRenderTarget,
+        render_target: &Direct2D::ID2D1RenderTarget,
         generation: RendererGeneration,
         rect: Direct2D::Common::D2D_RECT_F,
     ) {
-        if !self
+        let bitmap = self
             .cached_bitmap
-            .borrow()
-            .as_ref()
-            .is_some_and(|x| x.generation == generation)
-        {
-            let mut cached_bitmap = self.cached_bitmap.borrow_mut();
-            let bitmap =
-                unsafe { render_target.CreateBitmapFromWicBitmap(&self.converter, None) }.unwrap();
-            *cached_bitmap = Some(CachedD2D1Bitmap { generation, bitmap });
-        }
+            .get_or_insert(generation, || unsafe {
+                render_target.CreateBitmapFromWicBitmap(&self.converter, None)
+            })
+            .unwrap();
 
-        if let Some(cached_bitmap) = self.cached_bitmap.borrow().as_ref() {
-            let opacity = 1.0;
-            let interpolation_mode = Direct2D::D2D1_BITMAP_INTERPOLATION_MODE_LINEAR;
-            unsafe {
-                render_target.DrawBitmap(
-                    &cached_bitmap.bitmap,
-                    Some(&rect as *const _),
-                    opacity,
-                    interpolation_mode,
-                    None,
-                )
-            }
+        let opacity = 1.0;
+        let interpolation_mode = Direct2D::D2D1_BITMAP_INTERPOLATION_MODE_LINEAR;
+        unsafe {
+            render_target.DrawBitmap(
+                &*bitmap,
+                Some(&rect as *const _),
+                opacity,
+                interpolation_mode,
+                None,
+            )
         }
     }
 }
+
+pub struct BitmapBrush {}
