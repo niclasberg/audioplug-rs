@@ -135,6 +135,7 @@ pub enum KeyEvent {
         key: Key,
         modifiers: Modifiers,
         str: Option<String>,
+        repeat_count: usize,
     },
 }
 

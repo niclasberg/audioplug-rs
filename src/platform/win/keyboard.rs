@@ -13,7 +13,7 @@ pub fn get_modifiers() -> Modifiers {
     modifiers
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct KeyFlags {
     pub repeat_count: u16,
     pub scan_code: u8,

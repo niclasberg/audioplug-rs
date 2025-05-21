@@ -78,16 +78,15 @@ where
 
                 let mut converged = false;
                 while !converged && *elapsed >= DELTA_T {
-                    converged = self.position.apply_spring_update(
-                        velocity,
-                        DELTA_T,
-                        target,
-                        &self.properties,
-                    );
+                    self.position
+                        .apply_spring_update(velocity, DELTA_T, target, &self.properties);
                     *elapsed -= DELTA_T;
+                    converged = velocity.distance_squared_to(&T::ZERO) < 1.0e-4
+                        && self.position.distance_squared_to(target) < 1.0e-4;
                 }
 
                 if converged {
+                    println!("Converged!");
                     self.position = target.clone();
                     self.state = SpringState::Static;
                 }
@@ -98,6 +97,10 @@ where
     }
 
     fn set_target(&mut self, value: &T) -> bool {
+        if self.position.distance_squared_to(value) < 1.0e-4 {
+            return false;
+        }
+
         let target = value.clone();
         let new_state = match &self.state {
             SpringState::Static => SpringState::Moving {

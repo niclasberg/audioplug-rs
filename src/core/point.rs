@@ -229,19 +229,20 @@ impl<T: Interpolate> Interpolate for Point<T> {
 impl<T: SpringPhysics> SpringPhysics for Point<T> {
     const ZERO: Self = Point::new(T::ZERO, T::ZERO);
 
+    fn distance_squared_to(&self, other: &Self) -> f64 {
+        self.x.distance_squared_to(&other.x) + self.y.distance_squared_to(&other.y)
+    }
+
     fn apply_spring_update(
         &mut self,
         velocity: &mut Self,
         delta_t: f64,
         target: &Self,
         properties: &super::SpringProperties,
-    ) -> bool {
-        let x_converged =
-            self.x
-                .apply_spring_update(&mut velocity.x, delta_t, &target.x, properties);
-        let y_converged =
-            self.x
-                .apply_spring_update(&mut velocity.y, delta_t, &target.y, properties);
-        x_converged && y_converged
+    ) {
+        self.x
+            .apply_spring_update(&mut velocity.x, delta_t, &target.x, properties);
+        self.y
+            .apply_spring_update(&mut velocity.y, delta_t, &target.y, properties);
     }
 }

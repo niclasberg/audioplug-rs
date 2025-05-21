@@ -1,6 +1,6 @@
 use audioplug::{
     app::{Canvas, PathGeometry, Readable, View},
-    core::{Color, Size},
+    core::{Color, ShadowOptions, Size, Vector},
     param::{AnyParameter, FloatParameter, Parameter},
     style::{AlignItems, Length, UiRect},
     views::{Checkbox, Column, Label, ParameterKnob, ParameterSlider, Row, ViewExt},
@@ -11,6 +11,11 @@ use crate::params::{AmpEnvelopeParams, FilterParams, OscillatorParams, SynthPara
 
 const PADDING: UiRect = UiRect::all_px(5.0);
 const SPACER: Length = Length::Px(5.0);
+const SHADOW: ShadowOptions = ShadowOptions {
+    radius: 6.0,
+    offset: Vector::splat(1.0),
+    ..ShadowOptions::DEFAULT
+};
 
 pub struct SynthEditor {}
 
@@ -88,6 +93,7 @@ fn filter_view(params: &FilterParams) -> impl View {
         s.padding(PADDING)
             .corner_radius(Size::new(5.0, 5.0))
             .background(Color::BLACK.with_alpha(0.2))
+            .box_shadow(SHADOW)
     })
 }
 
@@ -125,6 +131,7 @@ fn amp_envelope_view(params: &AmpEnvelopeParams) -> impl View {
         s.padding(PADDING)
             .corner_radius(Size::new(5.0, 5.0))
             .background(Color::BLACK.with_alpha(0.2))
+            .box_shadow(SHADOW)
     })
 }
 

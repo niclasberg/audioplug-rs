@@ -3,7 +3,7 @@ use super::{
     TypedWidgetId, ViewContext, Widget, WidgetFlags, WidgetId,
 };
 use crate::style::{Style, StyleBuilder};
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::Deref};
 
 pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn Widget>>;
 
@@ -28,14 +28,14 @@ impl View for AnyView {
     }
 }
 
-pub struct BuildContext<'a, W: Widget> {
+pub struct BuildContext<'a, W: Widget + ?Sized> {
     id: WidgetId,
     pub(crate) app_state: &'a mut AppState,
     pub(super) style_builder: StyleBuilder,
     _phantom: PhantomData<W>,
 }
 
-impl<'a, W: Widget> BuildContext<'a, W> {
+impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
     pub fn new(id: WidgetId, app_state: &'a mut AppState) -> Self {
         Self {
             id,
@@ -92,21 +92,30 @@ impl<'a, W: Widget> BuildContext<'a, W> {
     pub fn update_default_style(&mut self, f: impl FnOnce(&mut Style)) {
         f(&mut self.app_state.widget_data_mut(self.id).style);
     }
+
+    pub(crate) fn widget_as_dyn(self) -> BuildContext<'a, dyn Widget> {
+        BuildContext {
+            id: self.id,
+            app_state: self.app_state,
+            style_builder: self.style_builder,
+            _phantom: PhantomData,
+        }
+    }
 }
 
-impl<W: Widget> ParamContext for BuildContext<'_, W> {
+impl<W: Widget + ?Sized> ParamContext for BuildContext<'_, W> {
     fn host_handle(&self) -> &dyn super::HostHandle {
         self.app_state.host_handle()
     }
 }
 
-impl<W: Widget> ReadContext for BuildContext<'_, W> {
+impl<W: Widget + ?Sized> ReadContext for BuildContext<'_, W> {
     fn scope(&self) -> Scope {
         Scope::Root
     }
 }
 
-impl<W: Widget> ReactiveContext for BuildContext<'_, W> {
+impl<W: Widget + ?Sized> ReactiveContext for BuildContext<'_, W> {
     fn runtime(&self) -> &super::Runtime {
         self.app_state.runtime()
     }

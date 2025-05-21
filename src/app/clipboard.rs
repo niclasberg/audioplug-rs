@@ -4,7 +4,7 @@ pub struct Clipboard<'a> {
     pub(super) handle: &'a platform::Handle,
 }
 
-impl<'a> Clipboard<'a> {
+impl Clipboard<'_> {
     pub fn get_text(&mut self) -> Option<String> {
         self.handle.get_clipboard().ok().flatten()
     }

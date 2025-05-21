@@ -1,17 +1,16 @@
 mod builder;
 mod display_style;
-mod image_filter;
+mod image_effect;
 mod length;
 mod ui_rect;
 
 use crate::{
     app::Brush,
-    core::{Color, Cursor, Size},
+    core::{Color, Cursor, ShadowOptions, Size},
 };
-pub(crate) use builder::apply_styles;
 pub use builder::StyleBuilder;
 pub use display_style::{AvailableSpace, DisplayStyle, FlexStyle, GridStyle, Measure};
-pub use image_filter::ImageFilter;
+pub use image_effect::ImageEffect;
 pub use length::Length;
 pub use taffy::{
     AlignContent, AlignItems, AlignSelf, FlexDirection, FlexWrap, JustifyContent, JustifySelf,
@@ -52,6 +51,7 @@ pub struct Style {
     pub border_color: Option<Color>,
     pub align_self: Option<AlignSelf>,
     pub justify_self: Option<JustifySelf>,
+    pub box_shadow: Option<ShadowOptions>,
 }
 
 impl Default for Style {
@@ -75,6 +75,7 @@ impl Default for Style {
             border_color: None,
             align_self: None,
             justify_self: None,
+            box_shadow: None,
         }
     }
 }

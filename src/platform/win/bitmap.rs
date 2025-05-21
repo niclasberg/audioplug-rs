@@ -10,11 +10,11 @@ use windows::Win32::{
 use crate::core::Size;
 
 use super::com::wic_factory;
-use super::renderer::{DeviceDependentResource, RendererGeneration};
+use super::renderer::{DeviceResource, RendererGeneration};
 
 pub struct Bitmap {
     converter: Imaging::IWICFormatConverter,
-    cached_bitmap: DeviceDependentResource<Direct2D::ID2D1Bitmap>,
+    cached_bitmap: DeviceResource<Direct2D::ID2D1Bitmap>,
 }
 
 impl Bitmap {
@@ -43,7 +43,7 @@ impl Bitmap {
 
         Ok(Self {
             converter,
-            cached_bitmap: DeviceDependentResource::new(),
+            cached_bitmap: DeviceResource::new(),
         })
     }
 
@@ -90,4 +90,17 @@ impl Bitmap {
     }
 }
 
-pub struct BitmapBrush {}
+pub struct BitmapBrush {
+    cached_bitmap: DeviceResource<Direct2D::ID2D1Bitmap>,
+}
+
+impl BitmapBrush {
+    pub(super) fn use_brush(
+        &self,
+        render_target: &Direct2D::ID2D1RenderTarget,
+        generation: RendererGeneration,
+        f: impl FnOnce(&Direct2D::ID2D1RenderTarget, &Direct2D::ID2D1Brush),
+    ) -> Result<()> {
+        todo!()
+    }
+}

@@ -67,7 +67,7 @@ impl Widget for CheckboxWidget {
         "Checkbox"
     }
 
-    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
+    fn mouse_event(&mut self, _event: MouseEvent, _cx: &mut MouseEventContext) -> EventStatus {
         EventStatus::Handled
     }
 

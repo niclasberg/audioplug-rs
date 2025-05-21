@@ -44,3 +44,37 @@ pub enum WindowTheme {
     /// Dark mode
     Dark,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShadowKind {
+    DropShadow,
+    InnerShadow,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ShadowOptions {
+    pub radius: f64,
+    pub offset: Vector,
+    pub color: Color,
+    pub kind: ShadowKind,
+}
+
+impl ShadowOptions {
+    pub const DEFAULT: Self = Self {
+        radius: 0.0,
+        offset: Vector::ZERO,
+        color: Color::BLACK.with_alpha(0.3),
+        kind: ShadowKind::DropShadow,
+    };
+}
+
+impl Default for ShadowOptions {
+    fn default() -> Self {
+        Self {
+            radius: 0.0,
+            offset: Vector::ZERO,
+            color: Color::BLACK.with_alpha(0.3),
+            kind: ShadowKind::DropShadow,
+        }
+    }
+}

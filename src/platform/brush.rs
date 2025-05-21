@@ -1,19 +1,20 @@
 use std::fmt::Debug;
 
 use crate::core::{Color, ColorMap, UnitPoint};
-pub use crate::platform;
+
+use super::{NativeLinearGradient, NativeRadialGradient};
 
 #[derive(Clone)]
 pub struct LinearGradient {
     pub(crate) start: UnitPoint,
     pub(crate) end: UnitPoint,
-    pub(crate) gradient: platform::NativeLinearGradient,
+    pub(crate) gradient: NativeLinearGradient,
 }
 
 impl LinearGradient {
     pub fn new(color_map: impl Into<ColorMap>, start: UnitPoint, end: UnitPoint) -> Self {
         Self {
-            gradient: platform::NativeLinearGradient::new(color_map.into()),
+            gradient: NativeLinearGradient::new(color_map.into()),
             start,
             end,
         }
@@ -30,9 +31,11 @@ impl Debug for LinearGradient {
     }
 }
 
-pub struct RadialGradient(platform::NativeRadialGradient);
-
-pub struct BitmapBrush {}
+#[derive(Clone)]
+pub struct RadialGradient {
+    pub(crate) center: UnitPoint,
+    pub(crate) gradient: NativeRadialGradient,
+}
 
 #[derive(Debug, Clone)]
 pub enum Brush {
@@ -67,7 +70,7 @@ impl<'a> From<&'a Brush> for BrushRef<'a> {
     }
 }
 
-impl<'a> From<Color> for BrushRef<'a> {
+impl From<Color> for BrushRef<'_> {
     fn from(value: Color) -> Self {
         Self::Solid(value)
     }

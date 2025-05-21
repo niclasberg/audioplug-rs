@@ -1,6 +1,3 @@
-mod label;
-//mod stack;
-mod background;
 mod button;
 mod checkbox;
 mod container;
@@ -8,6 +5,7 @@ mod filled;
 mod image;
 mod key_down;
 mod knob;
+mod label;
 mod scoped;
 mod scroll;
 mod slider;
@@ -16,7 +14,6 @@ mod util;
 mod view_ext;
 mod xy_pad;
 
-pub use background::Background;
 pub use button::{Button, ButtonWidget};
 pub use checkbox::Checkbox;
 pub use container::{Column, Container, Grid, Row};

@@ -20,7 +20,7 @@ pub(crate) use bitmap::Bitmap;
 pub(crate) use executor::Executor;
 pub(crate) use geometry::{NativeGeometry, NativeGeometryBuilder};
 pub(crate) use gradient::{NativeLinearGradient, NativeRadialGradient};
-pub(crate) use handle::{Handle, HandleRef};
+pub(crate) use handle::Handle;
 pub(crate) use renderer::{Renderer, RendererRef};
 pub(crate) use text::TextLayout;
 pub(crate) use window::Window;

@@ -1,6 +1,6 @@
 use audioplug::app::*;
-use audioplug::core::{Color, Size, SpringPhysics};
-use audioplug::style::{Length, UiRect};
+use audioplug::core::{Color, ShadowOptions, Size, Vector};
+use audioplug::style::{ImageEffect, Length, UiRect};
 use audioplug::views::*;
 use audioplug::App;
 use std::path::Path;
@@ -61,6 +61,7 @@ fn main() {
                 .style(|s| {
                     s.border(Length::Px(2.0), Color::GRAY90)
                         .corner_radius(Size::new(2.0, 2.0))
+                        .effects(vec![ImageEffect::GaussianBlur { radius: 10.0 }])
                 }),
                 Row::new((
                     Label::new("Slider"),
@@ -96,6 +97,11 @@ fn main() {
                             style
                                 .max_width(Length::Px(200.0))
                                 .height(animated.map(Length::from_px))
+                                .box_shadow(ShadowOptions {
+                                    radius: 5.0,
+                                    offset: Vector::new(1.0, 1.0),
+                                    ..Default::default()
+                                })
                         })
                         .overlay(UiRect::ZERO, Label::new("OVERLAY")),
                 ))

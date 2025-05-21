@@ -1,20 +1,24 @@
+use bytemuck::{bytes_of, cast_slice};
 use windows::{
     core::*,
     Win32::{
-        Foundation::{HMODULE, HWND, RECT},
-        Graphics::{Direct2D, Direct3D, Direct3D11, Dxgi},
-        UI::WindowsAndMessaging::GetClientRect,
+        Foundation::{HMODULE, HWND},
+        Graphics::{
+            Direct2D::{self, ID2D1Brush},
+            Direct3D, Direct3D11, Dxgi,
+        },
     },
 };
 
 use super::{
-    com::direct2d_factory, geometry::NativeGeometry, util::get_scale_factor_for_window, Bitmap,
-    TextLayout,
+    com::direct2d_factory, filters::set_effect_property_f32, geometry::NativeGeometry,
+    util::get_scale_factor_for_window, Bitmap, TextLayout,
 };
-use crate::{
-    app::BrushRef,
-    core::{Color, Ellipse, Point, Rectangle, RoundedRectangle, Transform},
+use crate::core::{
+    Color, Ellipse, Point, Rectangle, RoundedRectangle, ShadowOptions, Size, SpringPhysics,
+    Transform, Vector,
 };
+use crate::platform::{BrushRef, ShapeRef};
 use std::{
     cell::{Ref, RefCell},
     mem::MaybeUninit,
@@ -83,6 +87,15 @@ impl From<Point> for windows_numerics::Vector2 {
     }
 }
 
+impl From<Vector> for windows_numerics::Vector2 {
+    fn from(val: Vector) -> Self {
+        windows_numerics::Vector2 {
+            X: val.x as f32,
+            Y: val.y as f32,
+        }
+    }
+}
+
 impl From<Transform> for windows_numerics::Matrix3x2 {
     fn from(val: Transform) -> Self {
         windows_numerics::Matrix3x2 {
@@ -109,6 +122,15 @@ impl From<windows_numerics::Matrix3x2> for Transform {
     }
 }
 
+impl From<Size<u32>> for Direct2D::Common::D2D_SIZE_U {
+    fn from(value: Size<u32>) -> Self {
+        Direct2D::Common::D2D_SIZE_U {
+            width: value.width,
+            height: value.height,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct RendererGeneration(pub(super) usize);
 impl RendererGeneration {
@@ -129,23 +151,26 @@ struct SavedState {
     actions: Vec<SavedAction>,
 }
 
+struct DropShadow {
+    bitmap: Direct2D::ID2D1Bitmap1,
+    blur: Direct2D::ID2D1Effect,
+    size: Direct2D::Common::D2D_SIZE_U,
+}
+
+impl DropShadow {}
+
 pub struct Renderer {
     render_target: Direct2D::ID2D1DeviceContext,
     swapchain: Dxgi::IDXGISwapChain1,
     brush: Direct2D::ID2D1SolidColorBrush,
     saved_states: Vec<SavedState>,
     generation: RendererGeneration,
+    drop_shadow: Option<DropShadow>,
+    scale_factor: f32,
 }
 
 impl Renderer {
     pub fn new(hwnd: HWND) -> Result<Self> {
-        let mut rect: RECT = RECT::default();
-        unsafe { GetClientRect(hwnd, &mut rect) }?;
-
-        let size = Direct2D::Common::D2D_SIZE_U {
-            width: (rect.right - rect.left) as u32,
-            height: (rect.bottom - rect.top) as u32,
-        };
         let scale_factor = get_scale_factor_for_window(hwnd) as f32;
 
         let device = unsafe {
@@ -169,6 +194,7 @@ impl Renderer {
         let render_target = unsafe {
             direct2d_device.CreateDeviceContext(Direct2D::D2D1_DEVICE_CONTEXT_OPTIONS_NONE)
         }?;
+        unsafe { render_target.SetDpi(96.0 * scale_factor, 96.0 * scale_factor) };
 
         let dxgi_factory: Dxgi::IDXGIFactory2 = unsafe { dxgi_device.GetAdapter()?.GetParent() }?;
         let swapchain = unsafe {
@@ -188,6 +214,7 @@ impl Renderer {
                     BufferCount: 2, // Double buffering
                     Scaling: Dxgi::DXGI_SCALING_NONE,
                     SwapEffect: Dxgi::DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
+                    AlphaMode: Dxgi::Common::DXGI_ALPHA_MODE_IGNORE,
                     ..Default::default()
                 },
                 None,
@@ -205,10 +232,12 @@ impl Renderer {
             brush,
             saved_states: Vec::new(),
             generation: RendererGeneration(0),
+            drop_shadow: None,
+            scale_factor,
         })
     }
 
-    pub fn resize(&self, width: u32, height: u32, scale_factor: f32) -> Result<()> {
+    pub fn resize(&self, width: u32, height: u32) -> Result<()> {
         // We need to clear all references to the swapchain buffers before resizing.
         unsafe { self.render_target.SetTarget(None) };
 
@@ -222,15 +251,23 @@ impl Renderer {
             )
         }?;
 
-        bind_swapchain_bitmap_to_render_target(&self.render_target, &self.swapchain, scale_factor)?;
+        bind_swapchain_bitmap_to_render_target(
+            &self.render_target,
+            &self.swapchain,
+            self.scale_factor,
+        )?;
 
         Ok(())
     }
 
-    pub fn update_scale_factor(&self, scale_factor: f32) -> Result<()> {
+    pub fn update_scale_factor(&mut self, scale_factor: f32) -> Result<()> {
+        unsafe {
+            self.render_target
+                .SetDpi(96.0 * scale_factor, 96.0 * scale_factor)
+        };
         unsafe { self.render_target.SetTarget(None) };
         bind_swapchain_bitmap_to_render_target(&self.render_target, &self.swapchain, scale_factor)?;
-
+        self.scale_factor = scale_factor;
         Ok(())
     }
 
@@ -338,6 +375,161 @@ impl Renderer {
         }
     }
 
+    pub fn draw_shadow(&mut self, shape: ShapeRef, options: ShadowOptions) {
+        let rect = shape.bounds();
+        let bitmap_size = (rect.size() + Size::splat(options.radius * 2.0))
+            .scale(self.scale_factor as _)
+            .expand_to_u32();
+        let blur_std_dev = options.radius / 3.0;
+
+        let props = Direct2D::D2D1_BITMAP_PROPERTIES1 {
+            pixelFormat: Direct2D::Common::D2D1_PIXEL_FORMAT {
+                format: Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
+                alphaMode: Direct2D::Common::D2D1_ALPHA_MODE_PREMULTIPLIED,
+            },
+            dpiX: 96.0 * self.scale_factor,
+            dpiY: 96.0 * self.scale_factor,
+            bitmapOptions: Direct2D::D2D1_BITMAP_OPTIONS_TARGET,
+            ..Default::default()
+        };
+
+        let Ok(mask_bitmap) = (unsafe {
+            self.render_target
+                .CreateBitmap(bitmap_size.into(), None, 0, &props)
+        }) else {
+            return;
+        };
+
+        let offset_effect = unsafe {
+            self.render_target
+                .CreateEffect(&Direct2D::CLSID_D2D12DAffineTransform)
+        }
+        .unwrap();
+        unsafe {
+            offset_effect.SetInput(0, &mask_bitmap, false);
+            let transform = [
+                1.0,
+                0.0,
+                0.0,
+                1.0,
+                options.offset.x as f32,
+                options.offset.y as f32,
+            ];
+            offset_effect.SetValue(
+                Direct2D::D2D1_2DAFFINETRANSFORM_PROP_TRANSFORM_MATRIX.0 as u32,
+                Direct2D::D2D1_PROPERTY_TYPE_MATRIX_3X2,
+                bytes_of(&transform),
+            )
+        }
+        .unwrap();
+
+        let blur_effect = unsafe {
+            self.render_target
+                .CreateEffect(&Direct2D::CLSID_D2D1GaussianBlur)
+        }
+        .unwrap();
+        unsafe {
+            blur_effect.SetInput(0, &offset_effect.GetOutput().unwrap(), false);
+            set_effect_property_f32(
+                &blur_effect,
+                Direct2D::D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION.0,
+                blur_std_dev as f32,
+            )
+        }
+        .unwrap();
+
+        let colorize_effect = unsafe {
+            self.render_target
+                .CreateEffect(&Direct2D::CLSID_D2D1ColorMatrix)
+        }
+        .unwrap();
+        unsafe { colorize_effect.SetInput(0, &blur_effect.GetOutput().unwrap(), false) };
+        let color_matrix = [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            options.color.a,
+            options.color.r,
+            options.color.g,
+            options.color.b,
+            0.0,
+        ];
+        unsafe {
+            colorize_effect.SetValue(
+                Direct2D::D2D1_COLORMATRIX_PROP_COLOR_MATRIX.0 as u32,
+                Direct2D::D2D1_PROPERTY_TYPE_MATRIX_5X4,
+                cast_slice(&color_matrix),
+            )
+        }
+        .unwrap();
+        unsafe {
+            colorize_effect.SetValue(
+                Direct2D::D2D1_COLORMATRIX_PROP_ALPHA_MODE.0 as u32,
+                Direct2D::D2D1_PROPERTY_TYPE_ENUM,
+                bytes_of(&Direct2D::Common::D2D1_ALPHA_MODE_PREMULTIPLIED.0),
+            )
+        }
+        .unwrap();
+
+        let composite_effect = unsafe {
+            self.render_target
+                .CreateEffect(&Direct2D::CLSID_D2D1Composite)
+        }
+        .unwrap();
+        unsafe {
+            composite_effect.SetInput(0, &colorize_effect.GetOutput().unwrap(), false);
+            composite_effect.SetInput(1, &mask_bitmap, false);
+            composite_effect
+                .SetValue(
+                    Direct2D::D2D1_COMPOSITE_PROP_MODE.0 as u32,
+                    Direct2D::D2D1_PROPERTY_TYPE_ENUM,
+                    bytes_of(&Direct2D::Common::D2D1_COMPOSITE_MODE_DESTINATION_OUT.0),
+                )
+                .unwrap();
+        }
+
+        let prev_target = unsafe { self.render_target.GetTarget() }.unwrap();
+        let prev_transform = self.get_d2d1_transform();
+        unsafe {
+            self.render_target.SetTarget(&mask_bitmap);
+            self.render_target.Clear(Some(&Color::ZERO.into()));
+
+            let transform = Transform::from_translation(
+                Vector::splat(options.radius) - rect.top_left().as_vector(),
+            );
+            self.render_target.SetTransform(&transform.into());
+
+            self.brush.SetColor(&Color::BLACK.into());
+            fill_shape(&self.render_target, shape, &self.brush);
+
+            self.render_target.SetTransform(&prev_transform);
+            self.render_target.SetTarget(&prev_target);
+        }
+
+        let offset = rect.top_left() - Vector::splat(options.radius);
+        unsafe {
+            self.render_target.DrawImage(
+                &composite_effect.GetOutput().unwrap(),
+                Some(&offset.into()),
+                None,
+                Direct2D::D2D1_INTERPOLATION_MODE_LINEAR,
+                Direct2D::Common::D2D1_COMPOSITE_MODE_SOURCE_OVER,
+            )
+        };
+    }
+
     pub fn fill_rectangle(&mut self, rect: Rectangle, brush: BrushRef) {
         self.use_brush(rect, brush, |render_target, brush| unsafe {
             render_target.FillRectangle(&rect.into(), brush)
@@ -415,7 +607,7 @@ fn bind_swapchain_bitmap_to_render_target(
     let bitmap_props = Direct2D::D2D1_BITMAP_PROPERTIES1 {
         pixelFormat: Direct2D::Common::D2D1_PIXEL_FORMAT {
             format: Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
-            alphaMode: Direct2D::Common::D2D1_ALPHA_MODE_IGNORE,
+            alphaMode: Direct2D::Common::D2D1_ALPHA_MODE_PREMULTIPLIED,
         },
         dpiX: scale_factor * 96.0,
         dpiY: scale_factor * 96.0,
@@ -432,6 +624,23 @@ fn bind_swapchain_bitmap_to_render_target(
     Ok(())
 }
 
+unsafe fn fill_shape(
+    render_target: &Direct2D::ID2D1DeviceContext,
+    shape: ShapeRef,
+    brush: &ID2D1Brush,
+) {
+    match shape {
+        ShapeRef::Rect(rectangle) => render_target.FillRectangle(&rectangle.into(), brush),
+        ShapeRef::Rounded(rounded_rectangle) => {
+            render_target.FillRoundedRectangle(&rounded_rectangle.into(), brush)
+        }
+        ShapeRef::Ellipse(ellipse) => render_target.FillEllipse(&ellipse.into(), brush),
+        ShapeRef::Geometry(path_geometry) => {
+            render_target.FillGeometry(&path_geometry.0 .0, brush, None)
+        }
+    }
+}
+
 #[derive(Clone)]
 struct RenderResourceInner<T> {
     generation: RendererGeneration,
@@ -443,11 +652,11 @@ struct RenderResourceInner<T> {
 /// render target is recreated, and in that case we can force a rebuild of the
 /// underlying resource.
 #[derive(Clone)]
-pub struct DeviceDependentResource<T> {
+pub struct DeviceResource<T> {
     inner: Rc<RefCell<Option<RenderResourceInner<T>>>>,
 }
 
-impl<T> DeviceDependentResource<T> {
+impl<T> DeviceResource<T> {
     pub fn new() -> Self {
         Self {
             inner: Rc::new(RefCell::new(None)),

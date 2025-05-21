@@ -120,6 +120,15 @@ impl Size<f64> {
     pub fn min_element(&self) -> f64 {
         self.width.min(self.height)
     }
+
+    pub fn expand_to_u32(&self) -> Size<u32> {
+        assert!(self.width >= 0.0);
+        assert!(self.height >= 0.0);
+        Size {
+            width: self.width.ceil() as u32,
+            height: self.height.ceil() as u32,
+        }
+    }
 }
 
 impl<T> Size<Option<T>> {

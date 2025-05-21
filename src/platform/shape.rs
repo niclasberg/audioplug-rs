@@ -164,6 +164,17 @@ pub enum ShapeRef<'a> {
     Geometry(&'a PathGeometry),
 }
 
+impl ShapeRef<'_> {
+    pub fn bounds(&self) -> Rectangle {
+        match self {
+            Self::Rect(rect) => *rect,
+            Self::Rounded(rounded) => rounded.bounds(),
+            Self::Ellipse(ell) => ell.bounds(),
+            Self::Geometry(geometry) => geometry.bounds(),
+        }
+    }
+}
+
 impl<'a> From<&'a Shape> for ShapeRef<'a> {
     fn from(value: &'a Shape) -> Self {
         match value {

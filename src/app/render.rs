@@ -3,14 +3,12 @@ use crate::{
     platform,
 };
 
-mod brush;
 mod canvas;
-mod shape;
 mod text;
 use super::{AppState, WidgetId, WindowId};
-pub use brush::{Brush, BrushRef, LinearGradient, RadialGradient};
 pub use canvas::{Canvas, CanvasContext, CanvasWidget};
-pub use shape::{PathGeometry, PathGeometryBuilder, Shape, ShapeRef};
+pub use platform::{Brush, BrushRef, LinearGradient, RadialGradient};
+pub use platform::{PathGeometry, PathGeometryBuilder, Shape, ShapeRef};
 pub use text::TextLayout;
 
 pub fn render_window(
@@ -135,6 +133,10 @@ impl RenderContext<'_, '_> {
             let border_color = widget_data.style.border_color;
             let line_width = widget_data.layout.border.top;
             let shape = widget_data.shape();
+
+            if let Some(shadow) = &widget_data.style.box_shadow {
+                self.renderer.draw_shadow((&shape).into(), *shadow);
+            }
 
             if let Some(background) = &widget_data.style.background {
                 fill_shape(self.renderer, (&shape).into(), background.into());

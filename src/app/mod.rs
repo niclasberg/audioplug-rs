@@ -64,12 +64,12 @@ slotmap::new_key_type! {
     pub struct WindowId;
 }
 
-pub struct TypedWidgetId<W: Widget> {
+pub struct TypedWidgetId<W: Widget + ?Sized> {
     pub id: WidgetId,
     _phantom: PhantomData<fn() -> W>,
 }
 
-impl<W: Widget> TypedWidgetId<W> {
+impl<W: Widget + ?Sized> TypedWidgetId<W> {
     pub fn new(id: WidgetId) -> Self {
         Self {
             id,
@@ -80,13 +80,13 @@ impl<W: Widget> TypedWidgetId<W> {
 
 pub type AnyWidgetId = TypedWidgetId<dyn Widget>;
 
-impl<T: Widget> Clone for TypedWidgetId<T> {
+impl<T: Widget + ?Sized> Clone for TypedWidgetId<T> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<T: Widget> Copy for TypedWidgetId<T> {}
+impl<T: Widget + ?Sized> Copy for TypedWidgetId<T> {}
 
 pub struct App {
     native: platform::Application,

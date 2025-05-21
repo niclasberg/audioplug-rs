@@ -11,6 +11,7 @@ use crate::{
     style::DisplayStyle,
 };
 
+/// View that allows custom rendering.
 pub struct Canvas<FRender, State = ()> {
     f_render: FRender,
     state: PhantomData<State>,
@@ -21,6 +22,16 @@ where
     State: 'static,
     FRender: Fn(&mut CanvasContext, Option<State>) -> State + 'static,
 {
+    /// Create a Canvas, providing a function that performs rendering.
+    ///
+    /// # Example
+    /// ```
+    /// use crate::core::Color;
+    /// let canvas = Canvas::new(move |cx, _| {
+    ///     let bounds = cx.bounds();
+    ///     cx.fill(bounds, Color::BLUE);
+    /// })
+    /// ```
     pub fn new(f_render: FRender) -> Self {
         Self {
             f_render,

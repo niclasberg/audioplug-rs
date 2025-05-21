@@ -1,4 +1,3 @@
-mod animation;
 pub mod app;
 mod audio_buffer;
 mod audiolayout;

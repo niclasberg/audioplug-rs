@@ -50,30 +50,32 @@ impl Interpolate for Color {
 impl SpringPhysics for Color {
     const ZERO: Self = Self::from_rgba8(0, 0, 0, 0.0);
 
+    fn distance_squared_to(&self, other: &Self) -> f64 {
+        self.r.distance_squared_to(&other.r)
+            + self.g.distance_squared_to(&other.g)
+            + self.b.distance_squared_to(&other.b)
+            + self.a.distance_squared_to(&other.a)
+    }
+
     fn apply_spring_update(
         &mut self,
         velocity: &mut Self,
         delta_t: f64,
         target: &Self,
         properties: &super::SpringProperties,
-    ) -> bool {
-        let a_converged =
-            self.a
-                .apply_spring_update(&mut velocity.a, delta_t, &target.a, properties);
-        let r_converged =
-            self.r
-                .apply_spring_update(&mut velocity.r, delta_t, &target.r, properties);
-        let g_converged =
-            self.g
-                .apply_spring_update(&mut velocity.g, delta_t, &target.g, properties);
-        let b_converged =
-            self.b
-                .apply_spring_update(&mut velocity.b, delta_t, &target.b, properties);
+    ) {
+        self.a
+            .apply_spring_update(&mut velocity.a, delta_t, &target.a, properties);
+        self.r
+            .apply_spring_update(&mut velocity.r, delta_t, &target.r, properties);
+        self.g
+            .apply_spring_update(&mut velocity.g, delta_t, &target.g, properties);
+        self.b
+            .apply_spring_update(&mut velocity.b, delta_t, &target.b, properties);
         self.a = self.a.clamp(0.0, 1.0);
         self.r = self.r.clamp(0.0, 1.0);
         self.g = self.g.clamp(0.0, 1.0);
         self.b = self.b.clamp(0.0, 1.0);
-        a_converged && r_converged && g_converged && b_converged
     }
 }
 

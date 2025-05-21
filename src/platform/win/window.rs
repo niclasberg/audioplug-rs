@@ -123,16 +123,15 @@ impl WindowState {
                 let height = hiword(lparam) as u32;
 
                 if let Some(renderer) = self.renderer.borrow_mut().as_ref() {
-                    renderer.resize(width, height, self.scale_factor.get() as _).unwrap();
+                    renderer.resize(width, height).unwrap();
                 }
-
-                //self.render(hwnd, Size::new(width, height).into());
 
                 let new_size: Size = [width, height].into();
                 let new_size = new_size.scale(self.scale_factor.get());
                 let window_event = WindowEvent::Resize { new_size };
                 self.publish_event(hwnd, window_event);
                 let _ = unsafe { InvalidateRect(Some(hwnd), None, false) };
+                //self.render(hwnd, Size::new(width, height).into());
                 Some(LRESULT(0))
             },
 
@@ -249,7 +248,7 @@ impl WindowState {
                     debug_assert!(self.current_key_event.borrow().is_none());
                     *(self.current_key_event.borrow_mut()) = Some(TmpKeyEvent { chars: Vec::new(), key });
                 } else {
-                    self.publish_event(hwnd, WindowEvent::Key(KeyEvent::KeyDown { key, modifiers, str: None }));
+                    self.publish_event(hwnd, WindowEvent::Key(KeyEvent::KeyDown { key, modifiers, str: None, repeat_count: flags.repeat_count as usize }));
                 }
 
                 Some(LRESULT(0))
@@ -267,7 +266,8 @@ impl WindowState {
                     let key_event = KeyEvent::KeyDown {
                         key: current_key_event.key,
                         modifiers,
-                        str
+                        str,
+                        repeat_count: flags.repeat_count as usize,
                     };
 
                     self.publish_event(hwnd, WindowEvent::Key(key_event));
@@ -288,11 +288,12 @@ impl WindowState {
 
             WM_DPICHANGED => {
                 let scale_factor = get_scale_factor_for_window(hwnd);
-                if let Some(renderer) = self.renderer.borrow_mut().as_ref() {
+                if let Some(renderer) = self.renderer.borrow_mut().as_mut() {
                     renderer.update_scale_factor(scale_factor as _).unwrap();
                 }
                 self.scale_factor.replace(scale_factor);
                 self.publish_event(hwnd, WindowEvent::ScaleFactorChanged { scale_factor: self.scale_factor.get() });
+                let _ = unsafe { InvalidateRect(Some(hwnd), None, false) };
                 Some(LRESULT(0))
             },
 

@@ -76,7 +76,7 @@ impl<T: 'static> Accessor<T> {
         }
     }
 
-    pub fn get_and_bind<W: Widget>(
+    pub fn get_and_bind<W: Widget + ?Sized>(
         self,
         cx: &mut BuildContext<W>,
         f: impl Fn(T, WidgetMut<'_, W>) + 'static,
@@ -87,7 +87,7 @@ impl<T: 'static> Accessor<T> {
         self.get_and_bind_mapped(cx, T::clone, f)
     }
 
-    pub fn get_and_bind_mapped<W: Widget, U: 'static>(
+    pub fn get_and_bind_mapped<W: Widget + ?Sized, U: 'static>(
         self,
         cx: &mut BuildContext<W>,
         f_map: fn(&T) -> U,
@@ -98,7 +98,7 @@ impl<T: 'static> Accessor<T> {
         value
     }
 
-    pub fn bind<W: Widget>(
+    pub fn bind<W: Widget + ?Sized>(
         self,
         cx: &mut BuildContext<W>,
         f: impl Fn(T, WidgetMut<'_, W>) + 'static,
@@ -108,7 +108,7 @@ impl<T: 'static> Accessor<T> {
         self.bind_mapped(cx, T::clone, f);
     }
 
-    pub fn bind_mapped<W: Widget, U: 'static, F>(
+    pub fn bind_mapped<W: Widget + ?Sized, U: 'static, F>(
         self,
         cx: &mut BuildContext<W>,
         f_map: fn(&T) -> U,

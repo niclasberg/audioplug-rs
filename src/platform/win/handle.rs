@@ -13,8 +13,6 @@ use windows::Win32::System::{DataExchange, Memory};
 
 use super::util::get_client_rect;
 
-pub type HandleRef<'a> = &'a mut Handle;
-
 struct ScopeExit<F: Fn()>(F);
 
 impl<F: Fn()> Drop for ScopeExit<F> {

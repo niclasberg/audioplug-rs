@@ -12,7 +12,6 @@ use crate::{
     core::{Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
-    style::apply_styles,
 };
 use indexmap::IndexSet;
 use slotmap::{Key, SecondaryMap, SlotMap};
@@ -161,7 +160,7 @@ impl AppState {
         let mut cx = BuildContext::new(id, self);
         let widget = view.build(&mut cx);
         let styles = std::mem::take(&mut cx.style_builder);
-        apply_styles(&mut cx, styles);
+        styles.apply_styles(&mut cx.widget_as_dyn());
         self.widgets.insert(id, Box::new(widget));
     }
 

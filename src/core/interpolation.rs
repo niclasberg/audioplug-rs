@@ -42,51 +42,56 @@ pub struct SpringProperties {
 
 pub trait SpringPhysics: Sized + Interpolate {
     const ZERO: Self;
+    fn distance_squared_to(&self, other: &Self) -> f64;
     fn apply_spring_update(
         &mut self,
         velocity: &mut Self,
         delta_t: f64,
         target: &Self,
         properties: &SpringProperties,
-    ) -> bool;
+    );
 }
 
 impl SpringPhysics for f64 {
     const ZERO: Self = 0.0;
 
+    fn distance_squared_to(&self, other: &Self) -> f64 {
+        (*self - *other).powi(2)
+    }
+
     fn apply_spring_update(
         &mut self,
         velocity: &mut Self,
         delta_t: f64,
         target: &Self,
         properties: &SpringProperties,
-    ) -> bool {
+    ) {
         // Integrate using the semi implicit Euler method
         let spring_force = properties.stiffness * (*target - *self);
         let damping_force = -properties.damping * *velocity;
         *velocity += delta_t * (spring_force + damping_force) / properties.mass;
         *self += delta_t * *velocity;
-        velocity.abs() < properties.velocity_epsilon
-            && (*self - target).abs() < properties.position_epsilon
     }
 }
 
 impl SpringPhysics for f32 {
     const ZERO: Self = 0.0;
 
+    fn distance_squared_to(&self, other: &Self) -> f64 {
+        (*self - *other).powi(2) as f64
+    }
+
     fn apply_spring_update(
         &mut self,
         velocity: &mut Self,
         delta_t: f64,
         target: &Self,
         properties: &SpringProperties,
-    ) -> bool {
+    ) {
         let mut pos = *self as f64;
         let mut vel = *velocity as f64;
-        let converged =
-            f64::apply_spring_update(&mut pos, &mut vel, delta_t, &(*target as f64), properties);
+        f64::apply_spring_update(&mut pos, &mut vel, delta_t, &(*target as f64), properties);
         *self = pos as _;
         *velocity = vel as _;
-        converged
     }
 }

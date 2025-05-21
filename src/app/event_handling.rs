@@ -337,10 +337,6 @@ impl<'a> EventContext<'a> {
         let window_id = self.app_state.get_window_id_for_widget(self.id);
         self.app_state.clipboard(window_id)
     }
-
-    pub fn set_cursor(&mut self, _cursor: Cursor) {
-        //self.app_state.cursor = cursor;
-    }
 }
 
 pub struct CallbackContext<'a> {

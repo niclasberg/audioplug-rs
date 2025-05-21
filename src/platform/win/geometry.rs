@@ -38,7 +38,7 @@ impl NativeGeometry {
         let end_angle = start_angle + delta_angle;
         let end_point = center + Point::new(end_angle.cos(), end_angle.sin()).scale(radius);
         Self::new(|builder| {
-            let builder = builder.move_to(start_point.into());
+            let builder = builder.move_to(start_point);
             let arc = Direct2D::D2D1_ARC_SEGMENT {
                 point: end_point.into(),
                 size: todo!(),

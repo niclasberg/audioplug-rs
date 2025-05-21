@@ -2,7 +2,7 @@ use crate::app::{
     Accessor, AnimationContext, AppState, BuildContext, EventContext, EventStatus,
     MouseEventContext, RenderContext, Shape, StatusChange, TextLayout, View, Widget,
 };
-use crate::core::{Color, Cursor, Key, Modifiers, Rectangle, Size};
+use crate::core::{Color, Cursor, Key, Modifiers, Rectangle, ShadowOptions, Size};
 use crate::event::{KeyEvent, MouseButton};
 use crate::style::{AvailableSpace, DisplayStyle, Length, Measure, Style, UiRect};
 use crate::MouseEvent;
@@ -41,14 +41,12 @@ impl View for TextBox {
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
         cx.set_focusable(true);
 
-        {
-            cx.set_default_style(Style {
-                padding: UiRect::all(Length::Px(2.0)),
-                border: Length::Px(1.0),
-                cursor: Some(Cursor::IBeam),
-                ..Default::default()
-            });
-        }
+        cx.set_default_style(Style {
+            padding: UiRect::all(Length::Px(2.0)),
+            border: Length::Px(1.0),
+            cursor: Some(Cursor::IBeam),
+            ..Default::default()
+        });
 
         let text_layout = if let Some(value) = self.value {
             let text = value.get_and_bind(cx, |value, mut widget| {
@@ -341,6 +339,7 @@ impl Widget for TextBoxWidget {
                 key,
                 modifiers,
                 str,
+                ..
             } => match (key, str) {
                 (Key::BackSpace, _) if modifiers.contains(Modifiers::CONTROL) => {
                     if self.remove_word_left() {
