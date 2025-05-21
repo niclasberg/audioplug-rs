@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 
 use crate::{
     app::{
-        render::{fill_shape, stroke_shape},
         AppState, BrushRef, BuildContext, EffectState, NodeId, Owner, ReactiveContext, ReadContext,
         Runtime, Scope, ShapeRef, TextLayout, View, Widget, WidgetId,
     },
@@ -73,7 +72,7 @@ pub struct CanvasContext<'a, 'b> {
 
 impl CanvasContext<'_, '_> {
     pub fn fill<'c, 'd>(&mut self, shape: impl Into<ShapeRef<'c>>, brush: impl Into<BrushRef<'d>>) {
-        fill_shape(self.renderer, shape.into(), brush.into());
+        self.renderer.fill_shape(shape.into(), brush.into());
     }
 
     pub fn stroke<'c, 'd>(
@@ -82,7 +81,8 @@ impl CanvasContext<'_, '_> {
         brush: impl Into<BrushRef<'d>>,
         line_width: f32,
     ) {
-        stroke_shape(self.renderer, shape.into(), brush.into(), line_width);
+        self.renderer
+            .stroke_shape(shape.into(), brush.into(), line_width);
     }
 
     pub fn draw_line<'c>(

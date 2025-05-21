@@ -66,7 +66,7 @@ impl RenderContext<'_, '_> {
     }
 
     pub fn fill<'c, 'd>(&mut self, shape: impl Into<ShapeRef<'c>>, brush: impl Into<BrushRef<'d>>) {
-        fill_shape(self.renderer, shape.into(), brush.into());
+        self.renderer.fill_shape(shape.into(), brush.into());
     }
 
     pub fn stroke<'c, 'd>(
@@ -75,7 +75,8 @@ impl RenderContext<'_, '_> {
         brush: impl Into<BrushRef<'d>>,
         line_width: f32,
     ) {
-        stroke_shape(self.renderer, shape.into(), brush.into(), line_width);
+        self.renderer
+            .stroke_shape(shape.into(), brush.into(), line_width);
     }
 
     pub fn draw_line<'c>(
@@ -139,7 +140,7 @@ impl RenderContext<'_, '_> {
             }
 
             if let Some(background) = &widget_data.style.background {
-                fill_shape(self.renderer, (&shape).into(), background.into());
+                self.renderer.fill_shape((&shape).into(), background.into());
             }
 
             if let Some(border_color) = border_color {
@@ -166,28 +167,5 @@ impl RenderContext<'_, '_> {
             self.render_current_widget();
         }
         self.id = old_id;
-    }
-}
-
-pub fn fill_shape(renderer: platform::RendererRef, shape: ShapeRef, brush: BrushRef) {
-    match shape {
-        ShapeRef::Rect(rect) => renderer.fill_rectangle(rect, brush),
-        ShapeRef::Rounded(rect) => renderer.fill_rounded_rectangle(rect, brush),
-        ShapeRef::Ellipse(ell) => renderer.fill_ellipse(ell, brush),
-        ShapeRef::Geometry(geometry) => renderer.fill_geometry(&geometry.0, brush),
-    }
-}
-
-pub fn stroke_shape(
-    renderer: platform::RendererRef,
-    shape: ShapeRef,
-    brush: BrushRef,
-    line_width: f32,
-) {
-    match shape {
-        ShapeRef::Rect(rect) => renderer.draw_rectangle(rect, brush, line_width),
-        ShapeRef::Rounded(rect) => renderer.draw_rounded_rectangle(rect, brush, line_width),
-        ShapeRef::Ellipse(ell) => renderer.draw_ellipse(ell, brush, line_width),
-        ShapeRef::Geometry(geometry) => renderer.draw_geometry(&geometry.0, brush, line_width),
     }
 }

@@ -340,12 +340,6 @@ impl Renderer {
         });
     }
 
-    pub fn draw_rectangle(&mut self, rect: Rectangle, brush: BrushRef, line_width: f32) {
-        self.use_brush(rect, brush, |render_target, brush| unsafe {
-            render_target.DrawRectangle(&rect.into(), brush, line_width, None)
-        });
-    }
-
     #[inline(always)]
     fn use_brush(
         &mut self,
@@ -512,7 +506,7 @@ impl Renderer {
             self.render_target.SetTransform(&transform.into());
 
             self.brush.SetColor(&Color::BLACK.into());
-            fill_shape(&self.render_target, shape, &self.brush);
+            fill_shape_impl(&self.render_target, shape, &self.brush);
 
             self.render_target.SetTransform(&prev_transform);
             self.render_target.SetTarget(&prev_target);
@@ -530,54 +524,17 @@ impl Renderer {
         };
     }
 
-    pub fn fill_rectangle(&mut self, rect: Rectangle, brush: BrushRef) {
+    pub fn fill_shape(&mut self, shape: ShapeRef, brush: BrushRef) {
+        let rect = shape.bounds();
         self.use_brush(rect, brush, |render_target, brush| unsafe {
-            render_target.FillRectangle(&rect.into(), brush)
+            fill_shape_impl(render_target, shape, brush)
         });
     }
 
-    pub fn draw_rounded_rectangle(
-        &mut self,
-        rect: RoundedRectangle,
-        brush: BrushRef,
-        line_width: f32,
-    ) {
-        self.use_brush(rect.rect, brush, |render_target, brush| unsafe {
-            render_target.DrawRoundedRectangle(&rect.into(), brush, line_width, None);
-        });
-    }
-
-    pub fn fill_rounded_rectangle(&mut self, rect: RoundedRectangle, brush: BrushRef) {
-        self.use_brush(rect.rect, brush, |render_target, brush| unsafe {
-            render_target.FillRoundedRectangle(&rect.into(), brush);
-        });
-    }
-
-    pub fn draw_ellipse(&mut self, ellipse: Ellipse, brush: BrushRef, line_width: f32) {
-        self.use_brush(ellipse.bounds(), brush, |render_target, brush| unsafe {
-            render_target.DrawEllipse(&ellipse.into(), brush, line_width, None);
-        });
-    }
-
-    pub fn fill_ellipse(&mut self, ellipse: Ellipse, brush: BrushRef) {
-        self.use_brush(ellipse.bounds(), brush, |render_target, brush| unsafe {
-            render_target.FillEllipse(&ellipse.into(), brush);
-        });
-    }
-
-    pub fn draw_geometry(&mut self, geometry: &NativeGeometry, brush: BrushRef, line_width: f32) {
-        let bounds =
-            unsafe { geometry.0.GetBounds(None) }.expect("Getting transform should not fail");
-        self.use_brush(bounds.into(), brush, |render_target, brush| unsafe {
-            render_target.DrawGeometry(&geometry.0, brush, line_width, None);
-        });
-    }
-
-    pub fn fill_geometry(&mut self, geometry: &NativeGeometry, brush: BrushRef) {
-        let bounds =
-            unsafe { geometry.0.GetBounds(None) }.expect("Getting transform should not fail");
-        self.use_brush(bounds.into(), brush, |render_target, brush| unsafe {
-            render_target.FillGeometry(&geometry.0, brush, None);
+    pub fn stroke_shape(&mut self, shape: ShapeRef, brush: BrushRef, line_width: f32) {
+        let rect = shape.bounds();
+        self.use_brush(rect, brush, |render_target, brush| unsafe {
+            stroke_shape_impl(render_target, shape, brush, line_width);
         });
     }
 
@@ -624,8 +581,8 @@ fn bind_swapchain_bitmap_to_render_target(
     Ok(())
 }
 
-unsafe fn fill_shape(
-    render_target: &Direct2D::ID2D1DeviceContext,
+unsafe fn fill_shape_impl(
+    render_target: &Direct2D::ID2D1RenderTarget,
     shape: ShapeRef,
     brush: &ID2D1Brush,
 ) {
@@ -637,6 +594,28 @@ unsafe fn fill_shape(
         ShapeRef::Ellipse(ellipse) => render_target.FillEllipse(&ellipse.into(), brush),
         ShapeRef::Geometry(path_geometry) => {
             render_target.FillGeometry(&path_geometry.0 .0, brush, None)
+        }
+    }
+}
+
+unsafe fn stroke_shape_impl(
+    render_target: &Direct2D::ID2D1RenderTarget,
+    shape: ShapeRef,
+    brush: &ID2D1Brush,
+    line_width: f32,
+) {
+    match shape {
+        ShapeRef::Rect(rectangle) => {
+            render_target.DrawRectangle(&rectangle.into(), brush, line_width, None)
+        }
+        ShapeRef::Rounded(rounded_rectangle) => {
+            render_target.DrawRoundedRectangle(&rounded_rectangle.into(), brush, line_width, None)
+        }
+        ShapeRef::Ellipse(ellipse) => {
+            render_target.DrawEllipse(&ellipse.into(), brush, line_width, None)
+        }
+        ShapeRef::Geometry(path_geometry) => {
+            render_target.DrawGeometry(&path_geometry.0 .0, brush, line_width, None)
         }
     }
 }
