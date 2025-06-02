@@ -1,8 +1,8 @@
 use crate::app::{
     Accessor, AnimationContext, AppState, BuildContext, EventContext, EventStatus,
-    MouseEventContext, RenderContext, Shape, StatusChange, TextLayout, View, Widget,
+    MouseEventContext, RenderContext, StatusChange, TextLayout, View, Widget,
 };
-use crate::core::{Color, Cursor, Key, Modifiers, Rectangle, ShadowOptions, Size};
+use crate::core::{Color, Cursor, Key, Modifiers, Rectangle, Size};
 use crate::event::{KeyEvent, MouseButton};
 use crate::style::{AvailableSpace, DisplayStyle, Length, Measure, Style, UiRect};
 use crate::MouseEvent;

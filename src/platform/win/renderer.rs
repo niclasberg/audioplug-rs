@@ -11,8 +11,8 @@ use windows::{
 };
 
 use super::{
-    com::direct2d_factory, filters::set_effect_property_f32, geometry::NativeGeometry,
-    util::get_scale_factor_for_window, Bitmap, TextLayout,
+    com::direct2d_factory, filters::set_effect_property_f32, util::get_scale_factor_for_window,
+    Bitmap, TextLayout,
 };
 use crate::core::{
     Color, Ellipse, Point, Rectangle, RoundedRectangle, ShadowOptions, Size, SpringPhysics,

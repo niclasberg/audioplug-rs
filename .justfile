@@ -62,3 +62,11 @@ _bundle_au name target_dir: (_build name)
 
 [windows]
 _bundle_au name target_dir:
+
+[windows]
+_build_shader shader entry:
+    fxc.exe /T lib_5_0 src\platform\win\shaders/{{shader}}.hlsl /D D2D_FUNCTION /D D2D_ENTRY={{entry}} /I "C:\Program Files (x86)\Windows Kits\10\Include\10.0.22621.0\um" /Fl src\platform\win\shaders\{{shader}}.fxlib
+    fxc.exe /T ps_5_0 src\platform\win\shaders/{{shader}}.hlsl /D D2D_FULL_SHADER /D D2D_ENTRY={{entry}} /E {{entry}} /setprivate src\platform\win\shaders\{{shader}}.fxlib /I "C:\Program Files (x86)\Windows Kits\10\Include\10.0.22621.0\um" /Fo src\platform\win\shaders/{{shader}}.cso
+
+[windows]
+build_shaders: (_build_shader "rounded_rect_shadow" "RoundedShadowMain")

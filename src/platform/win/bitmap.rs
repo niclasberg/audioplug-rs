@@ -97,9 +97,9 @@ pub struct BitmapBrush {
 impl BitmapBrush {
     pub(super) fn use_brush(
         &self,
-        render_target: &Direct2D::ID2D1RenderTarget,
-        generation: RendererGeneration,
-        f: impl FnOnce(&Direct2D::ID2D1RenderTarget, &Direct2D::ID2D1Brush),
+        _render_target: &Direct2D::ID2D1RenderTarget,
+        _generation: RendererGeneration,
+        _f: impl FnOnce(&Direct2D::ID2D1RenderTarget, &Direct2D::ID2D1Brush),
     ) -> Result<()> {
         todo!()
     }

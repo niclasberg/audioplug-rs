@@ -16,7 +16,6 @@ use windows::{
         },
         System::{LibraryLoader::GetModuleHandleW, Performance},
         UI::{
-            HiDpi::GetDpiForWindow,
             Input::{
                 KeyboardAndMouse::{TrackMouseEvent, VIRTUAL_KEY},
                 *,

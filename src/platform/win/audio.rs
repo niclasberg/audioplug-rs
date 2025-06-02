@@ -1,9 +1,4 @@
-use std::{
-    cell::{OnceCell, RefCell},
-    rc::Rc,
-    sync::OnceLock,
-    thread::JoinHandle,
-};
+use std::{cell::OnceCell, sync::OnceLock, thread::JoinHandle};
 
 use windows::{
     core::*,

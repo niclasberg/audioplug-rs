@@ -13,7 +13,7 @@ const PADDING: UiRect = UiRect::all_px(5.0);
 const SPACER: Length = Length::Px(5.0);
 const SHADOW: ShadowOptions = ShadowOptions {
     radius: 6.0,
-    offset: Vector::splat(1.0),
+    offset: Vector::splat(2.0),
     ..ShadowOptions::DEFAULT
 };
 
@@ -39,6 +39,7 @@ fn header_view() -> impl View {
     Row::new((Label::new("hello"),)).style(|s| {
         s.width(Length::Percent(100.0))
             .background(Color::BITTER_LEMON)
+            .box_shadow(SHADOW)
     })
 }
 
