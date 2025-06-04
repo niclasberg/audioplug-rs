@@ -2,7 +2,7 @@ use std::ffi::c_ushort;
 
 use objc2_app_kit::NSEventModifierFlags;
 
-use crate::keyboard::{Key, Modifiers};
+use crate::core::{Key, Modifiers};
 
 pub fn key_from_code(key_code: c_ushort) -> Key {
     match key_code {

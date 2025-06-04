@@ -1,4 +1,3 @@
-use std::cell::Cell;
 use std::ptr::NonNull;
 use std::{cell::OnceCell, rc::Rc, sync::Arc};
 
@@ -14,7 +13,7 @@ use objc2_audio_toolbox::{
     AudioUnitRenderActionFlags,
 };
 use objc2_avf_audio::AVAudioFormat;
-use objc2_core_audio_types::{AudioBufferList, AudioTimeStamp, AudioTimeStampFlags, SMPTETime};
+use objc2_core_audio_types::{AudioBufferList, AudioTimeStamp};
 use objc2_core_foundation::CGFloat;
 use objc2_foundation::{
     NSArray, NSError, NSIndexSet, NSInteger, NSNumber, NSObject, NSTimeInterval,
@@ -23,7 +22,7 @@ use objc2_foundation::{
 use super::buffers::create_buffers;
 use super::{buffers::BusBuffer, render_event::AURenderEvent, utils::create_parameter_tree};
 use crate::param::{AnyParameterMap, ParameterId, ParameterMap, Params, PlainValue};
-use crate::{AudioBuffer, Plugin, ProcessContext};
+use crate::{AudioBuffer, Plugin, ProcessContext, ProcessInfo};
 
 const DEFAULT_SAMPLE_RATE: f64 = 44100.0;
 
@@ -159,10 +158,15 @@ impl<P: Plugin> AnyWrapper for Wrapper<P> {
 
             //self.input_buffer.pull_inputs(action_flags, timestamp, frame_count, input_bus_number, pull_input_block)
 
+			let info = ProcessInfo {
+				rendering_offline: self.rendering_offline,
+    			sample_rate: DEFAULT_SAMPLE_RATE,
+			};
+
             let context = ProcessContext {
                 input: &input,
                 output: &mut output,
-                rendering_offline: self.rendering_offline,
+                info
             };
 
             self.plugin

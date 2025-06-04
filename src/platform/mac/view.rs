@@ -53,15 +53,17 @@ define_class!(
             let modifiers = get_modifiers(unsafe { event.modifierFlags() });
             let str = unsafe { event.characters() };
             let str = str.map(|str| str.to_string()).filter(|str| str.len() > 0);
-            let key_event = KeyEvent::KeyDown { key, modifiers, str };
+			let repeat_count = if unsafe { event.isARepeat() } { 1 } else { 0 };
+            let key_event = KeyEvent::KeyDown { key, modifiers, str, repeat_count };
             self.dispatch_event(WindowEvent::Key(key_event));
         }
 
         #[unsafe(method(mouseDown:))]
         fn mouse_down(&self, event: &NSEvent) {
             if let (Some(button), Some(position)) = (mouse_button(event), self.mouse_position(event)) {
+				let modifiers = get_modifiers(unsafe { event.modifierFlags() });
                 self.dispatch_event(WindowEvent::Mouse(
-                    MouseEvent::Down { button, position }
+                    MouseEvent::Down { button, position, modifiers }
                 ))
             }
         }
@@ -69,8 +71,9 @@ define_class!(
         #[unsafe(method(mouseUp:))]
         fn mouse_up(&self, event: &NSEvent) {
             if let (Some(button), Some(position)) = (mouse_button(event), self.mouse_position(event)) {
+				let modifiers = get_modifiers(unsafe { event.modifierFlags() });
                 self.dispatch_event(WindowEvent::Mouse(
-                    MouseEvent::Up { button, position }
+                    MouseEvent::Up { button, position, modifiers }
                 ))
             }
         }
@@ -78,8 +81,9 @@ define_class!(
         #[unsafe(method(mouseMoved:))]
         fn mouse_moved(&self, event: &NSEvent) {
             if let Some(position) = self.mouse_position(event) {
+				let modifiers = get_modifiers(unsafe { event.modifierFlags() });
                 self.dispatch_event(WindowEvent::Mouse(
-                    MouseEvent::Moved { position }
+                    MouseEvent::Moved { position, modifiers }
                 ))
             }
         }
@@ -87,8 +91,9 @@ define_class!(
         #[unsafe(method(mouseDragged:))]
         fn mouse_dragged(&self, event: &NSEvent) {
             if let Some(position) = self.mouse_position(event) {
+				let modifiers = get_modifiers(unsafe { event.modifierFlags() });
                 self.dispatch_event(WindowEvent::Mouse(
-                    MouseEvent::Moved { position }
+                    MouseEvent::Moved { position, modifiers }
                 ))
             }
         }

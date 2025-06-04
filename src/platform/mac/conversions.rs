@@ -1,7 +1,6 @@
-use crate::core::{Color, Point, Range, Rectangle, Size, Transform};
+use crate::core::{Color, Point, Rectangle, Size, Transform};
 use objc2_core_foundation::{
-    CFIndex, CFRange, CFRetained, CFString, CFStringBuiltInEncodings, CFStringCreateWithBytes,
-    CFStringEncoding, CGAffineTransform, CGPoint, CGRect, CGSize,
+    CFIndex, CFRange, CFRetained, CFString, CFStringBuiltInEncodings, CFStringCreateWithBytes, CGAffineTransform, CGPoint, CGRect, CGSize,
 };
 use objc2_core_graphics::{CGColor, CGColorCreateSRGB};
 
@@ -38,7 +37,7 @@ impl From<CGSize> for Size {
 impl Into<CGRect> for Rectangle {
     fn into(self) -> CGRect {
         CGRect {
-            origin: self.position().into(),
+            origin: self.origin().into(),
             size: self.size().into(),
         }
     }
@@ -46,7 +45,7 @@ impl Into<CGRect> for Rectangle {
 
 impl From<CGRect> for Rectangle {
     fn from(value: CGRect) -> Self {
-        Rectangle::new(value.origin.into(), value.size.into())
+        Rectangle::from_origin(value.origin.into(), value.size.into())
     }
 }
 
@@ -104,6 +103,6 @@ pub fn cfrange_contains(cf_range: &CFRange, index: CFIndex) -> bool {
     index >= cf_range.location && (index + cf_range.location) < cf_range.length
 }
 
-pub fn cfrange_as_range(cf_range: &CFRange) -> Range<isize> {
+/*pub fn cfrange_as_range(cf_range: &CFRange) -> Range<isize> {
     Range::new(cf_range.location, cf_range.location + cf_range.length)
-}
+}*/

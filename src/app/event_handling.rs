@@ -60,6 +60,8 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                 .focus_widget
                 .unwrap_or(app_state.window(window_id).root_widget);
 
+            // We start from the current focus widget, and work our way down until either
+            // the event is handled, or we have reached a parentless widget
             while !slotmap::Key::is_null(&key_widget) && event_status != EventStatus::Handled {
                 let mut ctx = EventContext::new(key_widget, app_state);
                 event_status = ctx.dispatch_key_event(key_event.clone());

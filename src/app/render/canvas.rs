@@ -63,15 +63,15 @@ where
     }
 }
 
-pub struct CanvasContext<'a, 'b> {
+pub struct CanvasContext<'a, 'b, 'c> {
     effect_id: NodeId,
     widget_id: WidgetId,
     app_state: &'a mut AppState,
-    renderer: platform::RendererRef<'b>,
+    renderer: &'b mut platform::RendererRef<'c>,
 }
 
-impl CanvasContext<'_, '_> {
-    pub fn fill<'c, 'd>(&mut self, shape: impl Into<ShapeRef<'c>>, brush: impl Into<BrushRef<'d>>) {
+impl CanvasContext<'_, '_, '_> {
+    pub fn fill<'a, 'b>(&mut self, shape: impl Into<ShapeRef<'a>>, brush: impl Into<BrushRef<'b>>) {
         self.renderer.fill_shape(shape.into(), brush.into());
     }
 
@@ -122,7 +122,7 @@ impl CanvasContext<'_, '_> {
     }
 }
 
-impl ReactiveContext for CanvasContext<'_, '_> {
+impl ReactiveContext for CanvasContext<'_, '_, '_> {
     fn runtime(&self) -> &Runtime {
         self.app_state.runtime()
     }
@@ -132,7 +132,7 @@ impl ReactiveContext for CanvasContext<'_, '_> {
     }
 }
 
-impl ReadContext for CanvasContext<'_, '_> {
+impl ReadContext for CanvasContext<'_, '_, '_> {
     fn scope(&self) -> Scope {
         Scope::Node(self.effect_id)
     }
@@ -164,7 +164,7 @@ impl<State: 'static> Widget for CanvasWidget<State> {
             widget_id: cx.id,
             effect_id: self.effect_id,
             app_state: cx.app_state,
-            renderer: cx.renderer,
+            renderer: &mut cx.renderer,
         };
 
         let state = std::mem::take(&mut self.state);

@@ -8,9 +8,9 @@ use objc2_foundation::NSString;
 use super::Error;
 
 #[derive(Debug, Clone)]
-pub struct ImageSource(pub(super) Retained<NSImage>);
+pub struct Bitmap(pub(super) Retained<NSImage>);
 
-impl ImageSource {
+impl Bitmap {
     pub fn from_file(path: &Path) -> Result<Self, Error> {
         let path_str = NSString::from_str(path.to_str().unwrap());
         let ns_image = unsafe { NSImage::initWithContentsOfFile(NSImage::alloc(), &path_str) };

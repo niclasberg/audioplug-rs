@@ -1,9 +1,6 @@
 use std::{ffi::c_void, mem::MaybeUninit, ops::Deref, ptr::NonNull};
 
-use crate::{
-    core::{Color, Point, Rectangle, Size},
-    text::FontWeight,
-};
+use crate::core::{Color, FontWeight, Point, Rectangle, Size};
 use objc2_core_foundation::{
     CFArrayApplyFunction, CFArrayGetCount, CFAttributedStringCreateMutable,
     CFAttributedStringGetLength, CFAttributedStringReplaceString, CFAttributedStringSetAttribute,
@@ -60,7 +57,7 @@ impl TextFrame {
             max_size.into(),
         );
 
-        let rect = Rectangle::new(Point::ZERO, size.into());
+        let rect = Rectangle::from_origin(Point::ZERO, size.into());
         let path = unsafe { CGPathCreateWithRect(rect.into(), std::ptr::null()) };
         let frame = unsafe { CTFramesetterCreateFrame(&frame_setter, string_range, &path, None) };
         let lines = get_lines_from_frame(&frame);
@@ -253,6 +250,10 @@ impl TextLayout {
 
     pub fn as_str(&self) -> &str {
         &self.text
+    }
+
+    pub fn min_word_width(&self) -> f64 {
+        self.text_frame.bounding_box().size.width
     }
 }
 

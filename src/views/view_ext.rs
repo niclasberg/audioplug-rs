@@ -1,5 +1,5 @@
 use crate::{
-    app::{Accessor, BuildContext, EventStatus, View, Widget, WrappedWidget, WriteContext},
+    app::{Accessor, BuildContext, EventStatus, View, WriteContext},
     style::{StyleBuilder, UiRect},
     KeyEvent,
 };

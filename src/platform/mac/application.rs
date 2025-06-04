@@ -47,6 +47,6 @@ impl Application {
     }
 
     pub fn run(&mut self) {
-        unsafe { self.app.run() };
+        self.app.run();
     }
 }

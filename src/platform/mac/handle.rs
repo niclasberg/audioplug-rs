@@ -3,7 +3,7 @@ use objc2_app_kit::{NSPasteboard, NSPasteboardTypeString};
 use objc2_foundation::NSString;
 
 use super::{view::View, Error};
-use crate::core::Rectangle;
+use crate::core::{Rectangle, WindowTheme};
 
 pub struct Handle {
     view: Weak<View>,
@@ -19,6 +19,10 @@ impl Handle {
             .load()
             .map(|view| view.bounds().into())
             .unwrap_or_default()
+    }
+
+	pub fn theme(&self) -> WindowTheme {
+        WindowTheme::Dark
     }
 
     pub fn invalidate_window(&self) {

@@ -8,13 +8,13 @@ use super::{NativeLinearGradient, NativeRadialGradient};
 pub struct LinearGradient {
     pub(crate) start: UnitPoint,
     pub(crate) end: UnitPoint,
-    pub(crate) gradient: NativeLinearGradient,
+    pub(crate) native: NativeLinearGradient,
 }
 
 impl LinearGradient {
     pub fn new(color_map: impl Into<ColorMap>, start: UnitPoint, end: UnitPoint) -> Self {
         Self {
-            gradient: NativeLinearGradient::new(color_map.into()),
+            native: NativeLinearGradient::new(color_map.into()),
             start,
             end,
         }
@@ -24,7 +24,7 @@ impl LinearGradient {
 impl Debug for LinearGradient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LinearGradient")
-            .field("color_map", &self.gradient.color_map)
+            .field("color_map", &self.native.color_map)
             .field("start", &self.start)
             .field("end", &self.end)
             .finish()

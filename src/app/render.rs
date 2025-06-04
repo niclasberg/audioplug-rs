@@ -168,4 +168,8 @@ impl RenderContext<'_, '_> {
         }
         self.id = old_id;
     }
+
+    pub fn dirty_rect(&self) -> Rectangle {
+        self.renderer.dirty_rect()
+    }
 }
