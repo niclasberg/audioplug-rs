@@ -69,4 +69,6 @@ _build_shader shader entry:
     fxc.exe /T ps_5_0 src\platform\win\shaders/{{shader}}.hlsl /D D2D_FULL_SHADER /D D2D_ENTRY={{entry}} /E {{entry}} /setprivate src\platform\win\shaders\{{shader}}.fxlib /I "C:\Program Files (x86)\Windows Kits\10\Include\10.0.22621.0\um" /Fo src\platform\win\shaders/{{shader}}.cso
 
 [windows]
-build_shaders: (_build_shader "rounded_rect_shadow" "RoundedShadowMain")
+build_shaders: \
+    (_build_shader "rounded_rect_shadow" "RoundedShadowMain") \
+    (_build_shader "rect_shadow" "RectShadowMain")

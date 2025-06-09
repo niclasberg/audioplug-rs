@@ -3,7 +3,7 @@ use std::{
     ops::{Add, Sub},
 };
 
-use super::{Interpolate, Size, SpringPhysics, Vector};
+use super::{Interpolate, Size, SpringPhysics, Vec2};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Point<T = f64> {
@@ -104,8 +104,8 @@ impl Point<f64> {
         self.x.min(self.y)
     }
 
-    pub fn as_vector(self) -> Vector {
-        Vector::new(self.x, self.y)
+    pub fn as_vector(self) -> Vec2 {
+        Vec2::new(self.x, self.y)
     }
 }
 
@@ -164,10 +164,10 @@ impl<T: Add<Output = T>> Add<Size<T>> for Point<T> {
     }
 }
 
-impl Add<Vector> for Point {
+impl Add<Vec2> for Point {
     type Output = Self;
 
-    fn add(self, rhs: Vector) -> Self::Output {
+    fn add(self, rhs: Vec2) -> Self::Output {
         Self {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
@@ -197,10 +197,10 @@ impl<T: Sub<Output = T>> Sub<Size<T>> for Point<T> {
     }
 }
 
-impl Sub<Vector> for Point {
+impl Sub<Vec2> for Point {
     type Output = Self;
 
-    fn sub(self, rhs: Vector) -> Self::Output {
+    fn sub(self, rhs: Vec2) -> Self::Output {
         Self {
             x: self.x - rhs.x,
             y: self.y - rhs.y,

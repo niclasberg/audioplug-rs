@@ -1,4 +1,4 @@
-use crate::core::{Key, Modifiers, Point, Vector};
+use crate::core::{Key, Modifiers, Point, Vec2};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
@@ -30,14 +30,14 @@ pub enum MouseEvent {
         modifiers: Modifiers,
     },
     Wheel {
-        delta: Vector,
+        delta: Vec2,
         position: Point,
         modifiers: Modifiers,
     },
 }
 
 impl MouseEvent {
-    pub fn with_offset(&self, offset: Vector) -> Self {
+    pub fn with_offset(&self, offset: Vec2) -> Self {
         match *self {
             MouseEvent::Down {
                 button,

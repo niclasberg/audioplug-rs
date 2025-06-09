@@ -1,6 +1,6 @@
 use std::ops::{Add, Mul};
 
-use super::{Point, Size, Vector};
+use super::{Point, Size, Vec2};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Transform<T = f64> {
@@ -36,7 +36,7 @@ impl Transform {
         Self::new(c, -s, s, c, 0.0, 0.0)
     }
 
-    pub fn from_translation(v: Vector) -> Self {
+    pub fn from_translation(v: Vec2) -> Self {
         Self::new(1.0, 0.0, 0.0, 1.0, v.x, v.y)
     }
 
@@ -63,11 +63,11 @@ where
     }
 }
 
-impl Mul<Vector> for Transform {
-    type Output = Vector;
+impl Mul<Vec2> for Transform {
+    type Output = Vec2;
 
-    fn mul(self, rhs: Vector) -> Self::Output {
-        Vector::new(
+    fn mul(self, rhs: Vec2) -> Self::Output {
+        Vec2::new(
             self.m11 * rhs.x + self.m12 * rhs.y + self.tx,
             self.m21 * rhs.x + self.m22 * rhs.y + self.ty,
         )

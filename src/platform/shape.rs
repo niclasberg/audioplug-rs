@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::core::{Circle, Ellipse, Point, Rectangle, RoundedRectangle, Size, Transform, Vector};
+use crate::core::{Circle, Ellipse, Point, Rectangle, RoundedRectangle, Size, Transform, Vec2};
 use crate::platform;
 
 pub struct PathGeometryBuilder(platform::NativeGeometryBuilder);
@@ -102,7 +102,7 @@ impl Shape {
         Shape::Ellipse(Ellipse::new(center, Size::new(radius, radius)))
     }
 
-    pub fn offset(&self, delta: impl Into<Vector>) -> Self {
+    pub fn offset(&self, delta: impl Into<Vec2>) -> Self {
         let delta = delta.into();
         match self {
             Shape::Rect(rect) => Shape::Rect(rect.offset(delta)),

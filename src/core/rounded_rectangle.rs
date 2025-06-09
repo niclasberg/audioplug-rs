@@ -1,4 +1,4 @@
-use super::{Point, Rectangle, Size, Vector};
+use super::{Point, Rectangle, Size, Vec2};
 use std::fmt::Debug;
 use std::ops::{Add, Mul, Sub};
 
@@ -36,7 +36,7 @@ where
 }
 
 impl RoundedRectangle<f64> {
-    pub fn offset(&self, delta: impl Into<Vector>) -> Self {
+    pub fn offset(&self, delta: impl Into<Vec2>) -> Self {
         Self::new(self.rect.offset(delta), self.corner_radius)
     }
 

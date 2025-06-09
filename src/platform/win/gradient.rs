@@ -1,4 +1,4 @@
-use crate::core::{ColorMap, Point, Size, Vector};
+use crate::core::{ColorMap, Point, Size, Vec2};
 use windows::Win32::Graphics::Direct2D;
 use windows::{core::Result, Win32::Graphics::Direct2D::Common::D2D1_GRADIENT_STOP};
 
@@ -107,7 +107,7 @@ impl NativeRadialGradient {
 
             let gradient_properties = Direct2D::D2D1_RADIAL_GRADIENT_BRUSH_PROPERTIES {
                 center: center.into(),
-                gradientOriginOffset: Vector::ZERO.into(),
+                gradientOriginOffset: Vec2::ZERO.into(),
                 radiusX: radius.width as _,
                 radiusY: radius.height as _,
             };

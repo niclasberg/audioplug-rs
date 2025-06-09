@@ -11,12 +11,16 @@ use windows::{
 };
 
 use super::{
-    com::direct2d_factory, filters::set_effect_property_f32, util::get_scale_factor_for_window,
+    com::direct2d_factory,
+    filters::{
+        set_effect_property_f32, CustomEffect, EffectWrapper, RoundedRectShadowEffectShader,
+    },
+    util::get_scale_factor_for_window,
     Bitmap, TextLayout,
 };
 use crate::core::{
     Color, Ellipse, Point, Rectangle, RoundedRectangle, ShadowOptions, Size, SpringPhysics,
-    Transform, Vector,
+    Transform, Vec2,
 };
 use crate::platform::{BrushRef, ShapeRef};
 use std::{
@@ -87,8 +91,8 @@ impl From<Point> for windows_numerics::Vector2 {
     }
 }
 
-impl From<Vector> for windows_numerics::Vector2 {
-    fn from(val: Vector) -> Self {
+impl From<Vec2> for windows_numerics::Vector2 {
+    fn from(val: Vec2) -> Self {
         windows_numerics::Vector2 {
             X: val.x as f32,
             Y: val.y as f32,
@@ -150,22 +154,12 @@ struct SavedState {
     transform: windows_numerics::Matrix3x2,
     actions: Vec<SavedAction>,
 }
-
-struct DropShadow {
-    bitmap: Direct2D::ID2D1Bitmap1,
-    blur: Direct2D::ID2D1Effect,
-    size: Direct2D::Common::D2D_SIZE_U,
-}
-
-impl DropShadow {}
-
 pub struct Renderer {
     render_target: Direct2D::ID2D1DeviceContext,
     swapchain: Dxgi::IDXGISwapChain1,
     brush: Direct2D::ID2D1SolidColorBrush,
     saved_states: Vec<SavedState>,
     generation: RendererGeneration,
-    drop_shadow: Option<DropShadow>,
     scale_factor: f32,
 }
 
@@ -226,13 +220,16 @@ impl Renderer {
 
         let brush = unsafe { render_target.CreateSolidColorBrush(&Color::GREEN.into(), None)? };
 
+        EffectWrapper::<RoundedRectShadowEffectShader>::register(direct2d_factory())?;
+        let rounded_shadow_effect =
+            unsafe { render_target.CreateEffect(&RoundedRectShadowEffectShader::EFFECT_GUID) }?;
+
         Ok(Renderer {
             render_target,
             swapchain,
             brush,
             saved_states: Vec::new(),
             generation: RendererGeneration(0),
-            drop_shadow: None,
             scale_factor,
         })
     }
@@ -356,7 +353,7 @@ impl Renderer {
                 let start = linear_gradient.start.resolve(rect);
                 let end = linear_gradient.end.resolve(rect);
                 linear_gradient
-                    .gradient
+                    .native
                     .use_brush(
                         &self.render_target,
                         self.generation,
@@ -501,7 +498,7 @@ impl Renderer {
             self.render_target.Clear(Some(&Color::ZERO.into()));
 
             let transform = Transform::from_translation(
-                Vector::splat(options.radius) - rect.top_left().as_vector(),
+                Vec2::splat(options.radius) - rect.top_left().as_vector(),
             );
             self.render_target.SetTransform(&transform.into());
 
@@ -512,7 +509,7 @@ impl Renderer {
             self.render_target.SetTarget(&prev_target);
         }
 
-        let offset = rect.top_left() - Vector::splat(options.radius);
+        let offset = rect.top_left() - Vec2::splat(options.radius);
         unsafe {
             self.render_target.DrawImage(
                 &composite_effect.GetOutput().unwrap(),
@@ -552,6 +549,10 @@ impl Renderer {
 
     pub fn draw_bitmap(&mut self, source: &Bitmap, rect: Rectangle) {
         source.draw(&self.render_target, self.generation, rect.into())
+    }
+
+    pub fn dirty_rect(&self) -> Rectangle {
+        Rectangle::EMPTY
     }
 }
 

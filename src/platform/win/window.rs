@@ -31,7 +31,7 @@ use super::{
 };
 use crate::event::MouseButton;
 use crate::{
-    core::{Color, Key, Point, Rectangle, Size, Vector, WindowTheme},
+    core::{Color, Key, Point, Rectangle, Size, Vec2, WindowTheme},
     event::{AnimationFrame, KeyEvent, MouseEvent},
     platform::{WindowEvent, WindowHandler},
     MouseButtons,
@@ -204,9 +204,9 @@ impl WindowState {
                 let lines = (wparam.0 >> 16) as i16;
                 let lines = lines as f64 / WHEEL_DELTA as f64;
                 let delta = if message == WM_MOUSEWHEEL {
-                    Vector::new(0.0, lines)
+                    Vec2::new(0.0, lines)
                 } else {
-                    Vector::new(lines, 0.0)
+                    Vec2::new(lines, 0.0)
                 };
 
                 let position = self.position_from_screen_lparam(hwnd, lparam);

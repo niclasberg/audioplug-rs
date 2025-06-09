@@ -1,5 +1,5 @@
 use audioplug::app::*;
-use audioplug::core::{Color, ShadowOptions, Size, Vector};
+use audioplug::core::{Color, ShadowOptions, Size, Vec2};
 use audioplug::style::{ImageEffect, Length, UiRect};
 use audioplug::views::*;
 use audioplug::App;
@@ -99,7 +99,7 @@ fn main() {
                                 .height(animated.map(Length::from_px))
                                 .box_shadow(ShadowOptions {
                                     radius: 5.0,
-                                    offset: Vector::new(1.0, 1.0),
+                                    offset: Vec2::new(1.0, 1.0),
                                     ..Default::default()
                                 })
                         })

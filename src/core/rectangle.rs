@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::ops::{Add, Mul, Sub};
 
 use super::Size;
-use super::Vector;
+use super::Vec2;
 use super::{Interpolate, Point};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -180,6 +180,11 @@ where
 }
 
 impl Rectangle<f64> {
+    pub const EMPTY: Self = Self {
+        pos: Point::ZERO,
+        size: Size::ZERO,
+    };
+
     pub fn from_center(center: Point, size: Size) -> Self {
         Self {
             pos: center - size / 2.0,
@@ -214,7 +219,7 @@ impl Rectangle<f64> {
         Self::from_origin(self.origin(), self.size().scale_y(scale))
     }
 
-    pub fn offset(&self, delta: impl Into<Vector>) -> Self {
+    pub fn offset(&self, delta: impl Into<Vec2>) -> Self {
         Self::from_origin(self.origin() + delta.into(), self.size())
     }
 

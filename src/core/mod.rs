@@ -35,7 +35,7 @@ pub use size::Size;
 pub use text::*;
 pub use transform::Transform;
 pub use unit_point::UnitPoint;
-pub use vector::Vector;
+pub use vector::{Vec2, Vec2f, Vec3f, Vec4f};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WindowTheme {
@@ -54,7 +54,7 @@ pub enum ShadowKind {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ShadowOptions {
     pub radius: f64,
-    pub offset: Vector,
+    pub offset: Vec2,
     pub color: Color,
     pub kind: ShadowKind,
 }
@@ -62,7 +62,7 @@ pub struct ShadowOptions {
 impl ShadowOptions {
     pub const DEFAULT: Self = Self {
         radius: 0.0,
-        offset: Vector::ZERO,
+        offset: Vec2::ZERO,
         color: Color::BLACK.with_alpha(0.3),
         kind: ShadowKind::DropShadow,
     };
@@ -72,7 +72,7 @@ impl Default for ShadowOptions {
     fn default() -> Self {
         Self {
             radius: 0.0,
-            offset: Vector::ZERO,
+            offset: Vec2::ZERO,
             color: Color::BLACK.with_alpha(0.3),
             kind: ShadowKind::DropShadow,
         }

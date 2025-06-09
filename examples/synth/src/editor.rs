@@ -1,6 +1,6 @@
 use audioplug::{
     app::{Canvas, PathGeometry, Readable, View},
-    core::{Color, ShadowOptions, Size, Vector},
+    core::{Color, ShadowOptions, Size, Vec2},
     param::{AnyParameter, FloatParameter, Parameter},
     style::{AlignItems, Length, UiRect},
     views::{Checkbox, Column, Label, ParameterKnob, ParameterSlider, Row, ViewExt},
@@ -13,7 +13,7 @@ const PADDING: UiRect = UiRect::all_px(5.0);
 const SPACER: Length = Length::Px(5.0);
 const SHADOW: ShadowOptions = ShadowOptions {
     radius: 6.0,
-    offset: Vector::splat(2.0),
+    offset: Vec2::splat(2.0),
     ..ShadowOptions::DEFAULT
 };
 

@@ -4,7 +4,7 @@ mod bitmap;
 mod com;
 mod cursors;
 mod executor;
-mod filters;
+pub mod filters;
 mod geometry;
 mod gradient;
 mod handle;

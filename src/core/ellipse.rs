@@ -1,4 +1,4 @@
-use super::{Point, Rectangle, Size, Vector};
+use super::{Point, Rectangle, Size, Vec2};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Ellipse<T = f64> {
@@ -20,7 +20,7 @@ impl Ellipse<f64> {
         }
     }
 
-    pub fn offset(&self, delta: impl Into<Vector>) -> Self {
+    pub fn offset(&self, delta: impl Into<Vec2>) -> Self {
         Self::new(self.center + delta.into(), self.radii)
     }
 

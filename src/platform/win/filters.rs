@@ -1,67 +1,153 @@
 use std::cell::RefCell;
+use std::fmt::{Display, Write};
+use std::ops::Deref;
 
-use bytemuck::{bytes_of, NoUninit};
-use windows::Win32::Foundation::{E_INVALIDARG, E_NOTIMPL};
+use bytemuck::{bytes_of, try_from_bytes, try_from_bytes_mut, NoUninit};
+use windows::Win32::Foundation::{E_INVALIDARG, E_NOTIMPL, E_POINTER};
 use windows::Win32::Graphics::Direct2D;
 use windows::{core::Result, Win32::Foundation::RECT};
-use windows_core::{implement, w, ComObjectInterface, IUnknown, InterfaceRef, PCWSTR};
+use windows_core::{implement, w, ComObjectInterface, IUnknown, Interface, HSTRING, PCWSTR};
 
-use crate::core::Color;
+use crate::core::{Vec2f, Vec3f, Vec4f};
 
 use super::renderer::{DeviceResource, RendererGeneration};
 
-#[repr(C)]
-#[derive(Copy, Clone)]
-struct EffectConstants {
-    offset: windows_numerics::Vector2,
-    std_dev: f32,
-}
-
-unsafe impl NoUninit for EffectConstants {}
-
-pub trait PropertyGetter {}
-
-pub enum PropertyType {
-    Float,
-}
-
 pub struct PropertyBinding {
-    name: PCWSTR,
+    name: &'static str,
     setter: Direct2D::PD2D1_PROPERTY_SET_FUNCTION,
     getter: Direct2D::PD2D1_PROPERTY_GET_FUNCTION,
-    xml: PCWSTR,
+    type_name: &'static str,
+}
+
+impl PropertyBinding {
+    fn xml_str(&self) -> String {
+        format!(
+            "<Property name='{}' type='{}'>
+                <Property name='DisplayName' type='string' value='{}' />
+            </Property>",
+            self.name, self.type_name, self.name
+        )
+    }
 }
 
 macro_rules! property_binding {
-    ($parent: ty, $name: expr) => {
-        PropertyBinding {
-            name: w!($name),
-            /*setter: Some(
-                move |effect: windows_core::Ref<windows_core::IUnknown>,
-                      data: *const u8,
-                      datasize: u32|
-                      -> windows_core::HRESULT { windows_core::HRESULT(0) },
-            ),
-            getter: Some(
-                |effect: windows_core::Ref<'_, windows_core::IUnknown>,
-                 data: *mut u8,
-                 datasize: u32,
-                 actualsize: *mut u32|
-                 -> windows_core::HRESULT { windows_core::HRESULT(0) },
-            ),*/
-            setter: None,
-            getter: None,
-            xml: w!(""),
+    ($parent: ty, $name: expr, $path: ident, $kind: expr) => {{
+        unsafe extern "system" fn setter(
+            effect: windows_core::Ref<'_, windows_core::IUnknown>,
+            data: *const u8,
+            datasize: u32,
+        ) -> windows_core::HRESULT {
+            let Some(effect) = effect.as_ref() else {
+                return E_POINTER;
+            };
+
+            let eff = match effect.cast_object_ref::<EffectWrapper<$parent>>() {
+                Ok(eff) => eff,
+                Err(err) => return err.into(),
+            };
+
+            let slice = unsafe { std::slice::from_raw_parts(data, datasize as _) };
+            let Ok(value) = try_from_bytes(slice) else {
+                return E_INVALIDARG;
+            };
+
+            let mut consts = eff.consts.borrow_mut();
+            consts.$path = *value;
+
+            windows_core::HRESULT(0)
         }
-    };
+
+        unsafe extern "system" fn getter(
+            effect: windows_core::Ref<'_, windows_core::IUnknown>,
+            data: *mut u8,
+            datasize: u32,
+            actualsize: *mut u32,
+        ) -> windows_core::HRESULT {
+            let Some(effect) = effect.as_ref() else {
+                return E_POINTER;
+            };
+
+            let eff = match effect.cast_object_ref::<EffectWrapper<$parent>>() {
+                Ok(eff) => eff,
+                Err(err) => return err.into(),
+            };
+
+            let slice = unsafe { std::slice::from_raw_parts_mut(data, datasize as _) };
+            let Ok(value) = try_from_bytes_mut(slice) else {
+                return E_INVALIDARG;
+            };
+
+            let consts = eff.consts.borrow();
+            *value = consts.$path;
+            *actualsize = std::mem::size_of_val(&consts.$path) as u32;
+
+            windows_core::HRESULT(0)
+        }
+
+        PropertyBinding {
+            name: $name,
+            setter: Some(setter),
+            getter: Some(getter),
+            type_name: $kind,
+        }
+    }};
 }
 
-pub trait CustomEffect: NoUninit + 'static + Default {
-    const NAME: PCWSTR;
+pub trait EffectProps {
+    const NAME: &'static str;
     const PROPERTIES: &[PropertyBinding];
+}
+
+trait PropertyTypeName {
+    const TYPE_NAME: &'static str;
+}
+
+impl PropertyTypeName for f32 {
+    const TYPE_NAME: &'static str = "float";
+}
+
+impl PropertyTypeName for Vec2f {
+    const TYPE_NAME: &'static str = "vector2";
+}
+
+impl PropertyTypeName for Vec3f {
+    const TYPE_NAME: &'static str = "vector3";
+}
+
+impl PropertyTypeName for Vec4f {
+    const TYPE_NAME: &'static str = "vector4";
+}
+
+macro_rules! custom_effect {
+    (
+	$sv:vis struct $sname:ident { $($fv:vis $fname:ident : $ftype:ty),* $(,)? }
+	) => {
+        #[repr(C)]
+        #[derive(Clone, Copy)]
+        $sv struct $sname {
+            $(
+				$fv $fname: $ftype
+			),*
+        }
+
+		impl $crate::platform::win::filters::EffectProps for $sname {
+            const NAME: &'static str = stringify!($sname);
+            const PROPERTIES: &[PropertyBinding] = &[
+                $(
+                    property_binding!($sname, stringify!($fname), $fname, <$ftype as PropertyTypeName>::TYPE_NAME)
+                ),*
+            ];
+        }
+
+        unsafe impl NoUninit for $sname {}
+	}
+}
+
+pub trait CustomEffect: EffectProps + NoUninit + 'static + Default {
     const EFFECT_GUID: windows_core::GUID;
     const SHADER_GUID: windows_core::GUID;
     fn shader_bytes() -> &'static [u8];
+    fn extent(&self) -> RECT;
 }
 
 #[implement(
@@ -75,7 +161,7 @@ where
     T: CustomEffect,
 {
     draw_info: RefCell<Option<Direct2D::ID2D1DrawInfo>>,
-    consts: T,
+    consts: RefCell<T>,
 }
 
 impl<T: CustomEffect> EffectWrapper<T> {
@@ -84,32 +170,59 @@ impl<T: CustomEffect> EffectWrapper<T> {
     ) -> windows_core::HRESULT {
         let this = Self {
             draw_info: RefCell::new(None),
-            consts: T::default(),
-        }
-        .into_outer();
-        let a: InterfaceRef<IUnknown> = this.as_interface_ref();
-        let result = effect_impl.write(Some(a.to_owned()));
+            consts: RefCell::new(T::default()),
+        };
+        let com_object: IUnknown = this.into();
 
-        match result {
+        match effect_impl.write(Some(com_object)) {
             Ok(_) => windows_core::HRESULT::default(),
             Err(e) => e.into(),
         }
     }
 
     pub fn register(factory: &Direct2D::ID2D1Factory1) -> windows_core::Result<()> {
+        // This is really unsound. We need wide string pointers in order to construct D2D1_PROPERTY_BINDINGs
+        // But we have rust strings. So allocate a vector of HSTRINGS, and assign pointers into this vec
+        // while creating the bindings.
+        let prop_names: Vec<HSTRING> = T::PROPERTIES.iter().map(|prop| prop.name.into()).collect();
         let bindings: Vec<_> = T::PROPERTIES
             .iter()
-            .map(|prop| Direct2D::D2D1_PROPERTY_BINDING {
-                propertyName: prop.name,
+            .zip(prop_names.iter())
+            .map(|(prop, name)| Direct2D::D2D1_PROPERTY_BINDING {
+                propertyName: PCWSTR(name.as_ptr()),
                 setFunction: prop.setter,
                 getFunction: prop.getter,
             })
             .collect();
-        let property_xml = w!("");
+
+        let mut xml = String::new();
+        write!(
+            &mut xml,
+            "<?xml version='1.0'?>
+            <Effect>
+                <!-- System Properties -->
+                <Property name='DisplayName' type='string' value='{}'/>
+                <Property name='Author' type='string' value='Audioplug-rs'/>
+                <Property name='Category' type='string' value='Stylize'/>
+                <Property name='Description' type='string' value='Audioplug custom effect'/>
+                <Inputs>
+                </Inputs>
+                <!-- Custom Properties go here -->",
+            T::NAME
+        )
+        .expect("Unable to format CustomEffect xml");
+
+        for prop in T::PROPERTIES.iter() {
+            xml.push('\n');
+            xml.push_str(&prop.xml_str());
+        }
+        xml.push_str("\n</Effect>");
+
+        let xml_hstring: HSTRING = xml.into();
         unsafe {
             factory.RegisterEffectFromString(
                 &T::EFFECT_GUID,
-                property_xml,
+                PCWSTR(xml_hstring.as_ptr()),
                 Some(bindings.as_slice()),
                 Some(Self::create),
             )
@@ -130,13 +243,18 @@ impl<T: CustomEffect> Direct2D::ID2D1EffectImpl_Impl for EffectWrapper_Impl<T> {
         Ok(())
     }
 
-    fn PrepareForRender(&self, changetype: Direct2D::D2D1_CHANGE_TYPE) -> windows_core::Result<()> {
+    fn PrepareForRender(
+        &self,
+        _changetype: Direct2D::D2D1_CHANGE_TYPE,
+    ) -> windows_core::Result<()> {
         unsafe {
+            let consts = self.consts.borrow();
+
             self.draw_info
                 .borrow()
                 .as_ref()
                 .unwrap()
-                .SetPixelShaderConstantBuffer(bytes_of(&self.consts))
+                .SetPixelShaderConstantBuffer(bytes_of(consts.deref()))
         }?;
         Ok(())
     }
@@ -179,21 +297,31 @@ impl<T: CustomEffect> Direct2D::ID2D1Transform_Impl for EffectWrapper_Impl<T> {
 
     fn MapInputRectsToOutputRect(
         &self,
-        inputrects: *const RECT,
-        inputopaquesubrects: *const RECT,
-        inputrectcount: u32,
-        outputrect: *mut RECT,
-        outputopaquesubrect: *mut RECT,
+        _input_rects: *const RECT,
+        _input_opaque_sub_rects: *const RECT,
+        input_rect_count: u32,
+        output_rect: *mut RECT,
+        output_opaque_sub_rect: *mut RECT,
     ) -> windows_core::Result<()> {
-        todo!()
+        if input_rect_count != 0 {
+            Err(windows_core::Error::from_hresult(E_INVALIDARG))
+        } else {
+            let extent = self.consts.borrow().extent();
+            unsafe {
+                *(output_rect as *mut _) = extent;
+                *(output_opaque_sub_rect as *mut _) = extent;
+            }
+            Ok(())
+        }
     }
 
     fn MapInvalidRect(
         &self,
-        inputindex: u32,
-        invalidinputrect: &RECT,
+        _input_index: u32,
+        _invalid_inputrect: &RECT,
     ) -> windows_core::Result<RECT> {
-        todo!()
+        // No inputs...
+        Err(windows_core::Error::from_hresult(E_INVALIDARG))
     }
 }
 
@@ -203,24 +331,68 @@ impl<T: CustomEffect> Direct2D::ID2D1TransformNode_Impl for EffectWrapper_Impl<T
     }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct RoundedRectShadowEffectShader {
-    shadow_color: windows_numerics::Vector4,
-    size: windows_numerics::Vector2,
-    offset: windows_numerics::Vector2,
-    corner_radius: f32,
-    shadow_radius: f32,
+const DEFAULT_SHADOW_COLOR: Vec4f = Vec4f {
+    x: 0.0,
+    y: 0.0,
+    z: 0.0,
+    w: 0.3,
+};
+
+custom_effect!(
+    pub struct RectShadowEffectShader {
+        size: Vec2f,
+        shadow_radius: f32,
+        shadow_offset: Vec2f,
+        shadow_color: Vec4f,
+    }
+);
+
+impl CustomEffect for RectShadowEffectShader {
+    const EFFECT_GUID: windows_core::GUID = windows_core::GUID::from_values(
+        0x9f489c12,
+        0x9434,
+        0x4b26,
+        [0x8c, 0xb1, 0x4c, 0xfe, 0xf5, 0xe5, 0x2c, 0xeb],
+    );
+
+    const SHADER_GUID: windows_core::GUID = windows_core::GUID::from_values(
+        0xfd9496d9,
+        0x233d,
+        0x43c4,
+        [0x94, 0x24, 0xef, 0x54, 0x26, 0xe6, 0xb4, 0x69],
+    );
+
+    fn shader_bytes() -> &'static [u8] {
+        std::include_bytes!("shaders/rect_shadow.cso")
+    }
+
+    fn extent(&self) -> RECT {
+        todo!()
+    }
 }
 
-unsafe impl NoUninit for RoundedRectShadowEffectShader {}
+impl Default for RectShadowEffectShader {
+    fn default() -> Self {
+        Self {
+            size: Default::default(),
+            shadow_radius: Default::default(),
+            shadow_offset: Default::default(),
+            shadow_color: DEFAULT_SHADOW_COLOR,
+        }
+    }
+}
+
+custom_effect!(
+    pub struct RoundedRectShadowEffectShader {
+        shadow_color: Vec4f,
+        size: Vec2f,
+        offset: Vec2f,
+        corner_radius: f32,
+        shadow_radius: f32,
+    }
+);
 
 impl CustomEffect for RoundedRectShadowEffectShader {
-    const NAME: PCWSTR = w!("RoundedRectangleShadow");
-    const PROPERTIES: &[PropertyBinding] = &[property_binding!(
-        RoundedRectShadowEffectShader,
-        "shadow_color"
-    )];
     const EFFECT_GUID: windows_core::GUID = windows_core::GUID::from_values(
         0x792b02fc,
         0x1b12,
@@ -237,37 +409,36 @@ impl CustomEffect for RoundedRectShadowEffectShader {
     fn shader_bytes() -> &'static [u8] {
         std::include_bytes!("shaders/rounded_rect_shadow.cso")
     }
-}
 
-impl RoundedRectShadowEffectShader {}
+    fn extent(&self) -> RECT {
+        let top_left = Vec2f::ZERO.min(self.offset).floor();
+        let bottom_right = self.size + Vec2f::ZERO.max(self.offset).ceil();
+        RECT {
+            left: top_left.x as i32,
+            top: top_left.y as i32,
+            right: bottom_right.x as i32,
+            bottom: bottom_right.y as i32,
+        }
+    }
+}
 
 impl Default for RoundedRectShadowEffectShader {
     fn default() -> Self {
         Self {
-            shadow_color: windows_numerics::Vector4 {
-                X: 0.0,
-                Y: 0.0,
-                Z: 0.0,
-                W: 0.3,
-            },
-            size: windows_numerics::Vector2 { X: 1.0, Y: 1.0 },
-            offset: windows_numerics::Vector2 { X: 0.0, Y: 0.0 },
+            shadow_color: DEFAULT_SHADOW_COLOR,
+            size: Vec2f { x: 1.0, y: 1.0 },
+            offset: Vec2f { x: 0.0, y: 0.0 },
             corner_radius: 0.0,
             shadow_radius: 0.0,
         }
     }
 }
 
-pub type RoundedRectShadow = EffectWrapper<RoundedRectShadowEffectShader>;
-impl RoundedRectShadow {
-    pub fn set_offset(&self) {}
-}
-
 pub struct Image {
     bitmap: DeviceResource<Direct2D::ID2D1Bitmap>,
 }
 
-pub struct GaussianBlur {
+pub(super) struct GaussianBlur {
     filter: DeviceResource<Direct2D::ID2D1Effect>,
     radius: f64,
 }
@@ -308,10 +479,6 @@ impl GaussianBlur {
         //self.filter.get_or_insert(generation, || {})
     }
 }
-
-pub struct DropShadow {}
-
-impl DropShadow {}
 
 pub unsafe fn set_effect_property_f32(
     properties: &Direct2D::ID2D1Properties,

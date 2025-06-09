@@ -1,4 +1,4 @@
-use super::{Size, Vector};
+use super::{Size, Vec2};
 
 pub enum Alignment {
     TopLeading,
@@ -29,9 +29,9 @@ impl Alignment {
         }
     }
 
-    pub fn compute_offset(&self, size: Size, frame_size: Size) -> Vector {
+    pub fn compute_offset(&self, size: Size, frame_size: Size) -> Vec2 {
         let x = self.compute_offset_x(size.width, frame_size.width);
         let y = self.compute_offset_y(size.height, frame_size.height);
-        Vector::new(x, y)
+        Vec2::new(x, y)
     }
 }
