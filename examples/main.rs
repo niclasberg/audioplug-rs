@@ -1,5 +1,5 @@
 use audioplug::app::*;
-use audioplug::core::{Color, ShadowOptions, Size, Vec2};
+use audioplug::core::{Color, ShadowKind, ShadowOptions, Size, Vec2};
 use audioplug::style::{ImageEffect, Length, UiRect};
 use audioplug::views::*;
 use audioplug::App;
@@ -97,11 +97,12 @@ fn main() {
                             style
                                 .max_width(Length::Px(200.0))
                                 .height(animated.map(Length::from_px))
-                                .corner_radius(Size::splat(7.0))
+                                //.corner_radius(Size::splat(7.0))
                                 .box_shadow(ShadowOptions {
-                                    radius: 15.0,
-                                    offset: Vec2::splat(5.0),
+                                    radius: 10.0,
+                                    offset: Vec2::splat(2.0),
                                     color: Color::BLACK.with_alpha(0.3),
+                                    kind: ShadowKind::InnerShadow,
                                     ..Default::default()
                                 })
                         })

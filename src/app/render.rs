@@ -1,5 +1,5 @@
 use crate::{
-    core::{Point, Rectangle, Transform},
+    core::{Point, Rectangle, ShadowKind, Transform},
     platform,
 };
 
@@ -136,7 +136,9 @@ impl RenderContext<'_, '_> {
             let shape = widget_data.shape();
 
             if let Some(shadow) = &widget_data.style.box_shadow {
-                self.renderer.draw_shadow((&shape).into(), *shadow);
+                if shadow.kind == ShadowKind::DropShadow {
+                    self.renderer.draw_shadow((&shape).into(), *shadow);
+                }
             }
 
             if let Some(background) = &widget_data.style.background {
@@ -151,6 +153,16 @@ impl RenderContext<'_, '_> {
         let mut widget = self.app_state.widgets.remove(self.id).unwrap();
         widget.render(self);
         self.app_state.widgets.insert(self.id, widget);
+
+        {
+            let widget_data = self.app_state.widget_data_ref(self.id);
+            if let Some(shadow) = widget_data.style.box_shadow.clone() {
+                if shadow.kind == ShadowKind::InnerShadow {
+                    self.renderer
+                        .draw_shadow((&widget_data.shape()).into(), shadow);
+                }
+            }
+        }
     }
 
     pub fn render_children(&mut self) {

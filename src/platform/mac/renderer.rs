@@ -9,9 +9,9 @@ use crate::{
 use objc2_core_foundation::{CFRetained, CGAffineTransform, CGFloat, CGRect, CGSize};
 use objc2_core_graphics::{
     CGColorSpaceCreateDeviceRGB, CGContext, CGContextClip, CGContextClosePath,
-    CGContextDrawLinearGradient, CGContextEOClip, CGContextGetCTM, CGContextMoveToPoint,
-    CGContextReplacePathWithStrokedPath, CGContextRestoreGState, CGContextSaveGState,
-    CGContextScaleCTM, CGContextStrokeEllipseInRect, CGContextStrokePath,
+    CGContextDrawLinearGradient, CGContextEOClip, CGContextEOFillPath, CGContextGetCTM,
+    CGContextMoveToPoint, CGContextReplacePathWithStrokedPath, CGContextRestoreGState,
+    CGContextSaveGState, CGContextScaleCTM, CGContextStrokeEllipseInRect, CGContextStrokePath,
     CGContextStrokeRectWithWidth, CGContextTranslateCTM, CGGradient,
     CGGradientCreateWithColorComponents, CGGradientDrawingOptions, CGMutablePath, CGPath,
     CGPathCreateMutable,
@@ -71,32 +71,56 @@ impl<'a> RendererRef<'a> {
     pub fn draw_shadow(&mut self, shape: ShapeRef, options: ShadowOptions) {
         use objc2_core_graphics::CGContextSetShadowWithColor;
 
-        self.save();
-
         // Y-axis is flipped, need to flip offset
         let offset = CGSize {
             width: options.offset.x,
             height: -options.offset.y,
         };
 
-        // Clip so that we only render the shadow outside the shape
+        // Outer bounds
         let bounds = shape
             .bounds()
             .expand(options.radius)
             .expand_x(offset.width.abs())
             .expand_y(offset.height.abs());
-        self.add_rectangle(bounds);
-        self.add_shape(shape);
-        unsafe { CGContextEOClip(Some(&self.context)) };
+
+        self.save();
 
         // Seems like we need some color here, or the shadow won't render
         // Doesn't matter, we clip it anyway
         self.set_fill_color(Color::from_rgba8(0, 0, 0, 1.0));
-        let color = cgcolor_from_color(options.color);
+        let shadow_color = cgcolor_from_color(options.color);
         unsafe {
-            CGContextSetShadowWithColor(Some(&self.context), offset, options.radius, Some(&color))
+            CGContextSetShadowWithColor(
+                Some(&self.context),
+                offset,
+                options.radius,
+                Some(&shadow_color),
+            )
         };
-        self.do_fill_shape(shape);
+
+        match options.kind {
+            crate::core::ShadowKind::DropShadow => {
+                // Clip so that we only render the shadow outside the shape
+                self.add_rectangle(bounds);
+                self.add_shape(shape);
+                unsafe { CGContextEOClip(Some(&self.context)) };
+
+                self.do_fill_shape(shape);
+            }
+            crate::core::ShadowKind::InnerShadow => {
+                // Only include inside of shape
+                self.add_shape(shape);
+                unsafe { CGContextClip(Some(&self.context)) };
+
+                self.add_rectangle(bounds);
+                self.add_shape(shape);
+                unsafe {
+                    CGContextEOFillPath(Some(&self.context));
+                }
+            }
+        }
+
         self.restore();
     }
 
