@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Mul, Neg, Sub};
 
 use super::Size;
 use super::Vec2;
@@ -74,7 +74,14 @@ impl<T> Rectangle<T> {
 
 impl<T> Rectangle<T>
 where
-    T: Copy + PartialEq + Debug + Add<Output = T> + Sub<Output = T> + Mul<Output = T> + PartialOrd,
+    T: Copy
+        + PartialEq
+        + Debug
+        + Add<Output = T>
+        + Sub<Output = T>
+        + Mul<Output = T>
+        + Neg<Output = T>
+        + PartialOrd,
 {
     #[inline]
     pub fn left(&self) -> T {
@@ -151,6 +158,22 @@ where
             || self.right() < other.left()
             || self.top() < other.bottom()
             || self.bottom() > other.bottom())
+    }
+
+    /// Expand the rectangle by `amount` from each side. Retains the
+    /// center position and reduces the size by 2 times `amount`
+    pub fn expand(&self, amount: T) -> Self {
+        Self::shrink(&self, -amount)
+    }
+
+    /// Expand the rectangle by `amount` in the x direction, keeping the same center position
+    pub fn expand_x(&self, amount: T) -> Self {
+        Self::shrink_x(&self, -amount)
+    }
+
+    /// Expand the rectangle by `amount` in the y direction, keeping the same center position
+    pub fn expand_y(&self, amount: T) -> Self {
+        Self::shrink_y(&self, -amount)
     }
 
     /// Shrink the rectangle by `amount` from each side. Retains the

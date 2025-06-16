@@ -2,14 +2,14 @@ use crate::{
     app::LinearGradient,
     core::{
         Color, ColorMap, ColorStop, Point, Rectangle, RoundedRectangle, ShadowOptions, Transform,
-        Vector,
+        Vec2,
     },
     platform::{BrushRef, ShapeRef},
 };
-use objc2_core_foundation::{CFRetained, CGAffineTransform, CGFloat, CGRect};
+use objc2_core_foundation::{CFRetained, CGAffineTransform, CGFloat, CGRect, CGSize};
 use objc2_core_graphics::{
     CGColorSpaceCreateDeviceRGB, CGContext, CGContextClip, CGContextClosePath,
-    CGContextDrawLinearGradient, CGContextGetCTM, CGContextMoveToPoint,
+    CGContextDrawLinearGradient, CGContextEOClip, CGContextGetCTM, CGContextMoveToPoint,
     CGContextReplacePathWithStrokedPath, CGContextRestoreGState, CGContextSaveGState,
     CGContextScaleCTM, CGContextStrokeEllipseInRect, CGContextStrokePath,
     CGContextStrokeRectWithWidth, CGContextTranslateCTM, CGGradient,
@@ -62,39 +62,49 @@ impl<'a> RendererRef<'a> {
         unsafe { objc2_core_graphics::CGContextClipToRect(Some(&self.context), rect.into()) }
     }
 
-    pub fn set_offset(&mut self, delta: Vector) {
+    pub fn set_offset(&mut self, delta: Vec2) {
         unsafe {
             objc2_core_graphics::CGContextTranslateCTM(Some(&self.context), delta.x, delta.y)
         };
     }
 
-    pub fn draw_shadow(&mut self, _shape: ShapeRef, _options: ShadowOptions) {}
+    pub fn draw_shadow(&mut self, shape: ShapeRef, options: ShadowOptions) {
+        use objc2_core_graphics::CGContextSetShadowWithColor;
 
-    pub fn fill_shape(&mut self, shape: ShapeRef, brush: BrushRef) {
-        use objc2_core_graphics::{
-            CGContextAddPath, CGContextFillEllipseInRect, CGContextFillPath, CGContextFillRect,
+        self.save();
+
+        // Y-axis is flipped, need to flip offset
+        let offset = CGSize {
+            width: options.offset.x,
+            height: -options.offset.y,
         };
 
+        // Clip so that we only render the shadow outside the shape
+        let bounds = shape
+            .bounds()
+            .expand(options.radius)
+            .expand_x(offset.width.abs())
+            .expand_y(offset.height.abs());
+        self.add_rectangle(bounds);
+        self.add_shape(shape);
+        unsafe { CGContextEOClip(Some(&self.context)) };
+
+        // Seems like we need some color here, or the shadow won't render
+        // Doesn't matter, we clip it anyway
+        self.set_fill_color(Color::from_rgba8(0, 0, 0, 1.0));
+        let color = cgcolor_from_color(options.color);
+        unsafe {
+            CGContextSetShadowWithColor(Some(&self.context), offset, options.radius, Some(&color))
+        };
+        self.do_fill_shape(shape);
+        self.restore();
+    }
+
+    pub fn fill_shape(&mut self, shape: ShapeRef, brush: BrushRef) {
         match brush {
             BrushRef::Solid(color) => {
                 self.set_fill_color(color);
-                match shape {
-                    ShapeRef::Rect(rectangle) => unsafe {
-                        CGContextFillRect(Some(&self.context), rectangle.into())
-                    },
-                    ShapeRef::Rounded(rounded_rectangle) => {
-                        self.add_rounded_rectangle(rounded_rectangle);
-                        unsafe { CGContextFillPath(Some(&self.context)) };
-                    }
-                    ShapeRef::Ellipse(ellipse) => {
-                        let rect = ellipse.bounds();
-                        unsafe { CGContextFillEllipseInRect(Some(&self.context), rect.into()) }
-                    }
-                    ShapeRef::Geometry(path_geometry) => unsafe {
-                        CGContextAddPath(Some(&self.context), Some(&path_geometry.0 .0));
-                        CGContextFillPath(Some(&self.context));
-                    },
-                }
+                self.do_fill_shape(shape);
             }
             BrushRef::LinearGradient(linear_gradient) => {
                 self.save();
@@ -106,6 +116,29 @@ impl<'a> RendererRef<'a> {
 
                 self.restore();
             }
+        }
+    }
+
+    fn do_fill_shape(&self, shape: ShapeRef) {
+        use objc2_core_graphics::{
+            CGContextAddPath, CGContextFillEllipseInRect, CGContextFillPath, CGContextFillRect,
+        };
+        match shape {
+            ShapeRef::Rect(rectangle) => unsafe {
+                CGContextFillRect(Some(&self.context), rectangle.into())
+            },
+            ShapeRef::Rounded(rounded_rectangle) => {
+                self.add_rounded_rectangle(rounded_rectangle);
+                unsafe { CGContextFillPath(Some(&self.context)) };
+            }
+            ShapeRef::Ellipse(ellipse) => {
+                let rect = ellipse.bounds();
+                unsafe { CGContextFillEllipseInRect(Some(&self.context), rect.into()) }
+            }
+            ShapeRef::Geometry(path_geometry) => unsafe {
+                CGContextAddPath(Some(&self.context), Some(&path_geometry.0 .0));
+                CGContextFillPath(Some(&self.context));
+            },
         }
     }
 
@@ -234,12 +267,15 @@ impl<'a> RendererRef<'a> {
         self.close_path();
     }
 
+    fn add_rectangle(&self, rect: Rectangle) {
+        use objc2_core_graphics::CGContextAddRect;
+        unsafe { CGContextAddRect(Some(&self.context), rect.into()) }
+    }
+
     fn add_shape(&self, shape: ShapeRef) {
-        use objc2_core_graphics::{CGContextAddEllipseInRect, CGContextAddPath, CGContextAddRect};
+        use objc2_core_graphics::{CGContextAddEllipseInRect, CGContextAddPath};
         match shape {
-            ShapeRef::Rect(rectangle) => unsafe {
-                CGContextAddRect(Some(&self.context), rectangle.into())
-            },
+            ShapeRef::Rect(rectangle) => self.add_rectangle(rectangle),
             ShapeRef::Rounded(rounded_rectangle) => self.add_rounded_rectangle(rounded_rectangle),
             ShapeRef::Ellipse(ellipse) => unsafe {
                 CGContextAddEllipseInRect(Some(&self.context), ellipse.bounds().into())

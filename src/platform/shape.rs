@@ -157,6 +157,7 @@ impl From<Circle> for Shape {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum ShapeRef<'a> {
     Rect(Rectangle),
     Rounded(RoundedRectangle),

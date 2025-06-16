@@ -1,6 +1,7 @@
-use crate::core::{Color, Point, Rectangle, Size, Transform};
+use crate::core::{Color, Point, Rectangle, Size, Transform, Vec2};
 use objc2_core_foundation::{
-    CFIndex, CFRange, CFRetained, CFString, CFStringBuiltInEncodings, CFStringCreateWithBytes, CGAffineTransform, CGPoint, CGRect, CGSize,
+    CFIndex, CFRange, CFRetained, CFString, CFStringBuiltInEncodings, CFStringCreateWithBytes,
+    CGAffineTransform, CGPoint, CGRect, CGSize,
 };
 use objc2_core_graphics::{CGColor, CGColorCreateSRGB};
 
@@ -24,6 +25,15 @@ impl Into<CGSize> for Size {
         CGSize {
             width: self.width,
             height: self.height,
+        }
+    }
+}
+
+impl Into<CGSize> for Vec2 {
+    fn into(self) -> CGSize {
+        CGSize {
+            width: self.x,
+            height: self.y,
         }
     }
 }

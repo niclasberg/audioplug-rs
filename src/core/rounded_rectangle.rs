@@ -1,6 +1,6 @@
 use super::{Point, Rectangle, Size, Vec2};
 use std::fmt::Debug;
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Mul, Neg, Sub};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct RoundedRectangle<T = f64> {
@@ -19,7 +19,14 @@ impl<T> RoundedRectangle<T> {
 
 impl<T> RoundedRectangle<T>
 where
-    T: Debug + Copy + PartialEq + Add<Output = T> + Sub<Output = T> + Mul<Output = T> + PartialOrd,
+    T: Debug
+        + Copy
+        + PartialEq
+        + Add<Output = T>
+        + Sub<Output = T>
+        + Mul<Output = T>
+        + Neg<Output = T>
+        + PartialOrd,
 {
     pub fn contains(&self, pos: Point<T>) -> bool {
         if !self.rect.contains(pos) {
