@@ -12,17 +12,24 @@ use windows::{
 
 use super::{
     com::direct2d_factory,
-    filters::{
-        set_effect_property_f32, CustomEffect, EffectWrapper, RoundedRectShadowEffectShader,
-    },
+    filters::{set_effect_property_f32, CustomEffect, EffectWrapper, RoundedRectShadow},
     util::get_scale_factor_for_window,
     Bitmap, TextLayout,
 };
-use crate::core::{
-    Color, Ellipse, Point, Rectangle, RoundedRectangle, ShadowOptions, Size, SpringPhysics,
-    Transform, Vec2,
+use crate::{
+    core::{
+        Color, Ellipse, Point, Rectangle, RoundedRectangle, ShadowOptions, Size, SpringPhysics,
+        Transform, Vec2,
+    },
+    platform::filters::RoundedRectShadowEffect,
 };
-use crate::platform::{BrushRef, ShapeRef};
+use crate::{
+    core::{Vec2f, Vec4f},
+    platform::{
+        filters::{RectShadow, RectShadowEffect},
+        BrushRef, ShapeRef,
+    },
+};
 use std::{
     cell::{Ref, RefCell},
     mem::MaybeUninit,
@@ -161,6 +168,8 @@ pub struct Renderer {
     saved_states: Vec<SavedState>,
     generation: RendererGeneration,
     scale_factor: f32,
+    rect_shadow_effect: RectShadowEffect,
+    rounded_rect_shadow_effect: RoundedRectShadowEffect,
 }
 
 impl Renderer {
@@ -220,9 +229,11 @@ impl Renderer {
 
         let brush = unsafe { render_target.CreateSolidColorBrush(&Color::GREEN.into(), None)? };
 
-        EffectWrapper::<RoundedRectShadowEffectShader>::register(direct2d_factory())?;
-        let rounded_shadow_effect =
-            unsafe { render_target.CreateEffect(&RoundedRectShadowEffectShader::EFFECT_GUID) }?;
+        RectShadowEffect::register(direct2d_factory())?;
+        RoundedRectShadowEffect::register(direct2d_factory())?;
+
+        let rect_shadow_effect = RectShadowEffect::new(&render_target)?;
+        let rounded_rect_shadow_effect = RoundedRectShadowEffect::new(&render_target)?;
 
         Ok(Renderer {
             render_target,
@@ -231,6 +242,8 @@ impl Renderer {
             saved_states: Vec::new(),
             generation: RendererGeneration(0),
             scale_factor,
+            rect_shadow_effect,
+            rounded_rect_shadow_effect,
         })
     }
 
@@ -367,152 +380,209 @@ impl Renderer {
     }
 
     pub fn draw_shadow(&mut self, shape: ShapeRef, options: ShadowOptions) {
-        let rect = shape.bounds();
-        let bitmap_size = (rect.size() + Size::splat(options.radius * 2.0))
-            .scale(self.scale_factor as _)
-            .expand_to_u32();
-        let blur_std_dev = options.radius / 3.0;
+        let shadow_radius = (options.radius as f32) * self.scale_factor;
+        let shadow_offset = Vec2f {
+            x: options.offset.x as _,
+            y: options.offset.y as _,
+        } * self.scale_factor;
 
-        let props = Direct2D::D2D1_BITMAP_PROPERTIES1 {
-            pixelFormat: Direct2D::Common::D2D1_PIXEL_FORMAT {
-                format: Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
-                alphaMode: Direct2D::Common::D2D1_ALPHA_MODE_PREMULTIPLIED,
-            },
-            dpiX: 96.0 * self.scale_factor,
-            dpiY: 96.0 * self.scale_factor,
-            bitmapOptions: Direct2D::D2D1_BITMAP_OPTIONS_TARGET,
-            ..Default::default()
+        let shadow_color = Vec4f {
+            x: options.color.a * options.color.r,
+            y: options.color.a * options.color.g,
+            z: options.color.a * options.color.b,
+            w: options.color.a,
         };
 
-        let Ok(mask_bitmap) = (unsafe {
-            self.render_target
-                .CreateBitmap(bitmap_size.into(), None, 0, &props)
-        }) else {
-            return;
-        };
-
-        let offset_effect = unsafe {
-            self.render_target
-                .CreateEffect(&Direct2D::CLSID_D2D12DAffineTransform)
-        }
-        .unwrap();
-        unsafe {
-            offset_effect.SetInput(0, &mask_bitmap, false);
-            let transform = [
-                1.0,
-                0.0,
-                0.0,
-                1.0,
-                options.offset.x as f32,
-                options.offset.y as f32,
-            ];
-            offset_effect.SetValue(
-                Direct2D::D2D1_2DAFFINETRANSFORM_PROP_TRANSFORM_MATRIX.0 as u32,
-                Direct2D::D2D1_PROPERTY_TYPE_MATRIX_3X2,
-                bytes_of(&transform),
-            )
-        }
-        .unwrap();
-
-        let blur_effect = unsafe {
-            self.render_target
-                .CreateEffect(&Direct2D::CLSID_D2D1GaussianBlur)
-        }
-        .unwrap();
-        unsafe {
-            blur_effect.SetInput(0, &offset_effect.GetOutput().unwrap(), false);
-            set_effect_property_f32(
-                &blur_effect,
-                Direct2D::D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION.0,
-                blur_std_dev as f32,
-            )
-        }
-        .unwrap();
-
-        let colorize_effect = unsafe {
-            self.render_target
-                .CreateEffect(&Direct2D::CLSID_D2D1ColorMatrix)
-        }
-        .unwrap();
-        unsafe { colorize_effect.SetInput(0, &blur_effect.GetOutput().unwrap(), false) };
-        let color_matrix = [
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            options.color.a,
-            options.color.r,
-            options.color.g,
-            options.color.b,
-            0.0,
-        ];
-        unsafe {
-            colorize_effect.SetValue(
-                Direct2D::D2D1_COLORMATRIX_PROP_COLOR_MATRIX.0 as u32,
-                Direct2D::D2D1_PROPERTY_TYPE_MATRIX_5X4,
-                cast_slice(&color_matrix),
-            )
-        }
-        .unwrap();
-        unsafe {
-            colorize_effect.SetValue(
-                Direct2D::D2D1_COLORMATRIX_PROP_ALPHA_MODE.0 as u32,
-                Direct2D::D2D1_PROPERTY_TYPE_ENUM,
-                bytes_of(&Direct2D::Common::D2D1_ALPHA_MODE_PREMULTIPLIED.0),
-            )
-        }
-        .unwrap();
-
-        let composite_effect = unsafe {
-            self.render_target
-                .CreateEffect(&Direct2D::CLSID_D2D1Composite)
-        }
-        .unwrap();
-        unsafe {
-            composite_effect.SetInput(0, &colorize_effect.GetOutput().unwrap(), false);
-            composite_effect.SetInput(1, &mask_bitmap, false);
-            composite_effect
-                .SetValue(
-                    Direct2D::D2D1_COMPOSITE_PROP_MODE.0 as u32,
-                    Direct2D::D2D1_PROPERTY_TYPE_ENUM,
-                    bytes_of(&Direct2D::Common::D2D1_COMPOSITE_MODE_DESTINATION_OUT.0),
+        let (effect, offset) = match shape {
+            ShapeRef::Rect(rectangle) => {
+                self.rect_shadow_effect.set_constants(RectShadow {
+                    size: Vec2f {
+                        x: rectangle.size.width as _,
+                        y: rectangle.size.height as _,
+                    } * self.scale_factor,
+                    shadow_radius,
+                    shadow_offset,
+                    shadow_color,
+                    ..Default::default()
+                });
+                (
+                    self.rect_shadow_effect.effect().clone(),
+                    rectangle.top_left(),
                 )
+            }
+            ShapeRef::Rounded(rounded_rectangle) => {
+                self.rounded_rect_shadow_effect
+                    .set_constants(RoundedRectShadow {
+                        size: Vec2f {
+                            x: rounded_rectangle.rect.size.width as _,
+                            y: rounded_rectangle.rect.size.height as _,
+                        } * self.scale_factor,
+                        shadow_radius,
+                        shadow_color,
+                        offset: shadow_offset,
+                        corner_radius: (rounded_rectangle.corner_radius.width as f32)
+                            * self.scale_factor,
+                        ..Default::default()
+                    });
+                (
+                    self.rounded_rect_shadow_effect.effect().clone(),
+                    rounded_rectangle.rect.top_left(),
+                )
+            }
+            ShapeRef::Ellipse(shape) => todo!(),
+            ShapeRef::Geometry(shape) => {
+                let rect = shape.bounds();
+                let bitmap_size = (rect.size() + Size::splat(options.radius * 2.0))
+                    .scale(self.scale_factor as _)
+                    .expand_to_u32();
+                let blur_std_dev = options.radius / 3.0;
+
+                let props = Direct2D::D2D1_BITMAP_PROPERTIES1 {
+                    pixelFormat: Direct2D::Common::D2D1_PIXEL_FORMAT {
+                        format: Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
+                        alphaMode: Direct2D::Common::D2D1_ALPHA_MODE_PREMULTIPLIED,
+                    },
+                    dpiX: 96.0 * self.scale_factor,
+                    dpiY: 96.0 * self.scale_factor,
+                    bitmapOptions: Direct2D::D2D1_BITMAP_OPTIONS_TARGET,
+                    ..Default::default()
+                };
+
+                let Ok(mask_bitmap) = (unsafe {
+                    self.render_target
+                        .CreateBitmap(bitmap_size.into(), None, 0, &props)
+                }) else {
+                    return;
+                };
+
+                let offset_effect = unsafe {
+                    self.render_target
+                        .CreateEffect(&Direct2D::CLSID_D2D12DAffineTransform)
+                }
                 .unwrap();
-        }
+                unsafe {
+                    offset_effect.SetInput(0, &mask_bitmap, false);
+                    let transform = [
+                        1.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                        options.offset.x as f32,
+                        options.offset.y as f32,
+                    ];
+                    offset_effect.SetValue(
+                        Direct2D::D2D1_2DAFFINETRANSFORM_PROP_TRANSFORM_MATRIX.0 as u32,
+                        Direct2D::D2D1_PROPERTY_TYPE_MATRIX_3X2,
+                        bytes_of(&transform),
+                    )
+                }
+                .unwrap();
 
-        let prev_target = unsafe { self.render_target.GetTarget() }.unwrap();
-        let prev_transform = self.get_d2d1_transform();
-        unsafe {
-            self.render_target.SetTarget(&mask_bitmap);
-            self.render_target.Clear(Some(&Color::ZERO.into()));
+                let blur_effect = unsafe {
+                    self.render_target
+                        .CreateEffect(&Direct2D::CLSID_D2D1GaussianBlur)
+                }
+                .unwrap();
+                unsafe {
+                    blur_effect.SetInput(0, &offset_effect.GetOutput().unwrap(), false);
+                    set_effect_property_f32(
+                        &blur_effect,
+                        Direct2D::D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION.0,
+                        blur_std_dev as f32,
+                    )
+                }
+                .unwrap();
 
-            let transform = Transform::from_translation(
-                Vec2::splat(options.radius) - rect.top_left().as_vector(),
-            );
-            self.render_target.SetTransform(&transform.into());
+                let colorize_effect = unsafe {
+                    self.render_target
+                        .CreateEffect(&Direct2D::CLSID_D2D1ColorMatrix)
+                }
+                .unwrap();
+                unsafe { colorize_effect.SetInput(0, &blur_effect.GetOutput().unwrap(), false) };
+                let color_matrix = [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    options.color.a,
+                    options.color.r,
+                    options.color.g,
+                    options.color.b,
+                    0.0,
+                ];
+                unsafe {
+                    colorize_effect.SetValue(
+                        Direct2D::D2D1_COLORMATRIX_PROP_COLOR_MATRIX.0 as u32,
+                        Direct2D::D2D1_PROPERTY_TYPE_MATRIX_5X4,
+                        cast_slice(&color_matrix),
+                    )
+                }
+                .unwrap();
+                unsafe {
+                    colorize_effect.SetValue(
+                        Direct2D::D2D1_COLORMATRIX_PROP_ALPHA_MODE.0 as u32,
+                        Direct2D::D2D1_PROPERTY_TYPE_ENUM,
+                        bytes_of(&Direct2D::Common::D2D1_ALPHA_MODE_PREMULTIPLIED.0),
+                    )
+                }
+                .unwrap();
 
-            self.brush.SetColor(&Color::BLACK.into());
-            fill_shape_impl(&self.render_target, shape, &self.brush);
+                let composite_effect = unsafe {
+                    self.render_target
+                        .CreateEffect(&Direct2D::CLSID_D2D1Composite)
+                }
+                .unwrap();
+                unsafe {
+                    composite_effect.SetInput(0, &colorize_effect.GetOutput().unwrap(), false);
+                    composite_effect.SetInput(1, &mask_bitmap, false);
+                    composite_effect
+                        .SetValue(
+                            Direct2D::D2D1_COMPOSITE_PROP_MODE.0 as u32,
+                            Direct2D::D2D1_PROPERTY_TYPE_ENUM,
+                            bytes_of(&Direct2D::Common::D2D1_COMPOSITE_MODE_DESTINATION_OUT.0),
+                        )
+                        .unwrap();
+                }
 
-            self.render_target.SetTransform(&prev_transform);
-            self.render_target.SetTarget(&prev_target);
-        }
+                let prev_target = unsafe { self.render_target.GetTarget() }.unwrap();
+                let prev_transform = self.get_d2d1_transform();
+                unsafe {
+                    self.render_target.SetTarget(&mask_bitmap);
+                    self.render_target.Clear(Some(&Color::ZERO.into()));
 
-        let offset = rect.top_left() - Vec2::splat(options.radius);
+                    let transform = Transform::from_translation(
+                        Vec2::splat(options.radius) - rect.top_left().as_vector(),
+                    );
+                    self.render_target.SetTransform(&transform.into());
+
+                    self.brush.SetColor(&Color::BLACK.into());
+                    self.render_target
+                        .FillGeometry(&shape.0 .0, &self.brush, None);
+
+                    self.render_target.SetTransform(&prev_transform);
+                    self.render_target.SetTarget(&prev_target);
+                }
+                (
+                    composite_effect,
+                    rect.top_left() - Vec2::splat(options.radius),
+                )
+            }
+        };
+
         unsafe {
             self.render_target.DrawImage(
-                &composite_effect.GetOutput().unwrap(),
+                &effect.GetOutput().unwrap(),
                 Some(&offset.into()),
                 None,
                 Direct2D::D2D1_INTERPOLATION_MODE_LINEAR,

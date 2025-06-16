@@ -97,9 +97,11 @@ fn main() {
                             style
                                 .max_width(Length::Px(200.0))
                                 .height(animated.map(Length::from_px))
+                                .corner_radius(Size::splat(7.0))
                                 .box_shadow(ShadowOptions {
-                                    radius: 5.0,
-                                    offset: Vec2::new(1.0, 1.0),
+                                    radius: 15.0,
+                                    offset: Vec2::splat(5.0),
+                                    color: Color::BLACK.with_alpha(0.3),
                                     ..Default::default()
                                 })
                         })

@@ -1,5 +1,8 @@
+use bytemuck::{Pod, Zeroable};
+
 use super::{interpolation::SpringPhysics, Interpolate};
 
+#[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Color {
     pub r: f32,
@@ -7,6 +10,9 @@ pub struct Color {
     pub b: f32,
     pub a: f32,
 }
+
+unsafe impl Zeroable for Color {}
+unsafe impl Pod for Color {}
 
 impl Color {
     pub const fn from_rgba(r: f32, g: f32, b: f32, a: f32) -> Self {

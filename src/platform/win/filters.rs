@@ -1,149 +1,20 @@
 use std::cell::RefCell;
-use std::fmt::{Display, Write};
+use std::fmt::Write;
+use std::marker::PhantomData;
 use std::ops::Deref;
 
-use bytemuck::{bytes_of, try_from_bytes, try_from_bytes_mut, NoUninit};
+use bytemuck::{bytes_of, try_from_bytes, try_from_bytes_mut, Pod, Zeroable};
 use windows::Win32::Foundation::{E_INVALIDARG, E_NOTIMPL, E_POINTER};
 use windows::Win32::Graphics::Direct2D;
 use windows::{core::Result, Win32::Foundation::RECT};
-use windows_core::{implement, w, ComObjectInterface, IUnknown, Interface, HSTRING, PCWSTR};
+use windows_core::{implement, ComObjectInterface, IUnknown, Interface, HSTRING, PCWSTR};
 
-use crate::core::{Vec2f, Vec3f, Vec4f};
+use crate::core::{Color, Vec2f, Vec3f, Vec4f};
 
 use super::renderer::{DeviceResource, RendererGeneration};
 
-pub struct PropertyBinding {
-    name: &'static str,
-    setter: Direct2D::PD2D1_PROPERTY_SET_FUNCTION,
-    getter: Direct2D::PD2D1_PROPERTY_GET_FUNCTION,
-    type_name: &'static str,
-}
-
-impl PropertyBinding {
-    fn xml_str(&self) -> String {
-        format!(
-            "<Property name='{}' type='{}'>
-                <Property name='DisplayName' type='string' value='{}' />
-            </Property>",
-            self.name, self.type_name, self.name
-        )
-    }
-}
-
-macro_rules! property_binding {
-    ($parent: ty, $name: expr, $path: ident, $kind: expr) => {{
-        unsafe extern "system" fn setter(
-            effect: windows_core::Ref<'_, windows_core::IUnknown>,
-            data: *const u8,
-            datasize: u32,
-        ) -> windows_core::HRESULT {
-            let Some(effect) = effect.as_ref() else {
-                return E_POINTER;
-            };
-
-            let eff = match effect.cast_object_ref::<EffectWrapper<$parent>>() {
-                Ok(eff) => eff,
-                Err(err) => return err.into(),
-            };
-
-            let slice = unsafe { std::slice::from_raw_parts(data, datasize as _) };
-            let Ok(value) = try_from_bytes(slice) else {
-                return E_INVALIDARG;
-            };
-
-            let mut consts = eff.consts.borrow_mut();
-            consts.$path = *value;
-
-            windows_core::HRESULT(0)
-        }
-
-        unsafe extern "system" fn getter(
-            effect: windows_core::Ref<'_, windows_core::IUnknown>,
-            data: *mut u8,
-            datasize: u32,
-            actualsize: *mut u32,
-        ) -> windows_core::HRESULT {
-            let Some(effect) = effect.as_ref() else {
-                return E_POINTER;
-            };
-
-            let eff = match effect.cast_object_ref::<EffectWrapper<$parent>>() {
-                Ok(eff) => eff,
-                Err(err) => return err.into(),
-            };
-
-            let slice = unsafe { std::slice::from_raw_parts_mut(data, datasize as _) };
-            let Ok(value) = try_from_bytes_mut(slice) else {
-                return E_INVALIDARG;
-            };
-
-            let consts = eff.consts.borrow();
-            *value = consts.$path;
-            *actualsize = std::mem::size_of_val(&consts.$path) as u32;
-
-            windows_core::HRESULT(0)
-        }
-
-        PropertyBinding {
-            name: $name,
-            setter: Some(setter),
-            getter: Some(getter),
-            type_name: $kind,
-        }
-    }};
-}
-
-pub trait EffectProps {
+pub trait CustomEffect: Pod + 'static + Default {
     const NAME: &'static str;
-    const PROPERTIES: &[PropertyBinding];
-}
-
-trait PropertyTypeName {
-    const TYPE_NAME: &'static str;
-}
-
-impl PropertyTypeName for f32 {
-    const TYPE_NAME: &'static str = "float";
-}
-
-impl PropertyTypeName for Vec2f {
-    const TYPE_NAME: &'static str = "vector2";
-}
-
-impl PropertyTypeName for Vec3f {
-    const TYPE_NAME: &'static str = "vector3";
-}
-
-impl PropertyTypeName for Vec4f {
-    const TYPE_NAME: &'static str = "vector4";
-}
-
-macro_rules! custom_effect {
-    (
-	$sv:vis struct $sname:ident { $($fv:vis $fname:ident : $ftype:ty),* $(,)? }
-	) => {
-        #[repr(C)]
-        #[derive(Clone, Copy)]
-        $sv struct $sname {
-            $(
-				$fv $fname: $ftype
-			),*
-        }
-
-		impl $crate::platform::win::filters::EffectProps for $sname {
-            const NAME: &'static str = stringify!($sname);
-            const PROPERTIES: &[PropertyBinding] = &[
-                $(
-                    property_binding!($sname, stringify!($fname), $fname, <$ftype as PropertyTypeName>::TYPE_NAME)
-                ),*
-            ];
-        }
-
-        unsafe impl NoUninit for $sname {}
-	}
-}
-
-pub trait CustomEffect: EffectProps + NoUninit + 'static + Default {
     const EFFECT_GUID: windows_core::GUID;
     const SHADER_GUID: windows_core::GUID;
     fn shader_bytes() -> &'static [u8];
@@ -156,7 +27,7 @@ pub trait CustomEffect: EffectProps + NoUninit + 'static + Default {
     Direct2D::ID2D1Transform,
     Direct2D::ID2D1TransformNode
 )]
-pub struct EffectWrapper<T>
+struct CustomEffectImpl<T>
 where
     T: CustomEffect,
 {
@@ -164,73 +35,7 @@ where
     consts: RefCell<T>,
 }
 
-impl<T: CustomEffect> EffectWrapper<T> {
-    unsafe extern "system" fn create(
-        effect_impl: windows_core::OutRef<'_, windows_core::IUnknown>,
-    ) -> windows_core::HRESULT {
-        let this = Self {
-            draw_info: RefCell::new(None),
-            consts: RefCell::new(T::default()),
-        };
-        let com_object: IUnknown = this.into();
-
-        match effect_impl.write(Some(com_object)) {
-            Ok(_) => windows_core::HRESULT::default(),
-            Err(e) => e.into(),
-        }
-    }
-
-    pub fn register(factory: &Direct2D::ID2D1Factory1) -> windows_core::Result<()> {
-        // This is really unsound. We need wide string pointers in order to construct D2D1_PROPERTY_BINDINGs
-        // But we have rust strings. So allocate a vector of HSTRINGS, and assign pointers into this vec
-        // while creating the bindings.
-        let prop_names: Vec<HSTRING> = T::PROPERTIES.iter().map(|prop| prop.name.into()).collect();
-        let bindings: Vec<_> = T::PROPERTIES
-            .iter()
-            .zip(prop_names.iter())
-            .map(|(prop, name)| Direct2D::D2D1_PROPERTY_BINDING {
-                propertyName: PCWSTR(name.as_ptr()),
-                setFunction: prop.setter,
-                getFunction: prop.getter,
-            })
-            .collect();
-
-        let mut xml = String::new();
-        write!(
-            &mut xml,
-            "<?xml version='1.0'?>
-            <Effect>
-                <!-- System Properties -->
-                <Property name='DisplayName' type='string' value='{}'/>
-                <Property name='Author' type='string' value='Audioplug-rs'/>
-                <Property name='Category' type='string' value='Stylize'/>
-                <Property name='Description' type='string' value='Audioplug custom effect'/>
-                <Inputs>
-                </Inputs>
-                <!-- Custom Properties go here -->",
-            T::NAME
-        )
-        .expect("Unable to format CustomEffect xml");
-
-        for prop in T::PROPERTIES.iter() {
-            xml.push('\n');
-            xml.push_str(&prop.xml_str());
-        }
-        xml.push_str("\n</Effect>");
-
-        let xml_hstring: HSTRING = xml.into();
-        unsafe {
-            factory.RegisterEffectFromString(
-                &T::EFFECT_GUID,
-                PCWSTR(xml_hstring.as_ptr()),
-                Some(bindings.as_slice()),
-                Some(Self::create),
-            )
-        }
-    }
-}
-
-impl<T: CustomEffect> Direct2D::ID2D1EffectImpl_Impl for EffectWrapper_Impl<T> {
+impl<T: CustomEffect> Direct2D::ID2D1EffectImpl_Impl for CustomEffectImpl_Impl<T> {
     fn Initialize(
         &self,
         context: windows_core::Ref<'_, Direct2D::ID2D1EffectContext>,
@@ -245,7 +50,7 @@ impl<T: CustomEffect> Direct2D::ID2D1EffectImpl_Impl for EffectWrapper_Impl<T> {
 
     fn PrepareForRender(
         &self,
-        _changetype: Direct2D::D2D1_CHANGE_TYPE,
+        _change_type: Direct2D::D2D1_CHANGE_TYPE,
     ) -> windows_core::Result<()> {
         unsafe {
             let consts = self.consts.borrow();
@@ -261,7 +66,7 @@ impl<T: CustomEffect> Direct2D::ID2D1EffectImpl_Impl for EffectWrapper_Impl<T> {
 
     fn SetGraph(
         &self,
-        _transformgraph: windows_core::Ref<'_, Direct2D::ID2D1TransformGraph>,
+        _transform_graph: windows_core::Ref<'_, Direct2D::ID2D1TransformGraph>,
     ) -> windows_core::Result<()> {
         // SetGraph is only called when the number of inputs changes. This never happens as we publish this effect
         // as a single input effect.
@@ -269,7 +74,7 @@ impl<T: CustomEffect> Direct2D::ID2D1EffectImpl_Impl for EffectWrapper_Impl<T> {
     }
 }
 
-impl<T: CustomEffect> Direct2D::ID2D1DrawTransform_Impl for EffectWrapper_Impl<T> {
+impl<T: CustomEffect> Direct2D::ID2D1DrawTransform_Impl for CustomEffectImpl_Impl<T> {
     fn SetDrawInfo(
         &self,
         draw_info: windows_core::Ref<'_, Direct2D::ID2D1DrawInfo>,
@@ -280,7 +85,7 @@ impl<T: CustomEffect> Direct2D::ID2D1DrawTransform_Impl for EffectWrapper_Impl<T
     }
 }
 
-impl<T: CustomEffect> Direct2D::ID2D1Transform_Impl for EffectWrapper_Impl<T> {
+impl<T: CustomEffect> Direct2D::ID2D1Transform_Impl for CustomEffectImpl_Impl<T> {
     fn MapOutputRectToInputRects(
         &self,
         _output_rect: *const RECT,
@@ -325,29 +130,173 @@ impl<T: CustomEffect> Direct2D::ID2D1Transform_Impl for EffectWrapper_Impl<T> {
     }
 }
 
-impl<T: CustomEffect> Direct2D::ID2D1TransformNode_Impl for EffectWrapper_Impl<T> {
+impl<T: CustomEffect> Direct2D::ID2D1TransformNode_Impl for CustomEffectImpl_Impl<T> {
     fn GetInputCount(&self) -> u32 {
         0
     }
 }
 
-const DEFAULT_SHADOW_COLOR: Vec4f = Vec4f {
-    x: 0.0,
-    y: 0.0,
-    z: 0.0,
-    w: 0.3,
-};
+#[derive(Clone)]
+pub struct EffectWrapper<T> {
+    effect: Direct2D::ID2D1Effect,
+    _phantom: PhantomData<T>,
+}
 
-custom_effect!(
-    pub struct RectShadowEffectShader {
-        size: Vec2f,
-        shadow_radius: f32,
-        shadow_offset: Vec2f,
-        shadow_color: Vec4f,
+impl<T: CustomEffect> EffectWrapper<T> {
+    pub fn register(factory: &Direct2D::ID2D1Factory1) -> windows_core::Result<()> {
+        let dummy_prop_name: HSTRING = "Constants".into();
+        let bindings = [Direct2D::D2D1_PROPERTY_BINDING {
+            propertyName: PCWSTR(dummy_prop_name.as_ptr()),
+            setFunction: Some(Self::constants_setter),
+            getFunction: Some(Self::constants_getter),
+        }];
+
+        let mut xml = String::new();
+        write!(
+            &mut xml,
+            "<?xml version='1.0'?>
+            <Effect>
+                <!-- System Properties -->
+                <Property name='DisplayName' type='string' value='{}'/>
+                <Property name='Author' type='string' value='Audioplug-rs'/>
+                <Property name='Category' type='string' value='Stylize'/>
+                <Property name='Description' type='string' value='Audioplug custom effect'/>
+                <Inputs>
+                </Inputs>
+
+                <!-- Custom Properties go here -->
+                <Property name='Constants' type='blob'>
+                    <Property name='DisplayName' type='string' value='Constants' />
+                </Property>
+            </Effect>",
+            T::NAME
+        )
+        .expect("Unable to format CustomEffect xml");
+
+        let xml_hstring: HSTRING = xml.into();
+        unsafe {
+            factory.RegisterEffectFromString(
+                &T::EFFECT_GUID,
+                PCWSTR(xml_hstring.as_ptr()),
+                Some(bindings.as_slice()),
+                Some(Self::create),
+            )
+        }
     }
-);
 
-impl CustomEffect for RectShadowEffectShader {
+    /// Create a new instance of the effect. The Self::register method must have been called beforehand
+    pub fn new(device_context: &Direct2D::ID2D1DeviceContext) -> Result<Self> {
+        let effect = unsafe { device_context.CreateEffect(&T::EFFECT_GUID) }?;
+        Ok(Self {
+            effect,
+            _phantom: PhantomData,
+        })
+    }
+
+    pub fn effect(&self) -> &Direct2D::ID2D1Effect {
+        &self.effect
+    }
+
+    pub fn set_constants(&self, value: T) {
+        unsafe {
+            self.effect
+                .SetValue(0, Direct2D::D2D1_PROPERTY_TYPE_BLOB, bytes_of(&value))
+        }
+        .unwrap();
+    }
+
+    unsafe extern "system" fn constants_setter(
+        effect: windows_core::Ref<'_, windows_core::IUnknown>,
+        data: *const u8,
+        datasize: u32,
+    ) -> windows_core::HRESULT {
+        let Some(effect) = effect.as_ref() else {
+            return E_POINTER;
+        };
+
+        let eff = match effect.cast_object_ref::<CustomEffectImpl<T>>() {
+            Ok(eff) => eff,
+            Err(err) => return err.into(),
+        };
+
+        let slice = unsafe { std::slice::from_raw_parts(data, datasize as _) };
+        let Ok(value) = try_from_bytes(slice) else {
+            return E_INVALIDARG;
+        };
+        let mut consts = eff.consts.borrow_mut();
+        *consts = *value;
+
+        windows_core::HRESULT(0)
+    }
+
+    unsafe extern "system" fn constants_getter(
+        effect: windows_core::Ref<'_, windows_core::IUnknown>,
+        data: *mut u8,
+        data_size: u32,
+        actual_size: *mut u32,
+    ) -> windows_core::HRESULT {
+        let Some(effect) = effect.as_ref() else {
+            return E_POINTER;
+        };
+
+        *actual_size = std::mem::size_of::<T>() as u32;
+
+        // Size query
+        if data_size == 0 {
+            return windows_core::HRESULT(0);
+        }
+
+        let eff = match effect.cast_object_ref::<CustomEffectImpl<T>>() {
+            Ok(eff) => eff,
+            Err(err) => return err.into(),
+        };
+
+        if actual_size.is_null() {
+            return E_POINTER;
+        }
+
+        let slice = unsafe { std::slice::from_raw_parts_mut(data, data_size as _) };
+        let Ok(value) = try_from_bytes_mut(slice) else {
+            return E_INVALIDARG;
+        };
+
+        let consts = eff.consts.borrow();
+        *value = *consts;
+
+        windows_core::HRESULT(0)
+    }
+
+    unsafe extern "system" fn create(
+        effect_impl: windows_core::OutRef<'_, windows_core::IUnknown>,
+    ) -> windows_core::HRESULT {
+        let this = CustomEffectImpl {
+            draw_info: RefCell::new(None),
+            consts: RefCell::new(T::default()),
+        };
+        let com_object: IUnknown = this.into();
+
+        match effect_impl.write(Some(com_object)) {
+            Ok(_) => windows_core::HRESULT::default(),
+            Err(e) => e.into(),
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct RectShadow {
+    pub shadow_color: Vec4f,
+    pub size: Vec2f,
+    pub shadow_offset: Vec2f,
+    pub shadow_radius: f32,
+    pub padding: Vec3f,
+}
+
+unsafe impl Zeroable for RectShadow {}
+unsafe impl Pod for RectShadow {}
+
+impl CustomEffect for RectShadow {
+    const NAME: &'static str = "RectShadowEffect";
     const EFFECT_GUID: windows_core::GUID = windows_core::GUID::from_values(
         0x9f489c12,
         0x9434,
@@ -367,32 +316,58 @@ impl CustomEffect for RectShadowEffectShader {
     }
 
     fn extent(&self) -> RECT {
-        todo!()
+        rect_shadow_extent(self.size, self.shadow_offset, self.shadow_radius)
     }
 }
 
-impl Default for RectShadowEffectShader {
+fn rect_shadow_extent(size: Vec2f, offset: Vec2f, radius: f32) -> RECT {
+    let top_left = (Vec2f::ZERO.min(offset) - Vec2f::splat(radius)).floor();
+    let bottom_right = (size + Vec2f::ZERO.max(offset) + Vec2f::splat(radius)).ceil();
+    RECT {
+        left: top_left.x as i32,
+        top: top_left.y as i32,
+        right: bottom_right.x as i32,
+        bottom: bottom_right.y as i32,
+    }
+}
+
+const DEFAULT_SHADOW_COLOR: Vec4f = Vec4f {
+    x: 0.0,
+    y: 0.0,
+    z: 0.0,
+    w: 0.3,
+};
+
+impl Default for RectShadow {
     fn default() -> Self {
         Self {
             size: Default::default(),
             shadow_radius: Default::default(),
             shadow_offset: Default::default(),
             shadow_color: DEFAULT_SHADOW_COLOR,
+            padding: Default::default(),
         }
     }
 }
 
-custom_effect!(
-    pub struct RoundedRectShadowEffectShader {
-        shadow_color: Vec4f,
-        size: Vec2f,
-        offset: Vec2f,
-        corner_radius: f32,
-        shadow_radius: f32,
-    }
-);
+pub type RectShadowEffect = EffectWrapper<RectShadow>;
 
-impl CustomEffect for RoundedRectShadowEffectShader {
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct RoundedRectShadow {
+    pub shadow_color: Vec4f,
+    pub size: Vec2f,
+    pub offset: Vec2f,
+    pub corner_radius: f32,
+    pub shadow_radius: f32,
+    pub padding: Vec2f,
+}
+
+unsafe impl Zeroable for RoundedRectShadow {}
+unsafe impl Pod for RoundedRectShadow {}
+
+impl CustomEffect for RoundedRectShadow {
+    const NAME: &'static str = "RoundedRectShadowEffect";
     const EFFECT_GUID: windows_core::GUID = windows_core::GUID::from_values(
         0x792b02fc,
         0x1b12,
@@ -411,18 +386,11 @@ impl CustomEffect for RoundedRectShadowEffectShader {
     }
 
     fn extent(&self) -> RECT {
-        let top_left = Vec2f::ZERO.min(self.offset).floor();
-        let bottom_right = self.size + Vec2f::ZERO.max(self.offset).ceil();
-        RECT {
-            left: top_left.x as i32,
-            top: top_left.y as i32,
-            right: bottom_right.x as i32,
-            bottom: bottom_right.y as i32,
-        }
+        rect_shadow_extent(self.size, self.offset, self.shadow_radius)
     }
 }
 
-impl Default for RoundedRectShadowEffectShader {
+impl Default for RoundedRectShadow {
     fn default() -> Self {
         Self {
             shadow_color: DEFAULT_SHADOW_COLOR,
@@ -430,9 +398,12 @@ impl Default for RoundedRectShadowEffectShader {
             offset: Vec2f { x: 0.0, y: 0.0 },
             corner_radius: 0.0,
             shadow_radius: 0.0,
+            padding: Default::default(),
         }
     }
 }
+
+pub type RoundedRectShadowEffect = EffectWrapper<RoundedRectShadow>;
 
 pub struct Image {
     bitmap: DeviceResource<Direct2D::ID2D1Bitmap>,

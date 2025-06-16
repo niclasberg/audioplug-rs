@@ -1,4 +1,4 @@
-use std::ops::{Add, Sub};
+use std::ops::{Add, Mul, Sub};
 
 use bytemuck::{Pod, Zeroable};
 
@@ -136,6 +136,28 @@ macro_rules! impl_vec2 {
             }
         }
 
+        impl Mul<$t> for $name {
+            type Output = Self;
+
+            fn mul(self, rhs: $t) -> Self::Output {
+                Self {
+                    x: rhs * self.x,
+                    y: rhs * self.y,
+                }
+            }
+        }
+
+        impl Mul<$name> for $t {
+            type Output = $name;
+
+            fn mul(self, rhs: $name) -> Self::Output {
+                Self::Output {
+                    x: self * rhs.x,
+                    y: self * rhs.y,
+                }
+            }
+        }
+
         impl Interpolate for $name {
             fn lerp(&self, other: &Self, scalar: f64) -> Self {
                 Self {
@@ -154,7 +176,7 @@ impl_vec2!(Vec2, f64);
 impl_vec2!(Vec2f, f32);
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub struct Vec3f {
     pub x: f32,
     pub y: f32,
