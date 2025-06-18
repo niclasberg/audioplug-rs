@@ -8,29 +8,26 @@ use crate::{
 };
 use objc2_core_foundation::{CFRetained, CGAffineTransform, CGFloat, CGRect, CGSize};
 use objc2_core_graphics::{
-    CGColorSpaceCreateDeviceRGB, CGContext, CGContextClip, CGContextClosePath,
-    CGContextDrawLinearGradient, CGContextEOClip, CGContextEOFillPath, CGContextGetCTM,
-    CGContextMoveToPoint, CGContextReplacePathWithStrokedPath, CGContextRestoreGState,
-    CGContextSaveGState, CGContextScaleCTM, CGContextStrokeEllipseInRect, CGContextStrokePath,
-    CGContextStrokeRectWithWidth, CGContextTranslateCTM, CGGradient,
-    CGGradientCreateWithColorComponents, CGGradientDrawingOptions, CGMutablePath, CGPath,
-    CGPathCreateMutable,
+    CGColorSpace, CGContext, CGGradient, CGGradientDrawingOptions, CGMutablePath, CGPath,
 };
-use objc2_core_text::CTFrameDraw;
+use objc2_core_image::CIContext;
+use objc2_core_text::CTFrame;
 use objc2_foundation::NSRect;
 
 use super::{conversions::cgcolor_from_color, Bitmap, Error, TextLayout};
 
 pub struct RendererRef<'a> {
     pub(super) context: &'a CGContext,
+    pub(super) ci_context: &'a CIContext,
     transforms: Vec<CGAffineTransform>,
     dirty_rect: NSRect,
 }
 
 impl<'a> RendererRef<'a> {
-    pub fn new(context: &'a CGContext, dirty_rect: NSRect) -> Self {
+    pub fn new(context: &'a CGContext, ci_context: &'a CIContext, dirty_rect: NSRect) -> Self {
         Self {
             context,
+            ci_context,
             transforms: Vec::new(),
             dirty_rect,
         }
@@ -41,36 +38,32 @@ impl<'a> RendererRef<'a> {
     }
 
     pub fn save(&mut self) {
-        let ctm = unsafe { CGContextGetCTM(Some(&self.context)) };
+        let ctm = unsafe { CGContext::ctm(Some(&self.context)) };
         self.transforms.push(ctm);
-        unsafe { CGContextSaveGState(Some(&self.context)) };
+        unsafe { CGContext::save_g_state(Some(&self.context)) };
     }
 
     pub fn restore(&mut self) {
         if self.transforms.pop().is_some() {
             unsafe {
-                CGContextRestoreGState(Some(&self.context));
+                CGContext::restore_g_state(Some(&self.context));
             }
         }
     }
 
     pub fn transform(&mut self, transform: Transform) {
-        unsafe { objc2_core_graphics::CGContextConcatCTM(Some(&self.context), transform.into()) };
+        unsafe { CGContext::concat_ctm(Some(&self.context), transform.into()) };
     }
 
     pub fn clip(&mut self, rect: Rectangle) {
-        unsafe { objc2_core_graphics::CGContextClipToRect(Some(&self.context), rect.into()) }
+        unsafe { CGContext::clip_to_rect(Some(&self.context), rect.into()) }
     }
 
     pub fn set_offset(&mut self, delta: Vec2) {
-        unsafe {
-            objc2_core_graphics::CGContextTranslateCTM(Some(&self.context), delta.x, delta.y)
-        };
+        unsafe { CGContext::translate_ctm(Some(&self.context), delta.x, delta.y) };
     }
 
     pub fn draw_shadow(&mut self, shape: ShapeRef, options: ShadowOptions) {
-        use objc2_core_graphics::CGContextSetShadowWithColor;
-
         // Y-axis is flipped, need to flip offset
         let offset = CGSize {
             width: options.offset.x,
@@ -91,7 +84,7 @@ impl<'a> RendererRef<'a> {
         self.set_fill_color(Color::from_rgba8(0, 0, 0, 1.0));
         let shadow_color = cgcolor_from_color(options.color);
         unsafe {
-            CGContextSetShadowWithColor(
+            CGContext::set_shadow_with_color(
                 Some(&self.context),
                 offset,
                 options.radius,
@@ -104,19 +97,19 @@ impl<'a> RendererRef<'a> {
                 // Clip so that we only render the shadow outside the shape
                 self.add_rectangle(bounds);
                 self.add_shape(shape);
-                unsafe { CGContextEOClip(Some(&self.context)) };
+                unsafe { CGContext::eo_clip(Some(&self.context)) };
 
                 self.do_fill_shape(shape);
             }
             crate::core::ShadowKind::InnerShadow => {
                 // Only include inside of shape
                 self.add_shape(shape);
-                unsafe { CGContextClip(Some(&self.context)) };
+                unsafe { CGContext::clip(Some(&self.context)) };
 
                 self.add_rectangle(bounds);
                 self.add_shape(shape);
                 unsafe {
-                    CGContextEOFillPath(Some(&self.context));
+                    CGContext::eo_fill_path(Some(&self.context));
                 }
             }
         }
@@ -135,7 +128,7 @@ impl<'a> RendererRef<'a> {
 
                 let bounds = shape.bounds();
                 self.add_shape(shape);
-                unsafe { CGContextClip(Some(&self.context)) };
+                unsafe { CGContext::clip(Some(&self.context)) };
                 self.draw_linear_gradient(linear_gradient, bounds);
 
                 self.restore();
@@ -144,37 +137,33 @@ impl<'a> RendererRef<'a> {
     }
 
     fn do_fill_shape(&self, shape: ShapeRef) {
-        use objc2_core_graphics::{
-            CGContextAddPath, CGContextFillEllipseInRect, CGContextFillPath, CGContextFillRect,
-        };
         match shape {
             ShapeRef::Rect(rectangle) => unsafe {
-                CGContextFillRect(Some(&self.context), rectangle.into())
+                CGContext::fill_rect(Some(&self.context), rectangle.into())
             },
             ShapeRef::Rounded(rounded_rectangle) => {
                 self.add_rounded_rectangle(rounded_rectangle);
-                unsafe { CGContextFillPath(Some(&self.context)) };
+                unsafe { CGContext::fill_path(Some(&self.context)) };
             }
             ShapeRef::Ellipse(ellipse) => {
                 let rect = ellipse.bounds();
-                unsafe { CGContextFillEllipseInRect(Some(&self.context), rect.into()) }
+                unsafe { CGContext::fill_ellipse_in_rect(Some(&self.context), rect.into()) }
             }
             ShapeRef::Geometry(path_geometry) => unsafe {
-                CGContextAddPath(Some(&self.context), Some(&path_geometry.0 .0));
-                CGContextFillPath(Some(&self.context));
+                CGContext::add_path(Some(&self.context), Some(&path_geometry.0 .0));
+                CGContext::fill_path(Some(&self.context));
             },
         }
     }
 
     pub fn stroke_shape(&mut self, shape: ShapeRef, brush: BrushRef, line_width: f32) {
-        use objc2_core_graphics::CGContextAddPath;
         match brush {
             BrushRef::Solid(color) => {
                 self.set_line_width(line_width);
                 self.set_stroke_color(color);
                 match shape {
                     ShapeRef::Rect(rectangle) => unsafe {
-                        CGContextStrokeRectWithWidth(
+                        CGContext::stroke_rect_with_width(
                             Some(&self.context),
                             rectangle.into(),
                             line_width.into(),
@@ -182,14 +171,17 @@ impl<'a> RendererRef<'a> {
                     },
                     ShapeRef::Rounded(rounded_rectangle) => {
                         self.add_rounded_rectangle(rounded_rectangle);
-                        unsafe { CGContextStrokePath(Some(&self.context)) };
+                        unsafe { CGContext::stroke_path(Some(&self.context)) };
                     }
                     ShapeRef::Ellipse(ellipse) => unsafe {
-                        CGContextStrokeEllipseInRect(Some(&self.context), ellipse.bounds().into())
+                        CGContext::stroke_ellipse_in_rect(
+                            Some(&self.context),
+                            ellipse.bounds().into(),
+                        )
                     },
                     ShapeRef::Geometry(path_geometry) => unsafe {
-                        CGContextAddPath(Some(&self.context), Some(&path_geometry.0 .0));
-                        CGContextStrokePath(Some(&self.context));
+                        CGContext::add_path(Some(&self.context), Some(&path_geometry.0 .0));
+                        CGContext::stroke_path(Some(&self.context));
                     },
                 }
             }
@@ -200,8 +192,8 @@ impl<'a> RendererRef<'a> {
                 self.add_shape(shape);
 
                 unsafe {
-                    CGContextReplacePathWithStrokedPath(Some(&self.context));
-                    CGContextClip(Some(&self.context));
+                    CGContext::replace_path_with_stroked_path(Some(&self.context));
+                    CGContext::clip(Some(&self.context));
                 }
                 self.draw_linear_gradient(linear_gradient, bounds);
                 self.restore();
@@ -213,7 +205,7 @@ impl<'a> RendererRef<'a> {
         let start_point = gradient.start.resolve(bounds);
         let end_point = gradient.end.resolve(bounds);
         unsafe {
-            CGContextDrawLinearGradient(
+            CGContext::draw_linear_gradient(
                 Some(&self.context),
                 Some(&gradient.native.gradient),
                 start_point.into(),
@@ -229,15 +221,15 @@ impl<'a> RendererRef<'a> {
             BrushRef::Solid(color) => {
                 self.set_stroke_color(color);
                 self.add_line(p0, p1);
-                unsafe { CGContextStrokePath(Some(&self.context)) };
+                unsafe { CGContext::stroke_path(Some(&self.context)) };
             }
             BrushRef::LinearGradient(linear_gradient) => {
                 self.save();
 
                 self.add_line(p0, p1);
                 unsafe {
-                    CGContextReplacePathWithStrokedPath(Some(&self.context));
-                    CGContextClip(Some(&self.context));
+                    CGContext::replace_path_with_stroked_path(Some(&self.context));
+                    CGContext::clip(Some(&self.context));
                 }
                 self.draw_linear_gradient(linear_gradient, Rectangle::from_points(p0, p1));
 
@@ -251,15 +243,15 @@ impl<'a> RendererRef<'a> {
         let bounds = frame.bounding_box();
 
         unsafe {
-            CGContextSaveGState(Some(&self.context));
-            CGContextTranslateCTM(
+            self.save();
+            CGContext::translate_ctm(
                 Some(&self.context),
                 position.x,
                 position.y + bounds.size.height,
             );
-            CGContextScaleCTM(Some(&self.context), 1.0, -1.0);
-            CTFrameDraw(&frame, &self.context);
-            CGContextRestoreGState(Some(&self.context));
+            CGContext::scale_ctm(Some(&self.context), 1.0, -1.0);
+            CTFrame::draw(&frame, &self.context);
+            self.restore();
         };
     }
 
@@ -292,30 +284,28 @@ impl<'a> RendererRef<'a> {
     }
 
     fn add_rectangle(&self, rect: Rectangle) {
-        use objc2_core_graphics::CGContextAddRect;
-        unsafe { CGContextAddRect(Some(&self.context), rect.into()) }
+        unsafe { CGContext::add_rect(Some(&self.context), rect.into()) }
     }
 
     fn add_shape(&self, shape: ShapeRef) {
-        use objc2_core_graphics::{CGContextAddEllipseInRect, CGContextAddPath};
         match shape {
             ShapeRef::Rect(rectangle) => self.add_rectangle(rectangle),
             ShapeRef::Rounded(rounded_rectangle) => self.add_rounded_rectangle(rounded_rectangle),
             ShapeRef::Ellipse(ellipse) => unsafe {
-                CGContextAddEllipseInRect(Some(&self.context), ellipse.bounds().into())
+                CGContext::add_ellipse_in_rect(Some(&self.context), ellipse.bounds().into())
             },
             ShapeRef::Geometry(path_geometry) => unsafe {
-                CGContextAddPath(Some(&self.context), Some(&path_geometry.0 .0))
+                CGContext::add_path(Some(&self.context), Some(&path_geometry.0 .0))
             },
         }
     }
 
     fn move_to_point(&self, x: CGFloat, y: CGFloat) {
-        unsafe { CGContextMoveToPoint(Some(&self.context), x, y) }
+        unsafe { CGContext::move_to_point(Some(&self.context), x, y) }
     }
 
     fn close_path(&self) {
-        unsafe { CGContextClosePath(Some(&self.context)) }
+        unsafe { CGContext::close_path(Some(&self.context)) }
     }
 
     fn add_arc_to_point(
@@ -326,33 +316,25 @@ impl<'a> RendererRef<'a> {
         y2: CGFloat,
         radius: CGFloat,
     ) {
-        unsafe {
-            objc2_core_graphics::CGContextAddArcToPoint(Some(&self.context), x1, y1, x2, y2, radius)
-        }
+        unsafe { CGContext::add_arc_to_point(Some(&self.context), x1, y1, x2, y2, radius) }
     }
 
     fn add_line_to_point(&self, x: CGFloat, y: CGFloat) {
-        unsafe { objc2_core_graphics::CGContextAddLineToPoint(Some(&self.context), x, y) }
+        unsafe { CGContext::add_line_to_point(Some(&self.context), x, y) }
     }
 
     fn set_fill_color(&self, color: Color) {
         let color = cgcolor_from_color(color);
-        unsafe {
-            objc2_core_graphics::CGContextSetFillColorWithColor(Some(&self.context), Some(&color))
-        }
+        unsafe { CGContext::set_fill_color_with_color(Some(&self.context), Some(&color)) }
     }
 
     fn set_stroke_color(&self, color: Color) {
         let color = cgcolor_from_color(color);
-        unsafe {
-            objc2_core_graphics::CGContextSetStrokeColorWithColor(Some(&self.context), Some(&color))
-        };
+        unsafe { CGContext::set_stroke_color_with_color(Some(&self.context), Some(&color)) };
     }
 
     fn set_line_width(&self, line_width: f32) {
-        unsafe {
-            objc2_core_graphics::CGContextSetLineWidth(Some(&self.context), line_width.into())
-        };
+        unsafe { CGContext::set_line_width(Some(&self.context), line_width.into()) };
     }
 }
 
@@ -383,9 +365,9 @@ fn create_gradient(color_map: &ColorMap) -> CFRetained<CGGradient> {
         locations.push(*position as f64);
     }
 
-    let space = unsafe { CGColorSpaceCreateDeviceRGB() };
+    let space = unsafe { CGColorSpace::new_device_rgb() };
     unsafe {
-        CGGradientCreateWithColorComponents(
+        CGGradient::with_color_components(
             space.as_ref().map(|x| x.as_ref()),
             components.as_ptr(),
             locations.as_ptr(),
@@ -427,12 +409,7 @@ impl NativeGeometryBuilder {
         };
         self.is_editing_path = true;*/
         unsafe {
-            objc2_core_graphics::CGPathMoveToPoint(
-                Some(&self.0),
-                std::ptr::null(),
-                point.x,
-                point.y,
-            );
+            CGMutablePath::move_to_point(Some(&self.0), std::ptr::null(), point.x, point.y);
         }
 
         self
@@ -440,12 +417,7 @@ impl NativeGeometryBuilder {
 
     pub fn add_line_to(self, point: Point) -> Self {
         unsafe {
-            objc2_core_graphics::CGPathAddLineToPoint(
-                Some(&self.0),
-                std::ptr::null(),
-                point.x,
-                point.y,
-            );
+            CGMutablePath::add_line_to_point(Some(&self.0), std::ptr::null(), point.x, point.y);
         }
         self
     }
@@ -457,7 +429,7 @@ impl NativeGeometryBuilder {
         end: Point,
     ) -> Self {
         unsafe {
-            objc2_core_graphics::CGPathAddCurveToPoint(
+            CGMutablePath::add_curve_to_point(
                 Some(&self.0),
                 std::ptr::null(),
                 control_point1.x,
@@ -473,7 +445,7 @@ impl NativeGeometryBuilder {
 
     pub fn add_quad_curve_to(self, control_point: Point, end: Point) -> Self {
         unsafe {
-            objc2_core_graphics::CGPathAddQuadCurveToPoint(
+            CGMutablePath::add_quad_curve_to_point(
                 Some(&self.0),
                 std::ptr::null(),
                 control_point.x,
@@ -501,7 +473,7 @@ impl NativeGeometryBuilder {
     pub fn close(self) -> Self {
         /*self.is_editing_path = false;*/
         unsafe {
-            objc2_core_graphics::CGPathCloseSubpath(Some(&self.0));
+            CGMutablePath::close_subpath(Some(&self.0));
         }
         self
     }
@@ -514,25 +486,21 @@ impl NativeGeometry {
     pub fn new(
         f: impl FnOnce(NativeGeometryBuilder) -> NativeGeometryBuilder,
     ) -> Result<Self, Error> {
-        let path = unsafe { CGPathCreateMutable() };
+        let path = unsafe { CGMutablePath::new() };
         let builder = f(NativeGeometryBuilder(path));
         let dd = builder.0.downcast().map_err(|_| Error)?;
         Ok(Self(dd))
     }
 
     pub fn transform(&self, transform: Transform) -> Result<Self, Error> {
-        let path = unsafe {
-            objc2_core_graphics::CGPathCreateCopyByTransformingPath(
-                Some(&self.0),
-                &transform.into(),
-            )
-        }
-        .ok_or(Error)?;
+        let path =
+            unsafe { CGPath::new_copy_by_transforming_path(Some(&self.0), &transform.into()) }
+                .ok_or(Error)?;
         Ok(Self(path))
     }
 
     pub fn bounds(&self) -> Result<Rectangle, Error> {
-        let bounds = unsafe { objc2_core_graphics::CGPathGetBoundingBox(Some(&self.0)) };
+        let bounds = unsafe { CGPath::bounding_box(Some(&self.0)) };
         Ok(bounds.into())
     }
 }

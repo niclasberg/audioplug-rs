@@ -62,9 +62,9 @@ windows-numerics = "0.2.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 c-enum = "0.2.3"
-block2 = "0.6.0"
-objc2 = "0.6.0"
-objc2-foundation = { version = "0.3.0", features = [
+block2 = "0.6.1"
+objc2 = "0.6.1"
+objc2-foundation = { version = "0.3.1", features = [
 	"NSAttributedString",
 	"NSDictionary",
 	"NSDate",
@@ -75,7 +75,7 @@ objc2-foundation = { version = "0.3.0", features = [
 	"NSTimer",
 	"NSThread",
 ] }
-objc2-app-kit = { version = "0.3.0", features = [
+objc2-app-kit = { version = "0.3.1", features = [
 	"NSApplication",
 	"NSRunningApplication",
 	"NSGraphics",
@@ -89,14 +89,14 @@ objc2-app-kit = { version = "0.3.0", features = [
 	"NSViewController",
 	"NSWindow",
 ] }
-objc2-core-foundation = { version = "0.3.0", features = [
+objc2-core-foundation = { version = "0.3.1", features = [
 	"CFBase",
 	"CFArray",
 	"CFDictionary",
 	"CFCGTypes",
 	"CFNumber"
 ]}
-objc2-core-graphics = { version  = "0.3.0", features = [
+objc2-core-graphics = { version  = "0.3.1", features = [
 	"CGAffineTransform",
 	"CGContext",
 	"CGGeometry",
@@ -104,17 +104,23 @@ objc2-core-graphics = { version  = "0.3.0", features = [
 	"CGImage",
 	"CGFont"
 ]}
-objc2-core-text = { version = "0.3.0", features = [
+objc2-core-image = { version = "0.3.1", features = [
+	"CIContext",
+	"CIImage",
+	"CIKernel",
+	"objc2-metal"
+]}
+objc2-core-text = { version = "0.3.1", features = [
 	"CTFont",
 	"CTFrame",
 	"CTFramesetter",
 	"CTLine"
 ]}
-objc2-core-audio = { version = "0.3.0", features = []}
-objc2-core-audio-types = { version = "0.3.0", features = [
+objc2-core-audio = { version = "0.3.1", features = []}
+objc2-core-audio-types = { version = "0.3.1", features = [
 	"CoreAudioBaseTypes"
 ]}
-objc2-audio-toolbox = { version = "0.3.0", features = [
+objc2-audio-toolbox = { version = "0.3.1", features = [
 	"AUAudioUnit",
 	"AUComponent",
 	"AUParameters",
@@ -122,7 +128,10 @@ objc2-audio-toolbox = { version = "0.3.0", features = [
 	"block2",
 	"objc2-core-audio-types"
 ]}
-objc2-avf-audio = { version = "0.3.0", features = [
+objc2-avf-audio = { version = "0.3.1", features = [
 	"AVAudioFormat",
 	"AVAudioTypes"
+]}
+objc2-metal = { version = "0.3.1", features = [
+	"MTLDevice"
 ]}

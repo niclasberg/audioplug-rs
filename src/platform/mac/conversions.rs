@@ -1,9 +1,9 @@
 use crate::core::{Color, Point, Rectangle, Size, Transform, Vec2};
 use objc2_core_foundation::{
-    CFIndex, CFRange, CFRetained, CFString, CFStringBuiltInEncodings, CFStringCreateWithBytes,
-    CGAffineTransform, CGPoint, CGRect, CGSize,
+    CFIndex, CFRange, CFRetained, CFString, CFStringBuiltInEncodings, CGAffineTransform, CGPoint,
+    CGRect, CGSize,
 };
-use objc2_core_graphics::{CGColor, CGColorCreateSRGB};
+use objc2_core_graphics::CGColor;
 
 impl Into<CGPoint> for Point {
     fn into(self) -> CGPoint {
@@ -87,7 +87,7 @@ impl From<CGAffineTransform> for Transform {
 
 pub fn cgcolor_from_color(color: Color) -> CFRetained<CGColor> {
     unsafe {
-        CGColorCreateSRGB(
+        CGColor::new_srgb(
             color.r.into(),
             color.g.into(),
             color.b.into(),
@@ -98,7 +98,7 @@ pub fn cgcolor_from_color(color: Color) -> CFRetained<CGColor> {
 
 pub fn cfstring_from_str(str: &str) -> CFRetained<CFString> {
     unsafe {
-        CFStringCreateWithBytes(
+        CFString::with_bytes(
             None,
             str.as_ptr(),
             str.len() as CFIndex,

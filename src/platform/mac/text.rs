@@ -2,18 +2,12 @@ use std::{ffi::c_void, mem::MaybeUninit, ops::Deref, ptr::NonNull};
 
 use crate::core::{Color, FontWeight, Point, Rectangle, Size};
 use objc2_core_foundation::{
-    CFArrayApplyFunction, CFArrayGetCount, CFAttributedStringCreateMutable,
-    CFAttributedStringGetLength, CFAttributedStringReplaceString, CFAttributedStringSetAttribute,
     CFDictionary, CFIndex, CFMutableAttributedString, CFRange, CFRetained, CFString, CFType,
     CGFloat, CGPoint, CGRect, CGSize,
 };
-use objc2_core_graphics::{CGColor, CGPath, CGPathCreateWithRect, CGPathGetBoundingBox};
+use objc2_core_graphics::{CGColor, CGPath};
 use objc2_core_text::{
-    kCTFontAttributeName, kCTForegroundColorAttributeName, CTFont, CTFrame, CTFrameGetLineOrigins,
-    CTFrameGetLines, CTFrameGetPath, CTFrameGetVisibleStringRange, CTFramesetter,
-    CTFramesetterCreateFrame, CTFramesetterCreateWithAttributedString,
-    CTFramesetterSuggestFrameSizeWithConstraints, CTLine, CTLineGetOffsetForStringIndex,
-    CTLineGetStringIndexForPosition, CTLineGetStringRange,
+    kCTFontAttributeName, kCTForegroundColorAttributeName, CTFont, CTFrame, CTFramesetter, CTLine,
 };
 
 use super::conversions::{cfrange_contains, cfstring_from_str, cgcolor_from_color};
@@ -26,7 +20,7 @@ pub struct TextLine {
 
 impl TextLine {
     pub fn new(line: CFRetained<CTLine>, origin: CGPoint) -> Self {
-        let char_range = unsafe { CTLineGetStringRange(&line) };
+        let char_range = unsafe { line.string_range() };
         Self {
             line,
             origin,
@@ -35,11 +29,14 @@ impl TextLine {
     }
 
     pub fn offset_for_string_index(&self, index: CFIndex) -> CGFloat {
-        unsafe { CTLineGetOffsetForStringIndex(&self.line, index, std::ptr::null_mut()) }
+        unsafe {
+            self.line
+                .offset_for_string_index(index, std::ptr::null_mut())
+        }
     }
 
     pub fn string_index_for_position(&self, point: CGPoint) -> CFIndex {
-        unsafe { CTLineGetStringIndexForPosition(&self.line, point) }
+        unsafe { self.line.string_index_for_position(point) }
     }
 }
 
@@ -58,23 +55,23 @@ impl TextFrame {
         );
 
         let rect = Rectangle::from_origin(Point::ZERO, size.into());
-        let path = unsafe { CGPathCreateWithRect(rect.into(), std::ptr::null()) };
-        let frame = unsafe { CTFramesetterCreateFrame(&frame_setter, string_range, &path, None) };
+        let path = unsafe { CGPath::with_rect(rect.into(), std::ptr::null()) };
+        let frame = unsafe { frame_setter.frame(string_range, &path, None) };
         let lines = get_lines_from_frame(&frame);
 
         Self { frame, lines }
     }
 
     pub fn get_visible_string_range(&self) -> CFRange {
-        unsafe { CTFrameGetVisibleStringRange(&self.frame) }
+        unsafe { self.frame.visible_string_range() }
     }
 
     pub fn path(&self) -> CFRetained<CGPath> {
-        unsafe { CTFrameGetPath(&self.frame) }
+        unsafe { self.frame.path() }
     }
 
     pub fn bounding_box(&self) -> CGRect {
-        unsafe { CGPathGetBoundingBox(Some(&self.path())) }
+        unsafe { CGPath::bounding_box(Some(&self.path())) }
     }
 }
 
@@ -94,8 +91,7 @@ fn get_suggest_frame_size_with_constraints(
 ) -> (CFRange, CGSize) {
     unsafe {
         let mut fit_range = MaybeUninit::<CFRange>::uninit();
-        let result = CTFramesetterSuggestFrameSizeWithConstraints(
-            &frame_setter,
+        let result = frame_setter.suggest_frame_size_with_constraints(
             string_range,
             frame_attributes,
             constraints,
@@ -108,8 +104,8 @@ fn get_suggest_frame_size_with_constraints(
 
 fn get_lines_from_frame(frame: &CTFrame) -> Vec<TextLine> {
     let lines = unsafe {
-        let lines_array = CTFrameGetLines(&frame);
-        let count = CFArrayGetCount(&lines_array) as usize;
+        let lines_array = frame.lines();
+        let count = lines_array.count() as usize;
         let mut lines = Vec::<CFRetained<CTLine>>::new();
 
         unsafe extern "C-unwind" fn push_line(line_ptr: *const c_void, lines_vec: *mut c_void) {
@@ -118,8 +114,7 @@ fn get_lines_from_frame(frame: &CTFrame) -> Vec<TextLine> {
             lines.push(CFRetained::retain(line));
         }
 
-        CFArrayApplyFunction(
-            &lines_array,
+        lines_array.apply_function(
             CFRange {
                 location: 0,
                 length: count as _,
@@ -133,8 +128,7 @@ fn get_lines_from_frame(frame: &CTFrame) -> Vec<TextLine> {
     let origins = {
         let mut origins = Vec::with_capacity(lines.len());
         unsafe {
-            CTFrameGetLineOrigins(
-                &frame,
+            frame.line_origins(
                 CFRange {
                     location: 0,
                     length: lines.len() as _,
@@ -177,7 +171,7 @@ impl TextLayout {
         builder.set_foreground_color(builder.range(), &color);
         let string_range = builder.range();
         let attributed_string = builder.0;
-        let frame_setter = unsafe { CTFramesetterCreateWithAttributedString(&attributed_string) };
+        let frame_setter = unsafe { CTFramesetter::with_attributed_string(&attributed_string) };
 
         let text_frame = TextFrame::new(&frame_setter, string_range, max_size.into());
 
@@ -191,7 +185,7 @@ impl TextLayout {
     }
 
     pub fn length(&self) -> isize {
-        unsafe { CFAttributedStringGetLength(&self.attributed_string) }
+        self.attributed_string.length()
     }
 
     pub fn range(&self) -> CFRange {
@@ -261,9 +255,9 @@ pub struct AttributedStringBuilder(pub CFRetained<CFMutableAttributedString>);
 
 impl AttributedStringBuilder {
     pub fn new(str: &CFString) -> Self {
-        let attr_str = unsafe { CFAttributedStringCreateMutable(None, 0) }.unwrap();
+        let attr_str = CFMutableAttributedString::new(None, 0).unwrap();
         unsafe {
-            CFAttributedStringReplaceString(
+            CFMutableAttributedString::replace_string(
                 Some(&attr_str),
                 CFRange {
                     location: 0,
@@ -276,7 +270,7 @@ impl AttributedStringBuilder {
     }
 
     pub fn length(&self) -> isize {
-        unsafe { CFAttributedStringGetLength(&self.0) }
+        self.0.length()
     }
 
     pub fn range(&self) -> CFRange {
@@ -296,7 +290,7 @@ impl AttributedStringBuilder {
 
     fn set_attribute(&mut self, range: CFRange, attr_name: &CFString, value: impl AsRef<CFType>) {
         unsafe {
-            CFAttributedStringSetAttribute(
+            CFMutableAttributedString::set_attribute(
                 Some(&self.0),
                 range,
                 Some(attr_name),

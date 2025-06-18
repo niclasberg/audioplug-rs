@@ -7,7 +7,9 @@ use objc2_app_kit::{
     NSEvent, NSGraphicsContext, NSResponder, NSTrackingArea, NSTrackingAreaOptions, NSView,
     NSViewFrameDidChangeNotification,
 };
+use objc2_core_image::CIContext;
 use objc2_foundation::{MainThreadMarker, NSDate, NSNotificationCenter, NSRect, NSTimer};
+use objc2_metal::MTLCreateSystemDefaultDevice;
 
 use super::{Handle, RendererRef};
 use crate::core::Point;
@@ -22,6 +24,7 @@ pub struct Ivars {
     tracking_area: RefCell<Option<Retained<NSTrackingArea>>>,
     timer: RefCell<Option<Retained<NSTimer>>>,
     animation_start: OnceCell<Retained<NSDate>>,
+    ci_context: OnceCell<Retained<CIContext>>,
 }
 
 const CLASS_NAME: &'static str = match option_env!("AUDIOPLUG_VIEW_CLASS_NAME") {
@@ -53,7 +56,7 @@ define_class!(
             let modifiers = get_modifiers(unsafe { event.modifierFlags() });
             let str = unsafe { event.characters() };
             let str = str.map(|str| str.to_string()).filter(|str| str.len() > 0);
-			let repeat_count = if unsafe { event.isARepeat() } { 1 } else { 0 };
+            let repeat_count = if unsafe { event.isARepeat() } { 1 } else { 0 };
             let key_event = KeyEvent::KeyDown { key, modifiers, str, repeat_count };
             self.dispatch_event(WindowEvent::Key(key_event));
         }
@@ -61,7 +64,7 @@ define_class!(
         #[unsafe(method(mouseDown:))]
         fn mouse_down(&self, event: &NSEvent) {
             if let (Some(button), Some(position)) = (mouse_button(event), self.mouse_position(event)) {
-				let modifiers = get_modifiers(unsafe { event.modifierFlags() });
+                let modifiers = get_modifiers(unsafe { event.modifierFlags() });
                 self.dispatch_event(WindowEvent::Mouse(
                     MouseEvent::Down { button, position, modifiers }
                 ))
@@ -71,7 +74,7 @@ define_class!(
         #[unsafe(method(mouseUp:))]
         fn mouse_up(&self, event: &NSEvent) {
             if let (Some(button), Some(position)) = (mouse_button(event), self.mouse_position(event)) {
-				let modifiers = get_modifiers(unsafe { event.modifierFlags() });
+                let modifiers = get_modifiers(unsafe { event.modifierFlags() });
                 self.dispatch_event(WindowEvent::Mouse(
                     MouseEvent::Up { button, position, modifiers }
                 ))
@@ -81,7 +84,7 @@ define_class!(
         #[unsafe(method(mouseMoved:))]
         fn mouse_moved(&self, event: &NSEvent) {
             if let Some(position) = self.mouse_position(event) {
-				let modifiers = get_modifiers(unsafe { event.modifierFlags() });
+                let modifiers = get_modifiers(unsafe { event.modifierFlags() });
                 self.dispatch_event(WindowEvent::Mouse(
                     MouseEvent::Moved { position, modifiers }
                 ))
@@ -91,7 +94,7 @@ define_class!(
         #[unsafe(method(mouseDragged:))]
         fn mouse_dragged(&self, event: &NSEvent) {
             if let Some(position) = self.mouse_position(event) {
-				let modifiers = get_modifiers(unsafe { event.modifierFlags() });
+                let modifiers = get_modifiers(unsafe { event.modifierFlags() });
                 self.dispatch_event(WindowEvent::Mouse(
                     MouseEvent::Moved { position, modifiers }
                 ))
@@ -131,11 +134,15 @@ define_class!(
         fn draw_rect(&self, rect: NSRect) {
             let graphics_context = unsafe { NSGraphicsContext::currentContext() }.unwrap();
             let context = unsafe { graphics_context.CGContext() };
+            let ci_context = self.ivars().ci_context.get_or_init(|| unsafe {
+                let metal_device = MTLCreateSystemDefaultDevice().unwrap();
+                CIContext::contextWithMTLDevice(&metal_device)
+            });
             /*let bg_color = CGColor::from_rgba(1.0, 1.0, 1.0, 1.0);
             context.set_fill_color(&bg_color);
             context.fill_rect(self.frame());*/
 
-            let renderer = RendererRef::new(&context, rect);
+            let renderer = RendererRef::new(&context, &ci_context, rect);
 
             self.ivars().handler.borrow_mut().render(rect.into(), renderer);
         }
@@ -171,6 +178,7 @@ impl View {
             tracking_area,
             timer: RefCell::new(None),
             animation_start: OnceCell::new(),
+            ci_context: OnceCell::new(),
         });
 
         let this: Retained<Self> = if let Some(frame) = frame {

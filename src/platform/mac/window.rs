@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
-use crate::core::{Rectangle, Size};
+use crate::core::Rectangle;
 use crate::platform::WindowHandler;
 use objc2::rc::{Retained, Weak};
 use objc2_app_kit::{NSBackingStoreType, NSView, NSWindow, NSWindowStyleMask};
