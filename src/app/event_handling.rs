@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     app::StatusChange,
-    core::{Cursor, Key, Rectangle},
+    core::{Key, Rectangle},
     platform::WindowEvent,
     KeyEvent, MouseEvent,
 };

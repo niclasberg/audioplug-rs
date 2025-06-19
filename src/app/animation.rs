@@ -2,7 +2,7 @@ use std::{
     any::Any,
     marker::PhantomData,
     ops::{Deref, DerefMut},
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
 };
 
 use super::{
-    accessor::SourceId, layout::request_layout, render::invalidate_widget, AppState, CreateContext,
+    accessor::SourceId, layout::request_layout, render::invalidate_widget, AppState,
     LocalReadContext, NodeId, NodeType, ReactiveContext, ReadContext, Readable, Runtime, Scope,
     ViewContext, WidgetId, WindowId, WriteContext,
 };
