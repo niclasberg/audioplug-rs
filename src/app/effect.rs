@@ -77,14 +77,17 @@ impl EffectState {
     }
 }
 
-pub struct Effect {}
+pub struct Effect {
+    id: NodeId,
+}
 
 impl Effect {
     pub fn new(cx: &mut dyn CreateContext, f: impl Fn(&mut EffectContext) + 'static) -> Self {
         let owner = cx.owner();
-        cx.runtime_mut()
+        let id = cx
+            .runtime_mut()
             .create_effect_node(EffectState { f: Rc::new(f) }, owner, true);
-        Self {}
+        Self { id }
     }
 
     pub fn new_with_state<T: Any>(
@@ -93,7 +96,7 @@ impl Effect {
     ) -> Self {
         let state: Cell<Option<T>> = Cell::new(None);
         let owner = cx.owner();
-        cx.runtime_mut().create_effect_node(
+        let id = cx.runtime_mut().create_effect_node(
             EffectState {
                 f: Rc::new(move |cx: &mut EffectContext| {
                     let new_state = f(cx, state.replace(None));
@@ -103,7 +106,7 @@ impl Effect {
             owner,
             true,
         );
-        Self {}
+        Self { id }
     }
 
     pub fn watch<T: Clone + 'static>(
@@ -113,7 +116,7 @@ impl Effect {
     ) -> Self {
         let owner = cx.owner();
         let source_id = source.get_source_id();
-        cx.runtime_mut().create_binding_node(
+        let id = cx.runtime_mut().create_binding_node(
             source_id,
             BindingState {
                 f: Rc::new(RefCell::new(move |app_state: &mut AppState| {
@@ -125,7 +128,11 @@ impl Effect {
             owner,
         );
 
-        Self {}
+        Self { id }
+    }
+
+    pub fn discard(self, cx: &mut dyn ReactiveContext) {
+        cx.runtime_mut().remove_node(self.id);
     }
 }
 
@@ -141,4 +148,21 @@ impl BindingState {
             f: Rc::new(RefCell::new(f)),
         }
     }
+}
+
+pub trait EventEmitter {
+    type Event;
+
+    fn subscribe(
+        &self,
+        cx: &mut dyn CreateContext,
+        f: impl Fn(&mut WatchContext, Self::Event),
+    ) -> Effect;
+}
+
+pub(super) type HandlerFn = dyn FnMut(&mut WatchContext, &dyn Any);
+
+pub struct EventHandlerState {
+    f: Rc<HandlerFn>,
+    unhandled_events: Vec<Box<dyn Any>>,
 }

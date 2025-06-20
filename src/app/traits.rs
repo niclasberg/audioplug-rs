@@ -1,5 +1,7 @@
 use std::{any::Any, hash::Hash, marker::PhantomData};
 
+use crate::app::Effect;
+
 use super::{
     accessor::{MappedAccessor, SourceId},
     Owner, Runtime, Scope, WindowId,
@@ -188,8 +190,12 @@ where
         Readable::get_source_id(self)
     }
 
-    fn evaluate(&self, ctx: &mut dyn ReadContext) -> B {
-        self.parent.with_ref(ctx, &self.f)
+    fn evaluate(&self, cx: &mut dyn ReadContext) -> B {
+        self.parent.with_ref(cx, &self.f)
+    }
+
+    fn evaluate_untracked(&self, cx: &mut dyn ReactiveContext) -> B {
+        self.parent.with_ref_untracked(cx, &self.f)
     }
 }
 

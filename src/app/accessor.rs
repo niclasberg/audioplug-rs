@@ -10,6 +10,7 @@ use crate::{core::Color, param::ParameterId};
 pub trait MappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;
     fn evaluate(&self, ctx: &mut dyn ReadContext) -> T;
+    fn evaluate_untracked(&self, ctx: &mut dyn ReactiveContext) -> T;
 }
 
 #[derive(Clone, Copy)]
@@ -116,8 +117,8 @@ impl<T: 'static> Accessor<T> {
     ) where
         F: Fn(U, WidgetMut<'_, W>) + 'static,
     {
+        let widget_id = cx.id();
         let create_binding = move |_self: Self, f: F, cx: &mut BuildContext<W>, source_id| {
-            let widget_id = cx.id();
             let state = BindingState::new(move |app_state| {
                 let value = _self.with_ref(app_state, f_map);
                 // Widget might have been removed
@@ -147,7 +148,6 @@ impl<T: 'static> Accessor<T> {
             }
             Self::Computed(computed) => {
                 let value_fn = computed.f.clone();
-                let widget_id = cx.id();
                 let state = EffectState::new(move |cx| {
                     let value = f_map(&value_fn(cx));
                     let widget = cx.widget_mut(widget_id);

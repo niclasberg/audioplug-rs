@@ -8,7 +8,7 @@ use super::{
     WindowId, WriteContext,
 };
 use crate::{
-    app::event_handling::set_mouse_capture_widget,
+    app::{effect::WatchContext, event_handling::set_mouse_capture_widget},
     core::{Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
@@ -16,6 +16,7 @@ use crate::{
 use indexmap::IndexSet;
 use slotmap::{Key, SecondaryMap, SlotMap};
 use std::{
+    any::Any,
     cell::RefCell,
     rc::{Rc, Weak},
 };
@@ -28,6 +29,9 @@ pub(super) enum Task {
     UpdateBinding {
         f: Weak<RefCell<BindingFn>>,
         node_id: NodeId,
+    },
+    HandleEvent {
+        f: Box<dyn FnOnce(&mut WatchContext)>,
     },
     UpdateAnimation {
         node_id: NodeId,
@@ -60,7 +64,7 @@ impl Task {
                     .pending_node_animations
                     .insert(node_id);
             }
-            _ => {}
+            Task::HandleEvent { .. } => {}
         }
     }
 }
