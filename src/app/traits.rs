@@ -56,11 +56,11 @@ impl<'a> LocalReadContext<'a> {
 
 impl ReactiveContext for LocalReadContext<'_> {
     fn runtime(&self) -> &Runtime {
-        &self.runtime
+        self.runtime
     }
 
     fn runtime_mut(&mut self) -> &mut Runtime {
-        &mut self.runtime
+        self.runtime
     }
 }
 

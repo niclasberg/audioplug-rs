@@ -156,7 +156,7 @@ impl RenderContext<'_, '_> {
 
         {
             let widget_data = self.app_state.widget_data_ref(self.id);
-            if let Some(shadow) = widget_data.style.box_shadow.clone() {
+            if let Some(shadow) = widget_data.style.box_shadow {
                 if shadow.kind == ShadowKind::InnerShadow {
                     self.renderer
                         .draw_shadow((&widget_data.shape()).into(), shadow);

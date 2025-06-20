@@ -3,7 +3,7 @@ use super::{
     TypedWidgetId, ViewContext, Widget, WidgetFlags, WidgetId,
 };
 use crate::style::{Style, StyleBuilder};
-use std::{marker::PhantomData, ops::Deref};
+use std::marker::PhantomData;
 
 pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn Widget>>;
 
