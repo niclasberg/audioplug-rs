@@ -2,8 +2,9 @@ mod accessor;
 mod animation;
 mod app_state;
 mod clipboard;
-pub mod diff;
+mod diff;
 mod effect;
+mod event_channel;
 mod event_handling;
 mod host_handle;
 mod layout;
@@ -22,16 +23,19 @@ mod widget_data;
 mod widget_ref;
 mod window;
 
-use std::{cell::RefCell, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
 
 pub use accessor::{Accessor, Computed};
 pub use animation::{
     Animated, AnimatedFn, Animation, AnimationContext, Easing, SpringOptions, TweenOptions,
 };
 pub(crate) use app_state::AppState;
-pub use effect::{Effect, EffectState};
+pub use effect::{Effect, EffectState, WatchContext};
+pub use event_channel::{create_event_channel, EventChannel, EventReceiver};
 pub use event_handling::{handle_window_event, CallbackContext, EventContext, MouseEventContext};
+use fxhash::FxBuildHasher;
 pub use host_handle::HostHandle;
+use indexmap::IndexSet;
 pub use layout::{layout_window, LayoutContext};
 pub use memo::{Memo, MemoContext};
 pub use param::{ParamContext, ParamEditor, ParamSignal};
@@ -63,6 +67,9 @@ slotmap::new_key_type! {
 slotmap::new_key_type! {
     pub struct WindowId;
 }
+
+type FxHashMap<K, V> = HashMap<K, V, FxBuildHasher>;
+type FxIndexSet<T> = IndexSet<T, FxBuildHasher>;
 
 pub struct TypedWidgetId<W: Widget + ?Sized> {
     pub id: WidgetId,

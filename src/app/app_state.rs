@@ -8,11 +8,15 @@ use super::{
     WindowId, WriteContext,
 };
 use crate::{
-    app::{effect::WatchContext, event_handling::set_mouse_capture_widget},
+    app::{
+        effect::WatchContext, event_channel::HandleEventFn,
+        event_handling::set_mouse_capture_widget, FxIndexSet,
+    },
     core::{Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
 };
+use fxhash::{FxBuildHasher, FxHasher};
 use indexmap::IndexSet;
 use slotmap::{Key, SecondaryMap, SlotMap};
 use std::{
@@ -31,7 +35,8 @@ pub(super) enum Task {
         node_id: NodeId,
     },
     HandleEvent {
-        f: Box<dyn FnOnce(&mut WatchContext)>,
+        f: Weak<HandleEventFn>,
+        event: Rc<dyn Any>,
     },
     UpdateAnimation {
         node_id: NodeId,
@@ -64,7 +69,12 @@ impl Task {
                     .pending_node_animations
                     .insert(node_id);
             }
-            Task::HandleEvent { .. } => {}
+            Task::HandleEvent { f, event } => {
+                if let Some(f) = f.upgrade() {
+                    let mut cx = WatchContext { app_state };
+                    f(&mut cx, &event);
+                }
+            }
         }
     }
 }
@@ -73,8 +83,8 @@ pub(super) struct WindowState {
     pub(super) handle: platform::Handle,
     pub(super) root_widget: WidgetId,
     pub(super) focus_widget: Option<WidgetId>,
-    pub(super) pending_widget_animations: IndexSet<WidgetId>,
-    pub(super) pending_node_animations: IndexSet<NodeId>,
+    pub(super) pending_widget_animations: FxIndexSet<WidgetId>,
+    pub(super) pending_node_animations: FxIndexSet<NodeId>,
     pub(super) theme_signal: Signal<WindowTheme>,
 }
 
@@ -143,8 +153,8 @@ impl AppState {
             handle,
             root_widget: WidgetId::null(),
             focus_widget: None,
-            pending_widget_animations: IndexSet::new(),
-            pending_node_animations: IndexSet::new(),
+            pending_widget_animations: FxIndexSet::with_hasher(FxBuildHasher::new()),
+            pending_node_animations: FxIndexSet::with_hasher(FxBuildHasher::new()),
             theme_signal,
         });
 
@@ -191,6 +201,8 @@ impl AppState {
 
         id
     }
+
+    pub fn replace_widget<V: View>(&mut self, id: WidgetId, view: V) {}
 
     pub fn remove_window(&mut self, id: WindowId) {
         let window = self.windows.remove(id).expect("Window not found");

@@ -1,8 +1,10 @@
+use crate::app::{diff::DiffOp, Effect, ReadableSeq};
+
 use super::{
     effect::BindingState, Accessor, BuildContext, NodeId, Owner, ReactiveContext, Readable, View,
     Widget,
 };
-use std::{collections::HashMap, hash::Hash, ops::Range};
+use std::{cell::Cell, collections::HashMap, hash::Hash, ops::Range};
 
 pub trait ViewSequence: Sized + 'static {
     fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>);
@@ -60,6 +62,98 @@ impl<const N: usize, V: View> ViewSequence for [V; N] {
         for child in self {
             cx.add_child(child);
         }
+    }
+}
+
+pub trait MapToViews {
+    type Element;
+    fn map_to_views<V: View, F: Fn(&Self::Element) -> V + 'static>(self, f: F)
+        -> impl ViewSequence;
+}
+
+struct MapArrayToViews<R, F> {
+    readable: R,
+    f: F,
+}
+
+impl<const N: usize, T, R> MapToViews for R
+where
+    T: PartialEq + Clone + 'static,
+    R: Readable<Value = [T; N]> + 'static,
+{
+    type Element = T;
+
+    fn map_to_views<V: View, F: Fn(&Self::Element) -> V + 'static>(
+        self,
+        f: F,
+    ) -> impl ViewSequence {
+        MapArrayToViews { readable: self, f }
+    }
+}
+
+impl<const N: usize, T, V, R, F> ViewSequence for MapArrayToViews<R, F>
+where
+    T: PartialEq + Clone + 'static,
+    R: Readable<Value = [T; N]> + 'static,
+    F: Fn(&T) -> V + 'static,
+    V: View,
+{
+    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+        let values = self.readable.get(cx);
+
+        for value in values.iter() {
+            cx.add_child((self.f)(value));
+        }
+
+        let id = cx.id();
+        let old_values = values;
+        Effect::watch(cx, self.readable, move |cx, values| {
+            let mut widget = cx.widget_mut(id);
+            for i in 0..N {
+                if values[i] != old_values[i] {}
+            }
+        });
+    }
+}
+
+pub struct MapToViews2<R, F> {
+    readable_seq: R,
+    f_map: F,
+}
+
+impl<V, R, F> ViewSequence for MapToViews2<R, F>
+where
+    V: View,
+    R: 'static + ReadableSeq,
+    R::Value: 'static,
+    F: Fn(&R::Element) -> V + 'static,
+{
+    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+        let views: Vec<V> = self
+            .readable_seq
+            .with_ref_iter(cx, |iter| iter.map(self.f_map).collect());
+
+        for view in views {
+            cx.add_child(view);
+        }
+
+        let id = cx.id();
+        self.readable_seq.subscribe_seq_diff(cx, move |cx, diff| {
+            let mut widget_mut = cx.widget_mut(id);
+            match diff {
+                DiffOp::Remove { index, len } => {
+                    for i in *index..(*index + *len) {
+                        widget_mut.remove_child(i);
+                    }
+                }
+                DiffOp::Change { index, new_value } => todo!(),
+                DiffOp::Insert { index, values } => todo!(),
+                DiffOp::Move {
+                    old_index,
+                    new_index,
+                } => todo!(),
+            }
+        });
     }
 }
 

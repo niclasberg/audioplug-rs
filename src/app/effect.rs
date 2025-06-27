@@ -42,7 +42,7 @@ impl ReadContext for EffectContext<'_> {
 impl WriteContext for EffectContext<'_> {}
 
 pub struct WatchContext<'a> {
-    app_state: &'a mut AppState,
+    pub(super) app_state: &'a mut AppState,
 }
 
 impl WatchContext<'_> {
@@ -112,7 +112,7 @@ impl Effect {
     pub fn watch<T: Clone + 'static>(
         cx: &mut dyn CreateContext,
         source: impl Readable<Value = T> + 'static,
-        f: impl Fn(&mut WatchContext, T) + 'static,
+        mut f: impl FnMut(&mut WatchContext, T) + 'static,
     ) -> Self {
         let owner = cx.owner();
         let source_id = source.get_source_id();
@@ -148,21 +148,4 @@ impl BindingState {
             f: Rc::new(RefCell::new(f)),
         }
     }
-}
-
-pub trait EventEmitter {
-    type Event;
-
-    fn subscribe(
-        &self,
-        cx: &mut dyn CreateContext,
-        f: impl Fn(&mut WatchContext, Self::Event),
-    ) -> Effect;
-}
-
-pub(super) type HandlerFn = dyn FnMut(&mut WatchContext, &dyn Any);
-
-pub struct EventHandlerState {
-    f: Rc<HandlerFn>,
-    unhandled_events: Vec<Box<dyn Any>>,
 }

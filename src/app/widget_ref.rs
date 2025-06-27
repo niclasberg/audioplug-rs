@@ -129,6 +129,22 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         request_layout(self.app_state, self.id);
     }
 
+    pub fn replace_child<V: View>(&mut self, index: usize, view: V) {
+        let child_id = self.data().children[index];
+        self.app_state.remove_widget(child_id);
+        //self.app_state.add_widget(parent_id, view);
+    }
+
+    pub fn swap_children(&mut self, first_id: WidgetId, second_id: WidgetId) {
+        let first_index = self.index_of_child(first_id).unwrap();
+        let second_index = self.index_of_child(second_id).unwrap();
+        self.data_mut().children.swap(first_index, second_index);
+    }
+
+    pub fn index_of_child(&self, id: WidgetId) -> Option<usize> {
+        self.data().children.iter().position(|x| *x == id)
+    }
+
     pub fn child_iter(&self) -> ChildIter<'_> {
         let ptr_range = self.data().children.as_ptr_range();
         ChildIter {

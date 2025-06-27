@@ -1,6 +1,6 @@
 use std::{any::Any, hash::Hash, marker::PhantomData};
 
-use crate::app::Effect;
+use crate::app::{diff::DiffOp, event_channel::EventSubscription, Effect, WatchContext};
 
 use super::{
     accessor::{MappedAccessor, SourceId},
@@ -134,6 +134,26 @@ pub trait Readable {
             key_fn: f,
         }
     }
+}
+
+pub trait ReadableSeq: Readable {
+    type Element;
+    type Iter<'a>: Iterator<Item = &'a Self::Element>
+    where
+        Self::Value: 'a,
+        Self::Element: 'a;
+
+    fn with_ref_iter<'a, R>(
+        &'a self,
+        cx: &'a mut dyn ReadContext,
+        f: impl FnOnce(Self::Iter<'a>) -> R,
+    ) -> R;
+
+    fn subscribe_seq_diff(
+        &self,
+        cx: &mut dyn CreateContext,
+        f: impl Fn(&mut WatchContext, &DiffOp<Self::Element>),
+    ) -> EventSubscription;
 }
 
 #[derive(Clone, Copy)]

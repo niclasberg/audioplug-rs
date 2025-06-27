@@ -3,14 +3,20 @@ use super::{
     animation::{AnimationState, DerivedAnimationState},
     app_state::Task,
     effect::{BindingState, EffectState},
+    event_channel::EventHandlerState,
     memo::MemoState,
     signal::SignalState,
     NodeId, ReactiveContext, ReadContext, WidgetId, WindowId, WriteContext,
 };
-use crate::param::{AnyParameterMap, ParamRef, ParameterId};
+use crate::{
+    app::FxHashMap,
+    param::{AnyParameterMap, ParamRef, ParameterId},
+};
+use fxhash::FxBuildHasher;
 use indexmap::IndexSet;
 use slotmap::{SecondaryMap, SlotMap};
 use std::{
+    any::Any,
     collections::{HashMap, HashSet, VecDeque},
     rc::Rc,
 };
@@ -61,18 +67,20 @@ pub enum NodeType {
     Binding(BindingState),
     Animation(AnimationState),
     DerivedAnimation(DerivedAnimationState),
+    EventEmitter,
+    EventHandler(EventHandlerState),
 }
 
 pub struct SubscriberMap {
     pub(super) sources: SecondaryMap<NodeId, IndexSet<NodeId>>,
     pub(super) observers: SecondaryMap<NodeId, IndexSet<NodeId>>,
-    parameter_subscriptions: HashMap<ParameterId, IndexSet<NodeId>>,
+    parameter_subscriptions: FxHashMap<ParameterId, IndexSet<NodeId>>,
     parameter_dependencies: SecondaryMap<NodeId, IndexSet<ParameterId>>,
 }
 
 impl SubscriberMap {
     fn new(parameter_ids: &Vec<ParameterId>) -> Self {
-        let mut parameter_subscriptions = HashMap::new();
+        let mut parameter_subscriptions = HashMap::with_hasher(FxBuildHasher::new());
         for &parameter_id in parameter_ids {
             parameter_subscriptions.insert(parameter_id, IndexSet::new());
         }
@@ -155,20 +163,20 @@ pub struct Runtime {
     pub(super) pending_tasks: VecDeque<Task>,
     pub(super) parameters: Rc<dyn AnyParameterMap>,
     scratch_buffer: VecDeque<NodeId>,
-    child_nodes: SecondaryMap<NodeId, HashSet<NodeId>>,
-    widget_bindings: SecondaryMap<WidgetId, HashSet<NodeId>>,
+    nodes_owned_by_node: SecondaryMap<NodeId, HashSet<NodeId>>,
+    nodes_owned_by_widget: SecondaryMap<WidgetId, HashSet<NodeId>>,
 }
 
 impl Runtime {
     pub fn new(parameter_map: Rc<dyn AnyParameterMap>) -> Self {
         Self {
             nodes: Default::default(),
-            child_nodes: Default::default(),
             subscriptions: SubscriberMap::new(&parameter_map.parameter_ids()),
             pending_tasks: Default::default(),
             parameters: parameter_map,
             scratch_buffer: Default::default(),
-            widget_bindings: Default::default(),
+            nodes_owned_by_node: Default::default(),
+            nodes_owned_by_widget: Default::default(),
         }
     }
 
@@ -240,6 +248,10 @@ impl Runtime {
         id
     }
 
+    pub(crate) fn create_event_emitter(&mut self, owner: Option<Owner>) -> NodeId {
+        self.create_node(NodeType::EventEmitter, NodeState::Clean, owner)
+    }
+
     fn create_node(
         &mut self,
         node_type: NodeType,
@@ -252,14 +264,14 @@ impl Runtime {
 
         match owner {
             Some(Owner::Widget(widget_id)) => {
-                self.widget_bindings
+                self.nodes_owned_by_widget
                     .entry(widget_id)
                     .unwrap()
                     .or_default()
                     .insert(id);
             }
             Some(Owner::Node(node_id)) => {
-                self.child_nodes
+                self.nodes_owned_by_node
                     .entry(node_id)
                     .unwrap()
                     .or_default()
@@ -272,7 +284,7 @@ impl Runtime {
     }
 
     pub(super) fn clear_nodes_for_widget(&mut self, widget_id: WidgetId) {
-        if let Some(bindings) = self.widget_bindings.remove(widget_id) {
+        if let Some(bindings) = self.nodes_owned_by_widget.remove(widget_id) {
             for node_id in bindings {
                 self.remove_node(node_id);
             }
@@ -282,6 +294,11 @@ impl Runtime {
     pub fn remove_node(&mut self, id: NodeId) {
         self.subscriptions.remove_node(id);
         self.nodes.remove(id).expect("Missing node");
+        if let Some(child_ids) = self.nodes_owned_by_node.remove(id) {
+            for child_id in child_ids {
+                self.remove_node(child_id);
+            }
+        }
     }
 
     pub fn get_node(&self, node_id: NodeId) -> &Node {
@@ -422,6 +439,12 @@ impl Runtime {
                 }
                 NodeType::Trigger => panic!("Triggers cannot depend on other reactive nodes"),
                 NodeType::Signal(_) => panic!("Signals cannot depend on other reactive nodes"),
+                NodeType::EventEmitter => {
+                    panic!("Event emitters cannot depend on other reactive nodes")
+                }
+                NodeType::EventHandler(..) => {
+                    panic!("Event handlers should not be notified, use publish_event instead")
+                }
                 NodeType::TmpRemoved => panic!("Circular dependency?"),
             }
             std::mem::swap(&mut self.nodes[node_id].node_type, &mut node_type);
@@ -450,6 +473,8 @@ impl Runtime {
     pub(super) fn take_tasks(&mut self) -> VecDeque<Task> {
         std::mem::take(&mut self.pending_tasks)
     }
+
+    pub fn publish_event(&mut self, source_id: NodeId, event: Rc<dyn Any>) {}
 
     pub(super) fn request_animation(&mut self, window_id: WindowId, node_id: NodeId) {
         let task = Task::UpdateAnimation { node_id, window_id };

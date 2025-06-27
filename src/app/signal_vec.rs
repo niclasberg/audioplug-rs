@@ -1,5 +1,7 @@
 use std::{any::Any, marker::PhantomData};
 
+use crate::app::{MapToViews, View, ViewSequence};
+
 use super::{
     accessor::SourceId, signal::SignalState, CreateContext, NodeId, NodeType, Owner, Readable,
     Runtime, Trigger, WriteContext,
@@ -93,6 +95,31 @@ impl<T: Any> Readable for SignalVec<T> {
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
         self.with_inner(cx.runtime(), move |value| f(&value.values))
+    }
+}
+
+struct SignalVecViewSeq<T, F> {
+    signal_vec: SignalVec<T>,
+    f: F,
+}
+
+impl<T: 'static, F: 'static> ViewSequence for SignalVecViewSeq<T, F> {
+    fn build_seq<W: super::Widget>(self, cx: &mut super::BuildContext<W>) {
+        todo!()
+    }
+}
+
+impl<T: 'static> MapToViews for SignalVec<T> {
+    type Element = T;
+
+    fn map_to_views<V: View, F: Fn(&Self::Element) -> V + 'static>(
+        self,
+        f: F,
+    ) -> impl super::ViewSequence {
+        SignalVecViewSeq {
+            signal_vec: self,
+            f,
+        }
     }
 }
 
