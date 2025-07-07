@@ -73,6 +73,14 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
     pub fn layout_requested(&self) -> bool {
         self.data().flag_is_set(WidgetFlags::NEEDS_LAYOUT)
     }
+
+    pub(super) fn unchecked_cast<W2: 'a + Widget + ?Sized>(self) -> WidgetRef<'a, W2> {
+        WidgetRef {
+            app_state: self.app_state,
+            id: self.id,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl Deref for WidgetRef<'_, dyn Widget> {
@@ -118,8 +126,13 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         self.data().children.len()
     }
 
-    pub fn add_child<V: View>(&mut self, view: V) {
-        let widget_id = self.app_state.add_widget(self.id, view);
+    pub fn push_child<V: View>(&mut self, view: V) {
+        let widget_id = self.app_state.add_widget(self.id, view, None);
+        request_layout(self.app_state, widget_id);
+    }
+
+    pub fn insert_child<V: View>(&mut self, view: V, index: usize) {
+        let widget_id = self.app_state.add_widget(self.id, view, Some(index));
         request_layout(self.app_state, widget_id);
     }
 
@@ -130,15 +143,12 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 
     pub fn replace_child<V: View>(&mut self, index: usize, view: V) {
-        let child_id = self.data().children[index];
-        self.app_state.remove_widget(child_id);
-        //self.app_state.add_widget(parent_id, view);
+        let id = self.data().children[index];
+        self.app_state.replace_widget(id, view);
     }
 
-    pub fn swap_children(&mut self, first_id: WidgetId, second_id: WidgetId) {
-        let first_index = self.index_of_child(first_id).unwrap();
-        let second_index = self.index_of_child(second_id).unwrap();
-        self.data_mut().children.swap(first_index, second_index);
+    pub fn swap_children(&mut self, from_index: usize, to_index: usize) {
+        self.data_mut().children.swap(from_index, to_index);
     }
 
     pub fn index_of_child(&self, id: WidgetId) -> Option<usize> {
@@ -193,6 +203,10 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
 
     pub fn layout_requested(&self) -> bool {
         self.data().flag_is_set(WidgetFlags::NEEDS_LAYOUT)
+    }
+
+    pub(super) fn unchecked_cast<W2: 'a + Widget + ?Sized>(self) -> WidgetMut<'a, W2> {
+        unsafe { std::mem::transmute(self) }
     }
 }
 

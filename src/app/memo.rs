@@ -1,5 +1,7 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
+use crate::app::Accessor;
+
 use super::{
     accessor::SourceId, CreateContext, NodeId, NodeType, ReactiveContext, ReadContext, Readable,
     Runtime, Scope,
@@ -84,6 +86,12 @@ impl<T: Any> Memo<T> {
     }
 }
 
+impl<T> From<Memo<T>> for Accessor<T> {
+    fn from(value: Memo<T>) -> Self {
+        Self::Memo(value)
+    }
+}
+
 impl<T: 'static> Readable for Memo<T> {
     type Value = T;
 
@@ -93,26 +101,33 @@ impl<T: 'static> Readable for Memo<T> {
 
     fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         let scope = cx.scope();
-        cx.runtime_mut().update_if_necessary(self.id);
-        let value = match &cx.runtime_mut().get_node_mut(self.id).node_type {
-            NodeType::Memo(state) => state
-                .value
-                .as_ref()
-                .expect("Memo should have been evaluated before accessed")
-                .as_ref(),
-            _ => unreachable!(),
-        };
-        let r = f(value.downcast_ref().expect("Memo had wrong type"));
+        let r = f(update_and_get_memo_value(cx, self.id)
+            .downcast_ref()
+            .expect("Memo had wrong type"));
         cx.runtime_mut().track(self.id, scope);
         r
     }
 
     fn with_ref_untracked<R>(
         &self,
-        _cx: &mut dyn ReactiveContext,
-        _f: impl FnOnce(&Self::Value) -> R,
+        cx: &mut dyn ReactiveContext,
+        f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
-        todo!()
+        f(update_and_get_memo_value(cx, self.id)
+            .downcast_ref()
+            .expect("Memo had wrong type"))
+    }
+}
+
+fn update_and_get_memo_value(cx: &mut dyn ReactiveContext, id: NodeId) -> &dyn Any {
+    cx.runtime_mut().update_if_necessary(id);
+    match &cx.runtime_mut().get_node_mut(id).node_type {
+        NodeType::Memo(state) => state
+            .value
+            .as_ref()
+            .expect("Memo should have been evaluated before accessed")
+            .as_ref(),
+        _ => unreachable!(),
     }
 }
 

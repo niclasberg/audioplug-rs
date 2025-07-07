@@ -2,10 +2,10 @@ use std::rc::Rc;
 
 use super::{
     effect::BindingState, signal::ReadSignal, Animated, AnimatedFn, Brush, BuildContext,
-    EffectState, LinearGradient, Mapped, Memo, NodeId, Owner, ParamSignal, ReactiveContext,
-    ReadContext, Readable, Signal, Widget, WidgetMut,
+    EffectState, LinearGradient, Memo, NodeId, Owner, ParamSignal, ReactiveContext, ReadContext,
+    Readable, Signal, Widget, WidgetMut,
 };
-use crate::{core::Color, param::ParameterId};
+use crate::{app::Effect, core::Color, param::ParameterId};
 
 pub trait MappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;
@@ -118,33 +118,50 @@ impl<T: 'static> Accessor<T> {
         F: Fn(U, WidgetMut<'_, W>) + 'static,
     {
         let widget_id = cx.id();
-        let create_binding = move |_self: Self, f: F, cx: &mut BuildContext<W>, source_id| {
-            let state = BindingState::new(move |app_state| {
-                let value = _self.with_ref(app_state, f_map);
-                // Widget might have been removed
-                if app_state.widgets.contains_key(widget_id.id) {
+        match self {
+            Self::Signal(signal) => {
+                Effect::watch(cx, signal, move |cx, value| {
+                    f(f_map(value), cx.widget_mut(widget_id))
+                });
+            }
+            Self::ReadSignal(signal) => {
+                Effect::watch(cx, signal, move |cx, value| {
+                    f(f_map(value), cx.widget_mut(widget_id))
+                });
+            }
+            Self::Memo(memo) => {
+                Effect::watch(cx, memo, move |cx, value| {
+                    f(f_map(value), cx.widget_mut(widget_id))
+                });
+            }
+            Self::Parameter(param) => {
+                Effect::watch(cx, param, move |cx, value| {
+                    f(f_map(value), cx.widget_mut(widget_id))
+                });
+            }
+            Self::Animated(animated) => {
+                Effect::watch(cx, animated, move |cx, value| {
+                    f(f_map(value), cx.widget_mut(widget_id))
+                });
+            }
+            Self::AnimatedFn(animated) => {
+                Effect::watch(cx, animated, move |cx, value| {
+                    f(f_map(value), cx.widget_mut(widget_id))
+                });
+            }
+            Self::Mapped(ref mapped) => {
+                let source_id = mapped.get_source_id();
+                let state = BindingState::new(move |app_state| {
+                    let value = self.with_ref(app_state, f_map);
                     let node = WidgetMut::new(app_state, widget_id.id);
                     f(value, node);
-                }
-            });
+                });
 
-            cx.runtime_mut().create_binding_node(
-                source_id,
-                state,
-                Some(Owner::Widget(widget_id.id)),
-            );
-        };
-
-        match self {
-            Self::Signal(signal) => create_binding(self, f, cx, SourceId::Node(signal.id)),
-            Self::ReadSignal(signal) => create_binding(self, f, cx, SourceId::Node(signal.id)),
-            Self::Memo(memo) => create_binding(self, f, cx, SourceId::Node(memo.id)),
-            Self::Parameter(param) => create_binding(self, f, cx, SourceId::Parameter(param.id)),
-            Self::Animated(animated) => create_binding(self, f, cx, SourceId::Node(animated.id)),
-            Self::AnimatedFn(animated) => create_binding(self, f, cx, SourceId::Node(animated.id)),
-            Self::Mapped(ref mapped) => {
-                let id = mapped.get_source_id();
-                create_binding(self, f, cx, id)
+                cx.runtime_mut().create_binding_node(
+                    source_id,
+                    state,
+                    Some(Owner::Widget(widget_id.id)),
+                );
             }
             Self::Computed(computed) => {
                 let value_fn = computed.f.clone();
@@ -170,46 +187,6 @@ impl<T: Default> Default for Accessor<T> {
 impl<T> From<T> for Accessor<T> {
     fn from(value: T) -> Self {
         Self::Const(value)
-    }
-}
-
-impl<T> From<Signal<T>> for Accessor<T> {
-    fn from(value: Signal<T>) -> Self {
-        Self::Signal(value)
-    }
-}
-
-impl<T> From<ReadSignal<T>> for Accessor<T> {
-    fn from(value: ReadSignal<T>) -> Self {
-        Self::ReadSignal(value)
-    }
-}
-
-impl<T> From<Memo<T>> for Accessor<T> {
-    fn from(value: Memo<T>) -> Self {
-        Self::Memo(value)
-    }
-}
-
-impl<T> From<ParamSignal<T>> for Accessor<T> {
-    fn from(value: ParamSignal<T>) -> Self {
-        Self::Parameter(value)
-    }
-}
-
-impl<T> From<Animated<T>> for Accessor<T> {
-    fn from(value: Animated<T>) -> Self {
-        Self::Animated(value)
-    }
-}
-
-impl<S, T, R, F> From<Mapped<S, T, R, F>> for Accessor<R>
-where
-    S: Readable,
-    Mapped<S, T, R, F>: MappedAccessor<R> + 'static,
-{
-    fn from(value: Mapped<S, T, R, F>) -> Self {
-        Self::Mapped(Rc::new(value))
     }
 }
 

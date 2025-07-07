@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use crate::app::{MapToViews, View, ViewSequence};
+use crate::app::{Accessor, View, ViewSequence};
 
 use super::{
     accessor::SourceId, signal::SignalState, CreateContext, NodeId, NodeType, Owner, Readable,
@@ -76,6 +76,12 @@ impl<T: Any> SignalVec<T> {
     }
 }
 
+impl<T> From<SignalVec<T>> for Accessor<Vec<T>> {
+    fn from(value: SignalVec<T>) -> Self {
+        todo!()
+    }
+}
+
 impl<T: Any> Readable for SignalVec<T> {
     type Value = Vec<T>;
 
@@ -98,36 +104,17 @@ impl<T: Any> Readable for SignalVec<T> {
     }
 }
 
-struct SignalVecViewSeq<T, F> {
-    signal_vec: SignalVec<T>,
-    f: F,
-}
-
-impl<T: 'static, F: 'static> ViewSequence for SignalVecViewSeq<T, F> {
-    fn build_seq<W: super::Widget>(self, cx: &mut super::BuildContext<W>) {
-        todo!()
-    }
-}
-
-impl<T: 'static> MapToViews for SignalVec<T> {
-    type Element = T;
-
-    fn map_to_views<V: View, F: Fn(&Self::Element) -> V + 'static>(
-        self,
-        f: F,
-    ) -> impl super::ViewSequence {
-        SignalVecViewSeq {
-            signal_vec: self,
-            f,
-        }
-    }
-}
-
 pub struct AtIndex<Parent, T> {
     index: usize,
     parent: Parent,
     id: NodeId,
     _phantom2: PhantomData<*const T>,
+}
+
+impl<T: Any> From<AtIndex<SignalVec<T>, T>> for Accessor<T> {
+    fn from(value: AtIndex<SignalVec<T>, T>) -> Self {
+        todo!()
+    }
 }
 
 impl<T: Any> Readable for AtIndex<SignalVec<T>, T> {

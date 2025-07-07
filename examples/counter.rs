@@ -10,7 +10,7 @@ fn main() {
     let mut app = App::new();
     let _ = Window::open(
         &mut app,
-        Scoped::new(|cx| {
+        Stateful::new(|cx| {
             let count = Signal::new(cx, 0);
 
             let trigger = Trigger::new(cx);
@@ -22,9 +22,9 @@ fn main() {
                 Column::new((
                     Label::new(count.map(|cnt| format!("Count: {}", cnt))),
                     Button::new(Label::new("Increase"))
-                        .on_click(move |cx| count.update(cx, |value| *value += 1)),
+                        .on_click(move |cx| count.update(cx, |_, value| *value += 1)),
                     Button::new(Label::new("Decrease"))
-                        .on_click(move |cx| count.update(cx, |value| *value -= 1)),
+                        .on_click(move |cx| count.update(cx, |_, value| *value -= 1)),
                     Button::new(Label::new("Trigger")).on_click(move |cx| trigger.notify(cx)),
                     Label::new("No children to show")
                         .style(|style| style.hidden(count.map(|x| *x > 0))),
@@ -65,11 +65,11 @@ fn main() {
             .on_key_event(move |cx, event| match event {
                 audioplug::KeyEvent::KeyDown { key, .. } => match key {
                     Key::Up => {
-                        count.update(cx, |value| *value += 1);
+                        count.update(cx, |_, value| *value += 1);
                         EventStatus::Handled
                     }
                     Key::Down => {
-                        count.update(cx, |value| *value -= 1);
+                        count.update(cx, |_, value| *value -= 1);
                         EventStatus::Handled
                     }
                     _ => EventStatus::Ignored,

@@ -47,7 +47,7 @@ struct GatherParamPtrsVisitor<'a> {
     groups_vec: &'a mut Vec<(Option<GroupId>, *const dyn AnyParameterGroup)>,
 }
 
-impl<'a> GatherParamPtrsVisitor<'a> {
+impl GatherParamPtrsVisitor<'_> {
     fn add_param_ptr(&mut self, p: &dyn AnyParameter) {
         let id = p.info().id();
         let param_ptr = p as *const dyn AnyParameter;
@@ -56,7 +56,7 @@ impl<'a> GatherParamPtrsVisitor<'a> {
     }
 }
 
-impl<'a> ParamVisitor for GatherParamPtrsVisitor<'a> {
+impl ParamVisitor for GatherParamPtrsVisitor<'_> {
     fn bool_parameter(&mut self, p: &super::BoolParameter) {
         self.add_param_ptr(p);
     }

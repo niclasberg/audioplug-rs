@@ -8,13 +8,13 @@ pub struct ScopeContext<'a> {
     app_state: &'a mut AppState,
 }
 
-impl<'a> ScopeContext<'a> {
+impl ScopeContext<'_> {
     pub fn theme(&self) -> ReadSignal<WindowTheme> {
         self.app_state.window_theme_signal(self.id)
     }
 }
 
-impl<'a> ReactiveContext for ScopeContext<'a> {
+impl ReactiveContext for ScopeContext<'_> {
     fn runtime(&self) -> &crate::app::Runtime {
         self.app_state.runtime()
     }
@@ -24,23 +24,23 @@ impl<'a> ReactiveContext for ScopeContext<'a> {
     }
 }
 
-impl<'a> CreateContext for ScopeContext<'a> {
+impl CreateContext for ScopeContext<'_> {
     fn owner(&self) -> Option<crate::app::Owner> {
         Some(crate::app::Owner::Widget(self.id))
     }
 }
 
-impl<'a> ViewContext for ScopeContext<'a> {
+impl ViewContext for ScopeContext<'_> {
     fn window_id(&self) -> crate::app::WindowId {
         self.app_state.get_window_id_for_widget(self.id)
     }
 }
 
-pub struct Scoped<F> {
+pub struct Stateful<F> {
     f: F,
 }
 
-impl<V, F> Scoped<F>
+impl<V, F> Stateful<F>
 where
     V: View,
     F: FnOnce(&mut ScopeContext) -> V,
@@ -50,7 +50,7 @@ where
     }
 }
 
-impl<V, F> View for Scoped<F>
+impl<V, F> View for Stateful<F>
 where
     V: View,
     F: FnOnce(&mut ScopeContext) -> V + 'static,

@@ -48,7 +48,7 @@ pub use runtime::*;
 pub use signal::{ReadSignal, Signal};
 pub use signal_vec::SignalVec;
 pub use traits::*;
-pub use trigger::{DependentField, Trigger};
+pub use trigger::Trigger;
 pub use view::*;
 pub use view_sequence::*;
 pub use widget::{EventStatus, StatusChange, Widget, WrappedWidget};
@@ -80,6 +80,13 @@ impl<W: Widget + ?Sized> TypedWidgetId<W> {
     pub fn new(id: WidgetId) -> Self {
         Self {
             id,
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn into_any_widget_id(self) -> AnyWidgetId {
+        AnyWidgetId {
+            id: self.id,
             _phantom: PhantomData,
         }
     }

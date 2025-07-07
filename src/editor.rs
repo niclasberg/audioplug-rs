@@ -5,7 +5,7 @@ use crate::{
     core::Size,
     param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params},
     style::{Length, UiRect},
-    views::{Column, Container, Label, ParameterSlider, Row, Scoped, ViewExt},
+    views::{Column, Container, Label, ParameterSlider, Row, Stateful, ViewExt},
 };
 
 pub trait Editor: 'static {
@@ -59,7 +59,7 @@ impl ParamVisitor for CreateParameterViewsVisitor {
         group.children().visit(&mut child_visitor);
         let name = group.name().to_string();
 
-        let view = Scoped::new(move |cx| {
+        let view = Stateful::new(move |cx| {
             let hide_children = Signal::new(cx, false);
             Column::new((
                 Label::new(name),

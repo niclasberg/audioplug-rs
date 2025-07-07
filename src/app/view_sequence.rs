@@ -1,10 +1,9 @@
-use crate::app::{diff::DiffOp, Effect, ReadableSeq};
+use crate::app::ReadContext;
 
 use super::{
-    effect::BindingState, Accessor, BuildContext, NodeId, Owner, ReactiveContext, Readable, View,
-    Widget,
+    effect::BindingState, Accessor, BuildContext, Owner, ReactiveContext, Readable, View, Widget,
 };
-use std::{cell::Cell, collections::HashMap, hash::Hash, ops::Range};
+use std::{collections::HashMap, hash::Hash};
 
 pub trait ViewSequence: Sized + 'static {
     fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>);
@@ -65,95 +64,21 @@ impl<const N: usize, V: View> ViewSequence for [V; N] {
     }
 }
 
-pub trait MapToViews {
-    type Element;
-    fn map_to_views<V: View, F: Fn(&Self::Element) -> V + 'static>(self, f: F)
-        -> impl ViewSequence;
+struct ViewForEach<FValues, FViews> {
+    values_fn: FValues,
+    view_fn: FViews,
 }
 
-struct MapArrayToViews<R, F> {
-    readable: R,
-    f: F,
-}
-
-impl<const N: usize, T, R> MapToViews for R
+impl<C, T, V, FValues, FViews> ViewSequence for ViewForEach<FValues, FViews>
 where
-    T: PartialEq + Clone + 'static,
-    R: Readable<Value = [T; N]> + 'static,
-{
-    type Element = T;
-
-    fn map_to_views<V: View, F: Fn(&Self::Element) -> V + 'static>(
-        self,
-        f: F,
-    ) -> impl ViewSequence {
-        MapArrayToViews { readable: self, f }
-    }
-}
-
-impl<const N: usize, T, V, R, F> ViewSequence for MapArrayToViews<R, F>
-where
-    T: PartialEq + Clone + 'static,
-    R: Readable<Value = [T; N]> + 'static,
-    F: Fn(&T) -> V + 'static,
+    C: IntoIterator<Item = T>,
+    T: PartialEq + 'static,
     V: View,
+    FValues: Fn(&mut dyn ReadContext) -> C + 'static,
+    FViews: Fn(&T) -> V + 'static,
 {
     fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
-        let values = self.readable.get(cx);
-
-        for value in values.iter() {
-            cx.add_child((self.f)(value));
-        }
-
-        let id = cx.id();
-        let old_values = values;
-        Effect::watch(cx, self.readable, move |cx, values| {
-            let mut widget = cx.widget_mut(id);
-            for i in 0..N {
-                if values[i] != old_values[i] {}
-            }
-        });
-    }
-}
-
-pub struct MapToViews2<R, F> {
-    readable_seq: R,
-    f_map: F,
-}
-
-impl<V, R, F> ViewSequence for MapToViews2<R, F>
-where
-    V: View,
-    R: 'static + ReadableSeq,
-    R::Value: 'static,
-    F: Fn(&R::Element) -> V + 'static,
-{
-    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
-        let views: Vec<V> = self
-            .readable_seq
-            .with_ref_iter(cx, |iter| iter.map(self.f_map).collect());
-
-        for view in views {
-            cx.add_child(view);
-        }
-
-        let id = cx.id();
-        self.readable_seq.subscribe_seq_diff(cx, move |cx, diff| {
-            let mut widget_mut = cx.widget_mut(id);
-            match diff {
-                DiffOp::Remove { index, len } => {
-                    for i in *index..(*index + *len) {
-                        widget_mut.remove_child(i);
-                    }
-                }
-                DiffOp::Change { index, new_value } => todo!(),
-                DiffOp::Insert { index, values } => todo!(),
-                DiffOp::Move {
-                    old_index,
-                    new_index,
-                } => todo!(),
-            }
-        });
+        let values = (self.values_fn)(cx);
     }
 }
 
@@ -214,7 +139,7 @@ impl<V: View, F: Fn(usize) -> V + 'static> ViewSequence for IndexedViewSeq<F> {
                 std::cmp::Ordering::Equal => {}
                 std::cmp::Ordering::Less => {
                     for i in widget.child_count()..value {
-                        widget.add_child(f(i));
+                        widget.push_child(f(i));
                     }
                 }
                 std::cmp::Ordering::Greater => {
@@ -224,35 +149,6 @@ impl<V: View, F: Fn(usize) -> V + 'static> ViewSequence for IndexedViewSeq<F> {
                 }
             }
         });
-    }
-}
-
-pub struct RangeForViews<S, F> {
-    signal: S,
-    f: F,
-}
-
-impl<Idx, S, F> ViewSequence for RangeForViews<S, F>
-where
-    S: Readable<Value = Range<Idx>> + 'static,
-    F: 'static,
-{
-    fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>) {}
-}
-
-pub struct ForEach<T, F> {
-    values: Accessor<Vec<T>>,
-    view_fn: F,
-}
-
-impl<T, V, F> ViewSequence for ForEach<T, F>
-where
-    T: Eq + Clone + 'static,
-    V: View,
-    F: Fn(Accessor<T>) -> V + 'static,
-{
-    fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>) {
-        let triggers: Vec<NodeId> = Vec::new();
     }
 }
 
@@ -339,19 +235,3 @@ where
         view_fn,
     }
 }
-
-/*fn diff_slices<T: Eq>(a: &[T], b: &[T]) {
-    let (mut a_start, mut a_end) = (0, a.len());
-    let (mut b_start, mut b_end) = (0, b.len());
-
-    while a_start < a_end && b_start < b_end {
-        // Matching prefix
-        if a[a_start] == b[b_start] {
-            a_start += 1;
-            b_start += 1;
-        } else if a[a_end - 1] == b[b_end - 1] {
-            a_end -= 1;
-            b_end -= 1;
-        } else if
-    }
-}*/

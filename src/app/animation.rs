@@ -6,6 +6,7 @@ use std::{
 };
 
 use crate::{
+    app::Accessor,
     core::{Interpolate, SpringPhysics},
     AnimationFrame,
 };
@@ -115,7 +116,7 @@ pub trait Animation {
 }
 
 /// Type-erased animation, needed so that we can store them in the runtime
-trait AnyAnimation {
+pub(super) trait AnyAnimation {
     fn value_dyn(&self) -> &dyn Any;
     fn drive(&mut self, time: Instant) -> bool;
     fn set_target_dyn(&mut self, value: &dyn Any) -> bool;
@@ -162,14 +163,14 @@ impl AnyAnimation for Box<dyn AnyAnimation> {
 }
 
 pub struct AnimationState {
-    inner: Box<dyn AnyAnimation>,
+    pub(super) inner: Box<dyn AnyAnimation>,
     pub(super) window_id: WindowId,
 }
 
 type ResetFn = dyn Fn(&mut dyn AnyAnimation, &mut dyn ReadContext) -> bool;
 
 pub struct DerivedAnimationState {
-    inner: Box<dyn AnyAnimation>,
+    pub(super) inner: Box<dyn AnyAnimation>,
     reset_fn: Box<ResetFn>,
     pub(super) window_id: WindowId,
 }
@@ -244,6 +245,12 @@ impl<T: Any> Animated<T> {
             _ => unreachable!(),
         };
         cx.runtime_mut().notify(self.id);
+    }
+}
+
+impl<T: 'static> From<Animated<T>> for Accessor<T> {
+    fn from(value: Animated<T>) -> Self {
+        Self::Animated(value)
     }
 }
 
@@ -342,6 +349,12 @@ impl<T: 'static> AnimatedFn<T> {
         Self::new(cx, f, move |initial_value| {
             TweenAnimation::new(initial_value, options)
         })
+    }
+}
+
+impl<T> From<AnimatedFn<T>> for Accessor<T> {
+    fn from(value: AnimatedFn<T>) -> Self {
+        Self::AnimatedFn(value)
     }
 }
 

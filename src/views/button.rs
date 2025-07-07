@@ -37,6 +37,7 @@ impl<V: View> View for Button<V> {
         ctx.set_focusable(true);
         ctx.add_child(self.child);
         ctx.set_default_style(Style {
+            background: Some(Color::from_rgb8(121, 153, 141).into()),
             padding: UiRect::all(Length::Px(4.0)),
             ..Default::default()
         });
@@ -129,7 +130,7 @@ impl Widget for ButtonWidget {
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {
-        let color = if ctx.has_mouse_capture() {
+        /*let color = if ctx.has_mouse_capture() {
             if self.is_hot {
                 Color::from_rgb8(0, 66, 37)
             } else {
@@ -143,7 +144,7 @@ impl Widget for ButtonWidget {
 
         let shape = RoundedRectangle::new(ctx.global_bounds(), Size::new(4.0, 4.0));
         ctx.fill(shape, color);
-        ctx.stroke(shape, Color::BLACK, 1.0);
+        ctx.stroke(shape, Color::BLACK, 1.0);*/
 
         ctx.render_children()
     }

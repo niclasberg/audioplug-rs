@@ -1,19 +1,78 @@
-use std::collections::HashMap;
 use std::hash::Hash;
 
+use crate::app::FxIndexSet;
+
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum DiffOp<'a, T> {
-    Remove { index: usize, len: usize },
-    Change { index: usize, new_value: &'a T },
-    Insert { index: usize, values: &'a [T] },
-    Move { old_index: usize, new_index: usize },
+pub enum DiffOp {
+    Remove {
+        index: usize,
+        len: usize,
+    },
+    Replace {
+        index: usize,
+        source_index: usize,
+    },
+    Insert {
+        index: usize,
+        source_index: usize,
+        len: usize,
+    },
+    Move {
+        from: usize,
+        to: usize,
+    },
 }
 
-fn diff_keyed<K: Hash + PartialEq>(a: &HashMap<K, usize>, b: &HashMap<K, usize>) {
-    if a.is_empty() && b.is_empty() {}
+pub fn diff_keyed<K: Hash + Eq>(old: &FxIndexSet<K>, new: &FxIndexSet<K>) -> Vec<DiffOp> {
+    let mut result = Vec::new();
+    diff_keyed_with(old, new, |op| result.push(op));
+    result
 }
 
-pub fn diff_slices<'a, T: PartialEq>(a: &'a [T], b: &'a [T]) -> Vec<DiffOp<'a, T>> {
+pub fn diff_keyed_with<K: Hash + Eq>(
+    old: &FxIndexSet<K>,
+    new: &FxIndexSet<K>,
+    mut visitor: impl FnMut(DiffOp),
+) {
+    let mut index_map = vec![0; old.len()];
+
+    // Need to iterate in reverse order for the removal indices to be correct
+    if !old.is_empty() {
+        for (i, key) in old.iter().enumerate().rev() {
+            if !new.contains(key) {
+                visitor(DiffOp::Remove { index: i, len: 1 });
+            } else {
+                index_map[i] = 1;
+            }
+        }
+
+        let mut current_index = 0;
+        for index in index_map.iter_mut() {
+            let tmp = current_index;
+            current_index += *index;
+            *index = tmp;
+        }
+    }
+
+    for (new_index, key) in new.iter().enumerate() {
+        if let Some(old_index) = old.get_index_of(key) {
+            if new_index != index_map[old_index] {
+                visitor(DiffOp::Move {
+                    from: old_index,
+                    to: new_index,
+                });
+            }
+        } else {
+            visitor(DiffOp::Insert {
+                index: new_index,
+                source_index: new_index,
+                len: 1,
+            });
+        }
+    }
+}
+
+pub fn diff_slices<'a, T: PartialEq>(a: &'a [T], b: &'a [T]) -> Vec<DiffOp> {
     let mut ops = Vec::new();
     let mut vf = Vec::new();
     let mut vb = Vec::new();
@@ -28,7 +87,7 @@ fn myers_diff_recursive<'a, T: PartialEq>(
     b_offset: usize,
     vf: &mut Vec<usize>,
     fb: &mut Vec<usize>,
-    ops: &mut Vec<DiffOp<'a, T>>,
+    ops: &mut Vec<DiffOp>,
 ) {
     let n = a.len();
     let m = b.len();
@@ -54,7 +113,8 @@ fn myers_diff_recursive<'a, T: PartialEq>(
     } else if a_is_empty {
         ops.push(DiffOp::Insert {
             index: b_offset + start,
-            values: &b[start..b_end],
+            source_index: start, // need to offset?
+            len: b_end - start,
         });
     } else if b_is_empty {
         ops.push(DiffOp::Remove {
@@ -84,11 +144,11 @@ mod test {
         struct TestData {
             a: Vec<u8>,
             b: Vec<u8>,
-            expected: Vec<DiffOp<'static, u8>>,
+            expected: Vec<DiffOp>,
         }
 
         impl TestData {
-            pub fn new(a: &[u8], b: &[u8], expected: &[DiffOp<'static, u8>]) -> Self {
+            pub fn new(a: &[u8], b: &[u8], expected: &[DiffOp]) -> Self {
                 Self {
                     a: a.to_owned(),
                     b: b.to_owned(),
@@ -106,7 +166,8 @@ mod test {
                 b"abc",
                 &[DiffOp::Insert {
                     index: 0,
-                    values: b"abc",
+                    source_index: 0,
+                    len: 3,
                 }],
             ),
             TestData::new(
@@ -114,7 +175,8 @@ mod test {
                 b"abcdef",
                 &[DiffOp::Insert {
                     index: 3,
-                    values: b"def",
+                    source_index: 3,
+                    len: 3,
                 }],
             ),
         ];

@@ -28,6 +28,8 @@ pub struct StyleBuilder {
     align_self: Option<Accessor<AlignSelf>>,
     box_shadow: Option<Accessor<ShadowOptions>>,
     effects: Option<Accessor<Vec<ImageEffect>>>,
+    flex_grow: Option<Accessor<f32>>,
+    flex_shrink: Option<Accessor<f32>>,
 }
 
 impl StyleBuilder {
@@ -106,6 +108,16 @@ impl StyleBuilder {
         self
     }
 
+    pub fn flex_grow(mut self, value: impl Into<Accessor<f32>>) -> Self {
+        self.flex_grow = Some(value.into());
+        self
+    }
+
+    pub fn flex_shrink(mut self, value: impl Into<Accessor<f32>>) -> Self {
+        self.flex_shrink = Some(value.into());
+        self
+    }
+
     pub fn box_shadow(mut self, value: impl Into<Accessor<ShadowOptions>>) -> Self {
         self.box_shadow = Some(value.into());
         self
@@ -134,6 +146,8 @@ impl StyleBuilder {
         replace_if_some(&mut self.justify_self, other.justify_self);
         replace_if_some(&mut self.align_self, other.align_self);
         replace_if_some(&mut self.box_shadow, other.box_shadow);
+        replace_if_some(&mut self.flex_grow, other.flex_grow);
+        replace_if_some(&mut self.flex_shrink, other.flex_shrink);
     }
 
     pub(crate) fn apply_styles(self, cx: &mut BuildContext<dyn Widget>) {
@@ -178,6 +192,10 @@ impl StyleBuilder {
         });
         apply_layout_style(self.align_self, cx, |value, style| {
             style.align_self = Some(value);
+        });
+        apply_layout_style(self.flex_grow, cx, |value, style| style.flex_grow = value);
+        apply_layout_style(self.flex_shrink, cx, |value, style| {
+            style.flex_shrink = value
         });
         apply_render_style(self.box_shadow, cx, |value, style| {
             style.box_shadow = Some(value);

@@ -7,14 +7,14 @@ use std::marker::PhantomData;
 
 pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn Widget>>;
 
-pub trait View: Sized + 'static {
+pub trait View: 'static {
     type Element: Widget + 'static;
 
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element;
 
     fn into_any_view(self) -> AnyView
     where
-        Self: 'static,
+        Self: Sized + 'static,
     {
         Box::new(move |ctx| Box::new(ctx.build(self)))
     }
@@ -25,6 +25,10 @@ impl View for AnyView {
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         self(ctx)
+    }
+
+    fn into_any_view(self) -> AnyView {
+        self
     }
 }
 
@@ -56,7 +60,7 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
     }
 
     pub fn add_child(&mut self, view: impl View) -> WidgetId {
-        self.app_state.add_widget(self.id, view)
+        self.app_state.add_widget(self.id, view, None)
     }
 
     pub fn add_overlay(&mut self, view: impl View) -> WidgetId {
@@ -125,13 +129,13 @@ impl<W: Widget + ?Sized> ReactiveContext for BuildContext<'_, W> {
     }
 }
 
-impl<W: Widget> CreateContext for BuildContext<'_, W> {
+impl<W: Widget + ?Sized> CreateContext for BuildContext<'_, W> {
     fn owner(&self) -> Option<Owner> {
         Some(Owner::Widget(self.id))
     }
 }
 
-impl<W: Widget> ViewContext for BuildContext<'_, W> {
+impl<W: Widget + ?Sized> ViewContext for BuildContext<'_, W> {
     fn window_id(&self) -> super::WindowId {
         self.app_state.get_window_id_for_widget(self.id)
     }

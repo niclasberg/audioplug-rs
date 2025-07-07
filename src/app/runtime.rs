@@ -71,6 +71,31 @@ pub enum NodeType {
     EventHandler(EventHandlerState),
 }
 
+impl NodeType {
+    pub fn get_value_ref(&self) -> &dyn Any {
+        match self {
+            NodeType::TmpRemoved => {
+                panic!("Trying to get the value of a node that is currently removed")
+            }
+            NodeType::Trigger => &(),
+            NodeType::Signal(signal_state) => signal_state.value.as_ref(),
+            NodeType::Memo(memo_state) => memo_state
+                .value
+                .as_ref()
+                .expect("Memo should have been evaluated before accessed")
+                .as_ref(),
+            NodeType::Effect(_) => panic!("Cannot get value of an effect"),
+            NodeType::Binding(_) => panic!("Cannot get value of a binding"),
+            NodeType::Animation(state) => state.inner.value_dyn(),
+            NodeType::DerivedAnimation(state) => state.inner.value_dyn(),
+            NodeType::EventEmitter => panic!("Cannot get value of eventemitter"),
+            NodeType::EventHandler(_) => {
+                panic!("Cannot get value of EventHandler")
+            }
+        }
+    }
+}
+
 pub struct SubscriberMap {
     pub(super) sources: SecondaryMap<NodeId, IndexSet<NodeId>>,
     pub(super) observers: SecondaryMap<NodeId, IndexSet<NodeId>>,
@@ -313,6 +338,12 @@ impl Runtime {
         self.nodes.get_mut(node_id).expect("Node not found")
     }
 
+    pub fn get_node_value_ref(&self, node_id: NodeId) -> Option<&dyn Any> {
+        self.nodes
+            .get(node_id)
+            .map(|node| NodeType::get_value_ref(&node.node_type))
+    }
+
     pub fn try_get_node_mut(&mut self, node_id: NodeId) -> Option<&mut Node> {
         self.nodes.get_mut(node_id)
     }
@@ -324,19 +355,18 @@ impl Runtime {
             .as_param_ref()
     }
 
-    pub fn try_with_node<R>(
-        &mut self,
-        node_id: NodeId,
-        f: impl FnOnce(&mut Self, &mut NodeType) -> R,
-    ) -> Option<R> {
+    /// Temporarily remove a node and return it
+    pub(super) fn lease_node(&mut self, node_id: NodeId) -> Option<NodeType> {
         if let Some(node) = self.nodes.get_mut(node_id) {
-            let mut node_type = std::mem::replace(&mut node.node_type, NodeType::TmpRemoved);
-            let ret = f(self, &mut node_type);
-            std::mem::swap(&mut self.nodes[node_id].node_type, &mut node_type);
-            Some(ret)
+            Some(std::mem::replace(&mut node.node_type, NodeType::TmpRemoved))
         } else {
             None
         }
+    }
+
+    /// Return a node that has previously been leased
+    pub(super) fn unlease_node(&mut self, node_id: NodeId, mut node: NodeType) {
+        std::mem::swap(&mut self.nodes[node_id].node_type, &mut node);
     }
 
     pub fn notify(&mut self, node_id: NodeId) {

@@ -1,7 +1,8 @@
 use std::{any::Any, marker::PhantomData};
 
-use crate::param::{
-    AnyParameter, NormalizedValue, Parameter, ParameterId, ParameterInfo, PlainValue,
+use crate::{
+    app::Accessor,
+    param::{AnyParameter, NormalizedValue, Parameter, ParameterId, ParameterInfo, PlainValue},
 };
 
 use super::{accessor::SourceId, HostHandle, ReactiveContext, ReadContext, Readable};
@@ -98,6 +99,12 @@ impl ParamSignal<NormalizedValue> {
             id: p.info().id(),
             _phantom: PhantomData,
         }
+    }
+}
+
+impl<T> From<ParamSignal<T>> for Accessor<T> {
+    fn from(value: ParamSignal<T>) -> Self {
+        Self::Parameter(value)
     }
 }
 

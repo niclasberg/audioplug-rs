@@ -9,15 +9,16 @@ use super::{
 };
 use crate::{
     app::{
-        effect::WatchContext, event_channel::HandleEventFn,
-        event_handling::set_mouse_capture_widget, FxIndexSet,
+        effect::{EffectFn, WatchContext},
+        event_channel::HandleEventFn,
+        event_handling::{set_focus_widget, set_mouse_capture_widget},
+        AnyView, FxIndexSet, Scope,
     },
     core::{Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
 };
-use fxhash::{FxBuildHasher, FxHasher};
-use indexmap::IndexSet;
+use fxhash::FxBuildHasher;
 use slotmap::{Key, SecondaryMap, SlotMap};
 use std::{
     any::Any,
@@ -25,10 +26,47 @@ use std::{
     rc::{Rc, Weak},
 };
 
+pub struct EffectContextImpl<'a> {
+    pub(super) effect_id: NodeId,
+    pub(super) app_state: &'a mut AppState,
+}
+
+impl EffectContext for EffectContextImpl<'_> {
+    fn widget_ref_dyn(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget> {
+        WidgetRef::new(&self.app_state, id)
+    }
+
+    fn widget_mut_dyn(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
+        WidgetMut::new(&mut self.app_state, id)
+    }
+
+    fn replace_widget_dun(&mut self, id: WidgetId, view: AnyView) {
+        self.app_state.replace_widget(id, view);
+    }
+}
+
+impl ReactiveContext for EffectContextImpl<'_> {
+    fn runtime(&self) -> &Runtime {
+        self.app_state.runtime()
+    }
+
+    fn runtime_mut(&mut self) -> &mut Runtime {
+        self.app_state.runtime_mut()
+    }
+}
+
+impl ReadContext for EffectContextImpl<'_> {
+    fn scope(&self) -> Scope {
+        Scope::Node(self.effect_id)
+    }
+}
+
+impl WriteContext for EffectContextImpl<'_> {}
+
 pub(super) enum Task {
     RunEffect {
         id: NodeId,
-        f: Weak<dyn Fn(&mut EffectContext)>,
+        f: Weak<RefCell<EffectFn>>,
     },
     UpdateBinding {
         f: Weak<RefCell<BindingFn>>,
@@ -49,11 +87,11 @@ impl Task {
         match self {
             Task::RunEffect { id, f } => {
                 if let Some(f) = f.upgrade() {
-                    let mut cx = EffectContext {
+                    let mut cx = EffectContextImpl {
                         effect_id: id,
                         app_state,
                     };
-                    f(&mut cx);
+                    (RefCell::borrow_mut(&f))(&mut cx);
                     app_state.runtime.mark_node_as_clean(id);
                 }
             }
@@ -179,7 +217,12 @@ impl AppState {
     }
 
     /// Add a new widget
-    pub fn add_widget<V: View>(&mut self, parent_id: WidgetId, view: V) -> WidgetId {
+    pub fn add_widget<V: View>(
+        &mut self,
+        parent_id: WidgetId,
+        view: V,
+        child_index: Option<usize>,
+    ) -> WidgetId {
         let window_id = self
             .widget_data
             .get(parent_id)
@@ -191,41 +234,33 @@ impl AppState {
 
         self.build_and_insert_widget(id, view);
 
-        {
-            let parent_widget_data = self
-                .widget_data
-                .get_mut(parent_id)
-                .expect("Parent does not exist");
+        let parent_widget_data = self
+            .widget_data
+            .get_mut(parent_id)
+            .expect("Parent does not exist");
+
+        if let Some(child_index) = child_index {
+            parent_widget_data.children.insert(child_index, id);
+        } else {
             parent_widget_data.children.push(id);
         }
 
         id
     }
 
-    pub fn replace_widget<V: View>(&mut self, id: WidgetId, view: V) {}
-
     pub fn remove_window(&mut self, id: WindowId) {
-        let window = self.windows.remove(id).expect("Window not found");
-        self.remove_widget(window.root_widget);
-        self.runtime.remove_node(window.theme_signal.id);
+        let root_widget = self.window_mut(id).root_widget;
+        let theme_signal_id = self.window_mut(id).theme_signal.id;
+        self.remove_widget(root_widget);
+        self.runtime.remove_node(theme_signal_id);
+        self.windows.remove(id).expect("Window not found");
     }
 
     /// Remove a widget and all of its children and associated signals
     pub fn remove_widget(&mut self, id: WidgetId) {
-        fn do_remove(this: &mut AppState, id: WidgetId) -> WidgetData {
-            let widget_data = this.widget_data.remove(id).unwrap();
-            this.widgets.remove(id).expect("Widget already removed");
-            this.runtime.clear_nodes_for_widget(id);
-            widget_data
-        }
+        self.clear_mouse_capture_and_focus(id);
 
-        if let Some(mouse_capture_widget) = self.mouse_capture_widget {
-            if mouse_capture_widget == id || self.widget_has_parent(mouse_capture_widget, id) {
-                set_mouse_capture_widget(self, None);
-            }
-        }
-
-        let mut widget_data = do_remove(self, id);
+        let mut widget_data = self.do_remove_widget(id);
         // Must be removed from parent's child list
         if !widget_data.parent_id.is_null() {
             let parent_id = widget_data.parent_id;
@@ -240,8 +275,46 @@ impl AppState {
 
         let mut children_to_remove = std::mem::take(&mut widget_data.children);
         while let Some(id) = children_to_remove.pop() {
-            let widget_data = do_remove(self, id);
+            let widget_data = self.do_remove_widget(id);
             children_to_remove.extend(widget_data.children.into_iter());
+        }
+    }
+
+    fn do_remove_widget(&mut self, id: WidgetId) -> WidgetData {
+        let widget_data = self.widget_data.remove(id).unwrap();
+        self.widgets.remove(id).expect("Widget already removed");
+        self.runtime.clear_nodes_for_widget(id);
+        widget_data
+    }
+
+    pub fn replace_widget<V: View>(&mut self, id: WidgetId, view: V) {
+        self.clear_mouse_capture_and_focus(id);
+
+        let parent_id = self.widget_data[id].parent_id;
+        let window_id = self.widget_data[id].window_id;
+
+        let mut children_to_remove = std::mem::take(&mut self.widget_data[id].children);
+        while let Some(id) = children_to_remove.pop() {
+            let widget_data = self.do_remove_widget(id);
+            children_to_remove.extend(widget_data.children.into_iter());
+        }
+
+        self.widget_data[id] = WidgetData::new(window_id, id).with_parent(parent_id);
+        self.build_and_insert_widget(id, view);
+    }
+
+    fn clear_mouse_capture_and_focus(&mut self, id: WidgetId) {
+        if let Some(mouse_capture_widget) = self.mouse_capture_widget {
+            if mouse_capture_widget == id || self.widget_has_parent(mouse_capture_widget, id) {
+                set_mouse_capture_widget(self, None);
+            }
+        }
+
+        let window_id = self.get_window_id_for_widget(id);
+        if let Some(focus_widget) = self.window(window_id).focus_widget {
+            if focus_widget == id || self.widget_has_parent(focus_widget, id) {
+                set_focus_widget(self, window_id, None);
+            }
         }
     }
 

@@ -1,6 +1,13 @@
 use std::sync::atomic::AtomicUsize;
 
-use audioplug::{app::*, core::Color, style::Length, views::*, App};
+use audioplug::{
+    app::*,
+    core::{Color, Key},
+    style::{Length, UiRect},
+    views::*,
+    App, KeyEvent,
+};
+use taffy::AlignSelf;
 
 struct Todos(pub Vec<Todo>);
 
@@ -22,37 +29,76 @@ impl Todo {
     }
 
     pub fn toggle(&self, cx: &mut impl WriteContext) {
-        self.completed.update(cx, |value| *value = !*value);
+        self.completed.update(cx, |_, value| *value = !*value);
     }
-}
-
-fn todo_view(todo: Todo) -> impl View {
-    Row::new((Label::new(todo.name), Button::new(Label::new("Remove")))).style(|s| {
-        s.background(
-            todo.completed
-                .map(|&c| if c { Color::GREEN } else { Color::RED }.into()),
-        )
-    })
 }
 
 fn main() {
     let mut app = App::new();
     let _ = Window::open(
         &mut app,
-        Scoped::new(|cx| {
-            let items = Signal::new_with(cx, |cx| {
-                let mut todos = Vec::new();
-                todos.push(Todo::new(cx, "Item1", false));
-                todos
-            });
+        Stateful::new(|cx| {
+            let items = Signal::new_with(cx, |cx| vec![Todo::new(cx, "Item1", false)]);
             let text_input = Signal::new(cx, "".to_string());
             Container::new(Column::new((
                 Label::new("TODO app"),
-                TextBox::new().on_input(move |cx, value| text_input.set(cx, value.to_string())),
-                //Flex::column(for_each_keyed(items, |todo: &Todo| todo.index, |_, &todo| todo_view(todo)))
+                TextBox::new()
+                    .on_input(move |cx, value| text_input.set(cx, value.to_string()))
+                    .on_key_event(move |cx, event| {
+                        if let KeyEvent::KeyDown { key, .. } = event {
+                            if Key::Enter == key {
+                                let title = text_input.get_untracked(cx);
+                                if !title.is_empty() {
+                                    items.update(cx, move |cx, todos| {
+                                        todos.push(Todo::new(cx, &title, false))
+                                    });
+                                    text_input.set(cx, "".to_string());
+                                }
+
+                                return EventStatus::Handled;
+                            }
+                        }
+                        EventStatus::Ignored
+                    }),
+                Column::new(items.map_to_views_keyed(
+                    |todo| todo.index,
+                    move |todo| {
+                        let index = todo.index;
+                        todo_view(todo, {
+                            move |cx| {
+                                items.update(cx, |_, items| {
+                                    items.retain(|x| x.index != index);
+                                });
+                            }
+                        })
+                    },
+                )),
             )))
             .style(|s| s.width(Length::Vw(100.0)).height(Length::Vh(100.0)))
         }),
     );
     app.run();
+}
+
+fn todo_view(todo: &Todo, on_remove: impl Fn(&mut dyn WriteContext) + 'static) -> impl View {
+    let completed = todo.completed;
+    Row::new((
+        Checkbox::new()
+            .checked(todo.completed)
+            .on_click(move |cx| completed.update(cx, |_, value| *value = !*value)),
+        Label::new(todo.name).style(|style| style.flex_grow(1.0)),
+        Button::new(Label::new("Remove"))
+            .on_click(move |cx| on_remove(cx))
+            .style(|style| style.justify_self(AlignSelf::End)),
+    ))
+    .v_align_center()
+    .spacing(Length::Px(5.0))
+    .style(|s| {
+        s.background(
+            todo.completed
+                .map(|&c| if c { Color::GREEN } else { Color::RED }.into()),
+        )
+        .padding(UiRect::all_px(5.0))
+        .width(Length::Percent(100.0))
+    })
 }

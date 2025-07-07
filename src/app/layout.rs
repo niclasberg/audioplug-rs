@@ -455,11 +455,11 @@ impl taffy::FlexboxItemStyle for LayoutStyle<'_> {
     }
 
     fn flex_grow(&self) -> f32 {
-        taffy::Style::DEFAULT.flex_grow
+        self.style.flex_grow
     }
 
     fn flex_shrink(&self) -> f32 {
-        taffy::Style::DEFAULT.flex_shrink
+        self.style.flex_shrink
     }
 
     fn align_self(&self) -> Option<taffy::AlignSelf> {

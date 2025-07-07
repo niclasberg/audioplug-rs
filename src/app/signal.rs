@@ -1,5 +1,7 @@
 use std::{any::Any, marker::PhantomData};
 
+use crate::app::{Accessor, LocalCreateContext, Owner, ReactiveContext};
+
 use super::{
     accessor::SourceId, CreateContext, NodeId, NodeType, ReadContext, Readable, WriteContext,
 };
@@ -37,30 +39,34 @@ impl<T: Any> Signal<T> {
     }
 
     /// Set the current value, notifies subscribers
-    pub fn set(&self, cx: &mut impl WriteContext, value: T) {
-        self.update(cx, move |val| *val = value)
+    pub fn set(&self, cx: &mut dyn WriteContext, value: T) {
+        self.update(cx, move |_, val| *val = value)
     }
 
     /// Set the current value, notifies subscribers
     pub fn set_with(&self, cx: &mut dyn WriteContext, f: impl FnOnce(&mut dyn CreateContext) -> T) {
         let new_value = f(&mut cx.as_create_context(super::Owner::Node(self.id)));
-        self.update(cx, move |value| *value = new_value);
+        self.update(cx, move |_, value| *value = new_value);
     }
 
     /// Set the current value, notifies subscribers
-    pub fn update(&self, cx: &mut dyn WriteContext, f: impl FnOnce(&mut T)) {
-        {
-            let signal = cx.runtime_mut().get_node_mut(self.id);
-            match &mut signal.node_type {
+    pub fn update(
+        &self,
+        cx: &mut dyn WriteContext,
+        f: impl FnOnce(&mut dyn CreateContext, &mut T),
+    ) {
+        if let Some(mut node) = cx.runtime_mut().lease_node(self.id) {
+            match &mut node {
                 NodeType::Signal(signal) => {
                     let value = signal
                         .value
                         .downcast_mut()
                         .expect("Invalid signal value type");
-                    f(value);
+                    f(&mut cx.as_create_context(Owner::Node(self.id)), value);
                 }
                 _ => unreachable!(),
             }
+            cx.runtime_mut().unlease_node(self.id, node);
         }
         cx.runtime_mut().notify(self.id);
     }
@@ -71,11 +77,15 @@ impl<T: Any> Signal<T> {
             _marker: PhantomData,
         }
     }
+
+    pub fn dispose(self, cx: &mut dyn ReactiveContext) {
+        cx.runtime_mut().remove_node(self.id);
+    }
 }
 
-impl<T: Any> Signal<Vec<T>> {
-    pub fn push(&self, cx: &mut impl WriteContext, val: T) {
-        self.update(cx, move |value| value.push(val));
+impl<T> From<Signal<T>> for Accessor<T> {
+    fn from(value: Signal<T>) -> Self {
+        Accessor::Signal(value)
     }
 }
 
@@ -97,11 +107,11 @@ impl<T: 'static> Readable for Signal<T> {
         cx: &mut dyn super::ReactiveContext,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
-        let value = match &cx.runtime().get_node(self.id).node_type {
-            NodeType::Signal(signal) => signal.value.as_ref(),
-            _ => unreachable!(),
-        };
-        f(value.downcast_ref().expect("Signal had wrong type"))
+        f(cx.runtime_mut()
+            .get_node_value_ref(self.id)
+            .unwrap()
+            .downcast_ref()
+            .expect("Signal had wrong type"))
     }
 }
 
@@ -117,6 +127,12 @@ impl<T> Clone for ReadSignal<T> {
 }
 
 impl<T> Copy for ReadSignal<T> {}
+
+impl<T> From<ReadSignal<T>> for Accessor<T> {
+    fn from(value: ReadSignal<T>) -> Self {
+        Self::ReadSignal(value)
+    }
+}
 
 impl<T: 'static> Readable for ReadSignal<T> {
     type Value = T;

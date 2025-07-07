@@ -30,7 +30,7 @@ impl Trigger {
     }
 }
 
-#[derive(Copy, Clone)]
+/*#[derive(Copy, Clone)]
 pub struct DependentField<S, T, R> {
     source_signal: S,
     f: fn(&T) -> &R,
@@ -88,4 +88,4 @@ where
         self.source_signal
             .with_ref_untracked(cx, move |x| f((self.f)(x)))
     }
-}
+}*/

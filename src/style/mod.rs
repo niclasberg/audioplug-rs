@@ -49,6 +49,8 @@ pub struct Style {
     pub corner_radius: Size,
     pub cursor: Option<Cursor>,
     pub border_color: Option<Color>,
+    pub flex_grow: f32,
+    pub flex_shrink: f32,
     pub align_self: Option<AlignSelf>,
     pub justify_self: Option<JustifySelf>,
     pub box_shadow: Option<ShadowOptions>,
@@ -76,6 +78,8 @@ impl Default for Style {
             align_self: None,
             justify_self: None,
             box_shadow: None,
+            flex_grow: 0.0,
+            flex_shrink: 1.0,
         }
     }
 }

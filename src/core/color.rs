@@ -40,6 +40,20 @@ impl Color {
         self.a = a;
         self
     }
+
+    pub const fn tint(mut self, amount: f32) -> Self {
+        self.r = self.r + (1.0 - self.r) * amount;
+        self.g = self.g + (1.0 - self.g) * amount;
+        self.b = self.b + (1.0 - self.b) * amount;
+        self
+    }
+
+    pub const fn shade(mut self, amount: f32) -> Self {
+        self.r *= 1.0 - amount;
+        self.g *= 1.0 - amount;
+        self.b *= 1.0 - amount;
+        self
+    }
 }
 
 impl Interpolate for Color {

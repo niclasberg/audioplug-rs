@@ -143,9 +143,8 @@ impl TextBoxWidget {
         self.value
             .unicode_word_indices()
             .map(|(index, _)| index)
-            .skip_while(|index| *index <= self.position)
             .chain(std::iter::once(self.value.len()))
-            .next()
+            .find(|index| *index <= self.position)
     }
 
     fn move_left(&mut self, select: bool) -> bool {
@@ -451,6 +450,21 @@ impl Widget for TextBoxWidget {
                         if self.set_caret_position(new_cursor, true) {
                             ctx.request_render();
                         }
+                    }
+                }
+                EventStatus::Handled
+            }
+            MouseEvent::DoubleClick {
+                button: MouseButton::LEFT,
+                position,
+                ..
+            } => {
+                if let Some(text_index) = self
+                    .text_layout
+                    .text_index_at_point(position - ctx.bounds().top_left())
+                {
+                    if self.select_word_at(text_index) {
+                        ctx.request_render();
                     }
                 }
                 EventStatus::Handled
