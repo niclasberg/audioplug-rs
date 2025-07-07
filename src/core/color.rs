@@ -3,7 +3,7 @@ use bytemuck::{Pod, Zeroable};
 use super::{interpolation::SpringPhysics, Interpolate};
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Default, Debug, Copy, Clone, PartialEq)]
 pub struct Color {
     pub r: f32,
     pub g: f32,
@@ -15,6 +15,13 @@ unsafe impl Zeroable for Color {}
 unsafe impl Pod for Color {}
 
 impl Color {
+    pub const DEFAULT: Self = Self {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 0.0,
+    };
+
     pub const fn from_rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
     }
@@ -68,7 +75,7 @@ impl Interpolate for Color {
 }
 
 impl SpringPhysics for Color {
-    const ZERO: Self = Self::from_rgba8(0, 0, 0, 0.0);
+    const ZERO: Self = Self::DEFAULT;
 
     fn distance_squared_to(&self, other: &Self) -> f64 {
         self.r.distance_squared_to(&other.r)

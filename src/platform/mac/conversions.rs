@@ -110,7 +110,7 @@ pub fn cfstring_from_str(str: &str) -> CFRetained<CFString> {
 }
 
 pub fn cfrange_contains(cf_range: &CFRange, index: CFIndex) -> bool {
-    index >= cf_range.location && (index + cf_range.location) < cf_range.length
+    index >= cf_range.location && (index + cf_range.location) <= cf_range.length
 }
 
 /*pub fn cfrange_as_range(cf_range: &CFRange) -> Range<isize> {

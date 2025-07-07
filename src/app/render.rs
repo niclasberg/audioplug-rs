@@ -4,12 +4,11 @@ use crate::{
 };
 
 mod canvas;
-mod text;
 use super::{AppState, WidgetId, WindowId};
 pub use canvas::{Canvas, CanvasContext, CanvasWidget};
 pub use platform::{Brush, BrushRef, LinearGradient, RadialGradient};
+pub use platform::{Font, TextLayout};
 pub use platform::{PathGeometry, PathGeometryBuilder, Shape, ShapeRef};
-pub use text::TextLayout;
 
 pub fn render_window(
     app_state: &mut AppState,

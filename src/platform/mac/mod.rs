@@ -25,7 +25,9 @@ pub(crate) use executor::Executor;
 pub(crate) use handle::Handle;
 pub use image::Bitmap;
 pub(crate) use iref::*;
-pub(crate) use renderer::{RendererRef, NativeGeometry, NativeGeometryBuilder, NativeLinearGradient, NativeRadialGradient};
-pub(crate) use text::TextLayout;
+pub(crate) use renderer::{
+    NativeGeometry, NativeGeometryBuilder, NativeLinearGradient, NativeRadialGradient, RendererRef,
+};
+pub(crate) use text::{NativeFont, NativeTextLayout};
 pub(crate) use util::*;
 pub(crate) use window::Window;

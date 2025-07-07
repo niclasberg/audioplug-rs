@@ -1,13 +1,16 @@
 use std::{ffi::c_void, mem::MaybeUninit, ops::Deref, ptr::NonNull};
 
-use crate::core::{Color, FontWeight, Point, Rectangle, Size};
+use crate::core::{Color, FontFamily, FontOptions, FontStyle, FontWeight, Point, Rectangle, Size};
+use objc2_app_kit::{NSFontWeight, NSFontWeightBold, NSFontWeightRegular};
 use objc2_core_foundation::{
-    CFDictionary, CFIndex, CFMutableAttributedString, CFRange, CFRetained, CFString, CFType,
-    CGFloat, CGPoint, CGRect, CGSize,
+    CFArray, CFDictionary, CFIndex, CFMutableAttributedString, CFMutableDictionary, CFNumber,
+    CFNumberType, CFRange, CFRetained, CFString, CFType, CGFloat, CGPoint, CGRect, CGSize,
 };
 use objc2_core_graphics::{CGColor, CGPath};
 use objc2_core_text::{
-    kCTFontAttributeName, kCTForegroundColorAttributeName, CTFont, CTFrame, CTFramesetter, CTLine,
+    kCTFontAttributeName, kCTFontFamilyNameAttribute, kCTFontSizeAttribute, kCTFontSlantTrait,
+    kCTFontTraitsAttribute, kCTFontWeightTrait, kCTForegroundColorAttributeName, CTFont,
+    CTFontCollection, CTFontDescriptor, CTFrame, CTFramesetter, CTLine,
 };
 
 use super::conversions::{cfrange_contains, cfstring_from_str, cgcolor_from_color};
@@ -147,33 +150,30 @@ fn get_lines_from_frame(frame: &CTFrame) -> Vec<TextLine> {
         .collect()
 }
 
-pub struct TextLayout {
+pub struct NativeTextLayout {
     pub(super) attributed_string: CFRetained<CFMutableAttributedString>,
     pub(super) frame_setter: CFRetained<CTFramesetter>,
     text_frame: TextFrame,
     max_size: CGSize,
     text: String,
+    default_height: f64,
 }
 
-impl TextLayout {
-    pub fn new(
-        string: &str,
-        _font_family: &str,
-        _font_weight: FontWeight,
-        _font_size: f32,
-        max_size: Size,
-        color: Color,
-    ) -> Self {
+impl NativeTextLayout {
+    pub fn new(string: &str, font: &NativeFont, max_size: Size, color: Color) -> Self {
         let string = cfstring_from_str(&string);
         let text = string.to_string();
         let mut builder = AttributedStringBuilder::new(&string);
         let color = cgcolor_from_color(color);
         builder.set_foreground_color(builder.range(), &color);
+        builder.set_font(builder.range(), &font.0);
         let string_range = builder.range();
         let attributed_string = builder.0;
         let frame_setter = unsafe { CTFramesetter::with_attributed_string(&attributed_string) };
 
         let text_frame = TextFrame::new(&frame_setter, string_range, max_size.into());
+
+        let default_height = unsafe { font.0.ascent() + font.0.descent() + font.0.leading() };
 
         Self {
             attributed_string,
@@ -181,6 +181,7 @@ impl TextLayout {
             text_frame,
             max_size: max_size.into(),
             text,
+            default_height,
         }
     }
 
@@ -205,7 +206,11 @@ impl TextLayout {
     }
 
     pub fn measure(&self) -> Size {
-        self.text_frame.bounding_box().size.into()
+        if self.text.is_empty() {
+            Size::new(0.0, self.default_height)
+        } else {
+            self.text_frame.bounding_box().size.into()
+        }
     }
 
     pub fn text_index_at_point(&self, point: Point) -> Option<usize> {
@@ -297,5 +302,49 @@ impl AttributedStringBuilder {
                 Some(value.as_ref()),
             )
         }
+    }
+}
+
+pub struct NativeFont(CFRetained<CTFont>);
+
+impl NativeFont {
+    pub fn new(options: &FontOptions) -> Self {
+        let attributes = CFMutableDictionary::<_, CFType>::empty();
+
+        let family = match &options.family {
+            FontFamily::Name(name) => CFString::from_str(name),
+            FontFamily::Serif => CFString::from_str("Times New Roman"),
+            FontFamily::SansSerif => CFString::from_str("Arial"),
+        };
+        attributes.add(unsafe { kCTFontFamilyNameAttribute }, family.as_ref());
+
+        let weight = match options.weight {
+            FontWeight::Normal => unsafe { NSFontWeightRegular },
+            FontWeight::Bold => unsafe { NSFontWeightBold },
+        };
+
+        let slant = match options.style {
+            FontStyle::Normal => 0.0,
+            FontStyle::Italic => 0.2,
+            FontStyle::Oblique => 0.1,
+        };
+
+        let traits = CFDictionary::<_, CFType>::from_slices(
+            &[unsafe { kCTFontWeightTrait }, unsafe { kCTFontSlantTrait }],
+            &[
+                CFNumber::new_f64(weight).as_ref(),
+                CFNumber::new_f64(slant).as_ref(),
+            ],
+        );
+        attributes.add(unsafe { kCTFontTraitsAttribute }, &traits);
+
+        let descriptor = unsafe { CTFontDescriptor::with_attributes(&attributes.as_opaque()) };
+        let font =
+            unsafe { CTFont::with_font_descriptor(&descriptor, options.size, std::ptr::null()) };
+        Self(font)
+    }
+
+    pub fn family_name(&self) -> String {
+        unsafe { self.0.family_name() }.to_string()
     }
 }

@@ -402,7 +402,11 @@ impl Widget for TextBoxWidget {
                     EventStatus::Handled
                 }
                 (Key::X, _) if modifiers == Modifiers::CONTROL => EventStatus::Handled,
-                (Key::Tab, _) | (Key::Escape, _) | (Key::Enter, _) => EventStatus::Ignored,
+                (Key::Tab, _)
+                | (Key::Escape, _)
+                | (Key::Enter, _)
+                | (Key::Up, _)
+                | (Key::Down, _) => EventStatus::Ignored,
                 (_, Some(str)) if !modifiers.contains(Modifiers::CONTROL) => {
                     self.insert(str.as_str());
                     rebuild_text_layout(self, ctx);

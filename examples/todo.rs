@@ -74,7 +74,11 @@ fn main() {
                     },
                 )),
             )))
-            .style(|s| s.width(Length::Vw(100.0)).height(Length::Vh(100.0)))
+            .style(|s| {
+                s.width(Length::Vw(100.0))
+                    .height(Length::Vh(100.0))
+                    .background(Color::WHEAT)
+            })
         }),
     );
     app.run();

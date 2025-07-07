@@ -8,6 +8,21 @@ impl UnitValue {
     pub const MAX: Self = Self(1.0);
 }
 
+impl UnitValue {
+    pub const fn new(value: f64) -> Self {
+        assert!(value >= 0.0 && value <= 1.0);
+        Self(value)
+    }
+
+    pub const fn new_unchecked(value: f64) -> Self {
+        Self(value)
+    }
+
+    pub fn resolve(&self, min: f64, max: f64) -> f64 {
+        min + (max - min) * self.0
+    }
+}
+
 impl From<UnitValue> for f64 {
     fn from(value: UnitValue) -> Self {
         value.0
