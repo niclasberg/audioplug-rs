@@ -17,13 +17,13 @@ impl From<FontWeight> for DirectWrite::DWRITE_FONT_WEIGHT {
     }
 }
 
-pub struct TextLayout {
+pub struct NativeTextLayout {
     pub(super) string: String,
     pub(super) text_layout: DirectWrite::IDWriteTextLayout,
     pub(super) color: Color,
 }
 
-impl TextLayout {
+impl NativeTextLayout {
     pub fn new(
         string: &str,
         font_family: &str,
@@ -147,6 +147,8 @@ impl TextLayout {
         unsafe { self.text_layout.DetermineMinWidth() }.unwrap_or_default() as _
     }
 }
+
+pub struct NativeFont {}
 
 pub struct FontCollection {
     collection: DirectWrite::IDWriteFontCollection,

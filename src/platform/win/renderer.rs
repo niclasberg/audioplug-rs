@@ -12,16 +12,16 @@ use windows::{
 
 use super::{
     com::direct2d_factory,
-    filters::{set_effect_property_f32, CustomEffect, EffectWrapper, RoundedRectShadow},
+    filters::{set_effect_property_f32, RoundedRectShadow},
     util::get_scale_factor_for_window,
-    Bitmap, TextLayout,
+    Bitmap,
 };
 use crate::{
     core::{
         Color, Ellipse, Point, Rectangle, RoundedRectangle, ShadowOptions, Size, SpringPhysics,
         Transform, Vec2,
     },
-    platform::filters::RoundedRectShadowEffect,
+    platform::{filters::RoundedRectShadowEffect, NativeTextLayout},
 };
 use crate::{
     core::{Vec2f, Vec4f},
@@ -605,7 +605,7 @@ impl Renderer {
         });
     }
 
-    pub fn draw_text(&mut self, text_layout: &TextLayout, position: Point) {
+    pub fn draw_text(&mut self, text_layout: &NativeTextLayout, position: Point) {
         unsafe {
             self.brush.SetColor(&text_layout.color.into());
             self.render_target.DrawTextLayout(
