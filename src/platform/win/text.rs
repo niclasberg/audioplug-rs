@@ -6,7 +6,7 @@ use windows::{
 };
 
 use super::{com::direct_write_factory, util};
-use crate::core::{Color, FontWeight, Point, Size};
+use crate::core::{Color, FontFamily, FontOptions, FontStyle, FontWeight, Point, Size};
 
 impl From<FontWeight> for DirectWrite::DWRITE_FONT_WEIGHT {
     fn from(val: FontWeight) -> Self {
@@ -24,24 +24,23 @@ pub struct NativeTextLayout {
 }
 
 impl NativeTextLayout {
-    pub fn new(
-        string: &str,
-        font_family: &str,
-        font_weight: FontWeight,
-        font_size: f32,
-        max_size: Size,
-        color: Color,
-    ) -> Self {
+    pub fn new(string: &str, font: &NativeFont, max_size: Size, color: Color) -> Self {
         let chars: Vec<u16> = string.encode_utf16().collect();
+
+        let family = match font.family {
+            FontFamily::Name(name) => HSTRING::from(name),
+            FontFamily::Serif => HSTRING::from("Times New Roman"),
+            FontFamily::SansSerif => HSTRING::from("Arial"),
+        };
 
         let text_format = unsafe {
             direct_write_factory().CreateTextFormat(
-                &HSTRING::from(font_family),
+                &family,
                 None,
-                font_weight.into(),
+                font.weight.into(),
                 DirectWrite::DWRITE_FONT_STYLE_NORMAL,
                 DirectWrite::DWRITE_FONT_STRETCH_NORMAL,
-                font_size,
+                font.size as _,
                 w!(""),
             )
         }
@@ -148,7 +147,23 @@ impl NativeTextLayout {
     }
 }
 
-pub struct NativeFont {}
+pub struct NativeFont {
+    family: FontFamily,
+    weight: FontWeight,
+    style: FontStyle,
+    size: f64,
+}
+
+impl NativeFont {
+    pub fn new(options: &FontOptions) -> Self {
+        Self {
+            family: options.family,
+            weight: options.weight,
+            style: options.style,
+            size: options.size,
+        }
+    }
+}
 
 pub struct FontCollection {
     collection: DirectWrite::IDWriteFontCollection,

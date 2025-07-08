@@ -306,6 +306,7 @@ impl TextBoxWidget {
     }
 
     fn rebuild_text_layout(&mut self) {
+        self.position = self.position.min(self.value.len());
         self.text_layout = TextLayout::new(self.value.as_str(), Color::BLACK, Size::INFINITY);
     }
 }

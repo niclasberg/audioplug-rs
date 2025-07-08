@@ -13,7 +13,15 @@ pub enum FontStyle {
     Oblique,
 }
 
-#[derive(Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub enum FontFamily {
+    Name(&'static str),
+    Serif,
+    #[default]
+    SansSerif,
+}
+
+#[derive(Clone, Copy, PartialEq)]
 pub struct FontOptions {
     pub family: FontFamily,
     pub weight: FontWeight,
@@ -21,10 +29,13 @@ pub struct FontOptions {
     pub size: f64,
 }
 
-#[derive(Debug, Default, Clone, PartialEq)]
-pub enum FontFamily {
-    Name(&'static str),
-    Serif,
-    #[default]
-    SansSerif,
+impl Default for FontOptions {
+    fn default() -> Self {
+        Self {
+            family: Default::default(),
+            weight: Default::default(),
+            style: Default::default(),
+            size: 12.0,
+        }
+    }
 }

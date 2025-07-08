@@ -19,10 +19,6 @@ impl Font {
         let native = NativeFont::new(options);
         Self { native }
     }
-
-    pub fn family_name(&self) -> String {
-        self.native.family_name()
-    }
 }
 
 pub struct TextLayout(pub(crate) NativeTextLayout);
