@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use crate::app::{Accessor, View, ViewSequence};
+use crate::app::Accessor;
 
 use super::{
     accessor::SourceId, signal::SignalState, CreateContext, NodeId, NodeType, Owner, Readable,

@@ -35,6 +35,7 @@ pub trait Measure {
 #[derive(Copy, Clone)]
 pub enum DisplayStyle<'a> {
     Block,
+    Stack,
     Flex(&'a FlexStyle),
     Grid(&'a GridStyle),
     Leaf(&'a dyn Measure),

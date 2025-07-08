@@ -8,7 +8,7 @@ pub struct OnKeyEvent<V, F> {
     pub(super) on_key_down: F,
 }
 
-impl<V: View, F: Fn(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static> View
+impl<V: View, F: FnMut(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static> View
     for OnKeyEvent<V, F>
 {
     type Element = OnKeyEventWidget<V::Element, F>;
@@ -26,7 +26,7 @@ pub struct OnKeyEventWidget<W, F> {
     f: F,
 }
 
-impl<W: Widget, F: Fn(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static> WrappedWidget
+impl<W: Widget, F: FnMut(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static> WrappedWidget
     for OnKeyEventWidget<W, F>
 {
     type Inner = W;

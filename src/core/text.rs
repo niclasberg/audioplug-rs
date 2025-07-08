@@ -23,7 +23,7 @@ pub struct FontOptions {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub enum FontFamily {
-    Name(String),
+    Name(&'static str),
     Serif,
     #[default]
     SansSerif,

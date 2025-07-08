@@ -33,6 +33,8 @@ fn main() {
         &mut app,
         Stateful::new(|cx| {
             let items = Signal::new_with(cx, |cx| vec![Todo::new(cx, "Item1", false)]);
+            let mut last_id = 1;
+            let tests = Signal::new(cx, vec![1]);
             let text_input = Signal::new(cx, "".to_string());
             Container::new(Column::new((
                 Label::new("TODO app"),
@@ -43,9 +45,11 @@ fn main() {
                             if Key::Enter == key {
                                 let title = text_input.get_untracked(cx);
                                 if !title.is_empty() {
+                                    last_id += 1;
                                     items.update(cx, move |cx, todos| {
                                         todos.push(Todo::new(cx, &title, false))
                                     });
+                                    tests.update(cx, move |_, t| t.push(last_id));
                                     text_input.set(cx, "".to_string());
                                 }
 
@@ -63,9 +67,16 @@ fn main() {
                                 items.update(cx, |_, items| {
                                     items.retain(|x| x.index != index);
                                 });
+                                tests.update(cx, |_, items| {
+                                    items.pop();
+                                });
                             }
                         })
                     },
+                )),
+                Column::new(view_for_each(
+                    move |cx| tests.get(cx),
+                    |i| Label::new(format!("AA: {}", i)),
                 )),
             )))
             .style(|s| {

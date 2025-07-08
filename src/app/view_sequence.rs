@@ -1,4 +1,4 @@
-use crate::app::ReadContext;
+use crate::app::{diff::DiffOp, Effect, ReadContext};
 
 use super::{
     effect::BindingState, Accessor, BuildContext, Owner, ReactiveContext, Readable, View, Widget,
@@ -61,24 +61,6 @@ impl<const N: usize, V: View> ViewSequence for [V; N] {
         for child in self {
             cx.add_child(child);
         }
-    }
-}
-
-struct ViewForEach<FValues, FViews> {
-    values_fn: FValues,
-    view_fn: FViews,
-}
-
-impl<C, T, V, FValues, FViews> ViewSequence for ViewForEach<FValues, FViews>
-where
-    C: IntoIterator<Item = T>,
-    T: PartialEq + 'static,
-    V: View,
-    FValues: Fn(&mut dyn ReadContext) -> C + 'static,
-    FViews: Fn(&T) -> V + 'static,
-{
-    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
-        let values = (self.values_fn)(cx);
     }
 }
 
@@ -150,6 +132,75 @@ impl<V: View, F: Fn(usize) -> V + 'static> ViewSequence for IndexedViewSeq<F> {
             }
         });
     }
+}
+
+struct ViewForEach<FValues, FView> {
+    values_fn: FValues,
+    view_fn: FView,
+}
+
+impl<T, C, V, FValues, FView> ViewSequence for ViewForEach<FValues, FView>
+where
+    FValues: Fn(&mut dyn ReadContext) -> C + 'static,
+    C: IntoIterator<Item = T>,
+    T: PartialEq + Clone + 'static,
+    FView: Fn(&T) -> V + 'static,
+    V: View,
+{
+    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
+        let id = cx.id().into_any_widget_id();
+        Effect::new_with_state(cx, move |cx, old_values: Option<Vec<T>>| {
+            let new_values: Vec<T> = (self.values_fn)(cx).into_iter().collect();
+            let mut widget = cx.widget_mut(id);
+            if let Some(old_values) = old_values {
+                for diff in super::diff::diff_slices(old_values.as_slice(), new_values.as_slice()) {
+                    match diff {
+                        DiffOp::Remove { index, len } => {
+                            for i in 0..len {
+                                widget.remove_child(index + i)
+                            }
+                        }
+                        DiffOp::Replace {
+                            index,
+                            source_index,
+                        } => widget.replace_child(index, (self.view_fn)(&new_values[source_index])),
+                        DiffOp::Insert {
+                            index,
+                            source_index,
+                            len,
+                        } => {
+                            for i in 0..len {
+                                widget.insert_child(
+                                    (self.view_fn)(&new_values[i + source_index]),
+                                    index,
+                                );
+                            }
+                        }
+                        DiffOp::Move { from, to } => widget.swap_children(from, to),
+                    }
+                }
+            } else {
+                for value in new_values.iter() {
+                    widget.push_child((self.view_fn)(value));
+                }
+            }
+            new_values
+        });
+    }
+}
+
+pub fn view_for_each<T, C, V, FValues, FView>(
+    values_fn: FValues,
+    view_fn: FView,
+) -> impl ViewSequence
+where
+    FValues: Fn(&mut dyn ReadContext) -> C + 'static,
+    C: IntoIterator<Item = T>,
+    T: PartialEq + Clone + 'static,
+    FView: Fn(&T) -> V + 'static,
+    V: View,
+{
+    ViewForEach { values_fn, view_fn }
 }
 
 pub struct ForEachKeyed<S, F, FKey> {

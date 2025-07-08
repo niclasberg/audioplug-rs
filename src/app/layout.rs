@@ -1,8 +1,8 @@
 use crate::core::{Point, Rectangle, Size};
 use crate::style::{AvailableSpace, DisplayStyle, ResolveInto, Style, UiRect};
 use taffy::{
-    CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree,
-    TraversePartialTree, TraverseTree,
+    CacheTree, CoreStyle, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree,
+    PrintTree, TraversePartialTree, TraverseTree,
 };
 
 use super::{invalidate_window, AppState, WidgetFlags, WidgetId, WindowId};
@@ -272,6 +272,7 @@ impl LayoutPartialTree for LayoutContext<'_> {
                         taffy::compute_flexbox_layout(tree, node, inputs)
                     }
                     (DisplayStyle::Grid(_), _) => unreachable!(),
+                    (DisplayStyle::Stack, _) => compute_stack_layout(tree, node_id, inputs),
                     (DisplayStyle::Leaf(measure), _) => {
                         let style = &tree.app_state.widget_data[node.into()].style;
                         let measure_function =
@@ -306,12 +307,17 @@ impl LayoutPartialTree for LayoutContext<'_> {
                                 }
                             };
 
-                        taffy::compute_leaf_layout(
+                        let run_mode = inputs.run_mode;
+                        let output = taffy::compute_leaf_layout(
                             inputs,
                             &tree.get_layout_style(node_id),
                             |_val, _basis| 0.0,
                             measure_function,
-                        )
+                        );
+
+                        if run_mode == taffy::RunMode::PerformLayout {}
+
+                        output
                     }
                     (_, false) => {
                         let measure_function = |_, _| taffy::Size::ZERO;
@@ -326,6 +332,14 @@ impl LayoutPartialTree for LayoutContext<'_> {
             }
         })
     }
+}
+
+fn compute_stack_layout(
+    tree: &mut LayoutContext,
+    node_id: taffy::NodeId,
+    inputs: taffy::LayoutInput,
+) -> taffy::LayoutOutput {
+    todo!()
 }
 
 /// Style used during layout

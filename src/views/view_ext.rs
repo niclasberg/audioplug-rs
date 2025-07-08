@@ -16,7 +16,7 @@ pub trait ViewExt {
     fn on_key_event<F>(self, f: F) -> OnKeyEvent<Self, F>
     where
         Self: Sized,
-        F: Fn(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static;
+        F: FnMut(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static;
     fn overlay<V2>(self, insets: impl Into<Accessor<UiRect>>, v: V2) -> Overlay<Self, V2>
     where
         Self: Sized,
@@ -38,7 +38,7 @@ impl<V: View + Sized> ViewExt for V {
 
     fn on_key_event<F>(self, f: F) -> OnKeyEvent<Self, F>
     where
-        F: Fn(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static,
+        F: FnMut(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static,
     {
         OnKeyEvent {
             view: self,

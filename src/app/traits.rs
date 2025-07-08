@@ -90,7 +90,7 @@ pub trait Readable: Into<Accessor<Self::Value>> {
     fn get_source_id(&self) -> SourceId;
 
     /// Map the current value using `f` and subscribe to changes
-    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R;
+    fn with_ref<'a, R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R;
 
     /// Get the current value and subscribe to changes
     fn get(&self, cx: &mut dyn ReadContext) -> Self::Value
@@ -129,21 +129,6 @@ pub trait Readable: Into<Accessor<Self::Value>> {
         }
     }
 
-    fn map_to_views<T, V, F>(self, f: F) -> impl ViewSequence
-    where
-        Self: Sized + 'static,
-        for<'a> &'a Self::Value: IntoIterator<Item = &'a T>,
-        V: View,
-        F: Fn(&T) -> V + 'static,
-        T: PartialEq + Clone + 'static,
-    {
-        MapToViewsImpl {
-            readable: self,
-            f,
-            _phantom: PhantomData::<fn(&T) -> V>,
-        }
-    }
-
     fn map_to_views_keyed<T, K, V, FKey, FView>(
         self,
         key_fn: FKey,
@@ -165,65 +150,6 @@ pub trait Readable: Into<Accessor<Self::Value>> {
         }
     }
 }
-
-struct MapToViewsImpl<T, V, R, F> {
-    readable: R,
-    f: F,
-    _phantom: PhantomData<fn(&T) -> V>,
-}
-
-impl<C, T, V, R, F> ViewSequence for MapToViewsImpl<T, V, R, F>
-where
-    R: Readable<Value = C> + 'static,
-    C: 'static,
-    for<'a> &'a C: IntoIterator<Item = &'a T>,
-    F: Fn(&T) -> V + 'static,
-    V: View,
-    T: PartialEq + Clone + 'static,
-{
-    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
-        let values: Vec<_> = self
-            .readable
-            .with_ref(cx, |values| values.into_iter().map(T::clone).collect());
-
-        for value in values.iter() {
-            cx.add_child((self.f)(value));
-        }
-
-        let id = cx.id().into_any_widget_id();
-        let mut old_values = values;
-        let f = self.f;
-        Effect::watch(cx, self.readable, move |cx, values| {
-            let mut widget = cx.widget_mut(id);
-            let new_values: Vec<_> = values.into_iter().map(T::clone).collect();
-            for diff in super::diff::diff_slices(old_values.as_slice(), new_values.as_slice()) {
-                match diff {
-                    DiffOp::Remove { index, len } => {
-                        for i in 0..len {
-                            widget.remove_child(index + i)
-                        }
-                    }
-                    DiffOp::Replace {
-                        index,
-                        source_index,
-                    } => widget.replace_child(index, f(&new_values[source_index])),
-                    DiffOp::Insert {
-                        index,
-                        source_index,
-                        len,
-                    } => {
-                        for i in 0..len {
-                            widget.insert_child(f(&new_values[i + source_index]), index);
-                        }
-                    }
-                    DiffOp::Move { from, to } => widget.swap_children(from, to),
-                }
-            }
-            old_values = new_values;
-        });
-    }
-}
-
 struct MapToViewsKeyedImpl<R, F, FKey> {
     readable: R,
     view_fn: F,
@@ -286,20 +212,6 @@ where
             old_indices = new_indices;
         });
     }
-}
-
-pub trait ReadableIter: Readable {
-    type Item;
-    type Iter<'a>: Iterator<Item = &'a Self::Item>
-    where
-        Self::Value: 'a,
-        Self::Item: 'a;
-
-    fn with_ref_iter<'a, R>(
-        &'a self,
-        cx: &'a mut dyn ReadContext,
-        f: impl FnOnce(Self::Iter<'a>) -> R,
-    ) -> R;
 }
 
 #[derive(Clone, Copy)]

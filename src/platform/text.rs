@@ -1,4 +1,4 @@
-use crate::core::{Color, FontFamily, FontOptions, FontWeight, Point, Size};
+use crate::core::{Color, FontFamily, FontOptions, Point, Size};
 use crate::platform::{NativeFont, NativeTextLayout};
 
 pub struct Font {
@@ -6,9 +6,9 @@ pub struct Font {
 }
 
 impl Font {
-    pub fn from_family_and_size(family: &str, size: f64) -> Self {
+    pub fn from_family_and_size(family: &'static str, size: f64) -> Self {
         let native = NativeFont::new(&FontOptions {
-            family: FontFamily::Name(family.to_string()),
+            family: FontFamily::Name(family),
             size,
             ..Default::default()
         });

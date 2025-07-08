@@ -157,6 +157,7 @@ pub struct GridStyleBuilder {}
 #[derive(Debug, Clone, PartialEq)]
 pub enum ContainerStyle {
     Block,
+    Stack,
     Flex(FlexStyle),
     Grid(GridStyle),
 }
@@ -204,6 +205,7 @@ impl Widget for ContainerWidget {
     fn display_style(&self) -> DisplayStyle {
         match &self.container_style {
             ContainerStyle::Block => DisplayStyle::Block,
+            ContainerStyle::Stack => DisplayStyle::Stack,
             ContainerStyle::Flex(flex_style) => DisplayStyle::Flex(flex_style),
             ContainerStyle::Grid(grid_style) => DisplayStyle::Grid(grid_style),
         }
