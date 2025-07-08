@@ -9,8 +9,6 @@ use audioplug::{
 };
 use taffy::AlignSelf;
 
-struct Todos(pub Vec<Todo>);
-
 #[derive(Clone, Copy)]
 struct Todo {
     index: usize,
@@ -26,10 +24,6 @@ impl Todo {
             name: Signal::new(cx, name.to_string()),
             completed: Signal::new(cx, completed),
         }
-    }
-
-    pub fn toggle(&self, cx: &mut impl WriteContext) {
-        self.completed.update(cx, |_, value| *value = !*value);
     }
 }
 

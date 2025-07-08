@@ -2,7 +2,10 @@ use super::{
     AppState, CreateContext, Owner, ParamContext, ReactiveContext, ReadContext, Scope,
     TypedWidgetId, ViewContext, Widget, WidgetFlags, WidgetId,
 };
-use crate::style::{Style, StyleBuilder};
+use crate::{
+    app::ViewSequence,
+    style::{Style, StyleBuilder},
+};
 use std::marker::PhantomData;
 
 pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn Widget>>;
@@ -35,16 +38,20 @@ impl View for AnyView {
 pub struct BuildContext<'a, W: Widget + ?Sized> {
     id: WidgetId,
     pub(crate) app_state: &'a mut AppState,
-    pub(super) style_builder: StyleBuilder,
+    pub(super) style_builder: &'a mut StyleBuilder,
     _phantom: PhantomData<W>,
 }
 
 impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
-    pub fn new(id: WidgetId, app_state: &'a mut AppState) -> Self {
+    pub fn new(
+        id: WidgetId,
+        app_state: &'a mut AppState,
+        style_builder: &'a mut StyleBuilder,
+    ) -> Self {
         Self {
             id,
             app_state,
-            style_builder: Default::default(),
+            style_builder,
             _phantom: PhantomData,
         }
     }
@@ -63,6 +70,15 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
         self.app_state.add_widget(self.id, view, None)
     }
 
+    pub fn add_children(&mut self, view_sequence: impl ViewSequence) {
+        view_sequence.build_seq(&mut BuildContext {
+            id: self.id,
+            app_state: self.app_state,
+            style_builder: self.style_builder,
+            _phantom: PhantomData,
+        });
+    }
+
     pub fn add_overlay(&mut self, view: impl View) -> WidgetId {
         let child_id = self.add_child(view);
         self.app_state
@@ -72,21 +88,16 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
     }
 
     pub(crate) fn build<V: View>(&mut self, view: V) -> V::Element {
-        let (widget, style_builder) = {
-            let mut ctx = BuildContext {
-                id: self.id,
-                app_state: self.app_state,
-                style_builder: Default::default(),
-                _phantom: PhantomData,
-            };
-            (view.build(&mut ctx), ctx.style_builder)
-        };
-        self.style_builder.merge(style_builder);
-        widget
+        view.build(&mut BuildContext {
+            id: self.id,
+            app_state: self.app_state,
+            style_builder: self.style_builder,
+            _phantom: PhantomData,
+        })
     }
 
-    pub fn apply_style(&mut self, style: StyleBuilder) {
-        self.style_builder.merge(style);
+    pub fn apply_style(&mut self, style_fn: impl FnOnce(&mut StyleBuilder)) {
+        style_fn(&mut self.style_builder);
     }
 
     pub fn set_default_style(&mut self, style: Style) {

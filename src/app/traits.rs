@@ -1,10 +1,9 @@
 use std::{any::Any, hash::Hash, marker::PhantomData, rc::Rc};
 
-use fxhash::{FxBuildHasher, FxHashMap};
+use fxhash::FxBuildHasher;
 
 use crate::app::{
-    diff::DiffOp, event_channel::EventSubscription, Accessor, AnyWidgetId, BuildContext, Effect,
-    FxIndexSet, Memo, View, ViewSequence, WatchContext, Widget,
+    diff::DiffOp, Accessor, BuildContext, Effect, FxIndexSet, View, ViewSequence, Widget,
 };
 
 use super::{
@@ -182,7 +181,7 @@ where
     V: View,
     T: PartialEq + Clone + 'static,
 {
-    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
         let values: Vec<_> = self
             .readable
             .with_ref(cx, |values| values.into_iter().map(T::clone).collect());
@@ -241,7 +240,7 @@ where
     F: Fn(&T) -> V + 'static,
     FKey: Fn(&T) -> K + 'static,
 {
-    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
         let views_keys: Vec<_> = self.readable.with_ref(cx, |values| {
             values
                 .into_iter()

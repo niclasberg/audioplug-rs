@@ -6,11 +6,11 @@ use super::{
 use std::{collections::HashMap, hash::Hash};
 
 pub trait ViewSequence: Sized + 'static {
-    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>);
+    fn build_seq(self, cx: &mut BuildContext<dyn Widget>);
 }
 
 impl<V: View + Sized> ViewSequence for V {
-    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
         cx.add_child(self);
     }
 }
@@ -18,9 +18,9 @@ impl<V: View + Sized> ViewSequence for V {
 macro_rules! impl_view_seq_tuple {
     ($( $t: ident),* ; $( $s: tt),*) => {
         impl<$( $t: ViewSequence, )*> ViewSequence for ($( $t, )*) {
-            fn build_seq<W: Widget>(self, ctx: &mut BuildContext<W>) {
+            fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
                 (
-                    $( self.$s.build_seq(ctx), )*
+                    $( self.$s.build_seq(cx), )*
                 );
             }
         }
@@ -41,7 +41,7 @@ impl_view_seq_tuple!(V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11; 0, 1, 2, 3, 4
 impl_view_seq_tuple!(V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12; 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
 
 impl<V: View> ViewSequence for Vec<V> {
-    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
         for child in self {
             cx.add_child(child);
         }
@@ -49,7 +49,7 @@ impl<V: View> ViewSequence for Vec<V> {
 }
 
 impl<V: View> ViewSequence for Option<V> {
-    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
         if let Some(view) = self {
             cx.add_child(view);
         }
@@ -57,7 +57,7 @@ impl<V: View> ViewSequence for Option<V> {
 }
 
 impl<const N: usize, V: View> ViewSequence for [V; N] {
-    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
         for child in self {
             cx.add_child(child);
         }
@@ -77,7 +77,7 @@ where
     FValues: Fn(&mut dyn ReadContext) -> C + 'static,
     FViews: Fn(&T) -> V + 'static,
 {
-    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
         let values = (self.values_fn)(cx);
     }
 }
@@ -94,7 +94,7 @@ where
     V: View,
     F: Fn(Idx) -> V + 'static,
 {
-    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
         let mut start = self.start.get(cx);
         let mut end = self.end.get(cx);
         //let mut ids = Vec::new();
@@ -127,7 +127,7 @@ impl<V: View, F: Fn(usize) -> V> IndexedViewSeq<F> {
 }
 
 impl<V: View, F: Fn(usize) -> V + 'static> ViewSequence for IndexedViewSeq<F> {
-    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
         let child_count = self.count.get(cx);
         for i in 0..child_count {
             cx.add_child((self.view_factory)(i));
@@ -169,7 +169,7 @@ where
     F: Fn(T) -> V + 'static,
     FKey: Fn(&T) -> K + 'static,
 {
-    fn build_seq<W: Widget>(self, cx: &mut BuildContext<W>) {
+    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
         let values = self.signal.with_ref(cx, |values| {
             values.into_iter().map(T::clone).collect::<Vec<T>>()
         });

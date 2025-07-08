@@ -12,6 +12,7 @@ pub enum FontStyle {
     Italic,
     Oblique,
 }
+
 #[derive(Default, Clone, PartialEq)]
 pub struct FontOptions {
     pub family: FontFamily,

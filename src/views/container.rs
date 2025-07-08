@@ -179,7 +179,7 @@ impl<VS: ViewSequence> View for Container<VS> {
     type Element = ContainerWidget;
 
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
-        self.view_seq.build_seq(cx);
+        cx.add_children(self.view_seq);
         ContainerWidget {
             container_style: self.style.get_and_bind(cx, |value, mut widget| {
                 widget.container_style = value;

@@ -76,9 +76,9 @@ pub struct Styled<V> {
 impl<V: View> View for Styled<V> {
     type Element = V::Element;
 
-    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
-        let widget = self.view.build(ctx);
-        ctx.apply_style(self.style_builder);
+    fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
+        let widget = self.view.build(cx);
+        cx.apply_style(move |style| style.merge(self.style_builder));
         widget
     }
 }

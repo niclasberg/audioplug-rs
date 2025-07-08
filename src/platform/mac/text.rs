@@ -1,16 +1,16 @@
 use std::{ffi::c_void, mem::MaybeUninit, ops::Deref, ptr::NonNull};
 
 use crate::core::{Color, FontFamily, FontOptions, FontStyle, FontWeight, Point, Rectangle, Size};
-use objc2_app_kit::{NSFontWeight, NSFontWeightBold, NSFontWeightRegular};
+use objc2_app_kit::{NSFontWeightBold, NSFontWeightRegular};
 use objc2_core_foundation::{
-    CFArray, CFDictionary, CFIndex, CFMutableAttributedString, CFMutableDictionary, CFNumber,
-    CFNumberType, CFRange, CFRetained, CFString, CFType, CGFloat, CGPoint, CGRect, CGSize,
+    CFDictionary, CFIndex, CFMutableAttributedString, CFMutableDictionary, CFNumber, CFRange,
+    CFRetained, CFString, CFType, CGFloat, CGPoint, CGRect, CGSize,
 };
 use objc2_core_graphics::{CGColor, CGPath};
 use objc2_core_text::{
-    kCTFontAttributeName, kCTFontFamilyNameAttribute, kCTFontSizeAttribute, kCTFontSlantTrait,
-    kCTFontTraitsAttribute, kCTFontWeightTrait, kCTForegroundColorAttributeName, CTFont,
-    CTFontCollection, CTFontDescriptor, CTFrame, CTFramesetter, CTLine,
+    kCTFontAttributeName, kCTFontFamilyNameAttribute, kCTFontSlantTrait, kCTFontTraitsAttribute,
+    kCTFontWeightTrait, kCTForegroundColorAttributeName, CTFont, CTFontDescriptor, CTFrame,
+    CTFramesetter, CTLine,
 };
 
 use super::conversions::{cfrange_contains, cfstring_from_str, cgcolor_from_color};
@@ -19,15 +19,17 @@ pub struct TextLine {
     line: CFRetained<CTLine>,
     origin: CGPoint,
     char_range: CFRange,
+    descent: f64,
 }
 
 impl TextLine {
-    pub fn new(line: CFRetained<CTLine>, origin: CGPoint) -> Self {
+    pub fn new(line: CFRetained<CTLine>, origin: CGPoint, descent: f64) -> Self {
         let char_range = unsafe { line.string_range() };
         Self {
             line,
             origin,
             char_range,
+            descent,
         }
     }
 
@@ -146,7 +148,17 @@ fn get_lines_from_frame(frame: &CTFrame) -> Vec<TextLine> {
     lines
         .into_iter()
         .zip(origins.into_iter())
-        .map(|(line, origin)| TextLine::new(line, origin))
+        .map(|(line, origin)| {
+            let mut descent = 0.0;
+            unsafe {
+                line.typographic_bounds(
+                    std::ptr::null_mut(),
+                    &mut descent as *mut _,
+                    std::ptr::null_mut(),
+                )
+            };
+            TextLine::new(line, origin, descent as _)
+        })
         .collect()
 }
 
@@ -238,7 +250,7 @@ impl NativeTextLayout {
                 let origin: Point = line.origin.into();
                 let line_index = index - line.char_range.location;
                 let offset = line.offset_for_string_index(line_index);
-                origin + Point::new(offset, 0.0)
+                origin + Point::new(offset, -line.descent)
             })
             .unwrap_or(Point::ZERO)
     }

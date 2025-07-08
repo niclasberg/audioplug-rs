@@ -17,6 +17,7 @@ use crate::{
     core::{Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
+    style::StyleBuilder,
 };
 use fxhash::FxBuildHasher;
 use slotmap::{Key, SecondaryMap, SlotMap};
@@ -209,10 +210,13 @@ impl AppState {
     }
 
     fn build_and_insert_widget<V: View>(&mut self, id: WidgetId, view: V) {
-        let mut cx = BuildContext::new(id, self);
-        let widget = view.build(&mut cx);
-        let styles = std::mem::take(&mut cx.style_builder);
-        styles.apply_styles(&mut cx.widget_as_dyn());
+        let mut styles = StyleBuilder::default();
+        let widget = view.build(&mut BuildContext::new(id, self, &mut styles));
+        styles.apply_styles(&mut BuildContext::new(
+            id,
+            self,
+            &mut StyleBuilder::default(),
+        ));
         self.widgets.insert(id, Box::new(widget));
     }
 
