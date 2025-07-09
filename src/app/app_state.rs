@@ -12,7 +12,7 @@ use crate::{
         effect::{EffectFn, WatchContext},
         event_channel::HandleEventFn,
         event_handling::{set_focus_widget, set_mouse_capture_widget},
-        AnyView, FxIndexSet, Scope,
+        AnyView, FxIndexSet, Scope, WidgetContext,
     },
     core::{Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
@@ -26,97 +26,6 @@ use std::{
     cell::RefCell,
     rc::{Rc, Weak},
 };
-
-pub struct EffectContextImpl<'a> {
-    pub(super) effect_id: NodeId,
-    pub(super) app_state: &'a mut AppState,
-}
-
-impl EffectContext for EffectContextImpl<'_> {
-    fn widget_ref_dyn(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget> {
-        WidgetRef::new(&self.app_state, id)
-    }
-
-    fn widget_mut_dyn(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
-        WidgetMut::new(&mut self.app_state, id)
-    }
-
-    fn replace_widget_dun(&mut self, id: WidgetId, view: AnyView) {
-        self.app_state.replace_widget(id, view);
-    }
-}
-
-impl ReactiveContext for EffectContextImpl<'_> {
-    fn runtime(&self) -> &Runtime {
-        self.app_state.runtime()
-    }
-
-    fn runtime_mut(&mut self) -> &mut Runtime {
-        self.app_state.runtime_mut()
-    }
-}
-
-impl ReadContext for EffectContextImpl<'_> {
-    fn scope(&self) -> Scope {
-        Scope::Node(self.effect_id)
-    }
-}
-
-impl WriteContext for EffectContextImpl<'_> {}
-
-pub(super) enum Task {
-    RunEffect {
-        id: NodeId,
-        f: Weak<RefCell<EffectFn>>,
-    },
-    UpdateBinding {
-        f: Weak<RefCell<BindingFn>>,
-        node_id: NodeId,
-    },
-    HandleEvent {
-        f: Weak<HandleEventFn>,
-        event: Rc<dyn Any>,
-    },
-    UpdateAnimation {
-        node_id: NodeId,
-        window_id: WindowId,
-    },
-}
-
-impl Task {
-    pub(super) fn run(self, app_state: &mut AppState) {
-        match self {
-            Task::RunEffect { id, f } => {
-                if let Some(f) = f.upgrade() {
-                    let mut cx = EffectContextImpl {
-                        effect_id: id,
-                        app_state,
-                    };
-                    (RefCell::borrow_mut(&f))(&mut cx);
-                    app_state.runtime.mark_node_as_clean(id);
-                }
-            }
-            Task::UpdateBinding { f, node_id } => {
-                if let Some(f) = f.upgrade() {
-                    (RefCell::borrow_mut(&f))(app_state);
-                    app_state.runtime.mark_node_as_clean(node_id);
-                }
-            }
-            Task::UpdateAnimation { node_id, window_id } => {
-                app_state
-                    .window_mut(window_id)
-                    .pending_node_animations
-                    .insert(node_id);
-            }
-            Task::HandleEvent { f, event } => {
-                if let Some(f) = f.upgrade() {
-                    let mut cx = WatchContext { app_state };
-                    f(&mut cx, &event);
-                }
-            }
-        }
-    }
-}
 
 pub(super) struct WindowState {
     pub(super) handle: platform::Handle,
@@ -496,6 +405,98 @@ impl AppState {
     }
 }
 
+pub struct EffectContextImpl<'a> {
+    pub(super) effect_id: NodeId,
+    pub(super) app_state: &'a mut AppState,
+}
+
+impl EffectContext for EffectContextImpl<'_> {}
+
+impl WidgetContext for EffectContextImpl<'_> {
+    fn widget_ref_dyn(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget> {
+        WidgetRef::new(&self.app_state, id)
+    }
+
+    fn widget_mut_dyn(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
+        WidgetMut::new(&mut self.app_state, id)
+    }
+
+    fn replace_widget_dun(&mut self, id: WidgetId, view: AnyView) {
+        self.app_state.replace_widget(id, view);
+    }
+}
+
+impl ReactiveContext for EffectContextImpl<'_> {
+    fn runtime(&self) -> &Runtime {
+        self.app_state.runtime()
+    }
+
+    fn runtime_mut(&mut self) -> &mut Runtime {
+        self.app_state.runtime_mut()
+    }
+}
+
+impl ReadContext for EffectContextImpl<'_> {
+    fn scope(&self) -> Scope {
+        Scope::Node(self.effect_id)
+    }
+}
+
+impl WriteContext for EffectContextImpl<'_> {}
+
+pub(super) enum Task {
+    RunEffect {
+        id: NodeId,
+        f: Weak<RefCell<EffectFn>>,
+    },
+    UpdateBinding {
+        f: Weak<RefCell<BindingFn>>,
+        node_id: NodeId,
+    },
+    HandleEvent {
+        f: Weak<HandleEventFn>,
+        event: Rc<dyn Any>,
+    },
+    UpdateAnimation {
+        node_id: NodeId,
+        window_id: WindowId,
+    },
+}
+
+impl Task {
+    pub(super) fn run(self, app_state: &mut AppState) {
+        match self {
+            Task::RunEffect { id, f } => {
+                if let Some(f) = f.upgrade() {
+                    let mut cx = EffectContextImpl {
+                        effect_id: id,
+                        app_state,
+                    };
+                    (RefCell::borrow_mut(&f))(&mut cx);
+                    app_state.runtime.mark_node_as_clean(id);
+                }
+            }
+            Task::UpdateBinding { f, node_id } => {
+                if let Some(f) = f.upgrade() {
+                    (RefCell::borrow_mut(&f))(app_state);
+                    app_state.runtime.mark_node_as_clean(node_id);
+                }
+            }
+            Task::UpdateAnimation { node_id, window_id } => {
+                app_state
+                    .window_mut(window_id)
+                    .pending_node_animations
+                    .insert(node_id);
+            }
+            Task::HandleEvent { f, event } => {
+                if let Some(f) = f.upgrade() {
+                    f(app_state, &event);
+                }
+            }
+        }
+    }
+}
+
 impl ReactiveContext for AppState {
     fn runtime(&self) -> &Runtime {
         &self.runtime
@@ -528,3 +529,19 @@ impl CreateContext for AppState {
         None
     }
 }
+
+impl WidgetContext for AppState {
+    fn widget_ref_dyn(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget> {
+        WidgetRef::new(self, id)
+    }
+
+    fn widget_mut_dyn(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
+        WidgetMut::new(self, id)
+    }
+
+    fn replace_widget_dun(&mut self, id: WidgetId, view: AnyView) {
+        self.replace_widget(id, view);
+    }
+}
+
+impl WatchContext for AppState {}

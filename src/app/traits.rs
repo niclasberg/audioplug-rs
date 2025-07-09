@@ -3,7 +3,8 @@ use std::{any::Any, hash::Hash, marker::PhantomData, rc::Rc};
 use fxhash::FxBuildHasher;
 
 use crate::app::{
-    diff::DiffOp, Accessor, BuildContext, Effect, FxIndexSet, View, ViewSequence, Widget,
+    diff::DiffOp, Accessor, AnyView, BuildContext, Effect, FxIndexSet, TypedWidgetId, View,
+    ViewSequence, Widget, WidgetId, WidgetMut, WidgetRef,
 };
 
 use super::{
@@ -76,6 +77,12 @@ impl ReadContext for LocalReadContext<'_> {
 
 pub trait ViewContext: CreateContext {
     fn window_id(&self) -> WindowId;
+}
+
+pub trait WidgetContext {
+    fn widget_ref_dyn(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget>;
+    fn widget_mut_dyn(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget>;
+    fn replace_widget_dun(&mut self, id: WidgetId, view: AnyView);
 }
 
 pub trait ReadContext: ReactiveContext {

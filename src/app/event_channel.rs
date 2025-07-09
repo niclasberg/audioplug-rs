@@ -16,7 +16,7 @@ impl<T: Any> EventChannel<T> {
     pub fn subscribe(
         &self,
         cx: &mut dyn CreateContext,
-        f: impl Fn(&mut WatchContext, &T),
+        f: impl Fn(&mut dyn WatchContext, &T),
     ) -> EventSubscription {
         todo!()
     }
@@ -51,7 +51,7 @@ pub fn create_event_channel<T: Any>(
     (emitter, receiver)
 }
 
-pub(super) type HandleEventFn = dyn Fn(&mut WatchContext, &dyn Any);
+pub(super) type HandleEventFn = dyn Fn(&mut dyn WatchContext, &dyn Any);
 
 pub struct EventHandlerState {
     f: Rc<HandleEventFn>,

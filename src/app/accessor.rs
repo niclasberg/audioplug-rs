@@ -3,7 +3,7 @@ use std::rc::Rc;
 use super::{
     effect::BindingState, signal::ReadSignal, Animated, AnimatedFn, Brush, BuildContext,
     EffectState, LinearGradient, Memo, NodeId, Owner, ParamSignal, ReactiveContext, ReadContext,
-    Readable, Signal, Widget, WidgetMut,
+    Readable, Signal, Widget, WidgetContext, WidgetMut,
 };
 use crate::{app::Effect, core::Color, param::ParameterId};
 
@@ -151,10 +151,10 @@ impl<T: 'static> Accessor<T> {
             }
             Self::Mapped(ref mapped) => {
                 let source_id = mapped.get_source_id();
-                let state = BindingState::new(move |app_state| {
-                    let value = self.with_ref(app_state, f_map);
-                    let node = WidgetMut::new(app_state, widget_id.id);
-                    f(value, node);
+                let mapped = mapped.clone();
+                let state = BindingState::new(move |cx| {
+                    let value = mapped.evaluate_untracked(cx);
+                    f(f_map(&value), cx.widget_mut(widget_id));
                 });
 
                 cx.runtime_mut().create_binding_node(

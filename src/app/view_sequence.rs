@@ -234,7 +234,7 @@ where
         let source_id = signal.get_source_id();
         let widget_id = cx.id();
         let state = BindingState::new(move |cx| {
-            let values = signal.with_ref(cx, |values| {
+            let values = signal.with_ref_untracked(cx, |values| {
                 values.into_iter().map(T::clone).collect::<Vec<T>>()
             });
             let mut new_indices: HashMap<_, _> = values
