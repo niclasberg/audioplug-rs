@@ -306,7 +306,17 @@ impl TextBoxWidget {
     }
 
     fn rebuild_text_layout(&mut self) {
-        self.position = self.position.min(self.value.len());
+        if self.position > self.value.len() {
+            self.position = self.value.len();
+        }
+
+        if self
+            .selection_start
+            .is_some_and(|sel_start| sel_start > self.value.len())
+        {
+            self.selection_start = None;
+        }
+
         self.text_layout = TextLayout::new(self.value.as_str(), Color::BLACK, Size::INFINITY);
     }
 }
