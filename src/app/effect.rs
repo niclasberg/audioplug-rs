@@ -4,7 +4,7 @@ use super::{CreateContext, NodeId, ReactiveContext, ReadContext, Readable, Write
 use std::{any::Any, cell::RefCell, rc::Rc};
 
 pub trait EffectContext: ReactiveContext + ReadContext + WriteContext + WidgetContext {}
-impl<'a> dyn EffectContext + 'a {
+impl dyn EffectContext + '_ {
     pub fn widget_ref<W: Widget + ?Sized>(&self, id: TypedWidgetId<W>) -> WidgetRef<'_, W> {
         self.widget_ref_dyn(id.id).unchecked_cast()
     }
@@ -15,7 +15,7 @@ impl<'a> dyn EffectContext + 'a {
 }
 
 pub trait WatchContext: ReactiveContext + WriteContext + WidgetContext {}
-impl<'a> dyn WatchContext + 'a {
+impl dyn WatchContext + '_ {
     pub fn widget_ref<W: Widget + ?Sized>(&self, id: TypedWidgetId<W>) -> WidgetRef<'_, W> {
         self.widget_ref_dyn(id.id).unchecked_cast()
     }
@@ -112,14 +112,6 @@ impl Effect {
         );
 
         Self { id }
-    }
-
-    pub fn watch_fn<T: 'static>(
-        cx: &mut dyn CreateContext,
-        source_fn: impl Fn(&mut dyn ReadContext) -> T,
-        effect: impl Fn(&mut dyn WatchContext, T),
-    ) -> Self {
-        todo!()
     }
 
     pub fn dispose(self, cx: &mut dyn ReactiveContext) {

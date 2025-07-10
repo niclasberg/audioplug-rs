@@ -3,8 +3,8 @@ use std::{any::Any, hash::Hash, marker::PhantomData, rc::Rc};
 use fxhash::FxBuildHasher;
 
 use crate::app::{
-    diff::DiffOp, Accessor, AnyView, BuildContext, Effect, FxIndexSet, TypedWidgetId, View,
-    ViewSequence, Widget, WidgetId, WidgetMut, WidgetRef,
+    diff::DiffOp, Accessor, AnyView, BuildContext, Effect, FxIndexSet, View, ViewSequence, Widget,
+    WidgetId, WidgetMut, WidgetRef,
 };
 
 use super::{
@@ -97,7 +97,7 @@ pub trait Readable: Into<Accessor<Self::Value>> {
     fn get_source_id(&self) -> SourceId;
 
     /// Map the current value using `f` and subscribe to changes
-    fn with_ref<'a, R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R;
+    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R;
 
     /// Get the current value and subscribe to changes
     fn get(&self, cx: &mut dyn ReadContext) -> Self::Value

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use super::{
     effect::BindingState, signal::ReadSignal, Animated, AnimatedFn, Brush, BuildContext,
     EffectState, LinearGradient, Memo, NodeId, Owner, ParamSignal, ReactiveContext, ReadContext,
-    Readable, Signal, Widget, WidgetContext, WidgetMut,
+    Readable, Signal, Widget, WidgetMut,
 };
 use crate::{app::Effect, core::Color, param::ParameterId};
 

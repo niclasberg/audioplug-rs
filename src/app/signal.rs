@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use crate::app::{Accessor, LocalCreateContext, Owner, ReactiveContext};
+use crate::app::{Accessor, Owner, ReactiveContext};
 
 use super::{
     accessor::SourceId, CreateContext, NodeId, NodeType, ReadContext, Readable, WriteContext,

@@ -414,11 +414,11 @@ impl EffectContext for EffectContextImpl<'_> {}
 
 impl WidgetContext for EffectContextImpl<'_> {
     fn widget_ref_dyn(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget> {
-        WidgetRef::new(&self.app_state, id)
+        WidgetRef::new(self.app_state, id)
     }
 
     fn widget_mut_dyn(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
-        WidgetMut::new(&mut self.app_state, id)
+        WidgetMut::new(self.app_state, id)
     }
 
     fn replace_widget_dun(&mut self, id: WidgetId, view: AnyView) {

@@ -163,17 +163,17 @@ where
     /// Expand the rectangle by `amount` from each side. Retains the
     /// center position and reduces the size by 2 times `amount`
     pub fn expand(&self, amount: T) -> Self {
-        Self::shrink(&self, -amount)
+        Self::shrink(self, -amount)
     }
 
     /// Expand the rectangle by `amount` in the x direction, keeping the same center position
     pub fn expand_x(&self, amount: T) -> Self {
-        Self::shrink_x(&self, -amount)
+        Self::shrink_x(self, -amount)
     }
 
     /// Expand the rectangle by `amount` in the y direction, keeping the same center position
     pub fn expand_y(&self, amount: T) -> Self {
-        Self::shrink_y(&self, -amount)
+        Self::shrink_y(self, -amount)
     }
 
     /// Shrink the rectangle by `amount` from each side. Retains the

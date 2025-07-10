@@ -97,7 +97,7 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
     }
 
     pub fn apply_style(&mut self, style_fn: impl FnOnce(&mut StyleBuilder)) {
-        style_fn(&mut self.style_builder);
+        style_fn(self.style_builder);
     }
 
     pub fn set_default_style(&mut self, style: Style) {
@@ -106,15 +106,6 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
 
     pub fn update_default_style(&mut self, f: impl FnOnce(&mut Style)) {
         f(&mut self.app_state.widget_data_mut(self.id).style);
-    }
-
-    pub(crate) fn widget_as_dyn(self) -> BuildContext<'a, dyn Widget> {
-        BuildContext {
-            id: self.id,
-            app_state: self.app_state,
-            style_builder: self.style_builder,
-            _phantom: PhantomData,
-        }
     }
 }
 

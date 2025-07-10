@@ -121,7 +121,7 @@ where
                     self.value = to.clone();
                     self.state = TweenState::Done;
                 } else {
-                    self.value = from.lerp(&to, (self.tween_fn)(seconds_passed / self.duration));
+                    self.value = from.lerp(to, (self.tween_fn)(seconds_passed / self.duration));
                 }
                 true
             }

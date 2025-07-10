@@ -6,8 +6,8 @@ use crate::{
 mod canvas;
 use super::{AppState, WidgetId, WindowId};
 pub use canvas::{Canvas, CanvasContext, CanvasWidget};
+pub use platform::TextLayout;
 pub use platform::{Brush, BrushRef, LinearGradient, RadialGradient};
-pub use platform::{Font, TextLayout};
 pub use platform::{PathGeometry, PathGeometryBuilder, Shape, ShapeRef};
 
 pub fn render_window(

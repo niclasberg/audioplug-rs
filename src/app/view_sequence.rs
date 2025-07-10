@@ -64,36 +64,6 @@ impl<const N: usize, V: View> ViewSequence for [V; N] {
     }
 }
 
-pub struct ForRange<Idx, F> {
-    start: Accessor<Idx>,
-    end: Accessor<Idx>,
-    view_fn: F,
-}
-
-impl<Idx, V, F> ViewSequence for ForRange<Idx, F>
-where
-    Idx: num::Integer + Clone + 'static,
-    V: View,
-    F: Fn(Idx) -> V + 'static,
-{
-    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
-        let mut start = self.start.get(cx);
-        let mut end = self.end.get(cx);
-        //let mut ids = Vec::new();
-        let view_fn = self.view_fn;
-        let mut i = start;
-        /*while i != end {
-            let id = cx.add_child(view_fn(i));
-            ids.push(id);
-            if start < end {
-                i = i.add(Idx::one());
-            } else {
-                i = i.sub(Idx::one());
-            };
-        }*/
-    }
-}
-
 pub struct IndexedViewSeq<F> {
     count: Accessor<usize>,
     view_factory: F,

@@ -504,7 +504,7 @@ impl Runtime {
         std::mem::take(&mut self.pending_tasks)
     }
 
-    pub fn publish_event(&mut self, source_id: NodeId, event: Rc<dyn Any>) {}
+    pub fn publish_event(&mut self, _source_id: NodeId, _event: Rc<dyn Any>) {}
 
     pub(super) fn request_animation(&mut self, window_id: WindowId, node_id: NodeId) {
         let task = Task::UpdateAnimation { node_id, window_id };
