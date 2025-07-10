@@ -79,11 +79,9 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
         });
     }
 
-    pub fn add_overlay(&mut self, view: impl View) -> WidgetId {
+    pub fn add_overlay(&mut self, view: impl View, z_index: usize) -> WidgetId {
         let child_id = self.add_child(view);
-        self.app_state
-            .widget_data_mut(child_id)
-            .set_flag(WidgetFlags::OVERLAY);
+        self.app_state.make_widget_into_overlay(child_id, z_index);
         child_id
     }
 

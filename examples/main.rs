@@ -151,7 +151,12 @@ fn overview() -> impl View {
                                 ..Default::default()
                             })
                     })
-                    .overlay(UiRect::ZERO, Label::new("OVERLAY")),
+                    .overlay(
+                        UiRect::ZERO,
+                        Button::new(Label::new("Filled!!!")).on_click(move |cx| {
+                            checkbox_enabled.update(cx, |_, enabled| *enabled = !*enabled);
+                        }),
+                    ),
             ))
             .v_align_center(),
             Row::new((

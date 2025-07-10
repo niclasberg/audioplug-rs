@@ -16,13 +16,23 @@ pub fn render_window(
     renderer: platform::RendererRef<'_>,
 ) {
     println!("Render");
-    let widget_id = app_state.window(window_id).root_widget;
-    let mut ctx = RenderContext {
-        id: widget_id,
-        app_state,
-        renderer,
-    };
-    ctx.render_current_widget();
+    app_state.with_id_scratch_space_mut(move |app_state, overlays| {
+        overlays.extend(app_state.window(window_id).overlays.iter());
+
+        // Root
+        let mut cx = RenderContext {
+            id: app_state.window(window_id).root_widget,
+            app_state,
+            renderer,
+        };
+        cx.render_current_widget();
+
+        // Overlays
+        for overlay_id in overlays.iter() {
+            cx.id = *overlay_id;
+            cx.render_current_widget();
+        }
+    });
 }
 
 pub fn invalidate_window(app_state: &AppState, window_id: WindowId) {
@@ -174,6 +184,13 @@ impl RenderContext<'_, '_> {
             .children
             .clone();
         for id in ids {
+            // Overlay children are handled at root level
+            if self.app_state.widget_data[id].is_overlay() {
+                continue;
+            }
+            if self.app_state.widget_data[id].is_hidden() {
+                continue;
+            }
             self.id = id;
             self.render_current_widget();
         }

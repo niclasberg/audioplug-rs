@@ -12,6 +12,7 @@ use crate::{
         effect::{EffectFn, WatchContext},
         event_channel::HandleEventFn,
         event_handling::{set_focus_widget, set_mouse_capture_widget},
+        overlay::OverlayContainer,
         AnyView, FxIndexSet, Scope, WidgetContext,
     },
     core::{Point, WindowTheme},
@@ -23,7 +24,7 @@ use fxhash::FxBuildHasher;
 use slotmap::{Key, SecondaryMap, SlotMap};
 use std::{
     any::Any,
-    cell::RefCell,
+    cell::{Cell, RefCell},
     rc::{Rc, Weak},
 };
 
@@ -34,6 +35,7 @@ pub(super) struct WindowState {
     pub(super) pending_widget_animations: FxIndexSet<WidgetId>,
     pub(super) pending_node_animations: FxIndexSet<NodeId>,
     pub(super) theme_signal: Signal<WindowTheme>,
+    pub(super) overlays: OverlayContainer,
 }
 
 pub struct AppState {
@@ -43,6 +45,7 @@ pub struct AppState {
     pub(super) mouse_capture_widget: Option<WidgetId>,
     pub(super) runtime: Runtime,
     host_handle: Option<Box<dyn HostHandle>>,
+    id_scratch_buffer: Cell<Vec<WidgetId>>,
 }
 
 impl AppState {
@@ -54,6 +57,7 @@ impl AppState {
             mouse_capture_widget: None,
             runtime: Runtime::new(parameters),
             host_handle: None,
+            id_scratch_buffer: Default::default(),
         }
     }
 
@@ -104,6 +108,7 @@ impl AppState {
             pending_widget_animations: FxIndexSet::with_hasher(FxBuildHasher::new()),
             pending_node_animations: FxIndexSet::with_hasher(FxBuildHasher::new()),
             theme_signal,
+            overlays: Default::default(),
         });
 
         let widget_id = self
@@ -161,6 +166,20 @@ impl AppState {
         id
     }
 
+    pub fn make_widget_into_overlay(&mut self, widget_id: WidgetId, z_index: usize) {
+        let widget_data = self
+            .widget_data
+            .get_mut(widget_id)
+            .expect("Widget should exist");
+        if widget_data.is_overlay() {
+            // Maybe override the z-index?
+        } else {
+            widget_data.set_flag(WidgetFlags::OVERLAY);
+            let window_id = self.get_window_id_for_widget(widget_id);
+            self.window_mut(window_id).overlays.add(widget_id, z_index);
+        }
+    }
+
     pub fn remove_window(&mut self, id: WindowId) {
         let root_widget = self.window_mut(id).root_widget;
         let theme_signal_id = self.window_mut(id).theme_signal.id;
@@ -195,6 +214,9 @@ impl AppState {
 
     fn do_remove_widget(&mut self, id: WidgetId) -> WidgetData {
         let widget_data = self.widget_data.remove(id).unwrap();
+        if widget_data.is_overlay() {
+            self.window_mut(widget_data.window_id).overlays.remove(id);
+        }
         self.widgets.remove(id).expect("Widget already removed");
         self.runtime.clear_nodes_for_widget(id);
         widget_data
@@ -282,27 +304,62 @@ impl AppState {
         self.widget_data.get_mut(id).expect("Widget data not found")
     }
 
-    /// Calls `f` for each widget that conatains `pos`. The order is from the root and down the tree (depth first order)
+    /// Calls `f` for each widget that contains `pos`. The order is from the root and down the tree (draw order).
+    /// Iteration continues until all widgets have been visited, or `f` returns false
     pub fn for_each_widget_at(
         &self,
         id: WindowId,
         pos: Point,
         mut f: impl FnMut(&Self, WidgetId) -> bool,
     ) {
-        let mut stack = vec![self.windows[id].root_widget];
-        while let Some(current) = stack.pop() {
-            if !f(self, current) {
-                return;
-            }
+        fn traverse(
+            app_state: &AppState,
+            roots: Vec<WidgetId>,
+            pos: Point,
+            f: &mut dyn FnMut(&AppState, WidgetId) -> bool,
+        ) {
+            app_state.with_id_scratch_space(move |app_state, stack| {
+                for root in roots {
+                    stack.push(root);
+                    while let Some(current) = stack.pop() {
+                        if !f(app_state, current) {
+                            return;
+                        }
 
-            for &child in self.widget_data[current].children.iter().rev() {
-                if self.widget_data[child].global_bounds().contains(pos) {
-                    stack.push(child)
+                        for &child in app_state.widget_data[current].children.iter().rev() {
+                            let data = &app_state.widget_data[child];
+                            if data.global_bounds().contains(pos) && !data.is_overlay() {
+                                stack.push(child)
+                            }
+                        }
+                    }
                 }
-            }
+            });
         }
+
+        let mut root_and_overlays = vec![self.windows[id].root_widget];
+        root_and_overlays.extend(self.windows[id].overlays.iter());
+        traverse(self, root_and_overlays, pos, &mut f);
     }
 
+    pub(super) fn with_id_scratch_space(&self, f: impl FnOnce(&Self, &mut Vec<WidgetId>)) {
+        let mut scratch = self.id_scratch_buffer.replace(Vec::new());
+        f(self, &mut scratch);
+        scratch.clear();
+        self.id_scratch_buffer.set(scratch);
+    }
+
+    pub(super) fn with_id_scratch_space_mut(
+        &mut self,
+        f: impl FnOnce(&mut Self, &mut Vec<WidgetId>),
+    ) {
+        let mut scratch = self.id_scratch_buffer.replace(Vec::new());
+        f(self, &mut scratch);
+        scratch.clear();
+        self.id_scratch_buffer.set(scratch);
+    }
+
+    /// Calls `f` for each widget that contains `pos`. The traversal order is from the top leaf back to the root (reverse draw order)
     pub fn for_each_widget_at_rev(
         &self,
         id: WindowId,
@@ -314,27 +371,35 @@ impl AppState {
             Done(WidgetId),
         }
 
-        let mut stack = vec![Action::VisitChildren(self.windows[id].root_widget)];
-        while let Some(current) = stack.pop() {
-            match current {
-                Action::VisitChildren(widget_id) => {
-                    let data = &self.widget_data[widget_id];
-                    if data.children.is_empty() {
-                        if !f(self, widget_id) {
-                            return;
-                        }
-                    } else {
-                        stack.push(Action::Done(widget_id));
-                        for &child in data.children.iter() {
-                            if self.widget_data[child].global_bounds().contains(pos) {
-                                stack.push(Action::VisitChildren(child))
+        let mut stack = Vec::new();
+        // Overlays first (in reverse order) and then the "regular" view hierarchy
+        let mut root_and_overlays: Vec<_> = self.windows[id].overlays.iter().rev().collect();
+        root_and_overlays.push(self.windows[id].root_widget);
+
+        for root in root_and_overlays {
+            stack.push(Action::VisitChildren(root));
+            while let Some(current) = stack.pop() {
+                match current {
+                    Action::VisitChildren(widget_id) => {
+                        let data = &self.widget_data[widget_id];
+                        if data.children.is_empty() {
+                            if !f(self, widget_id) {
+                                return;
+                            }
+                        } else {
+                            stack.push(Action::Done(widget_id));
+                            for &child in data.children.iter() {
+                                let data = &self.widget_data[child];
+                                if data.global_bounds().contains(pos) && !data.is_overlay() {
+                                    stack.push(Action::VisitChildren(child))
+                                }
                             }
                         }
                     }
-                }
-                Action::Done(widget_id) => {
-                    if !f(self, widget_id) {
-                        return;
+                    Action::Done(widget_id) => {
+                        if !f(self, widget_id) {
+                            return;
+                        }
                     }
                 }
             }

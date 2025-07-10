@@ -28,9 +28,10 @@ bitflags!(
     #[derive(Debug, Clone, Copy)]
     pub struct WidgetFlags : u32 {
         const EMPTY = 0;
+        // Dirty flags
         const NEEDS_LAYOUT = 1 << 1;
         const NEEDS_RENDER = 1 << 2;
-        const NEEDS_REBUILD = 1 << 3;
+
         const FOCUSABLE = 1 << 4;
         const OVERLAY = 1 << 5;
 
@@ -132,6 +133,7 @@ impl WidgetData {
         self.flags &= !flag;
     }
 
+    #[inline(always)]
     pub fn flag_is_set(&self, flag: WidgetFlags) -> bool {
         self.flags.contains(flag)
     }
@@ -157,6 +159,7 @@ impl WidgetData {
         self.style.hidden
     }
 
+    #[inline(always)]
     pub fn is_overlay(&self) -> bool {
         self.flag_is_set(WidgetFlags::OVERLAY)
     }

@@ -94,7 +94,7 @@ impl<V: View, V2: View> View for Overlay<V, V2> {
 
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
         let widget = cx.build(self.parent_view);
-        cx.add_overlay(self.child_view);
+        cx.add_overlay(self.child_view, 1000);
         widget
     }
 }
