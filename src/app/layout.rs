@@ -1,20 +1,20 @@
 use crate::core::{Point, Rectangle, Size};
 use crate::style::{AvailableSpace, DisplayStyle, ResolveInto, Style, UiRect};
 use taffy::{
-    CacheTree, CoreStyle, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree,
-    PrintTree, TraversePartialTree, TraverseTree,
+    CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree,
+    TraversePartialTree, TraverseTree,
 };
 
 use super::{invalidate_window, AppState, WidgetFlags, WidgetId, WindowId};
 
 pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
     println!("Layout");
-    let (window_size, widget_id) = {
+    app_state.with_id_buffer_mut(move |app_state, layout_roots| {
         let window = app_state.window(window_id);
-        (window.handle.global_bounds().size(), window.root_widget)
-    };
+        let window_size = window.handle.global_bounds().size();
+        layout_roots.push(window.root_widget);
+        layout_roots.extend(window.overlays.iter());
 
-    {
         let available_space = taffy::Size {
             width: taffy::AvailableSpace::Definite(window_size.width as f32),
             height: taffy::AvailableSpace::Definite(window_size.height as f32),
@@ -24,7 +24,10 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
             window_size,
             region_to_invalidate: None,
         };
-        taffy::compute_root_layout(&mut ctx, widget_id.into(), available_space);
+
+        for widget_id in layout_roots.iter() {
+            taffy::compute_root_layout(&mut ctx, (*widget_id).into(), available_space);
+        }
 
         if let Some(region_to_invalidate) = ctx.region_to_invalidate {
             app_state
@@ -32,10 +35,13 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
                 .handle
                 .invalidate(region_to_invalidate);
         }
-        //taffy::print_tree(&mut ctx, widget_id.into());
-    }
 
-    update_node_origins(app_state, widget_id);
+        for widget_id in layout_roots.iter() {
+            update_node_origins(app_state, *widget_id);
+        }
+        //taffy::print_tree(&mut ctx, widget_id.into());
+    });
+
     invalidate_window(app_state, window_id);
 }
 
@@ -87,7 +93,6 @@ impl LayoutContext<'_> {
             style: &self.app_state.widget_data[node_id].style,
             display_style: self.app_state.widgets[node_id].display_style(),
             window_size: self.window_size,
-            is_overlay: self.app_state.widget_data[node_id].is_overlay(),
         }
     }
 }
@@ -347,7 +352,6 @@ pub struct LayoutStyle<'a> {
     pub(crate) style: &'a Style,
     pub(crate) display_style: DisplayStyle<'a>,
     pub(crate) window_size: Size,
-    pub(crate) is_overlay: bool,
 }
 
 impl taffy::CoreStyle for LayoutStyle<'_> {
@@ -379,11 +383,7 @@ impl taffy::CoreStyle for LayoutStyle<'_> {
     }
 
     fn position(&self) -> taffy::Position {
-        if self.is_overlay {
-            taffy::Position::Absolute
-        } else {
-            taffy::Position::Relative
-        }
+        taffy::Position::Relative
     }
 
     fn inset(&self) -> taffy::Rect<taffy::LengthPercentageAuto> {

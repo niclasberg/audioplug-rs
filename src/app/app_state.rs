@@ -21,7 +21,7 @@ use crate::{
     style::StyleBuilder,
 };
 use fxhash::FxBuildHasher;
-use slotmap::{Key, SecondaryMap, SlotMap};
+use slotmap::{Key, SecondaryMap, SlotMap, SparseSecondaryMap};
 use std::{
     any::Any,
     cell::{Cell, RefCell},
@@ -46,6 +46,12 @@ pub struct AppState {
     pub(super) runtime: Runtime,
     host_handle: Option<Box<dyn HostHandle>>,
     id_scratch_buffer: Cell<Vec<WidgetId>>,
+}
+
+pub enum WidgetInsertPos {
+    Index(usize),
+    End,
+    Overlay { z_index: usize },
 }
 
 impl AppState {
@@ -139,7 +145,7 @@ impl AppState {
         &mut self,
         parent_id: WidgetId,
         view: V,
-        child_index: Option<usize>,
+        position: WidgetInsertPos,
     ) -> WidgetId {
         let window_id = self
             .widget_data
@@ -152,32 +158,21 @@ impl AppState {
 
         self.build_and_insert_widget(id, view);
 
-        let parent_widget_data = self
+        let parent = self
             .widget_data
             .get_mut(parent_id)
             .expect("Parent does not exist");
-
-        if let Some(child_index) = child_index {
-            parent_widget_data.children.insert(child_index, id);
-        } else {
-            parent_widget_data.children.push(id);
+        match position {
+            WidgetInsertPos::Index(index) => parent.children.insert(index, id),
+            WidgetInsertPos::End => parent.children.push(id),
+            WidgetInsertPos::Overlay { z_index } => {
+                parent.overlays.push(id);
+                self.widget_data[id].set_flag(WidgetFlags::OVERLAY);
+                self.window_mut(window_id).overlays.add(id, z_index);
+            }
         }
 
         id
-    }
-
-    pub fn make_widget_into_overlay(&mut self, widget_id: WidgetId, z_index: usize) {
-        let widget_data = self
-            .widget_data
-            .get_mut(widget_id)
-            .expect("Widget should exist");
-        if widget_data.is_overlay() {
-            // Maybe override the z-index?
-        } else {
-            widget_data.set_flag(WidgetFlags::OVERLAY);
-            let window_id = self.get_window_id_for_widget(widget_id);
-            self.window_mut(window_id).overlays.add(widget_id, z_index);
-        }
     }
 
     pub fn remove_window(&mut self, id: WindowId) {
@@ -193,8 +188,8 @@ impl AppState {
         self.clear_mouse_capture_and_focus(id);
 
         let mut widget_data = self.do_remove_widget(id);
-        // Must be removed from parent's child list
         if !widget_data.parent_id.is_null() {
+            // Must be removed from parent's child list
             let parent_id = widget_data.parent_id;
             let parent_widget_data = self
                 .widget_data
@@ -203,13 +198,20 @@ impl AppState {
             parent_widget_data
                 .children
                 .retain(|child_id| *child_id != id);
+            parent_widget_data
+                .overlays
+                .retain(|child_id| *child_id != id);
         }
 
-        let mut children_to_remove = std::mem::take(&mut widget_data.children);
-        while let Some(id) = children_to_remove.pop() {
-            let widget_data = self.do_remove_widget(id);
-            children_to_remove.extend(widget_data.children.into_iter());
-        }
+        self.with_id_buffer_mut(|app_state, children_to_remove| {
+            children_to_remove.extend(widget_data.children);
+            children_to_remove.extend(widget_data.overlays);
+            while let Some(id) = children_to_remove.pop() {
+                let widget_data = app_state.do_remove_widget(id);
+                children_to_remove.extend(widget_data.children.into_iter());
+                children_to_remove.extend(widget_data.overlays.into_iter());
+            }
+        });
     }
 
     fn do_remove_widget(&mut self, id: WidgetId) -> WidgetData {
@@ -228,11 +230,15 @@ impl AppState {
         let parent_id = self.widget_data[id].parent_id;
         let window_id = self.widget_data[id].window_id;
 
-        let mut children_to_remove = std::mem::take(&mut self.widget_data[id].children);
-        while let Some(id) = children_to_remove.pop() {
-            let widget_data = self.do_remove_widget(id);
-            children_to_remove.extend(widget_data.children.into_iter());
-        }
+        self.with_id_buffer_mut(|app_state, children_to_remove| {
+            children_to_remove.extend(std::mem::take(&mut app_state.widget_data[id].children));
+            children_to_remove.extend(std::mem::take(&mut app_state.widget_data[id].overlays));
+            while let Some(id) = children_to_remove.pop() {
+                let widget_data = app_state.do_remove_widget(id);
+                children_to_remove.extend(widget_data.children);
+                children_to_remove.extend(widget_data.overlays);
+            }
+        });
 
         self.widget_data[id] = WidgetData::new(window_id, id).with_parent(parent_id);
         self.build_and_insert_widget(id, view);
@@ -344,18 +350,15 @@ impl AppState {
 
     pub(super) fn with_id_scratch_space(&self, f: impl FnOnce(&Self, &mut Vec<WidgetId>)) {
         let mut scratch = self.id_scratch_buffer.replace(Vec::new());
-        f(self, &mut scratch);
         scratch.clear();
+        f(self, &mut scratch);
         self.id_scratch_buffer.set(scratch);
     }
 
-    pub(super) fn with_id_scratch_space_mut(
-        &mut self,
-        f: impl FnOnce(&mut Self, &mut Vec<WidgetId>),
-    ) {
+    pub(super) fn with_id_buffer_mut(&mut self, f: impl FnOnce(&mut Self, &mut Vec<WidgetId>)) {
         let mut scratch = self.id_scratch_buffer.replace(Vec::new());
-        f(self, &mut scratch);
         scratch.clear();
+        f(self, &mut scratch);
         self.id_scratch_buffer.set(scratch);
     }
 
@@ -409,7 +412,8 @@ impl AppState {
     pub(super) fn merge_widget_flags(&mut self, source: WidgetId) {
         let mut current = source;
         let mut flags_to_apply = WidgetFlags::empty();
-        while !current.is_null() {
+        // Merge until we hit the root, or an overlay
+        while !current.is_null() && !self.widget_data_ref(current).is_overlay() {
             let data = self.widget_data_mut(current);
             data.flags |= flags_to_apply;
             flags_to_apply = data.flags & (WidgetFlags::NEEDS_LAYOUT);
@@ -452,9 +456,15 @@ impl AppState {
             .windows
             .iter()
             .filter_map(|(window_id, window_state)| {
-                self.widget_data_ref(window_state.root_widget)
-                    .flag_is_set(WidgetFlags::NEEDS_LAYOUT)
-                    .then_some(window_id)
+                let root_needs_layout = self
+                    .widget_data_ref(window_state.root_widget)
+                    .needs_layout();
+                let overlays_need_layout = window_state
+                    .overlays
+                    .iter()
+                    .any(|id| self.widget_data_ref(id).needs_layout());
+
+                (root_needs_layout || overlays_need_layout).then_some(window_id)
             })
             .collect();
 

@@ -1,3 +1,5 @@
+use slotmap::Key;
+
 use crate::app::WidgetId;
 
 struct Overlay {

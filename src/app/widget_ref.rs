@@ -7,7 +7,7 @@ use super::{
     layout::request_layout, render::invalidate_widget, AppState, View, Widget, WidgetData,
     WidgetFlags, WidgetId,
 };
-use crate::{core::Rectangle, style::Style};
+use crate::{app::app_state::WidgetInsertPos, core::Rectangle, style::Style};
 
 pub struct ChildIter<'a> {
     app_state: &'a AppState,
@@ -127,12 +127,16 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 
     pub fn push_child<V: View>(&mut self, view: V) {
-        let widget_id = self.app_state.add_widget(self.id, view, None);
+        let widget_id = self
+            .app_state
+            .add_widget(self.id, view, WidgetInsertPos::End);
         request_layout(self.app_state, widget_id);
     }
 
     pub fn insert_child<V: View>(&mut self, view: V, index: usize) {
-        let widget_id = self.app_state.add_widget(self.id, view, Some(index));
+        let widget_id = self
+            .app_state
+            .add_widget(self.id, view, WidgetInsertPos::Index(index));
         request_layout(self.app_state, widget_id);
     }
 

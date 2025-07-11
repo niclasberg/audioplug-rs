@@ -3,7 +3,7 @@ use super::{
     TypedWidgetId, ViewContext, Widget, WidgetFlags, WidgetId,
 };
 use crate::{
-    app::ViewSequence,
+    app::{app_state::WidgetInsertPos, ViewSequence},
     style::{Style, StyleBuilder},
 };
 use std::marker::PhantomData;
@@ -67,7 +67,8 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
     }
 
     pub fn add_child(&mut self, view: impl View) -> WidgetId {
-        self.app_state.add_widget(self.id, view, None)
+        self.app_state
+            .add_widget(self.id, view, WidgetInsertPos::End)
     }
 
     pub fn add_children(&mut self, view_sequence: impl ViewSequence) {
@@ -80,9 +81,8 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
     }
 
     pub fn add_overlay(&mut self, view: impl View, z_index: usize) -> WidgetId {
-        let child_id = self.add_child(view);
-        self.app_state.make_widget_into_overlay(child_id, z_index);
-        child_id
+        self.app_state
+            .add_widget(self.id, view, WidgetInsertPos::Overlay { z_index })
     }
 
     pub(crate) fn build<V: View>(&mut self, view: V) -> V::Element {

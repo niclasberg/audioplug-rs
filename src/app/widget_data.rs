@@ -43,7 +43,9 @@ pub struct WidgetData {
     pub(super) id: WidgetId,
     pub(super) window_id: WindowId,
     pub(super) parent_id: WidgetId,
+    /// Children, excluding overlays
     pub(super) children: Vec<WidgetId>,
+    pub(super) overlays: Vec<WidgetId>,
     pub(super) style: Style,
     pub(super) cache: taffy::Cache,
     pub(super) layout: taffy::Layout,
@@ -58,6 +60,7 @@ impl WidgetData {
             window_id,
             parent_id: WidgetId::null(),
             children: Vec::new(),
+            overlays: Vec::new(),
             style: Default::default(),
             cache: Default::default(),
             layout: Default::default(),
@@ -153,6 +156,11 @@ impl WidgetData {
     pub fn with_style(mut self, f: impl Fn(&mut Style)) -> Self {
         f(&mut self.style);
         self
+    }
+
+    #[inline(always)]
+    pub fn needs_layout(&self) -> bool {
+        self.flag_is_set(WidgetFlags::NEEDS_LAYOUT)
     }
 
     pub fn is_hidden(&self) -> bool {

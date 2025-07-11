@@ -16,7 +16,7 @@ pub fn render_window(
     renderer: platform::RendererRef<'_>,
 ) {
     println!("Render");
-    app_state.with_id_scratch_space_mut(move |app_state, overlays| {
+    app_state.with_id_buffer_mut(move |app_state, overlays| {
         overlays.extend(app_state.window(window_id).overlays.iter());
 
         // Root
