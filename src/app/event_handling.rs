@@ -9,7 +9,7 @@ use super::{
     WidgetId, WindowId, WriteContext,
 };
 use crate::{
-    app::StatusChange,
+    app::{StatusChange, Widget, WidgetMut},
     core::{Key, Rectangle},
     platform::WindowEvent,
     KeyEvent, MouseEvent,
@@ -24,7 +24,6 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         WindowEvent::Mouse(mouse_event) => {
             match mouse_event {
                 MouseEvent::Down { position, .. } => {
-                    println!("{}", position);
                     let mut new_focus_view = None;
                     app_state.for_each_widget_at_rev(window_id, position, |app_state, id| {
                         if app_state.widget_data[id].flag_is_set(WidgetFlags::FOCUSABLE) {
@@ -35,9 +34,6 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                         }
                     });
                     set_focus_widget(app_state, window_id, new_focus_view);
-                }
-                MouseEvent::Wheel { position, .. } => {
-                    println!("{}", position);
                 }
                 _ => {}
             };
@@ -271,6 +267,20 @@ impl<'a> MouseEventContext<'a> {
         let window_id = self.app_state.get_window_id_for_widget(self.id);
         self.app_state.clipboard(window_id)
     }
+
+    pub fn defer_update<W: Widget>(
+        &mut self,
+        _widget: &W,
+        f: impl FnOnce(WidgetMut<'_, W>) + 'static,
+    ) {
+        self.app_state
+            .runtime
+            .pending_tasks
+            .push_back(super::app_state::Task::UpdateWidget {
+                widget_id: self.id,
+                f: Box::new(move |widget| f(widget.unchecked_cast())),
+            });
+    }
 }
 
 pub struct EventContext<'a> {
@@ -338,6 +348,20 @@ impl<'a> EventContext<'a> {
     pub fn clipboard(&self) -> Clipboard {
         let window_id = self.app_state.get_window_id_for_widget(self.id);
         self.app_state.clipboard(window_id)
+    }
+
+    pub fn defer_update<W: Widget>(
+        &mut self,
+        _widget: &W,
+        f: impl FnOnce(WidgetMut<'_, W>) + 'static,
+    ) {
+        self.app_state
+            .runtime
+            .pending_tasks
+            .push_back(super::app_state::Task::UpdateWidget {
+                widget_id: self.id,
+                f: Box::new(move |widget| f(widget.unchecked_cast())),
+            });
     }
 }
 

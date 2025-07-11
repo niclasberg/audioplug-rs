@@ -25,7 +25,7 @@ impl<V: View> View for Scroll<V> {
     type Element = ScrollWidget<V::Element>;
 
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
-        let widget = cx.build(self.child);
+        let widget = cx.build_inner(self.child);
 
         cx.update_default_style(|s| {
             s.overflow_x = Overflow::Scroll;

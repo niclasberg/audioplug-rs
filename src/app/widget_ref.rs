@@ -7,7 +7,11 @@ use super::{
     layout::request_layout, render::invalidate_widget, AppState, View, Widget, WidgetData,
     WidgetFlags, WidgetId,
 };
-use crate::{app::app_state::WidgetInsertPos, core::Rectangle, style::Style};
+use crate::{
+    app::{app_state::WidgetInsertPos, OverlayOptions},
+    core::Rectangle,
+    style::Style,
+};
 
 pub struct ChildIter<'a> {
     app_state: &'a AppState,
@@ -126,6 +130,14 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         self.data().children.len()
     }
 
+    pub fn add_overlay<V: View>(&mut self, view: V, options: OverlayOptions) -> WidgetId {
+        let widget_id = self
+            .app_state
+            .add_widget(self.id, view, WidgetInsertPos::Overlay(options));
+        request_layout(self.app_state, widget_id);
+        widget_id
+    }
+
     pub fn push_child<V: View>(&mut self, view: V) {
         let widget_id = self
             .app_state
@@ -142,6 +154,10 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
 
     pub fn remove_child(&mut self, i: usize) {
         let child_id = self.data().children[i];
+        self.remove_child_by_id(child_id);
+    }
+
+    pub fn remove_child_by_id(&mut self, child_id: WidgetId) {
         self.app_state.remove_widget(child_id);
         request_layout(self.app_state, self.id);
     }
@@ -149,10 +165,12 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     pub fn replace_child<V: View>(&mut self, index: usize, view: V) {
         let id = self.data().children[index];
         self.app_state.replace_widget(id, view);
+        request_layout(self.app_state, self.id);
     }
 
     pub fn swap_children(&mut self, from_index: usize, to_index: usize) {
         self.data_mut().children.swap(from_index, to_index);
+        request_layout(self.app_state, self.id);
     }
 
     pub fn index_of_child(&self, id: WidgetId) -> Option<usize> {

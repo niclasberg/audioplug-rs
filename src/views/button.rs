@@ -3,7 +3,7 @@ use crate::{
         BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext, RenderContext,
         StatusChange, View, Widget,
     },
-    core::{Color, Key, RoundedRectangle, Size},
+    core::{Color, Key},
     event::{KeyEvent, MouseButton},
     style::{DisplayStyle, FlexStyle, Length, Style, UiRect},
     MouseEvent,

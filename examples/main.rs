@@ -1,5 +1,5 @@
 use audioplug::app::*;
-use audioplug::core::{Color, ShadowKind, ShadowOptions, Size, Vec2};
+use audioplug::core::{Align, Color, ShadowKind, ShadowOptions, Size, Vec2};
 use audioplug::style::{ImageEffect, Length, UiRect};
 use audioplug::views::*;
 use audioplug::App;
@@ -128,6 +128,28 @@ fn overview() -> impl View {
             .v_align_center()
             .spacing(Length::Px(5.0)),
             Row::new((
+                Label::new("Dropdown"),
+                Dropdown::new(Label::new("Select"), move || {
+                    Column::new((
+                        Label::new("Open..."),
+                        Label::new("Close..."),
+                        Label::new("Eat banana"),
+                    ))
+                    .spacing(Length::Px(2.5))
+                    .style(|s| {
+                        s.corner_radius(Size::splat(5.0))
+                            .background(Color::EARTH_YELLOW)
+                            .box_shadow(ShadowOptions {
+                                radius: 5.0,
+                                ..Default::default()
+                            })
+                            .padding(UiRect::all_px(5.0))
+                    })
+                }),
+            ))
+            .v_align_center()
+            .spacing(Length::Px(5.0)),
+            Row::new((
                 Label::new("Button"),
                 Button::new(Label::new("Filled")).on_click(move |cx| {
                     checkbox_enabled.update(cx, |_, enabled| *enabled = !*enabled);
@@ -152,7 +174,11 @@ fn overview() -> impl View {
                             })
                     })
                     .overlay(
-                        UiRect::ZERO,
+                        OverlayOptions {
+                            align: Align::Bottom,
+                            anchor: OverlayAnchor::OutsideParent,
+                            ..Default::default()
+                        },
                         Button::new(Label::new("Filled!!!")).on_click(move |cx| {
                             checkbox_enabled.update(cx, |_, enabled| *enabled = !*enabled);
                         }),

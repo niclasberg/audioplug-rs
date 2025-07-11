@@ -1,37 +1,59 @@
-use super::{Size, Vec2};
+use crate::core::{Rectangle, Vec2};
 
-pub enum Alignment {
-    TopLeading,
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Align {
+    #[default]
+    TopLeft,
     Top,
-    TopTrailing,
-    Leading,
+    TopRight,
+    Left,
     Center,
-    Trailing,
-    BottomLeading,
+    Right,
+    BottomLeft,
     Bottom,
-    BottomTrailing,
+    BottomRight,
 }
 
-impl Alignment {
-    pub fn compute_offset_x(&self, width: f64, frame_width: f64) -> f64 {
+impl Align {
+    pub fn compute_offset(&self, rect_to_align: Rectangle, bounds: Rectangle) -> Vec2 {
+        let offset_x = match self.get_h_align() {
+            HAlign::Left => bounds.left() - rect_to_align.left(),
+            HAlign::Center => bounds.center().x - rect_to_align.center().x,
+            HAlign::Right => bounds.right() - rect_to_align.right(),
+        };
+        let offset_y = match self.get_v_align() {
+            VAlign::Top => bounds.top() - rect_to_align.top(),
+            VAlign::Center => bounds.center().y - rect_to_align.center().y,
+            VAlign::Bottom => bounds.bottom() - rect_to_align.bottom(),
+        };
+        Vec2::new(offset_x, offset_y)
+    }
+
+    pub fn get_v_align(&self) -> VAlign {
         match self {
-            Self::TopLeading | Self::Leading | Self::BottomLeading => 0.0,
-            Self::Top | Self::Center | Self::Bottom => (frame_width - width) / 2.0,
-            Self::TopTrailing | Self::Trailing | Self::BottomTrailing => frame_width - width,
+            Align::TopLeft | Align::Top | Align::TopRight => VAlign::Top,
+            Align::Left | Align::Center | Align::Right => VAlign::Center,
+            Align::BottomLeft | Align::Bottom | Align::BottomRight => VAlign::Bottom,
         }
     }
 
-    pub fn compute_offset_y(&self, height: f64, frame_height: f64) -> f64 {
+    pub fn get_h_align(&self) -> HAlign {
         match self {
-            Self::TopLeading | Self::Top | Self::TopTrailing => 0.0,
-            Self::Leading | Self::Center | Self::Trailing => (frame_height - height) / 2.0,
-            Self::BottomLeading | Self::Bottom | Self::BottomTrailing => frame_height - height,
+            Align::TopLeft | Align::Left | Align::BottomLeft => HAlign::Left,
+            Align::Top | Align::Center | Align::Bottom => HAlign::Center,
+            Align::Right | Align::TopRight | Align::BottomRight => HAlign::Right,
         }
     }
+}
 
-    pub fn compute_offset(&self, size: Size, frame_size: Size) -> Vec2 {
-        let x = self.compute_offset_x(size.width, frame_size.width);
-        let y = self.compute_offset_y(size.height, frame_size.height);
-        Vec2::new(x, y)
-    }
+pub enum VAlign {
+    Top,
+    Center,
+    Bottom,
+}
+
+pub enum HAlign {
+    Left,
+    Center,
+    Right,
 }

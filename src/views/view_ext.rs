@@ -1,7 +1,7 @@
 use crate::{
     app::{
-        Accessor, BuildContext, CallbackContext, EventStatus, MouseEventContext, View, Widget,
-        WrappedWidget, WriteContext,
+        Accessor, BuildContext, CallbackContext, EventStatus, MouseEventContext, OverlayOptions,
+        View, Widget, WrappedWidget, WriteContext,
     },
     style::{StyleBuilder, UiRect},
     KeyEvent, MouseButton, MouseEvent,
@@ -17,7 +17,7 @@ pub trait ViewExt {
     where
         Self: Sized,
         F: FnMut(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static;
-    fn overlay<V2>(self, insets: impl Into<Accessor<UiRect>>, v: V2) -> Overlay<Self, V2>
+    fn overlay<V2>(self, options: impl Into<Accessor<OverlayOptions>>, v: V2) -> Overlay<Self, V2>
     where
         Self: Sized,
         V2: View + Sized;
@@ -56,14 +56,18 @@ impl<V: View + Sized> ViewExt for V {
         }
     }
 
-    fn overlay<V2>(self, insets: impl Into<Accessor<UiRect>>, overlay_view: V2) -> Overlay<Self, V2>
+    fn overlay<V2>(
+        self,
+        options: impl Into<Accessor<OverlayOptions>>,
+        overlay_view: V2,
+    ) -> Overlay<Self, V2>
     where
         V2: View + Sized,
     {
         Overlay {
             parent_view: self,
             child_view: overlay_view,
-            insets: insets.into(),
+            options: options.into(),
         }
     }
 }
@@ -86,15 +90,16 @@ impl<V: View> View for Styled<V> {
 pub struct Overlay<V, V2> {
     parent_view: V,
     child_view: V2,
-    insets: Accessor<UiRect>,
+    options: Accessor<OverlayOptions>,
 }
 
 impl<V: View, V2: View> View for Overlay<V, V2> {
     type Element = V::Element;
 
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
-        let widget = cx.build(self.parent_view);
-        cx.add_overlay(self.child_view, 1000);
+        let widget = cx.build_inner(self.parent_view);
+        let options = self.options.get(cx);
+        cx.add_overlay(self.child_view, options);
         widget
     }
 }
@@ -108,7 +113,7 @@ impl<V: View, F: Fn(&mut CallbackContext) + 'static> View for OnClick<V, F> {
     type Element = OnClickWidget<V::Element, F>;
 
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
-        let parent = cx.build(self.parent_view);
+        let parent = cx.build_inner(self.parent_view);
         OnClickWidget {
             parent,
             on_click_fn: self.on_click_fn,

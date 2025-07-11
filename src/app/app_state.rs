@@ -12,7 +12,7 @@ use crate::{
         effect::{EffectFn, WatchContext},
         event_channel::HandleEventFn,
         event_handling::{set_focus_widget, set_mouse_capture_widget},
-        overlay::OverlayContainer,
+        overlay::{OverlayContainer, OverlayOptions},
         AnyView, FxIndexSet, Scope, WidgetContext,
     },
     core::{Point, WindowTheme},
@@ -21,7 +21,7 @@ use crate::{
     style::StyleBuilder,
 };
 use fxhash::FxBuildHasher;
-use slotmap::{Key, SecondaryMap, SlotMap, SparseSecondaryMap};
+use slotmap::{Key, SecondaryMap, SlotMap};
 use std::{
     any::Any,
     cell::{Cell, RefCell},
@@ -51,7 +51,7 @@ pub struct AppState {
 pub enum WidgetInsertPos {
     Index(usize),
     End,
-    Overlay { z_index: usize },
+    Overlay(OverlayOptions),
 }
 
 impl AppState {
@@ -165,10 +165,12 @@ impl AppState {
         match position {
             WidgetInsertPos::Index(index) => parent.children.insert(index, id),
             WidgetInsertPos::End => parent.children.push(id),
-            WidgetInsertPos::Overlay { z_index } => {
+            WidgetInsertPos::Overlay(options) => {
                 parent.overlays.push(id);
                 self.widget_data[id].set_flag(WidgetFlags::OVERLAY);
-                self.window_mut(window_id).overlays.add(id, z_index);
+                self.window_mut(window_id)
+                    .overlays
+                    .insert_or_update(id, options);
             }
         }
 
@@ -187,7 +189,7 @@ impl AppState {
     pub fn remove_widget(&mut self, id: WidgetId) {
         self.clear_mouse_capture_and_focus(id);
 
-        let mut widget_data = self.do_remove_widget(id);
+        let widget_data = self.do_remove_widget(id);
         if !widget_data.parent_id.is_null() {
             // Must be removed from parent's child list
             let parent_id = widget_data.parent_id;
@@ -380,6 +382,10 @@ impl AppState {
         root_and_overlays.push(self.windows[id].root_widget);
 
         for root in root_and_overlays {
+            if !self.widget_data[root].global_bounds().contains(pos) {
+                continue;
+            }
+
             stack.push(Action::VisitChildren(root));
             while let Some(current) = stack.pop() {
                 match current {
@@ -528,6 +534,10 @@ pub(super) enum Task {
         f: Weak<RefCell<BindingFn>>,
         node_id: NodeId,
     },
+    UpdateWidget {
+        widget_id: WidgetId,
+        f: Box<dyn FnOnce(WidgetMut<'_, dyn Widget>)>,
+    },
     HandleEvent {
         f: Weak<HandleEventFn>,
         event: Rc<dyn Any>,
@@ -566,6 +576,11 @@ impl Task {
             Task::HandleEvent { f, event } => {
                 if let Some(f) = f.upgrade() {
                     f(app_state, &event);
+                }
+            }
+            Task::UpdateWidget { widget_id, f } => {
+                if app_state.widget_data.contains_key(widget_id) {
+                    f(WidgetMut::new(app_state, widget_id))
                 }
             }
         }

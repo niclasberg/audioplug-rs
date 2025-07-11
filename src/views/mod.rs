@@ -1,6 +1,7 @@
 mod button;
 mod checkbox;
 mod container;
+mod dropdown;
 mod filled;
 mod image;
 mod key_down;
@@ -18,6 +19,7 @@ mod xy_pad;
 pub use button::{Button, ButtonWidget};
 pub use checkbox::Checkbox;
 pub use container::{Column, Container, Grid, Row};
+pub use dropdown::{Dropdown, DropdownWidget};
 pub use filled::*;
 pub use image::Image;
 pub use knob::{Knob, KnobWidget, ParameterKnob};

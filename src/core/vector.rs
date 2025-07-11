@@ -1,4 +1,4 @@
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Mul, Neg, Sub};
 
 use bytemuck::{Pod, Zeroable};
 
@@ -154,6 +154,17 @@ macro_rules! impl_vec2 {
                 Self::Output {
                     x: self * rhs.x,
                     y: self * rhs.y,
+                }
+            }
+        }
+
+        impl Neg for $name {
+            type Output = $name;
+
+            fn neg(self) -> Self::Output {
+                Self::Output {
+                    x: -self.x,
+                    y: -self.y,
                 }
             }
         }

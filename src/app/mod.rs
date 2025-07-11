@@ -39,6 +39,7 @@ pub use host_handle::HostHandle;
 use indexmap::IndexSet;
 pub use layout::{layout_window, LayoutContext};
 pub use memo::{Memo, MemoContext};
+pub use overlay::{OverlayAnchor, OverlayOptions};
 pub use param::{ParamContext, ParamEditor, ParamSignal};
 pub use render::{
     invalidate_window, render_window, Brush, BrushRef, Canvas, CanvasContext, CanvasWidget,

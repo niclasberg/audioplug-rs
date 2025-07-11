@@ -1,4 +1,5 @@
-use crate::core::{Point, Rectangle, Size};
+use crate::app::{OverlayAnchor, OverlayOptions};
+use crate::core::{HAlign, Point, Rectangle, Size, VAlign};
 use crate::style::{AvailableSpace, DisplayStyle, ResolveInto, Style, UiRect};
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree,
@@ -9,36 +10,57 @@ use super::{invalidate_window, AppState, WidgetFlags, WidgetId, WindowId};
 
 pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
     println!("Layout");
-    app_state.with_id_buffer_mut(move |app_state, layout_roots| {
+    app_state.with_id_buffer_mut(move |app_state, overlay_ids| {
         let window = app_state.window(window_id);
         let window_size = window.handle.global_bounds().size();
-        layout_roots.push(window.root_widget);
-        layout_roots.extend(window.overlays.iter());
+        let window_rect = Rectangle::from_origin(Point::ZERO, window_size);
+        let root_id = window.root_widget;
+        overlay_ids.extend(window.overlays.iter());
 
         let available_space = taffy::Size {
             width: taffy::AvailableSpace::Definite(window_size.width as f32),
             height: taffy::AvailableSpace::Definite(window_size.height as f32),
         };
-        let mut ctx = LayoutContext {
-            app_state,
-            window_size,
-            region_to_invalidate: None,
-        };
 
-        for widget_id in layout_roots.iter() {
-            taffy::compute_root_layout(&mut ctx, (*widget_id).into(), available_space);
+        // Need to layout root first, the overlay positions can depend on their parent positions
+        taffy::compute_root_layout(
+            &mut LayoutContext {
+                app_state,
+                window_size,
+                region_to_invalidate: None,
+            },
+            root_id.into(),
+            available_space,
+        );
+        update_node_origins(app_state, root_id, Point::ZERO);
+
+        for (i, overlay_id) in overlay_ids.iter().enumerate() {
+            taffy::compute_root_layout(
+                &mut LayoutContext {
+                    app_state,
+                    window_size,
+                    region_to_invalidate: None,
+                },
+                (*overlay_id).into(),
+                available_space,
+            );
+            let options = app_state
+                .window(window_id)
+                .overlays
+                .get_overlay_options(i)
+                .unwrap();
+
+            position_overlay(app_state, window_rect, *overlay_id, options);
         }
 
-        if let Some(region_to_invalidate) = ctx.region_to_invalidate {
+        //let region_to_invalidate = ctx.region_to_invalidate;
+
+        /*if let Some(region_to_invalidate) = region_to_invalidate {
             app_state
                 .window(window_id)
                 .handle
                 .invalidate(region_to_invalidate);
-        }
-
-        for widget_id in layout_roots.iter() {
-            update_node_origins(app_state, *widget_id);
-        }
+        }*/
         //taffy::print_tree(&mut ctx, widget_id.into());
     });
 
@@ -52,10 +74,46 @@ pub(super) fn request_layout(app_state: &mut AppState, widget_id: WidgetId) {
     app_state.merge_widget_flags(widget_id);
 }
 
-fn update_node_origins(app_state: &mut AppState, root_widget: WidgetId) {
+fn position_overlay(
+    app_state: &mut AppState,
+    window_rect: Rectangle,
+    overlay_id: WidgetId,
+    options: OverlayOptions,
+) {
+    let current_bounds = app_state.widget_data[overlay_id].local_bounds();
+    let parent_id = app_state.widget_data[overlay_id].parent_id;
+    let parent_bounds = app_state.widget_data[parent_id].global_bounds();
+    let alignment_offset = match options.anchor {
+        OverlayAnchor::Fixed => options.align.compute_offset(current_bounds, window_rect),
+        OverlayAnchor::InsideParent => options.align.compute_offset(current_bounds, parent_bounds),
+        OverlayAnchor::OutsideParent => {
+            let mut result = options.align.compute_offset(current_bounds, parent_bounds);
+            match options.align.get_h_align() {
+                HAlign::Left => result.x -= current_bounds.width(),
+                HAlign::Right => result.x += current_bounds.width(),
+                _ => {}
+            };
+            match options.align.get_v_align() {
+                VAlign::Top => result.y -= current_bounds.height(),
+                VAlign::Bottom => result.y += current_bounds.height(),
+                _ => {}
+            }
+            result
+        }
+    };
+
+    update_node_origins(
+        app_state,
+        overlay_id,
+        (alignment_offset + options.offset).into_point(),
+    );
+}
+
+fn update_node_origins(app_state: &mut AppState, root_widget: WidgetId, position: Point) {
     let mut stack = vec![];
+    app_state.widget_data[root_widget].origin = position;
     for child in app_state.widget_data[root_widget].children.iter() {
-        stack.push((*child, Point::zero()));
+        stack.push((*child, position));
     }
 
     while let Some((widget_id, parent_origin)) = stack.pop() {

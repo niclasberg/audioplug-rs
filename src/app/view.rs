@@ -3,7 +3,7 @@ use super::{
     TypedWidgetId, ViewContext, Widget, WidgetFlags, WidgetId,
 };
 use crate::{
-    app::{app_state::WidgetInsertPos, ViewSequence},
+    app::{app_state::WidgetInsertPos, overlay::OverlayOptions, ViewSequence},
     style::{Style, StyleBuilder},
 };
 use std::marker::PhantomData;
@@ -19,7 +19,7 @@ pub trait View: 'static {
     where
         Self: Sized + 'static,
     {
-        Box::new(move |ctx| Box::new(ctx.build(self)))
+        Box::new(move |ctx| Box::new(ctx.build_inner(self)))
     }
 }
 
@@ -80,12 +80,12 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
         });
     }
 
-    pub fn add_overlay(&mut self, view: impl View, z_index: usize) -> WidgetId {
+    pub fn add_overlay(&mut self, view: impl View, options: OverlayOptions) -> WidgetId {
         self.app_state
-            .add_widget(self.id, view, WidgetInsertPos::Overlay { z_index })
+            .add_widget(self.id, view, WidgetInsertPos::Overlay(options))
     }
 
-    pub(crate) fn build<V: View>(&mut self, view: V) -> V::Element {
+    pub(crate) fn build_inner<V: View>(&mut self, view: V) -> V::Element {
         view.build(&mut BuildContext {
             id: self.id,
             app_state: self.app_state,

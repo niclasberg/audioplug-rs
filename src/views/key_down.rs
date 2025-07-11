@@ -15,7 +15,7 @@ impl<V: View, F: FnMut(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         OnKeyEventWidget {
-            widget: ctx.build(self.view),
+            widget: ctx.build_inner(self.view),
             f: self.on_key_down,
         }
     }

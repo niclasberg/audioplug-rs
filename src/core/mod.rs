@@ -18,7 +18,7 @@ mod transform;
 mod unit_point;
 mod vector;
 
-pub use alignment::Alignment;
+pub use alignment::{Align, HAlign, VAlign};
 pub use axis::Axis;
 pub use border::Border;
 pub use color::Color;

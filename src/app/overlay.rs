@@ -1,10 +1,33 @@
-use slotmap::Key;
+use crate::{
+    app::WidgetId,
+    core::{Align, Vec2},
+};
 
-use crate::app::WidgetId;
+#[derive(Default, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum OverlayAnchor {
+    #[default]
+    Fixed,
+    InsideParent,
+    OutsideParent,
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
+pub struct OverlayOptions {
+    pub anchor: OverlayAnchor,
+    pub align: Align,
+    pub offset: Vec2,
+    pub z_index: usize,
+}
+
+impl OverlayOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
 
 struct Overlay {
     widget_id: WidgetId,
-    z_index: usize,
+    options: OverlayOptions,
     insertion_order: usize,
 }
 
@@ -39,20 +62,21 @@ impl OverlayContainer {
         }
     }
 
-    pub fn add(&mut self, widget_id: WidgetId, z_index: usize) {
+    pub fn insert_or_update(&mut self, widget_id: WidgetId, options: OverlayOptions) {
         let overlay = Overlay {
             widget_id,
-            z_index,
+            options,
             insertion_order: self.inserted_count,
         };
         self.inserted_count += 1;
         let insert_at = self
             .overlays
             .binary_search_by(|other| {
-                overlay
+                other
+                    .options
                     .z_index
-                    .cmp(&other.z_index)
-                    .then(overlay.insertion_order.cmp(&other.insertion_order))
+                    .cmp(&overlay.options.z_index)
+                    .then(other.insertion_order.cmp(&overlay.insertion_order))
             })
             .unwrap_or_else(|e| e);
         self.overlays.insert(insert_at, overlay);
@@ -61,5 +85,9 @@ impl OverlayContainer {
     pub fn remove(&mut self, widget_id: WidgetId) {
         self.overlays
             .retain(|overlay| overlay.widget_id != widget_id);
+    }
+
+    pub fn get_overlay_options(&self, index: usize) -> Option<OverlayOptions> {
+        self.overlays.get(index).map(|o| o.options)
     }
 }
