@@ -22,30 +22,42 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             invalidate_window(app_state, window_id);
         }
         WindowEvent::Mouse(mouse_event) => {
-            match mouse_event {
-                MouseEvent::Down { position, .. } => {
-                    let mut new_focus_view = None;
-                    app_state.for_each_widget_at_rev(window_id, position, |app_state, id| {
-                        if app_state.widget_data[id].flag_is_set(WidgetFlags::FOCUSABLE) {
-                            new_focus_view = Some(id);
-                            false
-                        } else {
-                            true
-                        }
-                    });
-                    set_focus_widget(app_state, window_id, new_focus_view);
-                }
-                _ => {}
+            if let MouseEvent::Down { position, .. } = mouse_event {
+                let mut new_focus_view = None;
+                app_state.for_each_widget_at_rev(window_id, position, |app_state, id| {
+                    if app_state.widget_data[id].flag_is_set(WidgetFlags::FOCUSABLE) {
+                        new_focus_view = Some(id);
+                        false
+                    } else {
+                        true
+                    }
+                });
+                set_focus_widget(app_state, window_id, new_focus_view);
             };
 
-            let mut ctx = if let Some(capture_view) = app_state.mouse_capture_widget {
-                MouseEventContext::new(capture_view, app_state, false)
+            let mut new_mouse_capture_widget = None;
+            if let Some(capture_view) = app_state.mouse_capture_widget {
+                let mut cx = MouseEventContext {
+                    id: capture_view,
+                    app_state,
+                    new_mouse_capture_widget: &mut new_mouse_capture_widget,
+                };
+                cx.dispatch(mouse_event);
             } else {
-                let id = app_state.window(window_id).root_widget;
-                MouseEventContext::new(id, app_state, true)
-            };
-            ctx.dispatch(mouse_event);
-            let new_mouse_capture_widget = ctx.new_mouse_capture_widget;
+                app_state.for_each_widget_at_rev_mut(
+                    window_id,
+                    mouse_event.position(),
+                    |app_state, id| {
+                        let mut cx = MouseEventContext {
+                            id,
+                            app_state,
+                            new_mouse_capture_widget: &mut new_mouse_capture_widget,
+                        };
+                        cx.dispatch(mouse_event) != EventStatus::Handled
+                    },
+                );
+            }
+
             app_state.run_effects();
             set_mouse_capture_widget(app_state, new_mouse_capture_widget);
         }
@@ -154,21 +166,10 @@ pub fn set_mouse_capture_widget(app_state: &mut AppState, new_capture_widget: Op
 pub struct MouseEventContext<'a> {
     id: WidgetId,
     app_state: &'a mut AppState,
-    can_propagate: bool,
-    new_mouse_capture_widget: Option<WidgetId>,
+    new_mouse_capture_widget: &'a mut Option<WidgetId>,
 }
 
 impl<'a> MouseEventContext<'a> {
-    fn new(id: WidgetId, app_state: &'a mut AppState, can_propagate: bool) -> Self {
-        let new_mouse_capture_widget = app_state.mouse_capture_widget;
-        Self {
-            id,
-            app_state,
-            can_propagate,
-            new_mouse_capture_widget,
-        }
-    }
-
     fn dispatch(&mut self, event: MouseEvent) -> EventStatus {
         let mut widget = self
             .app_state
@@ -205,45 +206,13 @@ impl<'a> MouseEventContext<'a> {
         self.app_state
     }
 
-    pub fn forward_to_children(&mut self, event: MouseEvent) -> EventStatus {
-        if !self.can_propagate {
-            return EventStatus::Ignored;
-        }
-
-        let children = self.app_state.widget_data[self.id].children.clone();
-        let old_id = self.id;
-        for &child in children.iter().rev() {
-            if !self.app_state.widget_data[child]
-                .global_bounds()
-                .contains(event.position())
-            {
-                continue;
-            }
-
-            self.id = child;
-            let mut widget = self
-                .app_state
-                .widgets
-                .remove(child)
-                .expect("Widget not found");
-            let status = widget.mouse_event(event, self);
-            self.app_state.widgets.insert(child, widget);
-            if status == EventStatus::Handled {
-                self.id = old_id;
-                return EventStatus::Handled;
-            }
-        }
-        self.id = old_id;
-        EventStatus::Ignored
-    }
-
     pub fn capture_mouse(&mut self) {
-        self.new_mouse_capture_widget = Some(self.id);
+        *self.new_mouse_capture_widget = Some(self.id);
     }
 
     pub fn release_capture(&mut self) {
-        if self.new_mouse_capture_widget == Some(self.id) {
-            self.new_mouse_capture_widget = None;
+        if self.app_state.mouse_capture_widget == Some(self.id) {
+            *self.new_mouse_capture_widget = None;
         }
     }
 

@@ -33,8 +33,9 @@ pub enum StatusChange {
 }
 
 pub trait Widget: Any {
+    #[allow(unused_variables)]
     fn mouse_event(&mut self, event: MouseEvent, cx: &mut MouseEventContext) -> EventStatus {
-        cx.forward_to_children(event)
+        EventStatus::Ignored
     }
 
     #[allow(unused_variables)]

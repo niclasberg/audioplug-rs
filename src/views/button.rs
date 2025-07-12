@@ -91,7 +91,7 @@ impl Widget for ButtonWidget {
                 ctx.request_render();
                 EventStatus::Handled
             }
-            _ => ctx.forward_to_children(event),
+            _ => EventStatus::Ignored,
         }
     }
 

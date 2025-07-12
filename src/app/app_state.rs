@@ -45,7 +45,7 @@ pub struct AppState {
     pub(super) mouse_capture_widget: Option<WidgetId>,
     pub(super) runtime: Runtime,
     host_handle: Option<Box<dyn HostHandle>>,
-    id_scratch_buffer: Cell<Vec<WidgetId>>,
+    id_buffer: Cell<Vec<WidgetId>>,
 }
 
 pub enum WidgetInsertPos {
@@ -63,7 +63,7 @@ impl AppState {
             mouse_capture_widget: None,
             runtime: Runtime::new(parameters),
             host_handle: None,
-            id_scratch_buffer: Default::default(),
+            id_buffer: Default::default(),
         }
     }
 
@@ -312,107 +312,18 @@ impl AppState {
         self.widget_data.get_mut(id).expect("Widget data not found")
     }
 
-    /// Calls `f` for each widget that contains `pos`. The order is from the root and down the tree (draw order).
-    /// Iteration continues until all widgets have been visited, or `f` returns false
-    pub fn for_each_widget_at(
-        &self,
-        id: WindowId,
-        pos: Point,
-        mut f: impl FnMut(&Self, WidgetId) -> bool,
-    ) {
-        fn traverse(
-            app_state: &AppState,
-            roots: Vec<WidgetId>,
-            pos: Point,
-            f: &mut dyn FnMut(&AppState, WidgetId) -> bool,
-        ) {
-            app_state.with_id_scratch_space(move |app_state, stack| {
-                for root in roots {
-                    stack.push(root);
-                    while let Some(current) = stack.pop() {
-                        if !f(app_state, current) {
-                            return;
-                        }
-
-                        for &child in app_state.widget_data[current].children.iter().rev() {
-                            let data = &app_state.widget_data[child];
-                            if data.global_bounds().contains(pos) && !data.is_overlay() {
-                                stack.push(child)
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        let mut root_and_overlays = vec![self.windows[id].root_widget];
-        root_and_overlays.extend(self.windows[id].overlays.iter());
-        traverse(self, root_and_overlays, pos, &mut f);
-    }
-
-    pub(super) fn with_id_scratch_space(&self, f: impl FnOnce(&Self, &mut Vec<WidgetId>)) {
-        let mut scratch = self.id_scratch_buffer.replace(Vec::new());
+    pub(super) fn with_id_buffer(&self, f: impl FnOnce(&Self, &mut Vec<WidgetId>)) {
+        let mut scratch = self.id_buffer.replace(Vec::new());
         scratch.clear();
         f(self, &mut scratch);
-        self.id_scratch_buffer.set(scratch);
+        self.id_buffer.set(scratch);
     }
 
     pub(super) fn with_id_buffer_mut(&mut self, f: impl FnOnce(&mut Self, &mut Vec<WidgetId>)) {
-        let mut scratch = self.id_scratch_buffer.replace(Vec::new());
+        let mut scratch = self.id_buffer.replace(Vec::new());
         scratch.clear();
         f(self, &mut scratch);
-        self.id_scratch_buffer.set(scratch);
-    }
-
-    /// Calls `f` for each widget that contains `pos`. The traversal order is from the top leaf back to the root (reverse draw order)
-    pub fn for_each_widget_at_rev(
-        &self,
-        id: WindowId,
-        pos: Point,
-        mut f: impl FnMut(&Self, WidgetId) -> bool,
-    ) {
-        enum Action {
-            VisitChildren(WidgetId),
-            Done(WidgetId),
-        }
-
-        let mut stack = Vec::new();
-        // Overlays first (in reverse order) and then the "regular" view hierarchy
-        let mut root_and_overlays: Vec<_> = self.windows[id].overlays.iter().rev().collect();
-        root_and_overlays.push(self.windows[id].root_widget);
-
-        for root in root_and_overlays {
-            if !self.widget_data[root].global_bounds().contains(pos) {
-                continue;
-            }
-
-            stack.push(Action::VisitChildren(root));
-            while let Some(current) = stack.pop() {
-                match current {
-                    Action::VisitChildren(widget_id) => {
-                        let data = &self.widget_data[widget_id];
-                        if data.children.is_empty() {
-                            if !f(self, widget_id) {
-                                return;
-                            }
-                        } else {
-                            stack.push(Action::Done(widget_id));
-                            for &child in data.children.iter() {
-                                let data = &self.widget_data[child];
-                                if data.global_bounds().contains(pos) && !data.is_overlay() {
-                                    stack.push(Action::VisitChildren(child))
-                                }
-                            }
-                        }
-                    }
-                    Action::Done(widget_id) => {
-                        if !f(self, widget_id) {
-                            return;
-                        }
-                    }
-                }
-            }
-        }
+        self.id_buffer.set(scratch);
     }
 
     pub(super) fn merge_widget_flags(&mut self, source: WidgetId) {
@@ -482,6 +393,178 @@ impl AppState {
     pub fn clipboard(&self, window_id: WindowId) -> Clipboard {
         Clipboard {
             handle: &self.window(window_id).handle,
+        }
+    }
+}
+
+enum VisitAction {
+    VisitChildren(WidgetId),
+    Done(WidgetId),
+}
+
+// Can we possibly get rid of the code duplication here?
+impl AppState {
+    /// Calls `f` for each widget that contains `pos`. The order is from the root and down the tree (draw order).
+    /// Iteration continues until all widgets have been visited, or `f` returns false
+    pub fn for_each_widget_at(
+        &self,
+        id: WindowId,
+        pos: Point,
+        mut f: impl FnMut(&Self, WidgetId) -> bool,
+    ) {
+        fn traverse(
+            app_state: &AppState,
+            roots: Vec<WidgetId>,
+            pos: Point,
+            f: &mut dyn FnMut(&AppState, WidgetId) -> bool,
+        ) {
+            app_state.with_id_buffer(move |app_state, stack| {
+                for root in roots {
+                    stack.push(root);
+                    while let Some(current) = stack.pop() {
+                        if !f(app_state, current) {
+                            return;
+                        }
+
+                        for &child in app_state.widget_data[current].children.iter().rev() {
+                            let data = &app_state.widget_data[child];
+                            if data.global_bounds().contains(pos) && !data.is_overlay() {
+                                stack.push(child)
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        let mut root_and_overlays = vec![self.windows[id].root_widget];
+        root_and_overlays.extend(self.windows[id].overlays.iter());
+        traverse(self, root_and_overlays, pos, &mut f);
+    }
+
+    pub fn for_each_widget_at_mut(
+        &mut self,
+        id: WindowId,
+        pos: Point,
+        mut f: impl FnMut(&mut Self, WidgetId) -> bool,
+    ) {
+        fn traverse(
+            app_state: &mut AppState,
+            roots: Vec<WidgetId>,
+            pos: Point,
+            f: &mut dyn FnMut(&mut AppState, WidgetId) -> bool,
+        ) {
+            app_state.with_id_buffer_mut(move |app_state, stack| {
+                for root in roots {
+                    stack.push(root);
+                    while let Some(current) = stack.pop() {
+                        if !f(app_state, current) {
+                            return;
+                        }
+
+                        for &child in app_state.widget_data[current].children.iter().rev() {
+                            let data = &app_state.widget_data[child];
+                            if data.global_bounds().contains(pos) && !data.is_overlay() {
+                                stack.push(child)
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        let mut root_and_overlays = vec![self.windows[id].root_widget];
+        root_and_overlays.extend(self.windows[id].overlays.iter());
+        traverse(self, root_and_overlays, pos, &mut f);
+    }
+
+    /// Calls `f` for each widget that contains `pos`. The traversal order is from the top leaf back to the root (reverse draw order)
+    pub fn for_each_widget_at_rev(
+        &self,
+        id: WindowId,
+        pos: Point,
+        mut f: impl FnMut(&Self, WidgetId) -> bool,
+    ) {
+        let mut stack = Vec::new();
+        // Overlays first (in reverse order) and then the "regular" view hierarchy
+        let mut root_and_overlays: Vec<_> = self.windows[id].overlays.iter().rev().collect();
+        root_and_overlays.push(self.windows[id].root_widget);
+
+        for root in root_and_overlays {
+            if !self.widget_data[root].global_bounds().contains(pos) {
+                continue;
+            }
+
+            stack.push(VisitAction::VisitChildren(root));
+            while let Some(current) = stack.pop() {
+                match current {
+                    VisitAction::VisitChildren(widget_id) => {
+                        let data = &self.widget_data[widget_id];
+                        if data.children.is_empty() {
+                            if !f(self, widget_id) {
+                                return;
+                            }
+                        } else {
+                            stack.push(VisitAction::Done(widget_id));
+                            for &child in data.children.iter() {
+                                let data = &self.widget_data[child];
+                                if data.global_bounds().contains(pos) && !data.is_overlay() {
+                                    stack.push(VisitAction::VisitChildren(child))
+                                }
+                            }
+                        }
+                    }
+                    VisitAction::Done(widget_id) => {
+                        if !f(self, widget_id) {
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn for_each_widget_at_rev_mut(
+        &mut self,
+        id: WindowId,
+        pos: Point,
+        mut f: impl FnMut(&mut Self, WidgetId) -> bool,
+    ) {
+        let mut stack = Vec::new();
+        let mut root_and_overlays: Vec<_> = self.windows[id].overlays.iter().rev().collect();
+        root_and_overlays.push(self.windows[id].root_widget);
+
+        for root in root_and_overlays {
+            if !self.widget_data[root].global_bounds().contains(pos) {
+                continue;
+            }
+
+            stack.push(VisitAction::VisitChildren(root));
+            while let Some(current) = stack.pop() {
+                match current {
+                    VisitAction::VisitChildren(widget_id) => {
+                        let data = &self.widget_data[widget_id];
+                        if data.children.is_empty() {
+                            if !f(self, widget_id) {
+                                return;
+                            }
+                        } else {
+                            stack.push(VisitAction::Done(widget_id));
+                            for &child in data.children.iter() {
+                                let data = &self.widget_data[child];
+                                if data.global_bounds().contains(pos) && !data.is_overlay() {
+                                    stack.push(VisitAction::VisitChildren(child))
+                                }
+                            }
+                        }
+                    }
+                    VisitAction::Done(widget_id) => {
+                        if !f(self, widget_id) {
+                            return;
+                        }
+                    }
+                }
+            }
         }
     }
 }

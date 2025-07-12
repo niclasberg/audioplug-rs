@@ -1,10 +1,10 @@
 use crate::{
     app::{
-        EventContext, EventStatus, MouseEventContext, OverlayAnchor, OverlayOptions, ReadContext,
-        View, Widget, WidgetId, WidgetMut, WrappedWidget,
+        EventContext, EventStatus, MouseEventContext, OverlayAnchor, OverlayOptions, View, Widget,
+        WidgetId, WidgetMut, WrappedWidget,
     },
     core::{Align, Key},
-    KeyEvent, MouseEvent,
+    KeyEvent, MouseButton, MouseEvent,
 };
 
 pub struct Dropdown<VTrigger, FMenu> {
@@ -71,22 +71,35 @@ impl<WTrigger: Widget, V: View, FMenu: Fn() -> V + 'static> WrappedWidget
 
     fn mouse_event(&mut self, event: MouseEvent, cx: &mut MouseEventContext) -> EventStatus {
         match event {
-            MouseEvent::Down { .. } => {
+            MouseEvent::Down {
+                button: MouseButton::LEFT,
+                ..
+            }
+            | MouseEvent::DoubleClick {
+                button: MouseButton::LEFT,
+                ..
+            } => {
                 let view = (self.menu_fn)();
-                cx.defer_update(self, move |mut widget| {
-                    if !widget.is_dropdown_open() {
-                        let id = widget.add_overlay(
-                            view,
-                            OverlayOptions {
-                                anchor: OverlayAnchor::OutsideParent,
-                                align: Align::Bottom,
-                                z_index: 50000,
-                                ..Default::default()
-                            },
-                        );
-                        widget.overlay_id = Some(id);
-                    }
-                });
+                if !self.is_dropdown_open() {
+                    cx.defer_update(self, move |mut widget| {
+                        // not sure if this second check is needed
+                        if !widget.is_dropdown_open() {
+                            let id = widget.add_overlay(
+                                view,
+                                OverlayOptions {
+                                    anchor: OverlayAnchor::OutsideParent,
+                                    align: Align::Bottom,
+                                    z_index: 50000,
+                                    ..Default::default()
+                                },
+                            );
+                            widget.overlay_id = Some(id);
+                        }
+                    });
+                } else {
+                    cx.defer_update(self, Self::close);
+                }
+
                 EventStatus::Handled
             }
             _ => EventStatus::Ignored,
@@ -95,7 +108,9 @@ impl<WTrigger: Widget, V: View, FMenu: Fn() -> V + 'static> WrappedWidget
 
     fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventStatus {
         match event {
-            KeyEvent::KeyDown { key, .. } if key == Key::Escape => {
+            KeyEvent::KeyDown {
+                key: Key::Escape, ..
+            } => {
                 if self.is_dropdown_open() {
                     cx.defer_update(self, Self::close);
                     EventStatus::Handled
