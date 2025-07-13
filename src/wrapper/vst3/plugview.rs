@@ -29,7 +29,7 @@ const VST3_PLATFORM_NSVIEW: &str = "NSView";
 const VST3_PLATFORM_X11_WINDOW: &str = "X11EmbedWindowID";
 
 use vst3_sys as vst3_com;
-#[VST3(implements(IPlugView))]
+#[VST3(implements(IPlugView, IPlugViewContentScaleSupport))]
 pub struct PlugView<E: Editor> {
     window: RefCell<Option<Window>>,
     app_state: Rc<RefCell<AppState>>,
@@ -196,7 +196,12 @@ impl<E: Editor> IPlugView for PlugView<E> {
 }
 
 impl<E: Editor> IPlugViewContentScaleSupport for PlugView<E> {
-    unsafe fn set_scale_factor(&self, _factor: f32) -> tresult {
-        kResultOk
+    unsafe fn set_scale_factor(&self, scale_factor: f32) -> tresult {
+        if let Some(window) = self.window.borrow().as_ref() {
+            window.set_scale_factor(scale_factor);
+            kResultOk
+        } else {
+            kResultFalse
+        }
     }
 }

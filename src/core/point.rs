@@ -107,6 +107,13 @@ impl Point<f64> {
     pub fn as_vector(self) -> Vec2 {
         Vec2::new(self.x, self.y)
     }
+
+    pub fn floor(self) -> Self {
+        Self {
+            x: self.x.floor(),
+            y: self.y.floor(),
+        }
+    }
 }
 
 impl<T: Display> Display for Point<T> {

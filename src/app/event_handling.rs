@@ -9,7 +9,7 @@ use super::{
     WidgetId, WindowId, WriteContext,
 };
 use crate::{
-    app::{StatusChange, Widget, WidgetMut},
+    app::{layout::LayoutMode, StatusChange, Widget, WidgetMut},
     core::{Key, Rectangle},
     platform::WindowEvent,
     KeyEvent, MouseEvent,
@@ -18,7 +18,7 @@ use crate::{
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
         WindowEvent::Resize { .. } => {
-            layout_window(app_state, window_id);
+            layout_window(app_state, window_id, LayoutMode::Force);
             invalidate_window(app_state, window_id);
         }
         WindowEvent::Mouse(mouse_event) => {

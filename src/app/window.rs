@@ -71,7 +71,7 @@ impl<V: View> WindowHandler for MyHandler<V> {
         handle_window_event(&mut app_state, self.state.window_id(), event)
     }
 
-    fn render(&mut self, _: Rectangle, renderer: platform::RendererRef<'_>) {
+    fn render(&mut self, renderer: platform::RendererRef<'_>) {
         let mut app_state = self.app_state.borrow_mut();
         render_window(&mut app_state, self.state.window_id(), renderer)
     }
@@ -133,5 +133,9 @@ impl Window {
 
     pub fn set_size(&self, size: Rectangle<i32>) {
         self.0.set_size(size).unwrap()
+    }
+
+    pub fn set_scale_factor(&self, scale_factor: f32) {
+        self.0.set_scale_factor(scale_factor);
     }
 }

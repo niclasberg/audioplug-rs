@@ -37,7 +37,9 @@ pub(super) fn direct2d_factory() -> &'static Direct2D::ID2D1Factory1 {
         unsafe {
             Direct2D::D2D1CreateFactory::<Direct2D::ID2D1Factory1>(
                 Direct2D::D2D1_FACTORY_TYPE_MULTI_THREADED,
-                None,
+                Some(&Direct2D::D2D1_FACTORY_OPTIONS {
+                    debugLevel: Direct2D::D2D1_DEBUG_LEVEL_INFORMATION,
+                }),
             )
             .unwrap()
         }

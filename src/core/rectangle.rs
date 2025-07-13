@@ -156,8 +156,8 @@ where
     pub fn intersects(&self, other: &Self) -> bool {
         !(self.left() > other.right()
             || self.right() < other.left()
-            || self.top() < other.bottom()
-            || self.bottom() > other.bottom())
+            || self.top() > other.bottom()
+            || self.bottom() < other.top())
     }
 
     /// Expand the rectangle by `amount` from each side. Retains the
@@ -231,15 +231,15 @@ impl Rectangle<f64> {
     }
 
     pub fn scale(&self, scale: f64) -> Self {
-        Self::from_origin(self.origin(), self.size().scale(scale))
+        Self::from_origin(self.origin().scale(scale), self.size().scale(scale))
     }
 
     pub fn scale_x(&self, scale: f64) -> Self {
-        Self::from_origin(self.origin(), self.size().scale_x(scale))
+        Self::from_origin(self.origin().scale_x(scale), self.size().scale_x(scale))
     }
 
     pub fn scale_y(&self, scale: f64) -> Self {
-        Self::from_origin(self.origin(), self.size().scale_y(scale))
+        Self::from_origin(self.origin().scale_y(scale), self.size().scale_y(scale))
     }
 
     pub fn offset(&self, delta: impl Into<Vec2>) -> Self {

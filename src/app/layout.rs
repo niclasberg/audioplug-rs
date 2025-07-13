@@ -1,5 +1,5 @@
 use crate::app::{OverlayAnchor, OverlayOptions};
-use crate::core::{HAlign, Point, Rectangle, Size, VAlign};
+use crate::core::{HAlign, Point, Rectangle, Size, VAlign, Vec2};
 use crate::style::{AvailableSpace, DisplayStyle, ResolveInto, Style, UiRect};
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree,
@@ -8,7 +8,13 @@ use taffy::{
 
 use super::{invalidate_window, AppState, WidgetFlags, WidgetId, WindowId};
 
-pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum LayoutMode {
+    IfNeeded,
+    Force,
+}
+
+pub fn layout_window(app_state: &mut AppState, window_id: WindowId, mode: LayoutMode) {
     println!("Layout");
     app_state.with_id_buffer_mut(move |app_state, overlay_ids| {
         let window = app_state.window(window_id);
@@ -23,34 +29,49 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
         };
 
         // Need to layout root first, the overlay positions can depend on their parent positions
-        taffy::compute_root_layout(
-            &mut LayoutContext {
+        if mode == LayoutMode::Force || app_state.widget_data_ref(root_id).needs_layout() {
+            let mut cx = LayoutContext {
                 app_state,
                 window_size,
                 region_to_invalidate: None,
-            },
-            root_id.into(),
-            available_space,
-        );
-        update_node_origins(app_state, root_id, Point::ZERO);
+            };
+            taffy::compute_root_layout(&mut cx, root_id.into(), available_space);
+            let region_to_invalidate = cx.region_to_invalidate;
+
+            update_node_origins(app_state, root_id, Point::ZERO);
+            if let Some(region_to_invalidate) = region_to_invalidate {
+                app_state
+                    .window(window_id)
+                    .handle
+                    .invalidate(region_to_invalidate);
+            }
+        }
 
         for (i, overlay_id) in overlay_ids.iter().enumerate() {
-            taffy::compute_root_layout(
-                &mut LayoutContext {
+            if mode == LayoutMode::Force || app_state.widget_data_ref(*overlay_id).needs_layout() {
+                let mut cx = LayoutContext {
                     app_state,
                     window_size,
                     region_to_invalidate: None,
-                },
-                (*overlay_id).into(),
-                available_space,
-            );
-            let options = app_state
-                .window(window_id)
-                .overlays
-                .get_overlay_options(i)
-                .unwrap();
+                };
+                taffy::compute_root_layout(&mut cx, (*overlay_id).into(), available_space);
+                let region_to_invalidate = cx.region_to_invalidate;
+                let options = app_state
+                    .window(window_id)
+                    .overlays
+                    .get_overlay_options(i)
+                    .unwrap();
 
-            position_overlay(app_state, window_rect, *overlay_id, options);
+                let offset = compute_overlay_offset(app_state, window_rect, *overlay_id, options);
+
+                update_node_origins(app_state, *overlay_id, offset.into_point());
+                if let Some(region_to_invalidate) = region_to_invalidate {
+                    app_state
+                        .window(window_id)
+                        .handle
+                        .invalidate(region_to_invalidate.offset(offset));
+                }
+            }
         }
 
         //let region_to_invalidate = ctx.region_to_invalidate;
@@ -64,7 +85,7 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId) {
         //taffy::print_tree(&mut ctx, widget_id.into());
     });
 
-    invalidate_window(app_state, window_id);
+    //invalidate_window(app_state, window_id);
 }
 
 pub(super) fn request_layout(app_state: &mut AppState, widget_id: WidgetId) {
@@ -74,12 +95,12 @@ pub(super) fn request_layout(app_state: &mut AppState, widget_id: WidgetId) {
     app_state.merge_widget_flags(widget_id);
 }
 
-fn position_overlay(
+fn compute_overlay_offset(
     app_state: &mut AppState,
     window_rect: Rectangle,
     overlay_id: WidgetId,
     options: OverlayOptions,
-) {
+) -> Vec2 {
     let current_bounds = app_state.widget_data[overlay_id].local_bounds();
     let parent_id = app_state.widget_data[overlay_id].parent_id;
     let parent_bounds = app_state.widget_data[parent_id].global_bounds();
@@ -102,11 +123,7 @@ fn position_overlay(
         }
     };
 
-    update_node_origins(
-        app_state,
-        overlay_id,
-        (alignment_offset + options.offset).into_point(),
-    );
+    alignment_offset + options.offset
 }
 
 fn update_node_origins(app_state: &mut AppState, root_widget: WidgetId, position: Point) {

@@ -2,6 +2,7 @@ mod application;
 mod audio;
 mod bitmap;
 mod com;
+mod conversions;
 mod cursors;
 mod executor;
 pub mod filters;

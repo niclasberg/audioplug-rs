@@ -12,6 +12,7 @@ use crate::{
         effect::{EffectFn, WatchContext},
         event_channel::HandleEventFn,
         event_handling::{set_focus_widget, set_mouse_capture_widget},
+        layout::LayoutMode,
         overlay::{OverlayContainer, OverlayOptions},
         AnyView, FxIndexSet, Scope, WidgetContext,
     },
@@ -124,7 +125,7 @@ impl AppState {
         self.windows[window_id].root_widget = widget_id;
         self.build_and_insert_widget(widget_id, view);
 
-        layout_window(self, window_id);
+        layout_window(self, window_id, LayoutMode::Force);
 
         window_id
     }
@@ -369,24 +370,9 @@ impl AppState {
         }
 
         // Layout if needed
-        let windows_needing_layout: Vec<_> = self
-            .windows
-            .iter()
-            .filter_map(|(window_id, window_state)| {
-                let root_needs_layout = self
-                    .widget_data_ref(window_state.root_widget)
-                    .needs_layout();
-                let overlays_need_layout = window_state
-                    .overlays
-                    .iter()
-                    .any(|id| self.widget_data_ref(id).needs_layout());
-
-                (root_needs_layout || overlays_need_layout).then_some(window_id)
-            })
-            .collect();
-
-        for window_to_layout in windows_needing_layout {
-            layout_window(self, window_to_layout);
+        let window_ids: Vec<_> = self.windows.iter().map(|window| window.0).collect();
+        for window_id in window_ids {
+            layout_window(self, window_id, LayoutMode::IfNeeded);
         }
     }
 

@@ -2,7 +2,7 @@ use bytemuck::{bytes_of, cast_slice};
 use windows::{
     core::*,
     Win32::{
-        Foundation::{HMODULE, HWND},
+        Foundation::{HMODULE, HWND, RECT},
         Graphics::{
             Direct2D::{self, ID2D1Brush},
             Direct3D, Direct3D11, Dxgi,
@@ -17,10 +17,7 @@ use super::{
     Bitmap,
 };
 use crate::{
-    core::{
-        Color, Ellipse, Point, Rectangle, RoundedRectangle, ShadowOptions, Size, SpringPhysics,
-        Transform, Vec2,
-    },
+    core::{Color, Point, Rectangle, ShadowOptions, Size, SpringPhysics, Transform, Vec2},
     platform::{filters::RoundedRectShadowEffect, NativeTextLayout},
 };
 use crate::{
@@ -35,112 +32,6 @@ use std::{
     mem::MaybeUninit,
     rc::Rc,
 };
-
-impl From<Color> for Direct2D::Common::D2D1_COLOR_F {
-    fn from(val: Color) -> Self {
-        Direct2D::Common::D2D1_COLOR_F {
-            r: val.r,
-            g: val.g,
-            b: val.b,
-            a: val.a,
-        }
-    }
-}
-
-impl From<Rectangle> for Direct2D::Common::D2D_RECT_F {
-    fn from(val: Rectangle) -> Self {
-        Direct2D::Common::D2D_RECT_F {
-            left: val.left() as f32,
-            top: val.top() as f32,
-            right: val.right() as f32,
-            bottom: val.bottom() as f32,
-        }
-    }
-}
-
-impl From<Direct2D::Common::D2D_RECT_F> for Rectangle {
-    fn from(value: Direct2D::Common::D2D_RECT_F) -> Self {
-        Self::from_ltrb(
-            value.left.into(),
-            value.top.into(),
-            value.right.into(),
-            value.bottom.into(),
-        )
-    }
-}
-
-impl From<RoundedRectangle> for Direct2D::D2D1_ROUNDED_RECT {
-    fn from(val: RoundedRectangle) -> Self {
-        Direct2D::D2D1_ROUNDED_RECT {
-            rect: val.rect.into(),
-            radiusX: val.corner_radius.width as f32,
-            radiusY: val.corner_radius.height as f32,
-        }
-    }
-}
-
-impl From<Ellipse> for Direct2D::D2D1_ELLIPSE {
-    fn from(val: Ellipse) -> Self {
-        Direct2D::D2D1_ELLIPSE {
-            point: val.center.into(),
-            radiusX: val.radii.width as f32,
-            radiusY: val.radii.height as f32,
-        }
-    }
-}
-
-impl From<Point> for windows_numerics::Vector2 {
-    fn from(val: Point) -> Self {
-        windows_numerics::Vector2 {
-            X: val.x as f32,
-            Y: val.y as f32,
-        }
-    }
-}
-
-impl From<Vec2> for windows_numerics::Vector2 {
-    fn from(val: Vec2) -> Self {
-        windows_numerics::Vector2 {
-            X: val.x as f32,
-            Y: val.y as f32,
-        }
-    }
-}
-
-impl From<Transform> for windows_numerics::Matrix3x2 {
-    fn from(val: Transform) -> Self {
-        windows_numerics::Matrix3x2 {
-            M11: val.m11 as f32,
-            M12: val.m12 as f32,
-            M21: val.m21 as f32,
-            M22: val.m22 as f32,
-            M31: val.tx as f32,
-            M32: val.ty as f32,
-        }
-    }
-}
-
-impl From<windows_numerics::Matrix3x2> for Transform {
-    fn from(value: windows_numerics::Matrix3x2) -> Self {
-        Transform {
-            m11: value.M11.into(),
-            m12: value.M12.into(),
-            m21: value.M21.into(),
-            m22: value.M22.into(),
-            tx: value.M31.into(),
-            ty: value.M32.into(),
-        }
-    }
-}
-
-impl From<Size<u32>> for Direct2D::Common::D2D_SIZE_U {
-    fn from(value: Size<u32>) -> Self {
-        Direct2D::Common::D2D_SIZE_U {
-            width: value.width,
-            height: value.height,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct RendererGeneration(pub(super) usize);
@@ -161,6 +52,18 @@ struct SavedState {
     transform: windows_numerics::Matrix3x2,
     actions: Vec<SavedAction>,
 }
+
+#[derive(Clone, Copy)]
+enum PresentState {
+    Init,
+    PresentingFirstTime,
+    HasPresented,
+    Presenting {
+        dirty_rect: RECT,
+        scaled_dirty_rect: Rectangle,
+    },
+}
+
 pub struct Renderer {
     render_target: Direct2D::ID2D1DeviceContext,
     swapchain: Dxgi::IDXGISwapChain1,
@@ -170,19 +73,19 @@ pub struct Renderer {
     scale_factor: f32,
     rect_shadow_effect: RectShadowEffect,
     rounded_rect_shadow_effect: RoundedRectShadowEffect,
+    present_state: PresentState,
 }
 
 impl Renderer {
-    pub fn new(hwnd: HWND) -> Result<Self> {
-        let scale_factor = get_scale_factor_for_window(hwnd) as f32;
-
+    pub fn new(hwnd: HWND, scale_factor: f32) -> Result<Self> {
         let device = unsafe {
             let mut device = None;
             Direct3D11::D3D11CreateDevice(
                 None,
                 Direct3D::D3D_DRIVER_TYPE_HARDWARE,
                 HMODULE::default(),
-                Direct3D11::D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                Direct3D11::D3D11_CREATE_DEVICE_BGRA_SUPPORT
+                    | Direct3D11::D3D11_CREATE_DEVICE_DEBUG,
                 None,
                 Direct3D11::D3D11_SDK_VERSION,
                 Some(&mut device),
@@ -192,12 +95,14 @@ impl Renderer {
             device.unwrap()
         };
 
-        let dxgi_device = device.cast::<Dxgi::IDXGIDevice>()?;
+        let dxgi_device = device.cast::<Dxgi::IDXGIDevice1>()?;
+        unsafe { dxgi_device.SetMaximumFrameLatency(1) }?;
         let direct2d_device = unsafe { direct2d_factory().CreateDevice(&dxgi_device) }?;
         let render_target = unsafe {
             direct2d_device.CreateDeviceContext(Direct2D::D2D1_DEVICE_CONTEXT_OPTIONS_NONE)
         }?;
         unsafe { render_target.SetDpi(96.0 * scale_factor, 96.0 * scale_factor) };
+        unsafe { render_target.SetTextAntialiasMode(Direct2D::D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE) };
 
         let dxgi_factory: Dxgi::IDXGIFactory2 = unsafe { dxgi_device.GetAdapter()?.GetParent() }?;
         let swapchain = unsafe {
@@ -225,7 +130,7 @@ impl Renderer {
             )
         }?;
 
-        bind_swapchain_bitmap_to_render_target(&render_target, &swapchain, scale_factor)?;
+        bind_swapchain_bitmap_to_render_target(&render_target, &swapchain)?;
 
         let brush = unsafe { render_target.CreateSolidColorBrush(&Color::GREEN.into(), None)? };
 
@@ -244,10 +149,11 @@ impl Renderer {
             scale_factor,
             rect_shadow_effect,
             rounded_rect_shadow_effect,
+            present_state: PresentState::Init,
         })
     }
 
-    pub fn resize(&self, width: u32, height: u32) -> Result<()> {
+    pub fn resize(&mut self, width: u32, height: u32) -> Result<()> {
         // We need to clear all references to the swapchain buffers before resizing.
         unsafe { self.render_target.SetTarget(None) };
 
@@ -261,33 +167,92 @@ impl Renderer {
             )
         }?;
 
-        bind_swapchain_bitmap_to_render_target(
-            &self.render_target,
-            &self.swapchain,
-            self.scale_factor,
-        )?;
+        bind_swapchain_bitmap_to_render_target(&self.render_target, &self.swapchain)?;
+        self.present_state = PresentState::Init;
 
         Ok(())
     }
 
     pub fn update_scale_factor(&mut self, scale_factor: f32) -> Result<()> {
-        unsafe {
-            self.render_target
-                .SetDpi(96.0 * scale_factor, 96.0 * scale_factor)
-        };
+        let dpi = 96.0 * scale_factor;
+        unsafe { self.render_target.SetDpi(dpi, dpi) };
         unsafe { self.render_target.SetTarget(None) };
-        bind_swapchain_bitmap_to_render_target(&self.render_target, &self.swapchain, scale_factor)?;
+        bind_swapchain_bitmap_to_render_target(&self.render_target, &self.swapchain)?;
         self.scale_factor = scale_factor;
+        self.present_state = PresentState::Init;
         Ok(())
     }
 
-    pub fn begin_draw(&self) {
-        unsafe { self.render_target.BeginDraw() };
+    pub fn dirty_rect(&self) -> Rectangle {
+        match self.present_state {
+            PresentState::Init | PresentState::HasPresented => unreachable!(),
+            PresentState::PresentingFirstTime => {
+                let size: Size = unsafe { self.render_target.GetSize() }.into();
+                Rectangle::from_origin(Point::ZERO, size)
+            }
+            PresentState::Presenting {
+                scaled_dirty_rect, ..
+            } => scaled_dirty_rect,
+        }
     }
 
-    pub fn end_draw(&self) -> Result<()> {
-        unsafe { self.render_target.EndDraw(None, None) }?;
-        unsafe { self.swapchain.Present(1, Dxgi::DXGI_PRESENT(0)) }.ok()
+    pub fn begin_draw(&mut self, dirty_rect: RECT) {
+        // We can only do a partial redraw if we have rendered everything already
+        // Otherwise, we paint everything
+        self.present_state = match self.present_state {
+            PresentState::Init => {
+                unsafe { self.render_target.BeginDraw() };
+                PresentState::PresentingFirstTime
+            }
+            PresentState::HasPresented => {
+                let scale_factor = self.scale_factor as f64;
+                let scaled_dirty_rect = Rectangle::from_ltrb(
+                    (dirty_rect.left as f64 / scale_factor).floor(),
+                    (dirty_rect.top as f64 / scale_factor).floor(),
+                    (dirty_rect.right as f64 / scale_factor).ceil(),
+                    (dirty_rect.bottom as f64 / scale_factor).ceil(),
+                );
+                unsafe {
+                    self.render_target.BeginDraw();
+                    self.render_target.PushAxisAlignedClip(
+                        &scaled_dirty_rect.into(),
+                        Direct2D::D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
+                    );
+                }
+                PresentState::Presenting {
+                    dirty_rect,
+                    scaled_dirty_rect,
+                }
+            }
+            PresentState::PresentingFirstTime | PresentState::Presenting { .. } => unreachable!(),
+        };
+    }
+
+    pub fn end_draw(&mut self) -> Result<()> {
+        let result = match self.present_state {
+            PresentState::Init | PresentState::HasPresented => unreachable!(),
+            PresentState::PresentingFirstTime => unsafe {
+                self.render_target.EndDraw(None, None)?;
+                self.swapchain.Present(1, Dxgi::DXGI_PRESENT(0)).ok()
+            },
+            PresentState::Presenting { mut dirty_rect, .. } => {
+                let present_options = Dxgi::DXGI_PRESENT_PARAMETERS {
+                    DirtyRectsCount: 1,
+                    pDirtyRects: &mut dirty_rect,
+                    pScrollRect: std::ptr::null_mut(),
+                    pScrollOffset: std::ptr::null_mut(),
+                };
+                unsafe {
+                    self.render_target.PopAxisAlignedClip();
+                    self.render_target.EndDraw(None, None)?;
+                    self.swapchain
+                        .Present1(1, Dxgi::DXGI_PRESENT(0), &present_options)
+                        .ok()
+                }
+            }
+        };
+        self.present_state = PresentState::HasPresented;
+        result
     }
 
     pub fn clear(&self, color: Color) {
@@ -609,7 +574,8 @@ impl Renderer {
         unsafe {
             self.brush.SetColor(&text_layout.color.into());
             self.render_target.DrawTextLayout(
-                position.into(),
+                // DirectWrite does not work well with fractional coordinates, so floor here
+                position.floor().into(),
                 &text_layout.text_layout,
                 &self.brush,
                 Direct2D::D2D1_DRAW_TEXT_OPTIONS_NONE,
@@ -620,25 +586,23 @@ impl Renderer {
     pub fn draw_bitmap(&mut self, source: &Bitmap, rect: Rectangle) {
         source.draw(&self.render_target, self.generation, rect.into())
     }
-
-    pub fn dirty_rect(&self) -> Rectangle {
-        Rectangle::EMPTY
-    }
 }
 
 fn bind_swapchain_bitmap_to_render_target(
     render_target: &Direct2D::ID2D1DeviceContext,
     swapchain: &Dxgi::IDXGISwapChain1,
-    scale_factor: f32,
 ) -> Result<()> {
     let back_buffer: Dxgi::IDXGISurface = unsafe { swapchain.GetBuffer(0) }?;
+    let mut dpi_x = 0.0;
+    let mut dpi_y = 0.0;
+    unsafe { render_target.GetDpi(&mut dpi_x, &mut dpi_y) };
     let bitmap_props = Direct2D::D2D1_BITMAP_PROPERTIES1 {
         pixelFormat: Direct2D::Common::D2D1_PIXEL_FORMAT {
             format: Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
             alphaMode: Direct2D::Common::D2D1_ALPHA_MODE_PREMULTIPLIED,
         },
-        dpiX: scale_factor * 96.0,
-        dpiY: scale_factor * 96.0,
+        dpiX: dpi_x,
+        dpiY: dpi_y,
         bitmapOptions: Direct2D::D2D1_BITMAP_OPTIONS_TARGET
             | Direct2D::D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
         ..Default::default()

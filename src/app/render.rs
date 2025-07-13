@@ -15,7 +15,7 @@ pub fn render_window(
     window_id: WindowId,
     renderer: platform::RendererRef<'_>,
 ) {
-    println!("Render");
+    println!("Render, dirty rect: {:?}", renderer.dirty_rect());
     app_state.with_id_buffer_mut(move |app_state, overlays| {
         overlays.extend(app_state.window(window_id).overlays.iter());
 
@@ -136,7 +136,11 @@ impl RenderContext<'_, '_> {
     pub(crate) fn render_current_widget(&mut self) {
         {
             let widget_data = self.app_state.widget_data_ref(self.id);
-            if widget_data.is_hidden() {
+            if widget_data.is_hidden()
+                || !widget_data
+                    .global_bounds()
+                    .intersects(&self.renderer.dirty_rect())
+            {
                 return;
             }
 

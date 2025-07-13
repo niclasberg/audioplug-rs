@@ -3,6 +3,7 @@ use std::ffi::{CStr, CString};
 use std::rc::Rc;
 
 use crate::core::{Rectangle, WindowTheme};
+use crate::platform::win::util;
 use windows::core::Result;
 use windows::Win32::Foundation::{HANDLE, HGLOBAL, HWND, RECT};
 use windows::Win32::Graphics::Gdi::InvalidateRect;
@@ -23,21 +24,12 @@ impl<F: Fn()> Drop for ScopeExit<F> {
 
 pub struct Handle {
     hwnd: HWND,
-    scale_factor: Rc<Cell<f64>>,
     theme: Rc<Cell<WindowTheme>>,
 }
 
 impl Handle {
-    pub(crate) fn new(
-        hwnd: HWND,
-        scale_factor: Rc<Cell<f64>>,
-        theme: Rc<Cell<WindowTheme>>,
-    ) -> Self {
-        Self {
-            hwnd,
-            scale_factor,
-            theme,
-        }
+    pub(crate) fn new(hwnd: HWND, theme: Rc<Cell<WindowTheme>>) -> Self {
+        Self { hwnd, theme }
     }
 
     pub fn theme(&self) -> WindowTheme {
@@ -48,8 +40,12 @@ impl Handle {
         let _ = unsafe { InvalidateRect(Some(self.hwnd), None, false) };
     }
 
+    pub fn scale_factor(&self) -> f64 {
+        util::get_scale_factor_for_window(self.hwnd)
+    }
+
     pub fn invalidate(&self, rect: Rectangle) {
-        let rect = rect.scale(1.0 / self.scale_factor.get());
+        let rect = rect.scale(self.scale_factor());
         let rect = RECT {
             left: rect.left().floor() as i32,
             top: rect.top().floor() as i32,
@@ -61,7 +57,7 @@ impl Handle {
 
     pub fn global_bounds(&self) -> Rectangle {
         let rect: Rectangle = get_client_rect(self.hwnd).into();
-        rect.scale(1.0 / self.scale_factor.get())
+        rect.scale(1.0 / self.scale_factor())
     }
 
     pub fn set_clipboard(&self, string: &str) -> Result<()> {

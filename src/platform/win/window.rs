@@ -59,7 +59,6 @@ struct WindowState {
     last_mouse_pos: RefCell<Option<Point<i32>>>,
     ticks_per_second: f64,
     current_key_event: RefCell<Option<TmpKeyEvent>>,
-    scale_factor: Rc<Cell<f64>>,
     captured_mouse_buttons: RefCell<MouseButtons>,
     theme: Rc<Cell<WindowTheme>>,
     quit_app_on_exit: bool,
@@ -79,10 +78,8 @@ impl WindowState {
     ) -> Option<LRESULT> {
         match message {
             WM_CREATE => {
-                self.scale_factor.replace(get_scale_factor_for_window(hwnd));
-
                 {
-                    self.handler.borrow_mut().init(Handle::new(hwnd, self.scale_factor.clone(), self.theme.clone()));
+                    self.handler.borrow_mut().init(Handle::new(hwnd, self.theme.clone()));
                 }
 
                 unsafe {
@@ -107,8 +104,25 @@ impl WindowState {
                     Gdi::BeginPaint(hwnd, &mut ps);
                 }
                 
-                let rect: Rectangle = super::util::get_client_rect(hwnd).into();
-                self.render(hwnd, rect.size());
+                let mut renderer_ref = self.renderer.borrow_mut();
+                let renderer = renderer_ref.get_or_insert_with(|| {
+                    Renderer::new(hwnd, get_scale_factor_for_window(hwnd) as _).unwrap()
+                });
+
+                renderer.begin_draw(ps.rcPaint);
+                renderer.clear(Color::WHITE);
+
+                self.handler.borrow_mut().render(renderer);
+                
+                if let Err(error) = renderer.end_draw() {
+                    // Clear the renderer so that it's recreated on next render
+                    if error.code() == D2DERR_RECREATE_TARGET {
+                        self.renderer.replace(None);
+                        self.renderer_generation.set(self.renderer_generation.get().next());
+                    } else {
+                        panic!("{}", error);
+                    }
+                }
 
                 unsafe {
                     Gdi::EndPaint(hwnd, &ps).ok().unwrap();
@@ -118,19 +132,26 @@ impl WindowState {
             },
 
             WM_SIZE => {
-                let width = loword(lparam) as u32;
-                let height = hiword(lparam) as u32;
+                if wparam.0 as u32 != SIZE_MINIMIZED {
+                    let logical_width = loword(lparam) as u32;
+                    let logical_height = hiword(lparam) as u32;
 
-                if let Some(renderer) = self.renderer.borrow_mut().as_ref() {
-                    renderer.resize(width, height).unwrap();
+                    let scale_factor = get_scale_factor_for_window(hwnd);
+                    let pixel_width = (logical_width as f64 * scale_factor).round() as u32;
+                    let pixel_height = (logical_height as f64 * scale_factor).round() as u32;
+
+                    if let Some(renderer) = self.renderer.borrow_mut().as_mut() {
+                        renderer.resize(logical_width, logical_height).unwrap();
+                    }
+
+                    let new_size: Size = [logical_width, logical_height].into();
+                    let window_event = WindowEvent::Resize { new_size };
+                    self.publish_event(hwnd, window_event);
+                    let _ = unsafe { InvalidateRect(Some(hwnd), None, false) };
+                    //self.render(hwnd, Size::new(width, height).into());
+                    
                 }
 
-                let new_size: Size = [width, height].into();
-                let new_size = new_size.scale(self.scale_factor.get());
-                let window_event = WindowEvent::Resize { new_size };
-                self.publish_event(hwnd, window_event);
-                let _ = unsafe { InvalidateRect(Some(hwnd), None, false) };
-                //self.render(hwnd, Size::new(width, height).into());
                 Some(LRESULT(0))
             },
 
@@ -147,7 +168,8 @@ impl WindowState {
             WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN |
             WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP |
             WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK => {
-                let mouse_event = self.get_mouse_event(message, wparam, lparam);
+                let scale_factor = get_scale_factor_for_window(hwnd);
+                let mouse_event = self.get_mouse_event(message, wparam, lparam, scale_factor);
                 if let MouseEvent::Down { button, .. } = mouse_event {
                     if self.captured_mouse_buttons.borrow().is_empty() {
                         unsafe { SetCapture(hwnd) };
@@ -175,7 +197,8 @@ impl WindowState {
 
             WM_MOUSEMOVE => {
                 let phys_pos = point_from_lparam(lparam);
-                let position = self.position_from_lparam(lparam);
+                let scale_factor = get_scale_factor_for_window(hwnd);
+                let position = self.position_from_lparam(scale_factor, lparam);
                 let last_mouse_pos = self.last_mouse_pos.replace(Some(phys_pos));
 
                 if let Some(last_mouse_pos) = last_mouse_pos {
@@ -276,7 +299,7 @@ impl WindowState {
 
             WM_SETCURSOR => {
                 let pos: Point = get_message_pos(hwnd).into();
-                let pos = pos.scale(self.scale_factor.get());
+                let pos = pos.scale(get_scale_factor_for_window(hwnd));
                 if let Some(cursor) = self.handler.borrow_mut().get_cursor(pos) {
                     unsafe { SetCursor(Some(get_cursor(cursor))) };
                     Some(LRESULT(0))
@@ -290,8 +313,8 @@ impl WindowState {
                 if let Some(renderer) = self.renderer.borrow_mut().as_mut() {
                     renderer.update_scale_factor(scale_factor as _).unwrap();
                 }
-                self.scale_factor.replace(scale_factor);
-                self.publish_event(hwnd, WindowEvent::ScaleFactorChanged { scale_factor: self.scale_factor.get() });
+                let scale_factor = get_scale_factor_for_window(hwnd);
+                self.publish_event(hwnd, WindowEvent::ScaleFactorChanged { scale_factor });
                 let _ = unsafe { InvalidateRect(Some(hwnd), None, false) };
                 Some(LRESULT(0))
             },
@@ -309,28 +332,7 @@ impl WindowState {
         }
     }
 
-    fn render(&self, hwnd: HWND, size: Size) {
-        let mut renderer_ref = self.renderer.borrow_mut();
-        let renderer = renderer_ref.get_or_insert_with(|| {
-            Renderer::new(hwnd).unwrap()
-        });
-
-        renderer.begin_draw();
-        renderer.clear(Color::OFF_WHITE);
-
-        self.handler.borrow_mut()
-            .render(Rectangle::from_origin(Point::ZERO, size), renderer);
-        
-        if let Err(error) = renderer.end_draw() {
-            // Clear the renderer so that it's recreated on next render
-            if error.code() == D2DERR_RECREATE_TARGET {
-                self.renderer.replace(None);
-                self.renderer_generation.set(self.renderer_generation.get().next());
-            }
-        }
-    }
-
-    fn get_mouse_event(&self, message: u32, _: WPARAM, lparam: LPARAM) -> MouseEvent {
+    fn get_mouse_event(&self, message: u32, _: WPARAM, lparam: LPARAM, scale_factor: f64) -> MouseEvent {
         let button = match message {
             WM_LBUTTONDOWN | WM_LBUTTONUP | WM_LBUTTONDBLCLK => MouseButton::LEFT,
             WM_RBUTTONDOWN | WM_RBUTTONUP | WM_RBUTTONDBLCLK => MouseButton::RIGHT,
@@ -338,7 +340,7 @@ impl WindowState {
             _ => unreachable!(),
         };
 
-        let position = self.position_from_lparam(lparam);
+        let position = self.position_from_lparam(scale_factor, lparam);
         let modifiers = get_modifiers();
 
         match message {
@@ -368,15 +370,16 @@ impl WindowState {
             .ok()
     }
 
-    fn position_from_lparam(&self, lparam: LPARAM) -> Point {
+    fn position_from_lparam(&self, scale_factor: f64, lparam: LPARAM) -> Point {
         let position: Point = point_from_lparam(lparam).into();
-        position.scale(1.0 / self.scale_factor.get())
+        position.scale(1.0 / scale_factor)
     }
 
     fn position_from_screen_lparam(&self, hwnd: HWND, lparam: LPARAM) -> Point {
         let screen_pos = point_from_lparam(lparam);
-        let client_pos: Point = screen_to_client_pos(hwnd, screen_pos.x, screen_pos.y).into();
-        client_pos.scale(1.0 / self.scale_factor.get())
+        let scale_factor = get_scale_factor_for_window(hwnd);
+        let pos: Point = screen_to_client_pos(hwnd, screen_pos.x, screen_pos.y).into();
+        pos.scale(1.0 / scale_factor)
     }
 }
 
@@ -406,6 +409,10 @@ impl Window {
         let this = Self::create(Some(parent), WS_CHILD, handler, false)?;
         let _ = unsafe { ShowWindow(this.handle, SW_SHOW) };
         Ok(this)
+    }
+
+    pub fn set_scale_factor(&self, scale_factor: f32) {
+        println!("Scale factor changed from host to {}", scale_factor);
     }
 
     pub fn set_size(&self, size: Rectangle<i32>) -> Result<()> {
@@ -460,7 +467,6 @@ impl Window {
             last_mouse_pos: RefCell::new(None),
             ticks_per_second,
             current_key_event: RefCell::new(None),
-            scale_factor: Rc::new(Cell::new(1.0)),
             captured_mouse_buttons: Default::default(),
             theme: Rc::new(Cell::new(get_theme())),
             quit_app_on_exit,

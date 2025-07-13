@@ -182,6 +182,7 @@ pub struct SliderWidget {
     direction: Direction,
     knob_gradient_up: LinearGradient,
     knob_gradient_down: LinearGradient,
+    background_gradient: LinearGradient,
 }
 
 #[derive(Debug, PartialEq)]
@@ -274,6 +275,11 @@ impl Default for SliderWidget {
                 ),
                 UnitPoint::BOTTOM_CENTER,
                 UnitPoint::TOP_CENTER,
+            ),
+            background_gradient: LinearGradient::new(
+                (Color::BLACK.with_alpha(0.2), Color::WHITE.with_alpha(0.2)),
+                UnitPoint::TOP_CENTER,
+                UnitPoint::BOTTOM_CENTER,
             ),
         }
     }
@@ -410,10 +416,8 @@ impl Widget for SliderWidget {
     fn render(&mut self, ctx: &mut RenderContext) {
         let bounds = ctx.content_bounds();
         let center = bounds.center();
-        let width = bounds.width();
         let knob_shape = self.knob_shape(bounds);
         let knob_radius = self.knob_radius(bounds);
-        let slider_position = self.slider_position(bounds);
 
         if ctx.has_focus() {
             //ctx.stroke(bounds, Color::RED, 1.0);
@@ -431,13 +435,7 @@ impl Widget for SliderWidget {
         slider_position.x,
         center.y + bounds.height() / 5.0);*/
 
-        let gradient = LinearGradient::new(
-            (Color::BLACK.with_alpha(0.2), Color::WHITE.with_alpha(0.2)),
-            UnitPoint::TOP_CENTER,
-            UnitPoint::BOTTOM_CENTER,
-        );
-
-        ctx.stroke(background_rect, &gradient, 1.0);
+        ctx.stroke(background_rect, &self.background_gradient, 1.0);
         ctx.fill(background_rect, Color::BLACK.with_alpha(0.3));
         //ctx.fill(RoundedRectangle::new(range_indicator_rect, Size::new(1.0, 1.0)), Color::NEON_GREEN);
         ctx.fill(knob_shape, &self.knob_gradient_down);
