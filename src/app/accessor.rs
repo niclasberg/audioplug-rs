@@ -1,11 +1,14 @@
 use std::rc::Rc;
 
 use super::{
-    effect::BindingState, signal::ReadSignal, Animated, AnimatedFn, Brush, BuildContext,
-    EffectState, LinearGradient, Memo, NodeId, Owner, ParamSignal, ReactiveContext, ReadContext,
-    Readable, Signal, Widget, WidgetMut,
+    effect::BindingState, Brush, BuildContext, EffectState, LinearGradient, NodeId, Owner,
+    ParamSignal, ReactiveContext, ReadContext, Readable, Widget, WidgetMut,
 };
-use crate::{app::Effect, core::Color, param::ParameterId};
+use crate::{
+    app::{Effect, ReadSignal},
+    core::Color,
+    param::ParameterId,
+};
 
 pub trait MappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;
@@ -34,15 +37,11 @@ impl<T> Computed<T> {
 
 #[derive(Clone)]
 pub enum Accessor<T> {
-    Signal(Signal<T>),
     ReadSignal(ReadSignal<T>),
-    Memo(Memo<T>),
     Parameter(ParamSignal<T>),
     Const(T),
     Mapped(Rc<dyn MappedAccessor<T>>),
     Computed(Computed<T>),
-    Animated(Animated<T>),
-    AnimatedFn(AnimatedFn<T>),
 }
 
 impl<T: 'static> Accessor<T> {
@@ -51,29 +50,21 @@ impl<T: 'static> Accessor<T> {
         T: Clone,
     {
         match self {
-            Self::Signal(signal) => signal.get(cx),
             Self::ReadSignal(signal) => signal.get(cx),
-            Self::Memo(memo) => memo.get(cx),
             Self::Const(value) => value.clone(),
             Self::Parameter(param) => param.get(cx),
             Self::Mapped(mapped) => mapped.evaluate(cx),
             Self::Computed(computed) => (computed.f)(cx),
-            Self::Animated(animated) => animated.get(cx),
-            Self::AnimatedFn(animated) => animated.get(cx),
         }
     }
 
     pub fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&T) -> R) -> R {
         match self {
-            Self::Signal(signal) => signal.with_ref(cx, f),
             Self::ReadSignal(signal) => signal.with_ref(cx, f),
-            Self::Memo(memo) => memo.with_ref(cx, f),
             Self::Const(value) => f(value),
             Self::Parameter(param) => param.with_ref(cx, f),
             Self::Mapped(mapped) => f(&mapped.evaluate(cx)),
             Self::Computed(computed) => f(&(computed.f)(cx)),
-            Self::Animated(animated) => animated.with_ref(cx, f),
-            Self::AnimatedFn(animated) => animated.with_ref(cx, f),
         }
     }
 
@@ -119,33 +110,13 @@ impl<T: 'static> Accessor<T> {
     {
         let widget_id = cx.id();
         match self {
-            Self::Signal(signal) => {
-                Effect::watch(cx, signal, move |cx, value| {
-                    f(f_map(value), cx.widget_mut(widget_id))
-                });
-            }
             Self::ReadSignal(signal) => {
                 Effect::watch(cx, signal, move |cx, value| {
                     f(f_map(value), cx.widget_mut(widget_id))
                 });
             }
-            Self::Memo(memo) => {
-                Effect::watch(cx, memo, move |cx, value| {
-                    f(f_map(value), cx.widget_mut(widget_id))
-                });
-            }
             Self::Parameter(param) => {
                 Effect::watch(cx, param, move |cx, value| {
-                    f(f_map(value), cx.widget_mut(widget_id))
-                });
-            }
-            Self::Animated(animated) => {
-                Effect::watch(cx, animated, move |cx, value| {
-                    f(f_map(value), cx.widget_mut(widget_id))
-                });
-            }
-            Self::AnimatedFn(animated) => {
-                Effect::watch(cx, animated, move |cx, value| {
                     f(f_map(value), cx.widget_mut(widget_id))
                 });
             }

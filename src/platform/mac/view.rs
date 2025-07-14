@@ -144,7 +144,7 @@ define_class!(
 
             let renderer = RendererRef::new(&context, &ci_context, rect);
 
-            self.ivars().handler.borrow_mut().render(rect.into(), renderer);
+            self.ivars().handler.borrow_mut().render(renderer);
         }
 
         #[unsafe(method(onAnimationTimer:))]

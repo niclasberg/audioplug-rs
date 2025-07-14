@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     app::{
         BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext, RenderContext,
@@ -11,9 +13,10 @@ use crate::{
 
 type ClickFn = dyn Fn(&mut CallbackContext);
 
+#[derive(Clone)]
 pub struct Button<V> {
     child: V,
-    click_fn: Option<Box<ClickFn>>,
+    click_fn: Option<Rc<ClickFn>>,
 }
 
 impl<V: View> Button<V> {
@@ -25,7 +28,7 @@ impl<V: View> Button<V> {
     }
 
     pub fn on_click(mut self, f: impl Fn(&mut CallbackContext) + 'static) -> Self {
-        self.click_fn = Some(Box::new(f));
+        self.click_fn = Some(Rc::new(f));
         self
     }
 }
@@ -55,7 +58,7 @@ const FLEX_STYLE: FlexStyle = FlexStyle::DEFAULT;
 pub struct ButtonWidget {
     is_hot: bool,
     mouse_down: bool,
-    click_fn: Option<Box<ClickFn>>,
+    click_fn: Option<Rc<ClickFn>>,
 }
 
 impl Widget for ButtonWidget {

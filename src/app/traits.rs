@@ -97,7 +97,13 @@ pub trait Readable: Into<Accessor<Self::Value>> {
     fn get_source_id(&self) -> SourceId;
 
     /// Map the current value using `f` and subscribe to changes
-    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R;
+    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+        let ret = self.with_ref_untracked(cx, f);
+        self.track(cx);
+        ret
+    }
+
+    fn track(&self, cx: &mut dyn ReadContext);
 
     /// Get the current value and subscribe to changes
     fn get(&self, cx: &mut dyn ReadContext) -> Self::Value
@@ -269,6 +275,10 @@ where
 
     fn get_source_id(&self) -> SourceId {
         self.parent.get_source_id()
+    }
+
+    fn track(&self, cx: &mut dyn ReadContext) {
+        self.parent.track(cx);
     }
 
     fn with_ref<R2>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R2) -> R2 {

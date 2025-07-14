@@ -1,7 +1,7 @@
 use crate::{
     app::{
         Accessor, BuildContext, CallbackContext, EventContext, EventStatus, LinearGradient,
-        MouseEventContext, ParamEditor, RenderContext, StatusChange, View, Widget,
+        MouseEventContext, ParamSetter, RenderContext, StatusChange, View, Widget,
     },
     core::{Circle, Color, Key, Point, Rectangle, RoundedRectangle, Size, UnitPoint},
     event::MouseButton,
@@ -108,7 +108,7 @@ impl View for Slider {
 }
 
 pub struct ParameterSlider<P: AnyParameter> {
-    editor: ParamEditor<P>,
+    editor: ParamSetter<P>,
     signal: Accessor<NormalizedValue>,
     direction: Direction,
 }
@@ -116,7 +116,7 @@ pub struct ParameterSlider<P: AnyParameter> {
 impl<P: AnyParameter> ParameterSlider<P> {
     pub fn new(parameter: &P) -> Self {
         let signal = parameter.as_signal_normalized().into();
-        let editor = ParamEditor::new(parameter);
+        let editor = ParamSetter::new(parameter);
         Self {
             editor,
             signal,

@@ -89,6 +89,11 @@ impl<T: Any> Readable for SignalVec<T> {
         SourceId::Node(self.id)
     }
 
+    fn track(&self, cx: &mut dyn super::ReadContext) {
+        let scope = cx.scope();
+        cx.runtime_mut().track(self.id, scope);
+    }
+
     fn with_ref<R>(&self, cx: &mut dyn super::ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
         let scope = cx.scope();
         cx.runtime_mut().track(self.id, scope);
@@ -124,12 +129,9 @@ impl<T: Any> Readable for AtIndex<SignalVec<T>, T> {
         SourceId::Node(self.id)
     }
 
-    fn with_ref<R>(&self, cx: &mut dyn super::ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+    fn track(&self, cx: &mut dyn super::ReadContext) {
         let scope = cx.scope();
         cx.runtime_mut().track(self.id, scope);
-        self.parent.with_inner(cx.runtime(), move |inner| {
-            f(inner.values.get(self.index).unwrap())
-        })
     }
 
     fn with_ref_untracked<R>(

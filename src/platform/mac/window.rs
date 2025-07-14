@@ -78,6 +78,8 @@ impl Window {
         }
     }
 
+    pub fn set_scale_factor(&self, _scale_factor: f32) {}
+
     pub fn size(&self) -> Result<Rectangle<i32>, Error> {
         let frame = match self {
             Window::OSWindow(view, _) => Ok(view.frame()),

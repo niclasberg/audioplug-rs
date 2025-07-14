@@ -11,6 +11,7 @@ mod layout;
 mod memo;
 mod overlay;
 mod param;
+mod read_signal;
 mod render;
 mod runtime;
 mod signal;
@@ -40,14 +41,15 @@ use indexmap::IndexSet;
 pub use layout::{layout_window, LayoutContext};
 pub use memo::{Memo, MemoContext};
 pub use overlay::{OverlayAnchor, OverlayOptions};
-pub use param::{ParamContext, ParamEditor, ParamSignal};
+pub use param::{ParamContext, ParamSetter, ParamSignal};
+pub use read_signal::ReadSignal;
 pub use render::{
     invalidate_window, render_window, Brush, BrushRef, Canvas, CanvasContext, CanvasWidget,
     LinearGradient, PathGeometry, PathGeometryBuilder, RadialGradient, RenderContext, Shape,
     ShapeRef, TextLayout,
 };
 pub use runtime::*;
-pub use signal::{ReadSignal, Signal};
+pub use signal::Signal;
 pub use signal_vec::SignalVec;
 pub use traits::*;
 pub use trigger::Trigger;

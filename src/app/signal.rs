@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use crate::app::{Accessor, Owner, ReactiveContext};
+use crate::app::{Accessor, Owner, ReactiveContext, ReadSignal};
 
 use super::{
     accessor::SourceId, CreateContext, NodeId, NodeType, ReadContext, Readable, WriteContext,
@@ -72,10 +72,7 @@ impl<T: Any> Signal<T> {
     }
 
     pub fn as_read_signal(self) -> ReadSignal<T> {
-        ReadSignal {
-            id: self.id,
-            _marker: PhantomData,
-        }
+        ReadSignal::from_node(self.id)
     }
 
     pub fn dispose(self, cx: &mut dyn ReactiveContext) {
@@ -83,9 +80,9 @@ impl<T: Any> Signal<T> {
     }
 }
 
-impl<T> From<Signal<T>> for Accessor<T> {
+impl<T: 'static> From<Signal<T>> for Accessor<T> {
     fn from(value: Signal<T>) -> Self {
-        Accessor::Signal(value)
+        Accessor::ReadSignal(value.as_read_signal())
     }
 }
 
@@ -96,10 +93,9 @@ impl<T: 'static> Readable for Signal<T> {
         SourceId::Node(self.id)
     }
 
-    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&T) -> R) -> R {
+    fn track(&self, cx: &mut dyn ReadContext) {
         let scope = cx.scope();
         cx.runtime_mut().track(self.id, scope);
-        self.with_ref_untracked(cx, f)
     }
 
     fn with_ref_untracked<R>(
@@ -112,51 +108,6 @@ impl<T: 'static> Readable for Signal<T> {
             .unwrap()
             .downcast_ref()
             .expect("Signal had wrong type"))
-    }
-}
-
-pub struct ReadSignal<T> {
-    pub(super) id: NodeId,
-    _marker: PhantomData<*const T>,
-}
-
-impl<T> Clone for ReadSignal<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Copy for ReadSignal<T> {}
-
-impl<T> From<ReadSignal<T>> for Accessor<T> {
-    fn from(value: ReadSignal<T>) -> Self {
-        Self::ReadSignal(value)
-    }
-}
-
-impl<T: 'static> Readable for ReadSignal<T> {
-    type Value = T;
-
-    fn get_source_id(&self) -> SourceId {
-        SourceId::Node(self.id)
-    }
-
-    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&T) -> R) -> R {
-        let scope = cx.scope();
-        cx.runtime_mut().track(self.id, scope);
-        self.with_ref_untracked(cx, f)
-    }
-
-    fn with_ref_untracked<R>(
-        &self,
-        cx: &mut dyn super::ReactiveContext,
-        f: impl FnOnce(&Self::Value) -> R,
-    ) -> R {
-        let value = match &cx.runtime().get_node(self.id).node_type {
-            NodeType::Signal(signal) => signal.value.as_ref(),
-            _ => unreachable!(),
-        };
-        f(value.downcast_ref().expect("Signal had wrong type"))
     }
 }
 

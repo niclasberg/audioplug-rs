@@ -1,11 +1,9 @@
 use super::{
     clipboard::Clipboard,
     effect::{BindingFn, EffectContext},
-    layout_window,
-    signal::ReadSignal,
-    BuildContext, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext, ReadContext,
-    Runtime, Signal, View, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef,
-    WindowId, WriteContext,
+    layout_window, BuildContext, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext,
+    ReadContext, Runtime, Signal, View, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut,
+    WidgetRef, WindowId, WriteContext,
 };
 use crate::{
     app::{
@@ -14,8 +12,7 @@ use crate::{
         event_handling::{set_focus_widget, set_mouse_capture_widget},
         layout::LayoutMode,
         overlay::{OverlayContainer, OverlayOptions},
-        render::invalidate_widget,
-        AnyView, FxIndexSet, Scope, WidgetContext,
+        AnyView, FxIndexSet, ReadSignal, Scope, WidgetContext,
     },
     core::{Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},

@@ -1,7 +1,7 @@
 use crate::{
     app::{
         Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
-        ParamEditor, RenderContext, StatusChange, View, Widget,
+        ParamSetter, RenderContext, StatusChange, View, Widget,
     },
     core::{Circle, Color, Modifiers, Point, Rectangle, Size},
     param::{AnyParameter, NormalizedValue, PlainValue},
@@ -71,7 +71,7 @@ impl View for Knob {
 }
 
 pub struct ParameterKnob<P> {
-    editor: ParamEditor<P>,
+    editor: ParamSetter<P>,
     signal: Accessor<NormalizedValue>,
 }
 
@@ -79,7 +79,7 @@ impl<P: AnyParameter> ParameterKnob<P> {
     pub fn new(parameter: &P) -> Self {
         Self {
             signal: parameter.as_signal_normalized().into(),
-            editor: ParamEditor::new(parameter),
+            editor: ParamSetter::new(parameter),
         }
     }
 }

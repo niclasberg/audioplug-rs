@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
-use crate::app::Accessor;
+use crate::app::{Accessor, ReadSignal};
 
 use super::{
     accessor::SourceId, CreateContext, NodeId, NodeType, ReactiveContext, ReadContext, Readable,
@@ -84,11 +84,15 @@ impl<T: Any> Memo<T> {
             _marker: PhantomData,
         }
     }
+
+    pub fn as_read_signal(self) -> ReadSignal<T> {
+        ReadSignal::from_node(self.id)
+    }
 }
 
-impl<T> From<Memo<T>> for Accessor<T> {
+impl<T: 'static> From<Memo<T>> for Accessor<T> {
     fn from(value: Memo<T>) -> Self {
-        Self::Memo(value)
+        Self::ReadSignal(value.as_read_signal())
     }
 }
 
@@ -99,13 +103,9 @@ impl<T: 'static> Readable for Memo<T> {
         SourceId::Node(self.id)
     }
 
-    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+    fn track(&self, cx: &mut dyn ReadContext) {
         let scope = cx.scope();
-        let r = f(update_and_get_memo_value(cx, self.id)
-            .downcast_ref()
-            .expect("Memo had wrong type"));
         cx.runtime_mut().track(self.id, scope);
-        r
     }
 
     fn with_ref_untracked<R>(

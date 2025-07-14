@@ -11,20 +11,20 @@ pub trait ParamContext: ReactiveContext {
     fn host_handle(&self) -> &dyn HostHandle;
 }
 
-pub struct ParamEditor<P> {
+pub struct ParamSetter<P> {
     pub(super) id: ParameterId,
     _phantom: PhantomData<P>,
 }
 
-impl<P> Clone for ParamEditor<P> {
+impl<P> Clone for ParamSetter<P> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<P> Copy for ParamEditor<P> {}
+impl<P> Copy for ParamSetter<P> {}
 
-impl<P: AnyParameter> ParamEditor<P> {
+impl<P: AnyParameter> ParamSetter<P> {
     pub fn new(p: &P) -> Self {
         Self {
             id: p.info().id(),
@@ -115,9 +115,13 @@ impl<T: Any> Readable for ParamSignal<T> {
         SourceId::Parameter(self.id)
     }
 
-    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+    fn track(&self, cx: &mut dyn ReadContext) {
         let scope = cx.scope();
         cx.runtime_mut().track_parameter(self.id, scope);
+    }
+
+    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+        self.track(cx);
         self.with_ref_untracked(cx, f)
     }
 
@@ -135,8 +139,7 @@ impl<T: Any> Readable for ParamSignal<T> {
     where
         Self::Value: Clone,
     {
-        let scope = cx.scope();
-        cx.runtime_mut().track_parameter(self.id, scope);
+        self.track(cx);
         let param_ref = cx.runtime().get_parameter_ref(self.id);
         param_ref.value_as().unwrap()
     }

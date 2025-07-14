@@ -261,6 +261,11 @@ impl<T: 'static> Readable for Animated<T> {
         SourceId::Node(self.id)
     }
 
+    fn track(&self, cx: &mut dyn ReadContext) {
+        let scope = cx.scope();
+        cx.runtime_mut().track(self.id, scope);
+    }
+
     fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&T) -> R) -> R {
         let scope = cx.scope();
         cx.runtime_mut().track(self.id, scope);
@@ -363,6 +368,11 @@ impl<T: 'static> Readable for AnimatedFn<T> {
 
     fn get_source_id(&self) -> SourceId {
         SourceId::Node(self.id)
+    }
+
+    fn track(&self, cx: &mut dyn ReadContext) {
+        let scope = cx.scope();
+        cx.runtime_mut().track(self.id, scope);
     }
 
     fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&T) -> R) -> R {

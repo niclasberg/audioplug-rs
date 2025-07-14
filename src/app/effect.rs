@@ -114,6 +114,25 @@ impl Effect {
         Self { id }
     }
 
+    /*pub fn watch_fn<T: 'static>(
+        cx: &mut dyn CreateContext,
+        value_fn: impl Fn(&mut dyn ReadContext) -> T + 'static,
+        mut effect_fn: impl FnMut(&mut dyn WatchContext, T) + 'static,
+    ) -> Self {
+        let owner = cx.owner();
+        let id = cx.runtime_mut().create_effect_node(
+            EffectState {
+                f: Rc::new(RefCell::new(move |cx: &mut dyn EffectContext| {
+
+                })),
+            },
+            owner,
+            true,
+        );
+
+        Self { id }
+    }*/
+
     pub fn dispose(self, cx: &mut dyn ReactiveContext) {
         cx.runtime_mut().remove_node(self.id);
     }
