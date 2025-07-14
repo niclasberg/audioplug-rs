@@ -48,6 +48,7 @@ where
 
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
         let widget_id = cx.id();
+
         let state = EffectState::new(move |cx| {
             cx.widget_mut(widget_id).request_render();
         });

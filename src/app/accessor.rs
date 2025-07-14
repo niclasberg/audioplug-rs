@@ -2,13 +2,9 @@ use std::rc::Rc;
 
 use super::{
     effect::BindingState, Brush, BuildContext, EffectState, LinearGradient, NodeId, Owner,
-    ParamSignal, ReactiveContext, ReadContext, Readable, Widget, WidgetMut,
+    ReactiveContext, ReadContext, Readable, Widget, WidgetMut,
 };
-use crate::{
-    app::{Effect, ReadSignal},
-    core::Color,
-    param::ParameterId,
-};
+use crate::{app::ReadSignal, core::Color, param::ParameterId};
 
 pub trait MappedAccessor<T> {
     fn get_source_id(&self) -> SourceId;
@@ -37,9 +33,8 @@ impl<T> Computed<T> {
 
 #[derive(Clone)]
 pub enum Accessor<T> {
-    ReadSignal(ReadSignal<T>),
-    Parameter(ParamSignal<T>),
     Const(T),
+    ReadSignal(ReadSignal<T>),
     Mapped(Rc<dyn MappedAccessor<T>>),
     Computed(Computed<T>),
 }
@@ -52,7 +47,6 @@ impl<T: 'static> Accessor<T> {
         match self {
             Self::ReadSignal(signal) => signal.get(cx),
             Self::Const(value) => value.clone(),
-            Self::Parameter(param) => param.get(cx),
             Self::Mapped(mapped) => mapped.evaluate(cx),
             Self::Computed(computed) => (computed.f)(cx),
         }
@@ -62,7 +56,6 @@ impl<T: 'static> Accessor<T> {
         match self {
             Self::ReadSignal(signal) => signal.with_ref(cx, f),
             Self::Const(value) => f(value),
-            Self::Parameter(param) => param.with_ref(cx, f),
             Self::Mapped(mapped) => f(&mapped.evaluate(cx)),
             Self::Computed(computed) => f(&(computed.f)(cx)),
         }
@@ -111,12 +104,7 @@ impl<T: 'static> Accessor<T> {
         let widget_id = cx.id();
         match self {
             Self::ReadSignal(signal) => {
-                Effect::watch(cx, signal, move |cx, value| {
-                    f(f_map(value), cx.widget_mut(widget_id))
-                });
-            }
-            Self::Parameter(param) => {
-                Effect::watch(cx, param, move |cx, value| {
+                signal.watch(cx, move |cx, value| {
                     f(f_map(value), cx.widget_mut(widget_id))
                 });
             }

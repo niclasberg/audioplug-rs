@@ -15,7 +15,6 @@ pub enum LayoutMode {
 }
 
 pub fn layout_window(app_state: &mut AppState, window_id: WindowId, mode: LayoutMode) {
-    println!("Layout");
     app_state.with_id_buffer_mut(move |app_state, overlay_ids| {
         let window = app_state.window(window_id);
         let window_size = window.handle.global_bounds().size();
@@ -30,6 +29,7 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId, mode: Layout
 
         // Need to layout root first, the overlay positions can depend on their parent positions
         if mode == LayoutMode::Force || app_state.widget_data_ref(root_id).needs_layout() {
+            println!("Layout main ui");
             let mut cx = LayoutContext {
                 app_state,
                 window_size,
@@ -47,6 +47,9 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId, mode: Layout
             }
         }
 
+        // This is currently in z-index order, we should probably iterate in insertion order
+        // If an overlay's position depends on the position of a previously created overlay,
+        // this will be wrong.
         for (i, overlay_id) in overlay_ids.iter().enumerate() {
             if mode == LayoutMode::Force || app_state.widget_data_ref(*overlay_id).needs_layout() {
                 let mut cx = LayoutContext {
@@ -310,14 +313,22 @@ impl LayoutPartialTree for LayoutContext<'_> {
 
     fn set_unrounded_layout(&mut self, node_id: taffy::NodeId, layout: &taffy::Layout) {
         let old_bounds = self.app_state.widget_data[node_id.into()].global_bounds();
-        self.app_state.widget_data[node_id.into()].layout = *layout;
-        let new_bounds = self.app_state.widget_data[node_id.into()].global_bounds();
+        let widget_data = &mut self.app_state.widget_data[node_id.into()];
+        widget_data.layout = *layout;
+        let new_bounds = widget_data.global_bounds();
         if new_bounds != old_bounds {
             let rect = new_bounds.combine_with(&old_bounds);
             self.region_to_invalidate = self
                 .region_to_invalidate
                 .map(|old| old.combine_with(&rect))
                 .or(Some(rect));
+
+            // Need to request layout for all overlays, their position
+            // might depend on the bounding box of its parent
+            let overlays = widget_data.overlays.clone();
+            for overlay_id in overlays {
+                self.app_state.widget_data[overlay_id].set_flag(WidgetFlags::NEEDS_LAYOUT);
+            }
         }
     }
 

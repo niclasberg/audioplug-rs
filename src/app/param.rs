@@ -1,7 +1,7 @@
 use std::{any::Any, marker::PhantomData};
 
 use crate::{
-    app::Accessor,
+    app::{Accessor, ReadSignal},
     param::{AnyParameter, NormalizedValue, Parameter, ParameterId, ParameterInfo, PlainValue},
 };
 
@@ -62,53 +62,7 @@ impl<P: AnyParameter> ParamSetter<P> {
     }
 }
 
-pub struct ParamSignal<T> {
-    pub(super) id: ParameterId,
-    _phantom: PhantomData<*const T>,
-}
-
-impl<T> Clone for ParamSignal<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Copy for ParamSignal<T> {}
-
-impl<T> ParamSignal<T> {
-    pub fn new(p: &impl Parameter<T>) -> Self {
-        Self {
-            id: p.info().id(),
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl ParamSignal<PlainValue> {
-    pub fn new_plain(p: &impl AnyParameter) -> Self {
-        Self {
-            id: p.info().id(),
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl ParamSignal<NormalizedValue> {
-    pub fn new_normalized(p: &impl AnyParameter) -> Self {
-        Self {
-            id: p.info().id(),
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<T> From<ParamSignal<T>> for Accessor<T> {
-    fn from(value: ParamSignal<T>) -> Self {
-        Self::Parameter(value)
-    }
-}
-
-impl<T: Any> Readable for ParamSignal<T> {
+/*impl<T: Any> Readable for ParamSignal<T> {
     type Value = T;
 
     fn get_source_id(&self) -> SourceId {
@@ -151,4 +105,4 @@ impl<T: Any> Readable for ParamSignal<T> {
         let param_ref = cx.runtime().get_parameter_ref(self.id);
         param_ref.value_as().unwrap()
     }
-}
+}*/

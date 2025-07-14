@@ -168,6 +168,7 @@ mod tests {
             signal.set(cx, 2);
             assert_eq!(memo.get(cx), 4);
             signal.set(cx, 3);
+            assert_eq!(memo.get_untracked(cx), 6);
             assert_eq!(memo.get(cx), 6);
         });
     }

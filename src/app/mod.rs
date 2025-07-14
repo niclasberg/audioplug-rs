@@ -12,11 +12,11 @@ mod memo;
 mod overlay;
 mod param;
 mod read_signal;
+mod readable;
 mod render;
 mod runtime;
 mod signal;
 mod signal_vec;
-mod traits;
 mod trigger;
 mod view;
 mod view_sequence;
@@ -41,8 +41,9 @@ use indexmap::IndexSet;
 pub use layout::{layout_window, LayoutContext};
 pub use memo::{Memo, MemoContext};
 pub use overlay::{OverlayAnchor, OverlayOptions};
-pub use param::{ParamContext, ParamSetter, ParamSignal};
+pub use param::{ParamContext, ParamSetter};
 pub use read_signal::ReadSignal;
+pub use readable::*;
 pub use render::{
     invalidate_window, render_window, Brush, BrushRef, Canvas, CanvasContext, CanvasWidget,
     LinearGradient, PathGeometry, PathGeometryBuilder, RadialGradient, RenderContext, Shape,
@@ -51,7 +52,6 @@ pub use render::{
 pub use runtime::*;
 pub use signal::Signal;
 pub use signal_vec::SignalVec;
-pub use traits::*;
 pub use trigger::Trigger;
 pub use view::*;
 pub use view_sequence::*;

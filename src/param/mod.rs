@@ -20,7 +20,7 @@ pub use parameter_map::{AnyParameterMap, ParameterMap, Params};
 pub use string_list::StringListParameter;
 pub use traversal::{ParamVisitor, ParameterTraversal};
 
-use crate::app::ParamSignal;
+use crate::app::ReadSignal;
 
 #[derive(Clone, Debug)]
 pub struct ParseError;
@@ -151,17 +151,17 @@ pub trait AnyParameter: Any {
     fn set_value_plain(&self, value: PlainValue) {
         self.set_value_normalized(self.info().normalize(value));
     }
-    fn as_signal_plain(&self) -> ParamSignal<PlainValue>
+    fn as_signal_plain(&self) -> ReadSignal<PlainValue>
     where
         Self: Sized,
     {
-        ParamSignal::new_plain(self)
+        ReadSignal::from_parameter(self.info().id())
     }
-    fn as_signal_normalized(&self) -> ParamSignal<NormalizedValue>
+    fn as_signal_normalized(&self) -> ReadSignal<NormalizedValue>
     where
         Self: Sized,
     {
-        ParamSignal::new_normalized(self)
+        ReadSignal::from_parameter(self.info().id())
     }
     fn as_param_ref(&self) -> ParamRef;
 }
@@ -171,11 +171,11 @@ pub trait Parameter<T>: AnyParameter {
     fn set_value(&self, value: T);
 
     fn as_any(&self) -> &dyn Any;
-    fn as_signal(&self) -> ParamSignal<T>
+    fn as_signal(&self) -> ReadSignal<T>
     where
         Self: Sized,
     {
-        ParamSignal::new(self)
+        ReadSignal::from_parameter(self.info().id())
     }
 }
 

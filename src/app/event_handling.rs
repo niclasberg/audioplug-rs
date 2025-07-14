@@ -35,7 +35,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                 set_focus_widget(app_state, window_id, new_focus_view);
             };
 
-            let mut new_mouse_capture_widget = None;
+            let mut new_mouse_capture_widget = app_state.mouse_capture_widget;
             if let Some(capture_view) = app_state.mouse_capture_widget {
                 let mut cx = MouseEventContext {
                     id: capture_view,

@@ -1,7 +1,10 @@
 use std::marker::PhantomData;
 
 use crate::{
-    app::{accessor::SourceId, Accessor, NodeId, ReadContext, Readable},
+    app::{
+        accessor::SourceId, effect::BindingState, Accessor, CreateContext, Effect, NodeId,
+        ReadContext, Readable, WatchContext,
+    },
     param::ParameterId,
 };
 
@@ -32,11 +35,48 @@ impl<T> ReadSignal<T> {
         }
     }
 
-    pub(super) fn from_parameter(parameter_id: ParameterId) -> Self {
+    pub(crate) fn from_parameter(parameter_id: ParameterId) -> Self {
         Self {
             source_id: SourceId::Parameter(parameter_id),
             _marker: PhantomData,
         }
+    }
+}
+
+impl<T: 'static> ReadSignal<T> {
+    pub fn watch(
+        self,
+        cx: &mut dyn CreateContext,
+        mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
+    ) -> Effect {
+        let owner = cx.owner();
+        let id = cx.runtime_mut().create_binding_node(
+            self.source_id,
+            BindingState::new(move |cx| match self.source_id {
+                SourceId::Parameter(parameter_id) => {
+                    let value = cx
+                        .runtime()
+                        .get_parameter_ref(parameter_id)
+                        .value_as()
+                        .unwrap();
+                    f(cx, &value);
+                }
+                SourceId::Node(node_id) => {
+                    cx.runtime_mut().update_if_necessary(node_id);
+                    if let Some(node) = cx.runtime_mut().lease_node(node_id) {
+                        let value = node
+                            .get_value_ref()
+                            .downcast_ref()
+                            .expect("Node should have the correct value type");
+                        f(cx, value);
+                        cx.runtime_mut().unlease_node(node_id, node);
+                    }
+                }
+            }),
+            owner,
+        );
+
+        Effect { id }
     }
 }
 

@@ -2,21 +2,21 @@ use std::rc::Rc;
 
 use crate::{
     app::{
-        BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext, RenderContext,
-        StatusChange, View, Widget,
+        Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
+        RenderContext, StatusChange, View, Widget,
     },
     core::{Color, Key},
     event::{KeyEvent, MouseButton},
     style::{DisplayStyle, FlexStyle, Length, Style, UiRect},
+    views::Label,
     MouseEvent,
 };
 
-type ClickFn = dyn Fn(&mut CallbackContext);
+type ClickFn = dyn FnMut(&mut CallbackContext);
 
-#[derive(Clone)]
 pub struct Button<V> {
     child: V,
-    click_fn: Option<Rc<ClickFn>>,
+    click_fn: Option<Box<ClickFn>>,
 }
 
 impl<V: View> Button<V> {
@@ -28,8 +28,17 @@ impl<V: View> Button<V> {
     }
 
     pub fn on_click(mut self, f: impl Fn(&mut CallbackContext) + 'static) -> Self {
-        self.click_fn = Some(Rc::new(f));
+        self.click_fn = Some(Box::new(f));
         self
+    }
+}
+
+impl Button<Label> {
+    pub fn new_with_label(text: impl Into<Accessor<String>>) -> Self {
+        Self {
+            child: Label::new(text),
+            click_fn: None,
+        }
     }
 }
 
@@ -58,7 +67,7 @@ const FLEX_STYLE: FlexStyle = FlexStyle::DEFAULT;
 pub struct ButtonWidget {
     is_hot: bool,
     mouse_down: bool,
-    click_fn: Option<Rc<ClickFn>>,
+    click_fn: Option<Box<ClickFn>>,
 }
 
 impl Widget for ButtonWidget {
@@ -87,7 +96,7 @@ impl Widget for ButtonWidget {
             } => {
                 ctx.release_capture();
                 if ctx.bounds().contains(position) {
-                    if let Some(f) = self.click_fn.as_ref() {
+                    if let Some(f) = self.click_fn.as_mut() {
                         f(&mut ctx.as_callback_context());
                     }
                 }
@@ -123,7 +132,7 @@ impl Widget for ButtonWidget {
             KeyEvent::KeyDown {
                 key: Key::Enter, ..
             } => {
-                if let Some(f) = self.click_fn.as_ref() {
+                if let Some(f) = self.click_fn.as_mut() {
                     f(&mut ctx.as_callback_context());
                 }
                 EventStatus::Handled
@@ -133,22 +142,6 @@ impl Widget for ButtonWidget {
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {
-        /*let color = if ctx.has_mouse_capture() {
-            if self.is_hot {
-                Color::from_rgb8(0, 66, 37)
-            } else {
-                Color::from_rgb8(106, 156, 137)
-            }
-        } else if self.is_hot {
-            Color::from_rgb8(121, 153, 141)
-        } else {
-            Color::from_rgb8(106, 156, 137)
-        };
-
-        let shape = RoundedRectangle::new(ctx.global_bounds(), Size::new(4.0, 4.0));
-        ctx.fill(shape, color);
-        ctx.stroke(shape, Color::BLACK, 1.0);*/
-
         ctx.render_children()
     }
 

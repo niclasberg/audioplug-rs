@@ -7,7 +7,7 @@ rust-version = "1.86.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
-members = ["examples/gain", "examples/synth", "xtask"]
+members = [ "examples/gain", "examples/synth", "xtask"]
 
 [dependencies]
 async-task = "4.7.1"
@@ -136,3 +136,6 @@ objc2-avf-audio = { version = "0.3.1", features = [
 objc2-metal = { version = "0.3.1", features = [
 	"MTLDevice"
 ]}
+
+[dev-dependencies]
+rand = "0.9.1"

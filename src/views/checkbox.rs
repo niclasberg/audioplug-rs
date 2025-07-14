@@ -7,24 +7,39 @@ use crate::{
 
 pub struct Checkbox {
     checked: Option<Accessor<bool>>,
+    enabled: Accessor<bool>,
 }
 
 impl Checkbox {
     pub fn new() -> Self {
-        Self { checked: None }
+        Self {
+            checked: None,
+            enabled: Accessor::Const(true),
+        }
     }
 
     pub fn checked(mut self, val: impl Into<Accessor<bool>>) -> Self {
         self.checked = Some(val.into());
         self
     }
+
+    pub fn enabled(mut self, val: impl Into<Accessor<bool>>) -> Self {
+        self.enabled = val.into();
+        self
+    }
+}
+
+impl Default for Checkbox {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl View for Checkbox {
     type Element = CheckboxWidget;
 
-    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
-        ctx.set_default_style(Style {
+    fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
+        cx.set_default_style(Style {
             size: Size::new(Length::Px(12.0), Length::Px(12.0)),
             border: Length::Px(1.0),
             border_color: Some(Color::BLACK),
@@ -37,12 +52,16 @@ impl View for Checkbox {
             checked: self
                 .checked
                 .map(|checked| {
-                    checked.get_and_bind(ctx, |value, mut widget| {
+                    checked.get_and_bind(cx, |value, mut widget| {
                         widget.checked = value;
                         widget.request_render();
                     })
                 })
                 .unwrap_or_default(),
+            enabled: self.enabled.get_and_bind(cx, |value, mut widget| {
+                widget.enabled = value;
+                widget.request_render();
+            }),
         }
     }
 }
@@ -50,6 +69,7 @@ impl View for Checkbox {
 #[derive(Default)]
 pub struct CheckboxWidget {
     checked: bool,
+    enabled: bool,
 }
 
 impl Measure for CheckboxWidget {

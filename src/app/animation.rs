@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    app::Accessor,
+    app::{Accessor, ReadSignal},
     core::{Interpolate, SpringPhysics},
     AnimationFrame,
 };
@@ -248,9 +248,15 @@ impl<T: Any> Animated<T> {
     }
 }
 
+impl<T: 'static> From<Animated<T>> for ReadSignal<T> {
+    fn from(value: Animated<T>) -> Self {
+        ReadSignal::from_node(value.id)
+    }
+}
+
 impl<T: 'static> From<Animated<T>> for Accessor<T> {
     fn from(value: Animated<T>) -> Self {
-        Self::Animated(value)
+        Self::ReadSignal(ReadSignal::from_node(value.id))
     }
 }
 
@@ -357,9 +363,15 @@ impl<T: 'static> AnimatedFn<T> {
     }
 }
 
+impl<T: 'static> From<AnimatedFn<T>> for ReadSignal<T> {
+    fn from(value: AnimatedFn<T>) -> Self {
+        ReadSignal::from_node(value.id)
+    }
+}
+
 impl<T> From<AnimatedFn<T>> for Accessor<T> {
     fn from(value: AnimatedFn<T>) -> Self {
-        Self::AnimatedFn(value)
+        Self::ReadSignal(ReadSignal::from_node(value.id))
     }
 }
 

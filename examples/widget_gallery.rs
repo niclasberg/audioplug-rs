@@ -1,8 +1,8 @@
+use audioplug::App;
 use audioplug::app::*;
 use audioplug::core::{Align, Color, ShadowKind, ShadowOptions, Size, Vec2};
 use audioplug::style::{ImageEffect, Length, UiRect};
 use audioplug::views::*;
-use audioplug::App;
 use std::path::Path;
 use std::time::Duration;
 

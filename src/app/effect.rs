@@ -40,7 +40,7 @@ impl EffectState {
 }
 
 pub struct Effect {
-    id: NodeId,
+    pub(super) id: NodeId,
 }
 
 impl Effect {
