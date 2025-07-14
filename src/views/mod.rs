@@ -7,6 +7,7 @@ mod image;
 mod key_down;
 mod knob;
 mod label;
+mod menu;
 mod scroll;
 mod slider;
 mod stateful;

@@ -158,6 +158,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 
     pub fn remove_child_by_id(&mut self, child_id: WidgetId) {
+        invalidate_widget(self.app_state, child_id);
         self.app_state.remove_widget(child_id);
         request_layout(self.app_state, self.id);
     }

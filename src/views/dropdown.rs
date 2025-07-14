@@ -1,7 +1,7 @@
 use crate::{
     app::{
-        EventContext, EventStatus, MouseEventContext, OverlayAnchor, OverlayOptions, View, Widget,
-        WidgetId, WidgetMut, WrappedWidget,
+        Accessor, EventContext, EventStatus, MouseEventContext, OverlayAnchor, OverlayOptions,
+        ReadContext, View, Widget, WidgetId, WidgetMut, WrappedWidget,
     },
     core::{Align, Key},
     KeyEvent, MouseButton, MouseEvent,
@@ -121,4 +121,8 @@ impl<WTrigger: Widget, V: View, FMenu: Fn() -> V + 'static> WrappedWidget
             _ => EventStatus::Ignored,
         }
     }
+}
+
+pub struct SelectDropdown<T> {
+    values: Accessor<Vec<T>>,
 }

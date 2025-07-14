@@ -14,6 +14,7 @@ use crate::{
         event_handling::{set_focus_widget, set_mouse_capture_widget},
         layout::LayoutMode,
         overlay::{OverlayContainer, OverlayOptions},
+        render::invalidate_widget,
         AnyView, FxIndexSet, Scope, WidgetContext,
     },
     core::{Point, WindowTheme},
