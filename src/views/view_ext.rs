@@ -21,10 +21,6 @@ pub trait ViewExt {
     where
         Self: Sized,
         V2: View + Sized;
-    fn on_click<F>(self, f: F) -> OnClick<Self, F>
-    where
-        Self: Sized,
-        F: Fn(&mut CallbackContext) + 'static;
 }
 
 impl<V: View + Sized> ViewExt for V {
@@ -43,16 +39,6 @@ impl<V: View + Sized> ViewExt for V {
         OnKeyEvent {
             view: self,
             on_key_down: f,
-        }
-    }
-
-    fn on_click<F>(self, f: F) -> OnClick<Self, F>
-    where
-        F: Fn(&mut CallbackContext) + 'static,
-    {
-        OnClick {
-            parent_view: self,
-            on_click_fn: f,
         }
     }
 
@@ -101,69 +87,5 @@ impl<V: View, V2: View> View for Overlay<V, V2> {
         let options = self.options.get(cx);
         cx.add_overlay(self.child_view, options);
         widget
-    }
-}
-
-pub struct OnClick<V, F> {
-    parent_view: V,
-    on_click_fn: F,
-}
-
-impl<V: View, F: Fn(&mut CallbackContext) + 'static> View for OnClick<V, F> {
-    type Element = OnClickWidget<V::Element, F>;
-
-    fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
-        let parent = cx.build_inner(self.parent_view);
-        OnClickWidget {
-            parent,
-            on_click_fn: self.on_click_fn,
-        }
-    }
-}
-
-pub struct OnClickWidget<W, F> {
-    parent: W,
-    on_click_fn: F,
-}
-
-impl<W: Widget, F: Fn(&mut CallbackContext) + 'static> WrappedWidget for OnClickWidget<W, F> {
-    type Inner = W;
-
-    fn inner(&self) -> &Self::Inner {
-        &self.parent
-    }
-
-    fn inner_mut(&mut self) -> &mut Self::Inner {
-        &mut self.parent
-    }
-
-    fn mouse_event(&mut self, event: MouseEvent, cx: &mut MouseEventContext) -> EventStatus {
-        match event {
-            MouseEvent::Down {
-                button: MouseButton::LEFT,
-                position,
-                ..
-            }
-            | MouseEvent::DoubleClick {
-                button: MouseButton::LEFT,
-                position,
-                ..
-            } if cx.bounds().contains(position) => {
-                cx.capture_mouse();
-                EventStatus::Handled
-            }
-            MouseEvent::Up {
-                button: MouseButton::LEFT,
-                position,
-                ..
-            } if cx.has_mouse_capture() => {
-                cx.release_capture();
-                if cx.bounds().contains(position) {
-                    (self.on_click_fn)(&mut cx.as_callback_context());
-                }
-                EventStatus::Handled
-            }
-            _ => self.parent.mouse_event(event, cx),
-        }
     }
 }

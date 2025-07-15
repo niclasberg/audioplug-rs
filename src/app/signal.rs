@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData};
 
-use crate::app::{Accessor, Owner, ReactiveContext, ReadSignal};
+use crate::app::{Accessor, Effect, Owner, ReactiveContext, ReadSignal};
 
 use super::{
     accessor::SourceId, CreateContext, NodeId, NodeType, ReadContext, Readable, WriteContext,
@@ -89,10 +89,6 @@ impl<T: 'static> From<Signal<T>> for Accessor<T> {
 impl<T: 'static> Readable for Signal<T> {
     type Value = T;
 
-    fn get_source_id(&self) -> SourceId {
-        SourceId::Node(self.id)
-    }
-
     fn track(&self, cx: &mut dyn ReadContext) {
         let scope = cx.scope();
         cx.runtime_mut().track(self.id, scope);
@@ -108,6 +104,13 @@ impl<T: 'static> Readable for Signal<T> {
             .unwrap()
             .downcast_ref()
             .expect("Signal had wrong type"))
+    }
+
+    fn watch<F>(self, cx: &mut dyn CreateContext, f: F) -> Effect
+    where
+        F: FnMut(&mut dyn super::WatchContext, &Self::Value) + 'static,
+    {
+        Effect::watch_node(cx, self.id, f)
     }
 }
 

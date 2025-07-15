@@ -1,8 +1,8 @@
-use audioplug::App;
 use audioplug::app::*;
 use audioplug::core::{Align, Color, ShadowKind, ShadowOptions, Size, Vec2};
 use audioplug::style::{ImageEffect, Length, UiRect};
 use audioplug::views::*;
+use audioplug::App;
 use std::path::Path;
 use std::time::Duration;
 
@@ -65,10 +65,11 @@ fn overview() -> impl View {
         let checkbox_bg = AnimatedFn::tween(
             cx,
             move |cx| {
+                let color = Color::MAY_GREEN;
                 if checkbox_enabled.get(cx) {
-                    Color::MAY_GREEN
+                    color
                 } else {
-                    Color::MAY_GREEN.with_alpha(0.0)
+                    color.with_alpha(0.0)
                 }
             },
             TweenOptions {
@@ -91,7 +92,7 @@ fn overview() -> impl View {
             cnt + 1
         });
 
-        Effect::watch(cx, slider_value, move |_, value| {
+        slider_value.watch(cx, move |_, value| {
             println!("Effect::watch: slider_value: {}", value);
         });
 

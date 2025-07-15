@@ -74,10 +74,6 @@ impl<WTrigger: Widget, V: View, FMenu: Fn() -> V + 'static> WrappedWidget
             MouseEvent::Down {
                 button: MouseButton::LEFT,
                 ..
-            }
-            | MouseEvent::DoubleClick {
-                button: MouseButton::LEFT,
-                ..
             } => {
                 let view = (self.menu_fn)();
                 if !self.is_dropdown_open() {

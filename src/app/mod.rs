@@ -25,14 +25,19 @@ mod widget_data;
 mod widget_ref;
 mod window;
 
-use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    marker::PhantomData,
+    rc::Rc,
+};
 
 pub use accessor::{Accessor, Computed};
 pub use animation::{
     Animated, AnimatedFn, Animation, AnimationContext, Easing, SpringOptions, TweenOptions,
 };
 pub(crate) use app_state::AppState;
-pub use effect::{Effect, EffectState, WatchContext};
+pub use effect::{Effect, EffectContext, EffectState, WatchContext};
 pub use event_channel::{create_event_channel, EventChannel, EventReceiver};
 pub use event_handling::{handle_window_event, CallbackContext, EventContext, MouseEventContext};
 use fxhash::FxBuildHasher;
@@ -72,6 +77,7 @@ slotmap::new_key_type! {
     pub struct WindowId;
 }
 
+type FxHashSet<K> = HashSet<K, FxBuildHasher>;
 type FxHashMap<K, V> = HashMap<K, V, FxBuildHasher>;
 type FxIndexSet<T> = IndexSet<T, FxBuildHasher>;
 

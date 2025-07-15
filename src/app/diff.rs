@@ -1,6 +1,8 @@
 use std::hash::Hash;
 
-use crate::app::FxIndexSet;
+use fxhash::FxBuildHasher;
+
+use crate::app::{FxHashSet, FxIndexSet};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum DiffOp {
@@ -34,40 +36,54 @@ pub fn diff_keyed_with<K: Hash + Eq>(
     new: &FxIndexSet<K>,
     mut visitor: impl FnMut(DiffOp),
 ) {
-    let mut index_map = vec![0; old.len()];
+    // Removals:
+    let mut old_to_new_index = vec![None; old.len()];
 
     // Need to iterate in reverse order for the removal indices to be correct
-    if !old.is_empty() {
-        for (i, key) in old.iter().enumerate().rev() {
-            if !new.contains(key) {
-                visitor(DiffOp::Remove { index: i, len: 1 });
-            } else {
-                index_map[i] = 1;
-            }
-        }
-
-        let mut current_index = 0;
-        for index in index_map.iter_mut() {
-            let tmp = current_index;
-            current_index += *index;
-            *index = tmp;
+    for (i, key) in old.iter().enumerate().rev() {
+        if !new.contains(key) {
+            visitor(DiffOp::Remove { index: i, len: 1 });
+        } else {
+            old_to_new_index[i] = Some(1);
         }
     }
 
-    for (new_index, key) in new.iter().enumerate() {
-        if let Some(old_index) = old.get_index_of(key) {
-            if new_index != index_map[old_index] {
-                visitor(DiffOp::Move {
-                    from: old_index,
-                    to: new_index,
-                });
-            }
-        } else {
+    // Compute indices after removals
+    let mut current_index = 0;
+    for index in old_to_new_index.iter_mut() {
+        if let Some(index) = index {
+            *index = current_index;
+            current_index += 1;
+        }
+    }
+
+    // Insertions:
+    let mut new_to_final_index = vec![0; new.len()];
+    let mut insertions = 0;
+    for (i, key) in new.iter().enumerate() {
+        if !old.contains(key) {
             visitor(DiffOp::Insert {
-                index: new_index,
-                source_index: new_index,
+                index: i,
+                source_index: i,
                 len: 1,
             });
+            insertions += 1;
+        }
+        new_to_final_index[i] = i + insertions;
+    }
+
+    // Moves:
+    for (new_index, key) in new.iter().enumerate() {
+        if let Some(old_index) = old.get_index_of(key) {
+            let from = old_to_new_index[old_index];
+            let to = new_to_final_index[new_index];
+            if from != new_index && to != usize::MAX {
+                visitor(DiffOp::Move {
+                    from: old_index,
+                    to: to,
+                });
+                new_to_final_index[old_index] = usize::MAX;
+            }
         }
     }
 }
@@ -184,6 +200,67 @@ mod test {
         for case in cases {
             let result = diff_slices(&case.a, &case.b);
             assert_eq!(result, case.expected);
+        }
+    }
+
+    #[test]
+    fn test_keyed_diff() {
+        struct TestData {
+            from: Vec<u8>,
+            to: Vec<u8>,
+        }
+
+        impl TestData {
+            pub fn new(a: &[u8], b: &[u8]) -> Self {
+                Self {
+                    from: a.to_owned(),
+                    to: b.to_owned(),
+                }
+            }
+        }
+
+        let cases = vec![
+            TestData::new(b"", b""),
+            TestData::new(b"", b"abc"),
+            TestData::new(b"abc", b""),
+            TestData::new(b"abcdefgh", b"hgfedcba"),
+            TestData::new(b"abcdefgh", b"ahbgcfde"),
+        ];
+
+        for case in cases {
+            let mut result = case.from.clone();
+            let from_indices: FxIndexSet<_> = case.from.iter().collect();
+            let to_indices: FxIndexSet<_> = case.to.iter().collect();
+            let mut ops = Vec::new();
+
+            diff_keyed_with(&from_indices, &to_indices, |op| {
+                ops.push(op);
+                match op {
+                    DiffOp::Remove { index, len } => {
+                        for i in 0..len {
+                            result.remove(index + i);
+                        }
+                    }
+                    DiffOp::Replace {
+                        index,
+                        source_index,
+                    } => result[index] = case.from[source_index],
+                    DiffOp::Insert {
+                        index,
+                        source_index,
+                        len,
+                    } => {
+                        for i in 0..len {
+                            result.insert(index + i, case.to[source_index + i]);
+                        }
+                    }
+                    DiffOp::Move { from, to } => result.swap(from, to),
+                }
+            });
+
+            println!("Result: {:#?}, expected: {:#?}", result, case.to);
+            println!("{:?}", ops);
+            assert!(result == case.to);
         }
     }
 }

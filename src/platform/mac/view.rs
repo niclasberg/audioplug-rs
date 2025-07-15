@@ -12,7 +12,7 @@ use objc2_foundation::{MainThreadMarker, NSDate, NSNotificationCenter, NSRect, N
 use objc2_metal::MTLCreateSystemDefaultDevice;
 
 use super::{Handle, RendererRef};
-use crate::core::Point;
+use crate::core::{Point, Vec2};
 use crate::event::{KeyEvent, MouseButton, MouseEvent};
 use crate::platform::mac::keyboard::{get_modifiers, key_from_code};
 use crate::platform::WindowEvent;
@@ -64,9 +64,10 @@ define_class!(
         #[unsafe(method(mouseDown:))]
         fn mouse_down(&self, event: &NSEvent) {
             if let (Some(button), Some(position)) = (mouse_button(event), self.mouse_position(event)) {
+                let click_count = unsafe { event.clickCount() };
                 let modifiers = get_modifiers(unsafe { event.modifierFlags() });
                 self.dispatch_event(WindowEvent::Mouse(
-                    MouseEvent::Down { button, position, modifiers }
+                    MouseEvent::Down { button, position, modifiers, is_double_click: click_count >= 2 }
                 ))
             }
         }
@@ -97,6 +98,24 @@ define_class!(
                 let modifiers = get_modifiers(unsafe { event.modifierFlags() });
                 self.dispatch_event(WindowEvent::Mouse(
                     MouseEvent::Moved { position, modifiers }
+                ))
+            }
+        }
+
+        #[unsafe(method(scrollWheel:))]
+        fn scroll_wheel(&self, event: &NSEvent) {
+            if let Some(position) = self.mouse_position(event) {
+                let modifiers = get_modifiers(unsafe { event.modifierFlags() });
+                // These are reported in pixels. To get it consistent with Windows,
+                // convert to fractional lines (divide by 15 px). Can we do this better?
+                let delta_x = unsafe { event.scrollingDeltaX() };
+                let delta_y = unsafe { event.scrollingDeltaY() };
+                self.dispatch_event(WindowEvent::Mouse(
+                    MouseEvent::Wheel {
+                        delta: Vec2 { x: delta_x / 15.0, y: delta_y / 15.0 },
+                        position,
+                        modifiers
+                    }
                 ))
             }
         }
@@ -138,9 +157,6 @@ define_class!(
                 let metal_device = MTLCreateSystemDefaultDevice().unwrap();
                 CIContext::contextWithMTLDevice(&metal_device)
             });
-            /*let bg_color = CGColor::from_rgba(1.0, 1.0, 1.0, 1.0);
-            context.set_fill_color(&bg_color);
-            context.fill_rect(self.frame());*/
 
             let renderer = RendererRef::new(&context, &ci_context, rect);
 

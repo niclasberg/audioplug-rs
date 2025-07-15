@@ -85,10 +85,6 @@ impl<T> From<SignalVec<T>> for Accessor<Vec<T>> {
 impl<T: Any> Readable for SignalVec<T> {
     type Value = Vec<T>;
 
-    fn get_source_id(&self) -> SourceId {
-        SourceId::Node(self.id)
-    }
-
     fn track(&self, cx: &mut dyn super::ReadContext) {
         let scope = cx.scope();
         cx.runtime_mut().track(self.id, scope);
@@ -106,6 +102,13 @@ impl<T: Any> Readable for SignalVec<T> {
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
         self.with_inner(cx.runtime(), move |value| f(&value.values))
+    }
+
+    fn watch<F>(self, cx: &mut dyn CreateContext, f: F) -> super::Effect
+    where
+        F: FnMut(&mut dyn super::WatchContext, &Self::Value) + 'static,
+    {
+        todo!()
     }
 }
 
@@ -125,10 +128,6 @@ impl<T: Any> From<AtIndex<SignalVec<T>, T>> for Accessor<T> {
 impl<T: Any> Readable for AtIndex<SignalVec<T>, T> {
     type Value = T;
 
-    fn get_source_id(&self) -> SourceId {
-        SourceId::Node(self.id)
-    }
-
     fn track(&self, cx: &mut dyn super::ReadContext) {
         let scope = cx.scope();
         cx.runtime_mut().track(self.id, scope);
@@ -142,6 +141,13 @@ impl<T: Any> Readable for AtIndex<SignalVec<T>, T> {
         self.parent.with_inner(cx.runtime(), move |inner| {
             f(inner.values.get(self.index).unwrap())
         })
+    }
+
+    fn watch<F>(self, cx: &mut dyn CreateContext, f: F) -> super::Effect
+    where
+        F: FnMut(&mut dyn super::WatchContext, &Self::Value) + 'static,
+    {
+        todo!()
     }
 }
 

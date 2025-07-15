@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    app::{Accessor, ReadSignal},
+    app::{Accessor, CreateContext, Effect, ReadSignal, WatchContext},
     core::{Interpolate, SpringPhysics},
     AnimationFrame,
 };
@@ -263,10 +263,6 @@ impl<T: 'static> From<Animated<T>> for Accessor<T> {
 impl<T: 'static> Readable for Animated<T> {
     type Value = T;
 
-    fn get_source_id(&self) -> SourceId {
-        SourceId::Node(self.id)
-    }
-
     fn track(&self, cx: &mut dyn ReadContext) {
         let scope = cx.scope();
         cx.runtime_mut().track(self.id, scope);
@@ -288,6 +284,13 @@ impl<T: 'static> Readable for Animated<T> {
         f(get_animation_value_ref(cx, self.id)
             .downcast_ref()
             .expect("Animation value had wrong type"))
+    }
+
+    fn watch<F>(self, cx: &mut dyn CreateContext, f: F) -> Effect
+    where
+        F: FnMut(&mut dyn WatchContext, &Self::Value) + 'static,
+    {
+        Effect::watch_node(cx, self.id, f)
     }
 }
 
@@ -378,10 +381,6 @@ impl<T> From<AnimatedFn<T>> for Accessor<T> {
 impl<T: 'static> Readable for AnimatedFn<T> {
     type Value = T;
 
-    fn get_source_id(&self) -> SourceId {
-        SourceId::Node(self.id)
-    }
-
     fn track(&self, cx: &mut dyn ReadContext) {
         let scope = cx.scope();
         cx.runtime_mut().track(self.id, scope);
@@ -403,6 +402,13 @@ impl<T: 'static> Readable for AnimatedFn<T> {
         f(get_animation_value_ref(cx, self.id)
             .downcast_ref()
             .expect("AnimationFn value had wrong type"))
+    }
+
+    fn watch<F>(self, cx: &mut dyn CreateContext, f: F) -> Effect
+    where
+        F: FnMut(&mut dyn WatchContext, &Self::Value) + 'static,
+    {
+        Effect::watch_node::<T>(cx, self.id, f)
     }
 }
 

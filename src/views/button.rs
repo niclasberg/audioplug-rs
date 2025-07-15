@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use crate::{
     app::{
         Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
@@ -25,11 +23,6 @@ impl<V: View> Button<V> {
             child,
             click_fn: None,
         }
-    }
-
-    pub fn on_click(mut self, f: impl Fn(&mut CallbackContext) + 'static) -> Self {
-        self.click_fn = Some(Box::new(f));
-        self
     }
 }
 
@@ -60,6 +53,15 @@ impl<V: View> View for Button<V> {
             click_fn: self.click_fn,
         }
     }
+
+    fn on_click<F>(mut self, f: F) -> impl View
+    where
+        Self: Sized,
+        F: Fn(&mut CallbackContext) + 'static,
+    {
+        self.click_fn = Some(Box::new(f));
+        self
+    }
 }
 
 const FLEX_STYLE: FlexStyle = FlexStyle::DEFAULT;
@@ -77,12 +79,7 @@ impl Widget for ButtonWidget {
 
     fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
         match event {
-            MouseEvent::Down {
-                button, position, ..
-            }
-            | MouseEvent::DoubleClick {
-                button, position, ..
-            } if ctx.bounds().contains(position) => {
+            MouseEvent::Down { button, .. } => {
                 if button == MouseButton::LEFT {
                     ctx.capture_mouse();
                     ctx.request_render();
@@ -94,8 +91,7 @@ impl Widget for ButtonWidget {
                 position,
                 ..
             } => {
-                ctx.release_capture();
-                if ctx.bounds().contains(position) {
+                if ctx.release_capture() && ctx.bounds().contains(position) {
                     if let Some(f) = self.click_fn.as_mut() {
                         f(&mut ctx.as_callback_context());
                     }

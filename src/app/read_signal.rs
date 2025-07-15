@@ -2,8 +2,8 @@ use std::marker::PhantomData;
 
 use crate::{
     app::{
-        accessor::SourceId, effect::BindingState, Accessor, CreateContext, Effect, NodeId,
-        ReadContext, Readable, WatchContext,
+        accessor::SourceId, Accessor, CreateContext, Effect, NodeId, ReadContext, Readable,
+        WatchContext,
     },
     param::ParameterId,
 };
@@ -43,49 +43,8 @@ impl<T> ReadSignal<T> {
     }
 }
 
-impl<T: 'static> ReadSignal<T> {
-    pub fn watch(
-        self,
-        cx: &mut dyn CreateContext,
-        mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
-    ) -> Effect {
-        let owner = cx.owner();
-        let id = cx.runtime_mut().create_binding_node(
-            self.source_id,
-            BindingState::new(move |cx| match self.source_id {
-                SourceId::Parameter(parameter_id) => {
-                    let value = cx
-                        .runtime()
-                        .get_parameter_ref(parameter_id)
-                        .value_as()
-                        .unwrap();
-                    f(cx, &value);
-                }
-                SourceId::Node(node_id) => {
-                    cx.runtime_mut().update_if_necessary(node_id);
-                    if let Some(node) = cx.runtime_mut().lease_node(node_id) {
-                        let value = node
-                            .get_value_ref()
-                            .downcast_ref()
-                            .expect("Node should have the correct value type");
-                        f(cx, value);
-                        cx.runtime_mut().unlease_node(node_id, node);
-                    }
-                }
-            }),
-            owner,
-        );
-
-        Effect { id }
-    }
-}
-
 impl<T: 'static> Readable for ReadSignal<T> {
     type Value = T;
-
-    fn get_source_id(&self) -> SourceId {
-        self.source_id
-    }
 
     fn track(&self, cx: &mut dyn ReadContext) {
         let scope = cx.scope();
@@ -121,6 +80,16 @@ impl<T: 'static> Readable for ReadSignal<T> {
                     .expect("Node should have the correct value type");
                 f(value)
             }
+        }
+    }
+
+    fn watch<F>(self, cx: &mut dyn CreateContext, f: F) -> Effect
+    where
+        F: FnMut(&mut dyn WatchContext, &Self::Value) + 'static,
+    {
+        match self.source_id {
+            SourceId::Parameter(parameter_id) => Effect::watch_parameter(cx, parameter_id, f),
+            SourceId::Node(node_id) => Effect::watch_node(cx, node_id, f),
         }
     }
 }

@@ -1,16 +1,13 @@
 use std::rc::Rc;
 
 use super::{
-    effect::BindingState, Brush, BuildContext, EffectState, LinearGradient, NodeId, Owner,
-    ReactiveContext, ReadContext, Readable, Widget, WidgetMut,
+    Brush, BuildContext, LinearGradient, NodeId, ReadContext, Readable, Widget, WidgetMut,
 };
-use crate::{app::ReadSignal, core::Color, param::ParameterId};
-
-pub trait MappedAccessor<T> {
-    fn get_source_id(&self) -> SourceId;
-    fn evaluate(&self, ctx: &mut dyn ReadContext) -> T;
-    fn evaluate_untracked(&self, ctx: &mut dyn ReactiveContext) -> T;
-}
+use crate::{
+    app::{Effect, ReadSignal},
+    core::Color,
+    param::ParameterId,
+};
 
 #[derive(Clone, Copy)]
 pub enum SourceId {
@@ -31,11 +28,13 @@ impl<T> Computed<T> {
     }
 }
 
+/// Represents a value that is either varying over time (a `Readable`) or a constant
+///
+/// Commonly used as input to views.
 #[derive(Clone)]
 pub enum Accessor<T> {
     Const(T),
     ReadSignal(ReadSignal<T>),
-    Mapped(Rc<dyn MappedAccessor<T>>),
     Computed(Computed<T>),
 }
 
@@ -47,7 +46,6 @@ impl<T: 'static> Accessor<T> {
         match self {
             Self::ReadSignal(signal) => signal.get(cx),
             Self::Const(value) => value.clone(),
-            Self::Mapped(mapped) => mapped.evaluate(cx),
             Self::Computed(computed) => (computed.f)(cx),
         }
     }
@@ -56,7 +54,6 @@ impl<T: 'static> Accessor<T> {
         match self {
             Self::ReadSignal(signal) => signal.with_ref(cx, f),
             Self::Const(value) => f(value),
-            Self::Mapped(mapped) => f(&mapped.evaluate(cx)),
             Self::Computed(computed) => f(&(computed.f)(cx)),
         }
     }
@@ -108,29 +105,15 @@ impl<T: 'static> Accessor<T> {
                     f(f_map(value), cx.widget_mut(widget_id))
                 });
             }
-            Self::Mapped(ref mapped) => {
-                let source_id = mapped.get_source_id();
-                let mapped = mapped.clone();
-                let state = BindingState::new(move |cx| {
-                    let value = mapped.evaluate_untracked(cx);
-                    f(f_map(&value), cx.widget_mut(widget_id));
-                });
-
-                cx.runtime_mut().create_binding_node(
-                    source_id,
-                    state,
-                    Some(Owner::Widget(widget_id.id)),
-                );
-            }
             Self::Computed(computed) => {
                 let value_fn = computed.f.clone();
-                let state = EffectState::new(move |cx| {
-                    let value = f_map(&value_fn(cx));
-                    let widget = cx.widget_mut(widget_id);
-                    f(value, widget);
-                });
-                cx.runtime_mut()
-                    .create_effect_node(state, Some(Owner::Widget(widget_id.id)), true);
+                Effect::watch(
+                    cx,
+                    move |cx| value_fn(cx),
+                    move |cx, value, _| {
+                        f(f_map(value), cx.widget_mut(widget_id));
+                    },
+                );
             }
             Accessor::Const(_) => {}
         }

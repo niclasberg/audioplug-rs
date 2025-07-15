@@ -210,9 +210,12 @@ impl<'a> MouseEventContext<'a> {
         *self.new_mouse_capture_widget = Some(self.id);
     }
 
-    pub fn release_capture(&mut self) {
+    pub fn release_capture(&mut self) -> bool {
         if self.app_state.mouse_capture_widget == Some(self.id) {
             *self.new_mouse_capture_widget = None;
+            true
+        } else {
+            false
         }
     }
 

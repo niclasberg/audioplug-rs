@@ -1,13 +1,17 @@
 use crate::{
-    app::{Accessor, BuildContext, EventStatus, MouseEventContext, RenderContext, View, Widget},
-    core::{Color, Rectangle, Size},
+    app::{
+        Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
+        RenderContext, View, Widget,
+    },
+    core::{Color, Key, Rectangle, Size},
     style::{AvailableSpace, DisplayStyle, Length, Measure, Style, UiRect},
-    MouseEvent,
+    KeyEvent, MouseButton, MouseEvent,
 };
 
 pub struct Checkbox {
     checked: Option<Accessor<bool>>,
     enabled: Accessor<bool>,
+    click_fn: Option<Box<dyn Fn(&mut CallbackContext)>>,
 }
 
 impl Checkbox {
@@ -15,6 +19,7 @@ impl Checkbox {
         Self {
             checked: None,
             enabled: Accessor::Const(true),
+            click_fn: None,
         }
     }
 
@@ -48,6 +53,7 @@ impl View for Checkbox {
             padding: UiRect::all_px(0.5),
             ..Default::default()
         });
+        cx.set_focusable(true);
         CheckboxWidget {
             checked: self
                 .checked
@@ -62,7 +68,17 @@ impl View for Checkbox {
                 widget.enabled = value;
                 widget.request_render();
             }),
+            click_fn: self.click_fn,
         }
+    }
+
+    fn on_click<F>(mut self, f: F) -> impl View
+    where
+        Self: Sized,
+        F: Fn(&mut CallbackContext) + 'static,
+    {
+        self.click_fn = Some(Box::new(f));
+        self
     }
 }
 
@@ -70,6 +86,7 @@ impl View for Checkbox {
 pub struct CheckboxWidget {
     checked: bool,
     enabled: bool,
+    click_fn: Option<Box<dyn Fn(&mut CallbackContext)>>,
 }
 
 impl Measure for CheckboxWidget {
@@ -87,8 +104,42 @@ impl Widget for CheckboxWidget {
         "Checkbox"
     }
 
-    fn mouse_event(&mut self, _event: MouseEvent, _cx: &mut MouseEventContext) -> EventStatus {
-        EventStatus::Handled
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
+        match event {
+            MouseEvent::Down { button, .. } => {
+                if button == MouseButton::LEFT {
+                    ctx.capture_mouse();
+                }
+                EventStatus::Handled
+            }
+            MouseEvent::Up {
+                button: MouseButton::LEFT,
+                position,
+                ..
+            } => {
+                if ctx.release_capture() && ctx.bounds().contains(position) {
+                    if let Some(f) = self.click_fn.as_mut() {
+                        f(&mut ctx.as_callback_context());
+                    }
+                }
+                EventStatus::Handled
+            }
+            _ => EventStatus::Ignored,
+        }
+    }
+
+    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
+        match event {
+            KeyEvent::KeyDown {
+                key: Key::Enter, ..
+            } => {
+                if let Some(f) = self.click_fn.as_mut() {
+                    f(&mut ctx.as_callback_context());
+                }
+                EventStatus::Handled
+            }
+            _ => EventStatus::Ignored,
+        }
     }
 
     fn display_style(&self) -> DisplayStyle {

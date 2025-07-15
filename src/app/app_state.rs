@@ -558,7 +558,11 @@ pub struct EffectContextImpl<'a> {
     pub(super) app_state: &'a mut AppState,
 }
 
-impl EffectContext for EffectContextImpl<'_> {}
+impl EffectContext for EffectContextImpl<'_> {
+    fn as_watch_context(&mut self) -> &mut dyn WatchContext {
+        self.app_state
+    }
+}
 
 impl WidgetContext for EffectContextImpl<'_> {
     fn widget_ref_dyn(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget> {

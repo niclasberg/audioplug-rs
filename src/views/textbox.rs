@@ -434,16 +434,28 @@ impl Widget for TextBoxWidget {
             MouseEvent::Down {
                 button: MouseButton::LEFT,
                 position,
+                is_double_click,
                 ..
             } => {
-                ctx.capture_mouse();
-                if let Some(new_cursor) = self
-                    .text_layout
-                    .text_index_at_point(position - ctx.bounds().top_left())
-                {
-                    self.is_mouse_selecting = true;
-                    if self.set_caret_position(new_cursor, false) {
-                        ctx.request_render();
+                if is_double_click {
+                    if let Some(text_index) = self
+                        .text_layout
+                        .text_index_at_point(position - ctx.bounds().top_left())
+                    {
+                        if self.select_word_at(text_index) {
+                            ctx.request_render();
+                        }
+                    }
+                } else {
+                    ctx.capture_mouse();
+                    if let Some(new_cursor) = self
+                        .text_layout
+                        .text_index_at_point(position - ctx.bounds().top_left())
+                    {
+                        self.is_mouse_selecting = true;
+                        if self.set_caret_position(new_cursor, false) {
+                            ctx.request_render();
+                        }
                     }
                 }
                 EventStatus::Handled
@@ -465,21 +477,6 @@ impl Widget for TextBoxWidget {
                         if self.set_caret_position(new_cursor, true) {
                             ctx.request_render();
                         }
-                    }
-                }
-                EventStatus::Handled
-            }
-            MouseEvent::DoubleClick {
-                button: MouseButton::LEFT,
-                position,
-                ..
-            } => {
-                if let Some(text_index) = self
-                    .text_layout
-                    .text_index_at_point(position - ctx.bounds().top_left())
-                {
-                    if self.select_word_at(text_index) {
-                        ctx.request_render();
                     }
                 }
                 EventStatus::Handled

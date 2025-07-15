@@ -1,20 +1,25 @@
-use std::{any::Any, hash::Hash, marker::PhantomData, rc::Rc};
+use std::{any::Any, cell::RefCell, hash::Hash, marker::PhantomData, rc::Rc};
 
 use fxhash::FxBuildHasher;
 
 use crate::app::{
-    diff::DiffOp, Accessor, AnyView, BuildContext, Effect, FxIndexSet, View, ViewSequence, Widget,
-    WidgetId, WidgetMut, WidgetRef,
+    diff::DiffOp, Accessor, AnyView, BuildContext, Computed, Effect, FxIndexSet, View,
+    ViewSequence, WatchContext, Widget, WidgetId, WidgetMut, WidgetRef,
 };
 
-use super::{
-    accessor::{MappedAccessor, SourceId},
-    Owner, Runtime, Scope, WindowId,
-};
+use super::{Owner, Runtime, Scope, WindowId};
 
 pub trait ReactiveContext {
+    /// Get immutable access to the underlying reactive runtime. This method
+    /// is mostly used internally, users should rarely have to interact directly
+    /// with the runtime.
     fn runtime(&self) -> &Runtime;
+
+    /// Get mutable access to the underlying reactive runtime. This method
+    /// is mostly used internally, users should rarely have to interact directly
+    /// with the runtime.
     fn runtime_mut(&mut self) -> &mut Runtime;
+
     fn as_create_context(&mut self, owner: Owner) -> LocalCreateContext {
         LocalCreateContext {
             runtime: self.runtime_mut(),
@@ -23,9 +28,36 @@ pub trait ReactiveContext {
     }
 }
 
+/// Contexts implementing `CreateContext` allows reactive elements to be created.
 pub trait CreateContext: ReactiveContext {
+    /// Returns the owner that should be assigned to newly created reactive nodes.
+    ///
+    /// We use this mechanism to scope nodes to either:
+    /// - A widget (`Some(Owner::Widget)`): When the widget is removed, the node is removed
+    /// - Another node (`Some(Owner::Node)`): When the other node is removed, the node is removed
+    /// - No owner (None): will not be cleaned up until the plugin instance is exited.
     fn owner(&self) -> Option<Owner>;
 }
+
+/// Allows access to the underlying window (needed for example to create timers and animations)
+pub trait ViewContext: CreateContext {
+    fn window_id(&self) -> WindowId;
+}
+
+/// Allows access to widgets
+pub trait WidgetContext {
+    fn widget_ref_dyn(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget>;
+    fn widget_mut_dyn(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget>;
+    fn replace_widget_dun(&mut self, id: WidgetId, view: AnyView);
+}
+
+/// Allows to read and subscribe to reactive nodes
+pub trait ReadContext: ReactiveContext {
+    fn scope(&self) -> Scope;
+}
+
+/// Allows writing to reactive nodes
+pub trait WriteContext: ReactiveContext {}
 
 pub struct LocalCreateContext<'a> {
     runtime: &'a mut Runtime,
@@ -75,26 +107,8 @@ impl ReadContext for LocalReadContext<'_> {
     }
 }
 
-pub trait ViewContext: CreateContext {
-    fn window_id(&self) -> WindowId;
-}
-
-pub trait WidgetContext {
-    fn widget_ref_dyn(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget>;
-    fn widget_mut_dyn(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget>;
-    fn replace_widget_dun(&mut self, id: WidgetId, view: AnyView);
-}
-
-pub trait ReadContext: ReactiveContext {
-    fn scope(&self) -> Scope;
-}
-
-pub trait WriteContext: ReactiveContext {}
-
 pub trait Readable: Into<Accessor<Self::Value>> {
     type Value;
-
-    fn get_source_id(&self) -> SourceId;
 
     /// Map the current value using `f` and subscribe to changes
     fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
@@ -137,10 +151,16 @@ pub trait Readable: Into<Accessor<Self::Value>> {
     {
         Mapped {
             parent: self,
-            f,
+            map_fn: f,
             _marker: PhantomData,
         }
     }
+
+    /// Subscribe to changes to this readable. Whenever the value is updated,
+    /// `f` is called.`
+    fn watch<F>(self, cx: &mut dyn CreateContext, f: F) -> Effect
+    where
+        F: FnMut(&mut dyn WatchContext, &Self::Value) + 'static;
 
     fn map_to_views_keyed<T, K, V, FKey, FView>(
         self,
@@ -195,7 +215,7 @@ where
         }
 
         let widget_id = cx.id();
-        Effect::watch(cx, self.readable, move |cx, values| {
+        self.readable.watch(cx, move |cx, values| {
             let new_indices: FxIndexSet<_> = values.into_iter().map(|x| (self.key_fn)(x)).collect();
             let value_vec: Vec<_> = values.into_iter().collect();
             let mut widget = cx.widget_mut(widget_id);
@@ -230,26 +250,8 @@ where
 #[derive(Clone, Copy)]
 pub struct Mapped<S, T, R, F> {
     parent: S,
-    f: F,
+    map_fn: F,
     _marker: PhantomData<fn(&T) -> R>,
-}
-
-impl<S, T, R, F> MappedAccessor<R> for Mapped<S, T, R, F>
-where
-    S: Readable<Value = T>,
-    F: Fn(&T) -> R,
-{
-    fn get_source_id(&self) -> SourceId {
-        self.parent.get_source_id()
-    }
-
-    fn evaluate(&self, cx: &mut dyn ReadContext) -> R {
-        self.parent.with_ref(cx, &self.f)
-    }
-
-    fn evaluate_untracked(&self, cx: &mut dyn ReactiveContext) -> R {
-        self.parent.with_ref_untracked(cx, &self.f)
-    }
 }
 
 impl<S, T, R, F> From<Mapped<S, T, R, F>> for Accessor<R>
@@ -260,7 +262,9 @@ where
     F: Fn(&T) -> R + 'static,
 {
     fn from(value: Mapped<S, T, R, F>) -> Self {
-        Self::Mapped(Rc::new(value))
+        Self::Computed(Computed::new(move |cx| {
+            value.parent.with_ref(cx, |x| (value.map_fn)(x))
+        }))
     }
 }
 
@@ -273,20 +277,16 @@ where
 {
     type Value = R;
 
-    fn get_source_id(&self) -> SourceId {
-        self.parent.get_source_id()
-    }
-
     fn track(&self, cx: &mut dyn ReadContext) {
         self.parent.track(cx);
     }
 
     fn with_ref<R2>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R2) -> R2 {
-        self.parent.with_ref(cx, |x| f(&(self.f)(x)))
+        self.parent.with_ref(cx, |x| f(&(self.map_fn)(x)))
     }
 
     fn get(&self, cx: &mut dyn ReadContext) -> Self::Value {
-        self.parent.with_ref(cx, |x| (self.f)(x))
+        self.parent.with_ref(cx, |x| (self.map_fn)(x))
     }
 
     fn with_ref_untracked<R2>(
@@ -294,13 +294,23 @@ where
         cx: &mut dyn ReactiveContext,
         f: impl FnOnce(&Self::Value) -> R2,
     ) -> R2 {
-        self.parent.with_ref_untracked(cx, |x| f(&(self.f)(x)))
+        self.parent.with_ref_untracked(cx, |x| f(&(self.map_fn)(x)))
     }
 
     fn get_untracked(&self, cx: &mut dyn ReactiveContext) -> Self::Value
     where
         Self::Value: Clone,
     {
-        self.parent.with_ref_untracked(cx, |x| (self.f)(x))
+        self.parent.with_ref_untracked(cx, |x| (self.map_fn)(x))
+    }
+
+    fn watch<F2>(self, cx: &mut dyn CreateContext, mut f: F2) -> Effect
+    where
+        F2: FnMut(&mut dyn WatchContext, &Self::Value) + 'static,
+    {
+        self.parent.watch(cx, move |cx, value| {
+            let mapped_value = (self.map_fn)(value);
+            f(cx, &mapped_value);
+        })
     }
 }

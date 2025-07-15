@@ -14,13 +14,9 @@ pub enum MouseEvent {
         button: MouseButton,
         position: Point,
         modifiers: Modifiers,
+        is_double_click: bool,
     },
     Up {
-        button: MouseButton,
-        position: Point,
-        modifiers: Modifiers,
-    },
-    DoubleClick {
         button: MouseButton,
         position: Point,
         modifiers: Modifiers,
@@ -43,25 +39,18 @@ impl MouseEvent {
                 button,
                 position,
                 modifiers,
+                is_double_click,
             } => MouseEvent::Down {
                 button,
                 position: position - offset,
                 modifiers,
+                is_double_click,
             },
             MouseEvent::Up {
                 button,
                 position,
                 modifiers,
             } => MouseEvent::Up {
-                button,
-                position: position - offset,
-                modifiers,
-            },
-            MouseEvent::DoubleClick {
-                button,
-                position,
-                modifiers,
-            } => MouseEvent::DoubleClick {
                 button,
                 position: position - offset,
                 modifiers,
@@ -89,7 +78,6 @@ impl MouseEvent {
         match self {
             MouseEvent::Down { position, .. } => *position,
             MouseEvent::Up { position, .. } => *position,
-            MouseEvent::DoubleClick { position, .. } => *position,
             MouseEvent::Moved { position, .. } => *position,
             MouseEvent::Wheel { position, .. } => *position,
         }
