@@ -1,9 +1,6 @@
 use crate::app::{diff::DiffOp, Effect, ReadContext};
 
-use super::{
-    effect::BindingState, Accessor, BuildContext, Owner, ReactiveContext, Readable, View, Widget,
-};
-use std::{collections::HashMap, hash::Hash};
+use super::{Accessor, BuildContext, View, Widget};
 
 pub trait ViewSequence: Sized + 'static {
     fn build_seq(self, cx: &mut BuildContext<dyn Widget>);
@@ -132,11 +129,11 @@ where
                         }
                         DiffOp::Replace {
                             index,
-                            source_index,
+                            to_index: source_index,
                         } => widget.replace_child(index, (self.view_fn)(&new_values[source_index])),
                         DiffOp::Insert {
                             index,
-                            source_index,
+                            to_index: source_index,
                             len,
                         } => {
                             for i in 0..len {

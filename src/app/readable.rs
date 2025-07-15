@@ -228,15 +228,15 @@ where
                 }
                 DiffOp::Replace {
                     index,
-                    source_index,
+                    to_index: source_index,
                 } => widget.replace_child(index, (self.view_fn)(value_vec[source_index])),
                 DiffOp::Insert {
                     index,
-                    source_index,
+                    to_index,
                     len,
                 } => {
                     for i in 0..len {
-                        widget.insert_child((self.view_fn)(value_vec[source_index + i]), index);
+                        widget.insert_child((self.view_fn)(value_vec[to_index + i]), index);
                     }
                 }
                 DiffOp::Move { from, to } => widget.swap_children(from, to),

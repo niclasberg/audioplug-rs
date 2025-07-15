@@ -344,17 +344,16 @@ impl WindowState {
         let modifiers = get_modifiers();
 
         match message {
-            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN => MouseEvent::Down {
+            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK => MouseEvent::Down {
                 button,
                 position,
                 modifiers,
+                is_double_click: match message {
+                    WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK => true,
+                    _ => false
+                },
             },
             WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP => MouseEvent::Up {
-                button,
-                position,
-                modifiers,
-            },
-            WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK => MouseEvent::DoubleClick {
                 button,
                 position,
                 modifiers,
