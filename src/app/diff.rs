@@ -1,4 +1,7 @@
-use std::hash::Hash;
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hash,
+};
 
 use fxhash::FxBuildHasher;
 
@@ -57,33 +60,26 @@ pub fn diff_keyed_with<K: Hash + Eq>(
     let mut new_start = start;
     let mut old_start = start;
     let mut index = start;
+    // While iterating, skip items in old that have been moved
+    let mut moved = HashSet::new();
 
-    while old_start < old_end || new_start < new_end {
-        if old_end <= old_start {
-            visitor(DiffOp::Insert {
-                index,
-                to_index: new_start,
-                len: 1,
-            });
-            new_start += 1;
-            index += 1;
-        } else if new_end <= new_start {
-            visitor(DiffOp::Remove { index, len: 1 });
+    while old_start < old_end && new_start < new_end {
+        let new_key = new.get_index(new_start).unwrap();
+        let old_key = old.get_index(old_start).unwrap();
+        if moved.contains(old_key) {
             old_start += 1;
-        } else if old.get_index(old_start) == new.get_index(new_start) {
+        } else if old_key == new_key {
             // Elements matching, moving on
             old_start += 1;
             new_start += 1;
             index += 1;
         } else {
-            let new_key = new.get_index(new_start).unwrap();
-            let old_key = old.get_index(old_start).unwrap();
-
             match (old.get_index_of(new_key), new.get_index_of(old_key)) {
                 (Some(from), Some(to)) => {
                     visitor(DiffOp::Move { from, to: index });
                     new_start += 1;
                     index += 1;
+                    moved.insert(old_key);
                 }
                 (None, Some(to_index)) => {
                     // The old item is not present in the new
@@ -98,7 +94,6 @@ pub fn diff_keyed_with<K: Hash + Eq>(
                 (Some(_), None) => {
                     visitor(DiffOp::Remove { index, len: 1 });
                     old_start += 1;
-                    index -= 1;
                 }
                 (None, None) => {
                     visitor(DiffOp::Replace {
@@ -112,6 +107,20 @@ pub fn diff_keyed_with<K: Hash + Eq>(
             }
         }
     }
+    /*
+    if old_end <= old_start {
+            visitor(DiffOp::Insert {
+                index,
+                to_index: new_start,
+                len: 1,
+            });
+            new_start += 1;
+            index += 1;
+        } else if new_end <= new_start {
+            if index < new_end {
+                visitor(DiffOp::Remove { index, len: 1 });
+                old_start += 1;
+            } */
 }
 
 pub fn diff_slices<'a, T: PartialEq>(a: &'a [T], b: &'a [T]) -> Vec<DiffOp> {
@@ -259,10 +268,9 @@ mod test {
             let mut result = case.from.clone();
             let from_indices: FxIndexSet<_> = case.from.iter().collect();
             let to_indices: FxIndexSet<_> = case.to.iter().collect();
-            let mut ops = Vec::new();
 
             diff_keyed_with(&from_indices, &to_indices, |op| {
-                ops.push(op);
+                println!("{:?}", op);
                 match op {
                     DiffOp::Remove { index, len } => {
                         result.drain(index..(index + len));
@@ -289,7 +297,6 @@ mod test {
             });
 
             println!("Result: {:#?}, expected: {:#?}", result, case.to);
-            println!("{:?}", ops);
             assert!(result == case.to);
         }
     }
