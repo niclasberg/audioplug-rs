@@ -8,7 +8,7 @@ use super::{
     WidgetFlags, WidgetId,
 };
 use crate::{
-    app::{app_state::WidgetInsertPos, OverlayOptions},
+    app::{app_state::WidgetInsertPos, diff::DiffOp, OverlayOptions},
     core::Rectangle,
     style::Style,
 };
@@ -174,6 +174,13 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         request_layout(self.app_state, self.id);
     }
 
+    pub fn move_child(&mut self, from_index: usize, to_index: usize) {
+        let children = &mut self.data_mut().children;
+        let id = children.remove(from_index);
+        self.data_mut().children.insert(to_index, id);
+        request_layout(self.app_state, self.id);
+    }
+
     pub fn index_of_child(&self, id: WidgetId) -> Option<usize> {
         self.data().children.iter().position(|x| *x == id)
     }
@@ -230,6 +237,31 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
 
     pub(super) fn unchecked_cast<W2: 'a + Widget + ?Sized>(self) -> WidgetMut<'a, W2> {
         unsafe { std::mem::transmute(self) }
+    }
+}
+
+impl<'a> WidgetMut<'a, dyn Widget> {
+    pub fn apply_diff_to_children<T, V: View>(
+        &mut self,
+        diff: DiffOp<'_, T>,
+        view_fn: &dyn Fn(&T) -> V,
+    ) {
+        match diff {
+            DiffOp::Remove { index, len } => {
+                for i in (0..len).rev() {
+                    self.remove_child(index + i);
+                }
+            }
+            DiffOp::Replace { index, value } => self.replace_child(index, view_fn(value)),
+            DiffOp::Insert { index, values } => {
+                for (i, value) in values.iter().enumerate() {
+                    self.insert_child(view_fn(value), index + i);
+                }
+            }
+            DiffOp::Move { from, to } => {
+                self.move_child(from, to);
+            }
+        }
     }
 }
 

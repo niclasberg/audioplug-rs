@@ -40,9 +40,8 @@ pub(crate) use app_state::AppState;
 pub use effect::{Effect, EffectContext, EffectState, WatchContext};
 pub use event_channel::{create_event_channel, EventChannel, EventReceiver};
 pub use event_handling::{handle_window_event, CallbackContext, EventContext, MouseEventContext};
-use fxhash::FxBuildHasher;
 pub use host_handle::HostHandle;
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 pub use layout::{layout_window, LayoutContext};
 pub use memo::{Memo, MemoContext};
 pub use overlay::{OverlayAnchor, OverlayOptions};
@@ -55,6 +54,7 @@ pub use render::{
     ShapeRef, TextLayout,
 };
 pub use runtime::*;
+use rustc_hash::FxBuildHasher;
 pub use signal::Signal;
 pub use signal_vec::SignalVec;
 pub use trigger::Trigger;
@@ -80,6 +80,7 @@ slotmap::new_key_type! {
 type FxHashSet<K> = HashSet<K, FxBuildHasher>;
 type FxHashMap<K, V> = HashMap<K, V, FxBuildHasher>;
 type FxIndexSet<T> = IndexSet<T, FxBuildHasher>;
+type FxIndexMap<K, V> = IndexMap<K, V, FxBuildHasher>;
 
 pub struct TypedWidgetId<W: Widget + ?Sized> {
     pub id: WidgetId,

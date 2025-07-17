@@ -1,6 +1,6 @@
-use std::{any::Any, cell::RefCell, hash::Hash, marker::PhantomData, rc::Rc};
+use std::{any::Any, hash::Hash, marker::PhantomData};
 
-use fxhash::FxBuildHasher;
+use rustc_hash::FxBuildHasher;
 
 use crate::app::{
     diff::DiffOp, Accessor, AnyView, BuildContext, Computed, Effect, FxIndexSet, View,
@@ -207,8 +207,7 @@ where
                 .collect()
         });
 
-        let mut old_indices =
-            FxIndexSet::with_capacity_and_hasher(views_keys.len(), FxBuildHasher::new());
+        let mut old_indices = FxIndexSet::with_capacity_and_hasher(views_keys.len(), FxBuildHasher);
         for (key, view) in views_keys.into_iter() {
             old_indices.insert(key);
             cx.add_child(view);
@@ -220,27 +219,11 @@ where
             let value_vec: Vec<_> = values.into_iter().collect();
             let mut widget = cx.widget_mut(widget_id);
 
-            super::diff::diff_keyed_with(&old_indices, &new_indices, |diff| match diff {
-                DiffOp::Remove { index, len } => {
-                    for i in 0..len {
-                        widget.remove_child(index + i);
-                    }
-                }
-                DiffOp::Replace {
-                    index,
-                    to_index: source_index,
-                } => widget.replace_child(index, (self.view_fn)(value_vec[source_index])),
-                DiffOp::Insert {
-                    index,
-                    to_index,
-                    len,
-                } => {
-                    for i in 0..len {
-                        widget.insert_child((self.view_fn)(value_vec[to_index + i]), index);
-                    }
-                }
-                DiffOp::Move { from, to } => widget.swap_children(from, to),
+            super::diff::diff_keyed_with(&old_indices, &new_indices, &value_vec, |diff| {
+                let f = |x: &&T| (self.view_fn)(*x);
+                widget.apply_diff_to_children(diff, &f)
             });
+            widget.request_render();
 
             old_indices = new_indices;
         });

@@ -121,36 +121,14 @@ where
             let mut widget = cx.widget_mut(id);
             if let Some(old_values) = old_values {
                 for diff in super::diff::diff_slices(old_values.as_slice(), new_values.as_slice()) {
-                    match diff {
-                        DiffOp::Remove { index, len } => {
-                            for i in 0..len {
-                                widget.remove_child(index + i)
-                            }
-                        }
-                        DiffOp::Replace {
-                            index,
-                            to_index: source_index,
-                        } => widget.replace_child(index, (self.view_fn)(&new_values[source_index])),
-                        DiffOp::Insert {
-                            index,
-                            to_index: source_index,
-                            len,
-                        } => {
-                            for i in 0..len {
-                                widget.insert_child(
-                                    (self.view_fn)(&new_values[i + source_index]),
-                                    index,
-                                );
-                            }
-                        }
-                        DiffOp::Move { from, to } => widget.swap_children(from, to),
-                    }
+                    widget.apply_diff_to_children(diff, &self.view_fn);
                 }
             } else {
                 for value in new_values.iter() {
                     widget.push_child((self.view_fn)(value));
                 }
             }
+            widget.request_render();
             new_values
         });
     }

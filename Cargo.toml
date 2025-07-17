@@ -24,7 +24,7 @@ serde = "1.0.219"
 atomic_refcell = "0.1.13"
 indexmap = "2.9.0"
 bytemuck = "1.23.1"
-fxhash = "0.2.1"
+rustc-hash = "2.1.1"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61.3", features = [

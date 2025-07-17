@@ -3,25 +3,24 @@ use std::{
     hash::Hash,
 };
 
-use fxhash::FxBuildHasher;
+use rustc_hash::FxBuildHasher;
 
 use crate::app::{FxHashMap, FxHashSet, FxIndexSet};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum DiffOp {
+pub enum DiffOp<'a, T> {
     Remove {
         index: usize,
         len: usize,
     },
     Replace {
         index: usize,
-        to_index: usize,
+        value: &'a T,
     },
     Insert {
         index: usize,
         // Index in the new array
-        to_index: usize,
-        len: usize,
+        values: &'a [T],
     },
     Move {
         from: usize,
@@ -29,16 +28,21 @@ pub enum DiffOp {
     },
 }
 
-pub fn diff_keyed<K: Hash + Eq>(old: &FxIndexSet<K>, new: &FxIndexSet<K>) -> Vec<DiffOp> {
+pub fn diff_keyed<'a, K: Hash + Eq, T: 'a>(
+    old: &FxIndexSet<K>,
+    new: &FxIndexSet<K>,
+    new_data: &'a [T],
+) -> Vec<DiffOp<'a, T>> {
     let mut result = Vec::new();
-    diff_keyed_with(old, new, |op| result.push(op));
+    diff_keyed_with(old, new, new_data, |op| result.push(op));
     result
 }
 
-pub fn diff_keyed_with<K: Hash + Eq>(
+pub fn diff_keyed_with<'a, K: Hash + Eq, T: 'a>(
     old: &FxIndexSet<K>,
     new: &FxIndexSet<K>,
-    mut visitor: impl FnMut(DiffOp),
+    new_data: &'a [T],
+    mut visitor: impl FnMut(DiffOp<'a, T>),
 ) {
     // Skip common prefix/suffix
     let mut start = 0;
@@ -60,45 +64,60 @@ pub fn diff_keyed_with<K: Hash + Eq>(
     let mut new_start = start;
     let mut old_start = start;
     let mut index = start;
-    // While iterating, skip items in old that have been moved
-    let mut moved = HashSet::new();
+    let mut is_moved = vec![false; old.len()];
 
-    while old_start < old_end && new_start < new_end {
-        let new_key = new.get_index(new_start).unwrap();
-        let old_key = old.get_index(old_start).unwrap();
-        if moved.contains(old_key) {
+    while old_start < old_end || new_start < new_end {
+        if old_end <= old_start {
+            visitor(DiffOp::Insert {
+                index,
+                values: std::slice::from_ref(&new_data[new_start]),
+            });
+            new_start += 1;
+            index += 1;
+        } else if is_moved[old_start] {
             old_start += 1;
-        } else if old_key == new_key {
+        } else if new_end <= new_start {
+            visitor(DiffOp::Remove { index, len: 1 });
+            old_start += 1;
+        } else if new.get_index(new_start) == old.get_index(old_start) {
             // Elements matching, moving on
             old_start += 1;
             new_start += 1;
             index += 1;
         } else {
+            let new_key = new.get_index(new_start).unwrap();
+            let old_key = old.get_index(old_start).unwrap();
             match (old.get_index_of(new_key), new.get_index_of(old_key)) {
-                (Some(from), Some(to)) => {
-                    visitor(DiffOp::Move { from, to: index });
+                (Some(from), Some(_)) => {
+                    let offset = is_moved
+                        .iter()
+                        .skip(old_start)
+                        .take(from - old_start)
+                        .fold(0, |acc, moved| acc + if *moved { 0 } else { 1 });
+                    visitor(DiffOp::Move {
+                        from: index + offset,
+                        to: index,
+                    });
                     new_start += 1;
                     index += 1;
-                    moved.insert(old_key);
+                    is_moved[from] = true;
                 }
-                (None, Some(to_index)) => {
-                    // The old item is not present in the new
+                (None, Some(_)) => {
+                    visitor(DiffOp::Remove { index, len: 1 });
+                    old_start += 1;
+                }
+                (Some(_), None) => {
                     visitor(DiffOp::Insert {
                         index,
-                        to_index,
-                        len: 1,
+                        values: std::slice::from_ref(&new_data[new_start]),
                     });
                     new_start += 1;
                     index += 1;
                 }
-                (Some(_), None) => {
-                    visitor(DiffOp::Remove { index, len: 1 });
-                    old_start += 1;
-                }
                 (None, None) => {
                     visitor(DiffOp::Replace {
                         index,
-                        to_index: old_start,
+                        value: &new_data[new_start],
                     });
                     old_start += 1;
                     new_start += 1;
@@ -107,23 +126,9 @@ pub fn diff_keyed_with<K: Hash + Eq>(
             }
         }
     }
-    /*
-    if old_end <= old_start {
-            visitor(DiffOp::Insert {
-                index,
-                to_index: new_start,
-                len: 1,
-            });
-            new_start += 1;
-            index += 1;
-        } else if new_end <= new_start {
-            if index < new_end {
-                visitor(DiffOp::Remove { index, len: 1 });
-                old_start += 1;
-            } */
 }
 
-pub fn diff_slices<'a, T: PartialEq>(a: &'a [T], b: &'a [T]) -> Vec<DiffOp> {
+pub fn diff_slices<'a, T: PartialEq>(a: &[T], b: &'a [T]) -> Vec<DiffOp<'a, T>> {
     let mut ops = Vec::new();
     let mut vf = Vec::new();
     let mut vb = Vec::new();
@@ -131,14 +136,14 @@ pub fn diff_slices<'a, T: PartialEq>(a: &'a [T], b: &'a [T]) -> Vec<DiffOp> {
     ops
 }
 
-fn myers_diff_recursive<'a, T: PartialEq>(
-    a: &'a [T],
+fn myers_diff_recursive<'a, T: PartialEq + 'a>(
+    a: &[T],
     b: &'a [T],
     a_offset: usize,
     b_offset: usize,
     vf: &mut Vec<usize>,
     fb: &mut Vec<usize>,
-    ops: &mut Vec<DiffOp>,
+    ops: &mut Vec<DiffOp<'a, T>>,
 ) {
     let n = a.len();
     let m = b.len();
@@ -164,8 +169,7 @@ fn myers_diff_recursive<'a, T: PartialEq>(
     } else if a_is_empty {
         ops.push(DiffOp::Insert {
             index: b_offset + start,
-            to_index: start, // need to offset?
-            len: b_end - start,
+            values: &b[start..b_end],
         });
     } else if b_is_empty {
         ops.push(DiffOp::Remove {
@@ -195,11 +199,11 @@ mod test {
         struct TestData {
             a: Vec<u8>,
             b: Vec<u8>,
-            expected: Vec<DiffOp>,
+            expected: Vec<DiffOp<'static, u8>>,
         }
 
         impl TestData {
-            pub fn new(a: &[u8], b: &[u8], expected: &[DiffOp]) -> Self {
+            pub fn new(a: &[u8], b: &[u8], expected: &[DiffOp<'static, u8>]) -> Self {
                 Self {
                     a: a.to_owned(),
                     b: b.to_owned(),
@@ -217,8 +221,7 @@ mod test {
                 b"abc",
                 &[DiffOp::Insert {
                     index: 0,
-                    to_index: 0,
-                    len: 3,
+                    values: b"abc",
                 }],
             ),
             TestData::new(
@@ -226,8 +229,7 @@ mod test {
                 b"abcdef",
                 &[DiffOp::Insert {
                     index: 3,
-                    to_index: 3,
-                    len: 3,
+                    values: b"def",
                 }],
             ),
         ];
@@ -259,9 +261,13 @@ mod test {
             TestData::new(b"", b"abc"),
             TestData::new(b"abc", b""),
             TestData::new(b"abc", b"def"),
-            TestData::new(b"abcdefgh", b"hgfedcba"),
+            TestData::new(b"abc", b"cba"),
             TestData::new(b"abc", b"cfdgea"),
+            TestData::new(b"abcdefgh", b"hgfedcba"),
+            TestData::new(b"abcdefgh", b"efghabcd"),
             TestData::new(b"abcdefgh", b"ahbgcfde"),
+            TestData::new(b"abcdefgh", b"ahbgxyzcfde"),
+            TestData::new(b"abcdexyzfgh", b"ahbgcfde"),
         ];
 
         for case in cases {
@@ -269,25 +275,15 @@ mod test {
             let from_indices: FxIndexSet<_> = case.from.iter().collect();
             let to_indices: FxIndexSet<_> = case.to.iter().collect();
 
-            diff_keyed_with(&from_indices, &to_indices, |op| {
+            diff_keyed_with(&from_indices, &to_indices, &case.to, |op| {
                 println!("{:?}", op);
                 match op {
                     DiffOp::Remove { index, len } => {
                         result.drain(index..(index + len));
                     }
-                    DiffOp::Replace {
-                        index,
-                        to_index: source_index,
-                    } => result[index] = case.to[source_index],
-                    DiffOp::Insert {
-                        index,
-                        to_index,
-                        len,
-                    } => {
-                        result.splice(
-                            index..index,
-                            case.to[to_index..(to_index + len)].iter().copied(),
-                        );
+                    DiffOp::Replace { index, value } => result[index] = *value,
+                    DiffOp::Insert { index, values } => {
+                        result.splice(index..index, values.iter().copied());
                     }
                     DiffOp::Move { from, to } => {
                         let item = result.remove(from);

@@ -37,8 +37,7 @@ fn main() {
             let text_input = Signal::new(cx, "".to_string());
             Container::new(Column::new((
                 Label::new("TODO app"),
-                TextBox::new()
-                    .on_input(move |cx, value| text_input.set(cx, value.to_string()))
+                TextBox::new(move |cx, value| text_input.set(cx, value.to_string()))
                     .value(text_input)
                     .on_key_event(move |cx, event| {
                         if let KeyEvent::KeyDown { key, .. } = event {

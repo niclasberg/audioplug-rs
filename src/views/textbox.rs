@@ -11,26 +11,28 @@ use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 
 pub struct TextBox {
     width: f64,
-    input_changed_fn: Option<Box<dyn Fn(&mut AppState, &str)>>,
+    input_changed_fn: Box<dyn Fn(&mut AppState, &str)>,
     value: Option<Accessor<String>>,
+    placeholder: Option<Accessor<String>>,
 }
 
 impl TextBox {
-    pub fn new() -> Self {
+    pub fn new(input_changed_fn: impl Fn(&mut AppState, &str) + 'static) -> Self {
         Self {
             width: 100.0,
-            input_changed_fn: None,
+            input_changed_fn: Box::new(input_changed_fn),
             value: None,
+            placeholder: None,
         }
-    }
-
-    pub fn on_input(mut self, f: impl Fn(&mut AppState, &str) + 'static) -> Self {
-        self.input_changed_fn = Some(Box::new(f));
-        self
     }
 
     pub fn value(mut self, value: impl Into<Accessor<String>>) -> Self {
         self.value = Some(value.into());
+        self
+    }
+
+    pub fn placeholder(mut self, value: impl Into<Accessor<String>>) -> Self {
+        self.placeholder = Some(value.into());
         self
     }
 }
@@ -84,7 +86,7 @@ pub struct TextBoxWidget {
     selection_start: Option<usize>,
     last_cursor_timestamp: f64,
     is_mouse_selecting: bool,
-    input_changed_fn: Option<Box<dyn Fn(&mut AppState, &str)>>,
+    input_changed_fn: Box<dyn Fn(&mut AppState, &str)>,
 }
 
 impl TextBoxWidget {
@@ -339,9 +341,7 @@ impl Widget for TextBoxWidget {
         let rebuild_text_layout = |this: &mut Self, ctx: &mut EventContext| {
             this.rebuild_text_layout();
             ctx.request_render();
-            if let Some(f) = &this.input_changed_fn {
-                f(ctx.app_state_mut(), &this.value);
-            }
+            (this.input_changed_fn)(ctx.app_state_mut(), &this.value);
         };
 
         match event {

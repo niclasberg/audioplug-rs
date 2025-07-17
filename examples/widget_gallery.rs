@@ -188,7 +188,7 @@ fn overview() -> impl View {
             .v_align_center(),
             Row::new((
                 Label::new("Text input").color(Color::BLUE),
-                TextBox::new().on_input(move |cx, str| text.set(cx, str.to_string())),
+                TextBox::new(move |cx, str| text.set(cx, str.to_string())),
             ))
             .spacing(Length::Px(5.0)),
         ))

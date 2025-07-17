@@ -19,7 +19,7 @@ use crate::{
     platform,
     style::StyleBuilder,
 };
-use fxhash::FxBuildHasher;
+use rustc_hash::FxBuildHasher;
 use slotmap::{Key, SecondaryMap, SlotMap};
 use std::{
     any::Any,
@@ -110,8 +110,8 @@ impl AppState {
             handle,
             root_widget: WidgetId::null(),
             focus_widget: None,
-            pending_widget_animations: FxIndexSet::with_hasher(FxBuildHasher::new()),
-            pending_node_animations: FxIndexSet::with_hasher(FxBuildHasher::new()),
+            pending_widget_animations: FxIndexSet::default(),
+            pending_node_animations: FxIndexSet::default(),
             theme_signal,
             overlays: Default::default(),
         });

@@ -9,15 +9,14 @@ use super::{
     NodeId, ReactiveContext, ReadContext, WidgetId, WindowId, WriteContext,
 };
 use crate::{
-    app::FxHashMap,
+    app::{FxHashMap, FxHashSet},
     param::{AnyParameterMap, ParamRef, ParameterId},
 };
-use fxhash::FxBuildHasher;
 use indexmap::IndexSet;
 use slotmap::{SecondaryMap, SlotMap};
 use std::{
     any::Any,
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashSet, VecDeque},
     rc::Rc,
 };
 
@@ -105,7 +104,7 @@ pub struct SubscriberMap {
 
 impl SubscriberMap {
     fn new(parameter_ids: &Vec<ParameterId>) -> Self {
-        let mut parameter_subscriptions = HashMap::with_hasher(FxBuildHasher::new());
+        let mut parameter_subscriptions = FxHashMap::default();
         for &parameter_id in parameter_ids {
             parameter_subscriptions.insert(parameter_id, IndexSet::new());
         }
@@ -188,8 +187,8 @@ pub struct Runtime {
     pub(super) pending_tasks: VecDeque<Task>,
     pub(super) parameters: Rc<dyn AnyParameterMap>,
     scratch_buffer: VecDeque<NodeId>,
-    nodes_owned_by_node: SecondaryMap<NodeId, HashSet<NodeId>>,
-    nodes_owned_by_widget: SecondaryMap<WidgetId, HashSet<NodeId>>,
+    nodes_owned_by_node: SecondaryMap<NodeId, FxHashSet<NodeId>>,
+    nodes_owned_by_widget: SecondaryMap<WidgetId, FxHashSet<NodeId>>,
 }
 
 impl Runtime {
