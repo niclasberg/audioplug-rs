@@ -1,4 +1,5 @@
-use std::sync::{Mutex, OnceLock, RwLock};
+use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use windows::Win32::Graphics::{Direct2D, DirectWrite, Imaging};
 use windows::Win32::System::Com::{self, CLSCTX_INPROC_SERVER, CoCreateInstance};
 use windows_core::Result;
@@ -53,15 +54,30 @@ impl COMContext {
     }
 }
 
-static CONTEXT: RwLock<Option<COMContext>> = RwLock::new(None);
+static CONTEXT: OnceLock<&'static mut COMContext> = OnceLock::new();
 
-pub(super) fn get_com_context() -> &'static COMContext {
-    let cx = CONTEXT.read().unwrap();
-    cx.as_ref().expect("Com should have been initialized")
+pub(crate) fn get_com_context() -> &'static COMContext {
+    CONTEXT.get_or_init(|| {
+        Box::leak(Box::new(
+            COMContext::new().expect("Could not initialize COM objects"),
+        ))
+    })
 }
 
-pub(crate) fn init_com() {
-    let context = CONTEXT.lock();
+static COM_CONTEXT_DROPPED: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn drop_com_context() {
+    if COM_CONTEXT_DROPPED.swap(true, Ordering::AcqRel) {
+        return; // already shut down
+    }
+
+    if let Some(context) = CONTEXT.get() {
+        unsafe {
+            // SAFETY: context is a reference to a leaked Box, and we're only reclaiming it once
+            let ptr = *context as *const COMContext as *mut COMContext;
+            drop(Box::from_raw(ptr));
+        }
+    }
 }
 
 pub(super) fn direct_write_factory() -> &'static DirectWrite::IDWriteFactory {
