@@ -38,21 +38,28 @@ pub fn diff_keyed<'a, K: Hash + Eq, T: 'a>(
     result
 }
 
+/// Computes the diff operations needed to transform from `old`` to `new`
+/// The old and new index sets contains hashed keys, and the
+/// new_data the original data that `new` was computed from.
+///
+/// The diff algorithm is adapted from
+/// https://github.com/frejs/fre/blob/master/src/reconcile.ts
 pub fn diff_keyed_with<'a, K: Hash + Eq, T: 'a>(
     old: &FxIndexSet<K>,
     new: &FxIndexSet<K>,
     new_data: &'a [T],
     mut visitor: impl FnMut(DiffOp<'a, T>),
 ) {
-    // Skip common prefix/suffix
     let mut start = 0;
     let mut old_end = old.len();
     let mut new_end = new.len();
 
+    // Skip common prefix
     while start < old_end && start < new_end && old.get_index(start) == new.get_index(start) {
         start += 1;
     }
 
+    // Skip common suffix
     while old_end > start
         && new_end > start
         && old.get_index(old_end - 1) == new.get_index(new_end - 1)
@@ -68,12 +75,13 @@ pub fn diff_keyed_with<'a, K: Hash + Eq, T: 'a>(
 
     while old_start < old_end || new_start < new_end {
         if old_end <= old_start {
+            // No more elements to process in old, insert the remaining entries
+            // from new
             visitor(DiffOp::Insert {
                 index,
-                values: std::slice::from_ref(&new_data[new_start]),
+                values: &new_data[new_start..new_end],
             });
-            new_start += 1;
-            index += 1;
+            break;
         } else if is_moved[old_start] {
             old_start += 1;
         } else if new_end <= new_start {
@@ -128,6 +136,10 @@ pub fn diff_keyed_with<'a, K: Hash + Eq, T: 'a>(
     }
 }
 
+/// Computes the diff operations needed for transforming `a` to `b`
+///
+/// The implementation uses the Myer's diff algorithm (with a divide and conquer approach
+/// inspired by https://github.com/mitsuhiko/similar/blob/main/src/algorithms/myers.rs)
 pub fn diff_slices<'a, T: PartialEq>(a: &[T], b: &'a [T]) -> Vec<DiffOp<'a, T>> {
     let mut ops = Vec::new();
     let mut vf = Vec::new();

@@ -1,11 +1,11 @@
 use std::sync::atomic::AtomicUsize;
 
 use audioplug::{
+    App, KeyEvent,
     app::*,
     core::{Color, Key},
     style::{Length, UiRect},
     views::*,
-    App, KeyEvent,
 };
 use rand::prelude::*;
 use taffy::AlignSelf;
@@ -91,7 +91,10 @@ fn main() {
     app.run();
 }
 
-fn todo_view(todo: &Todo, on_remove: impl Fn(&mut dyn WriteContext) + 'static) -> impl View {
+fn todo_view<F: Fn(&mut dyn WriteContext) + 'static>(
+    todo: &Todo,
+    on_remove: F,
+) -> impl View + use<F> {
     let completed = todo.completed;
     Row::new((
         Checkbox::new()

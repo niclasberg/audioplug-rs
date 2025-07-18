@@ -1,16 +1,16 @@
 use std::{cell::OnceCell, sync::OnceLock, thread::JoinHandle};
 
 use windows::{
-    core::*,
     Win32::{
         Devices::Properties,
         Media::Audio,
         System::Com::{self, StructuredStorage::PropVariantGetStringElem},
         System::Threading::{
-            CreateEventExW, CREATE_EVENT_MANUAL_RESET, EVENT_MODIFY_STATE,
+            CREATE_EVENT_MANUAL_RESET, CreateEventExW, EVENT_MODIFY_STATE,
             SYNCHRONIZATION_SYNCHRONIZE,
         },
     },
+    core::*,
 };
 
 use super::com;
@@ -166,7 +166,6 @@ unsafe impl Send for Enumerator {}
 fn device_enumerator() -> &'static Audio::IMMDeviceEnumerator {
     static INSTANCE: OnceLock<Enumerator> = OnceLock::new();
     let enumerator = INSTANCE.get_or_init(|| {
-        com::com_initialized();
         let enumerator =
             unsafe { Com::CoCreateInstance(&Audio::MMDeviceEnumerator, None, Com::CLSCTX_ALL) }
                 .unwrap();

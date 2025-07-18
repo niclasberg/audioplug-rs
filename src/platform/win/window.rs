@@ -90,6 +90,7 @@ impl WindowState {
 
             WM_DESTROY => {
                 unsafe {
+                    self.renderer.take();
                     KillTimer(Some(hwnd), ANIMATION_FRAME_TIMER).unwrap();
                     if self.quit_app_on_exit {
                         PostQuitMessage(0);
@@ -450,8 +451,6 @@ impl Window {
                 "Unable to register window class"
             );
         });
-
-        com::com_initialized();
 
         let ticks_per_second = unsafe {
             let mut frequency: i64 = 0;
