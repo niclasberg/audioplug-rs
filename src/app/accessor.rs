@@ -1,19 +1,10 @@
 use std::rc::Rc;
 
-use super::{
-    Brush, BuildContext, LinearGradient, NodeId, ReadContext, Readable, Widget, WidgetMut,
-};
+use super::{Brush, BuildContext, LinearGradient, ReadContext, Readable, Widget, WidgetMut};
 use crate::{
     app::{Effect, ReadSignal},
     core::Color,
-    param::ParameterId,
 };
-
-#[derive(Clone, Copy)]
-pub enum SourceId {
-    Parameter(ParameterId),
-    Node(NodeId),
-}
 
 type ComputedFn<T> = dyn Fn(&mut dyn ReadContext) -> T;
 

@@ -398,7 +398,7 @@ impl Widget for SliderWidget {
         }
     }
 
-    fn status_updated(&mut self, event: StatusChange, ctx: &mut EventContext) {
+    fn status_change(&mut self, event: StatusChange, ctx: &mut EventContext) {
         match event {
             StatusChange::FocusGained | StatusChange::FocusLost => ctx.request_render(),
             StatusChange::MouseCaptureLost => {

@@ -14,13 +14,13 @@ macro_rules! audioplug_auv3_plugin {
 #[cfg(target_os = "macos")]
 macro_rules! audioplug_auv3_plugin {
     ($plugin: ty) => {
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub unsafe extern "C" fn AUV3_create_view_controller() -> *mut std::ffi::c_void {
             let vc = Box::new($crate::wrapper::au::ViewController::<$plugin>::new());
             Box::into_raw(vc) as *mut _
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub unsafe extern "C" fn AUV3_destroy_view_controller(
             view_controller: *mut std::ffi::c_void,
         ) {
@@ -29,7 +29,7 @@ macro_rules! audioplug_auv3_plugin {
             drop(vc);
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub unsafe extern "C" fn AUV3_create_audio_unit(
             view_controller: *mut std::ffi::c_void,
             desc: $crate::wrapper::au::AudioComponentDescription,
@@ -42,7 +42,7 @@ macro_rules! audioplug_auv3_plugin {
             ) as *mut _
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub unsafe extern "C" fn AUV3_create_view(
             view_controller: *mut std::ffi::c_void,
         ) -> *mut std::ffi::c_void {
@@ -51,7 +51,7 @@ macro_rules! audioplug_auv3_plugin {
             ) as *mut _
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub unsafe extern "C" fn AUV3_preferred_content_size(
             view_controller: *mut std::ffi::c_void,
         ) -> $crate::wrapper::au::CGSize {
@@ -60,7 +60,7 @@ macro_rules! audioplug_auv3_plugin {
             )
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub unsafe extern "C" fn AUV3_view_did_layout_subviews(
             view_controller: *mut std::ffi::c_void,
         ) {

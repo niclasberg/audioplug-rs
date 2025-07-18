@@ -2,9 +2,7 @@ use std::{any::Any, marker::PhantomData};
 
 use crate::app::{Accessor, Effect, Owner, ReactiveContext, ReadSignal};
 
-use super::{
-    accessor::SourceId, CreateContext, NodeId, NodeType, ReadContext, Readable, WriteContext,
-};
+use super::{CreateContext, NodeId, NodeType, ReadContext, Readable, WriteContext};
 
 pub struct Signal<T> {
     pub(super) id: NodeId,

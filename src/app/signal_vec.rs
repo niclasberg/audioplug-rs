@@ -3,8 +3,8 @@ use std::{any::Any, marker::PhantomData};
 use crate::app::Accessor;
 
 use super::{
-    accessor::SourceId, signal::SignalState, CreateContext, NodeId, NodeType, Owner, Readable,
-    Runtime, Trigger, WriteContext,
+    CreateContext, NodeId, NodeType, Owner, Readable, Runtime, Trigger, WriteContext,
+    signal::SignalState,
 };
 
 #[derive(Copy, Clone)]

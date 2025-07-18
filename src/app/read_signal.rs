@@ -1,15 +1,18 @@
 use std::marker::PhantomData;
 
 use crate::{
-    app::{
-        accessor::SourceId, Accessor, CreateContext, Effect, NodeId, ReadContext, Readable,
-        WatchContext,
-    },
+    app::{Accessor, CreateContext, Effect, NodeId, ReadContext, Readable, WatchContext},
     param::ParameterId,
 };
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReadSignalSource {
+    Node(NodeId),
+    Parameter(ParameterId),
+}
+
 pub struct ReadSignal<T> {
-    pub(super) source_id: SourceId,
+    source: ReadSignalSource,
     _marker: PhantomData<*const T>,
 }
 
@@ -30,14 +33,14 @@ impl<T> From<ReadSignal<T>> for Accessor<T> {
 impl<T> ReadSignal<T> {
     pub(super) fn from_node(node_id: NodeId) -> Self {
         Self {
-            source_id: SourceId::Node(node_id),
+            source: ReadSignalSource::Node(node_id),
             _marker: PhantomData,
         }
     }
 
     pub(crate) fn from_parameter(parameter_id: ParameterId) -> Self {
         Self {
-            source_id: SourceId::Parameter(parameter_id),
+            source: ReadSignalSource::Parameter(parameter_id),
             _marker: PhantomData,
         }
     }
@@ -48,11 +51,11 @@ impl<T: 'static> Readable for ReadSignal<T> {
 
     fn track(&self, cx: &mut dyn ReadContext) {
         let scope = cx.scope();
-        match self.source_id {
-            SourceId::Parameter(parameter_id) => {
+        match self.source {
+            ReadSignalSource::Parameter(parameter_id) => {
                 cx.runtime_mut().track_parameter(parameter_id, scope)
             }
-            SourceId::Node(node_id) => cx.runtime_mut().track(node_id, scope),
+            ReadSignalSource::Node(node_id) => cx.runtime_mut().track(node_id, scope),
         }
     }
 
@@ -61,8 +64,8 @@ impl<T: 'static> Readable for ReadSignal<T> {
         cx: &mut dyn super::ReactiveContext,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
-        match self.source_id {
-            SourceId::Parameter(parameter_id) => {
+        match self.source {
+            ReadSignalSource::Parameter(parameter_id) => {
                 let value = cx
                     .runtime()
                     .get_parameter_ref(parameter_id)
@@ -70,7 +73,7 @@ impl<T: 'static> Readable for ReadSignal<T> {
                     .unwrap();
                 f(&value)
             }
-            SourceId::Node(node_id) => {
+            ReadSignalSource::Node(node_id) => {
                 cx.runtime_mut().update_if_necessary(node_id);
                 let value = cx
                     .runtime_mut()
@@ -87,9 +90,11 @@ impl<T: 'static> Readable for ReadSignal<T> {
     where
         F: FnMut(&mut dyn WatchContext, &Self::Value) + 'static,
     {
-        match self.source_id {
-            SourceId::Parameter(parameter_id) => Effect::watch_parameter(cx, parameter_id, f),
-            SourceId::Node(node_id) => Effect::watch_node(cx, node_id, f),
+        match self.source {
+            ReadSignalSource::Parameter(parameter_id) => {
+                Effect::watch_parameter(cx, parameter_id, f)
+            }
+            ReadSignalSource::Node(node_id) => Effect::watch_node(cx, node_id, f),
         }
     }
 }

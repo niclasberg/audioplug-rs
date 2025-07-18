@@ -1,18 +1,18 @@
 use super::{
+    AppState, EventStatus, ParamContext, ReactiveContext, ReadContext, Scope, WidgetFlags,
+    WidgetId, WindowId, WriteContext,
     animation::{drive_animations, request_animation_frame},
     clipboard::Clipboard,
     invalidate_window,
     layout::request_layout,
     layout_window,
     render::invalidate_widget,
-    AppState, EventStatus, ParamContext, ReactiveContext, ReadContext, Scope, WidgetFlags,
-    WidgetId, WindowId, WriteContext,
 };
 use crate::{
-    app::{layout::LayoutMode, StatusChange, Widget, WidgetMut},
+    KeyEvent, MouseEvent,
+    app::{StatusChange, Widget, WidgetMut, layout::LayoutMode},
     core::{Key, Rectangle},
     platform::WindowEvent,
-    KeyEvent, MouseEvent,
 };
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
@@ -267,7 +267,7 @@ impl<'a> EventContext<'a> {
 
     fn dispatch_status_updated(&mut self, event: StatusChange) {
         let mut widget = self.app_state.widgets.remove(self.id).unwrap();
-        widget.status_updated(event, self);
+        widget.status_change(event, self);
         self.app_state.widgets.insert(self.id, widget);
     }
 

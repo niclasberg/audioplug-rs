@@ -252,7 +252,7 @@ impl Widget for KnobWidget {
         }
     }
 
-    fn status_updated(&mut self, event: StatusChange, cx: &mut EventContext) {
+    fn status_change(&mut self, event: StatusChange, cx: &mut EventContext) {
         if event == StatusChange::MouseCaptureLost {
             self.last_mouse_pos = None;
             if let Some(on_drag_end) = &self.on_drag_end {

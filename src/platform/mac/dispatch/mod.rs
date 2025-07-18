@@ -4,15 +4,12 @@ use std::{
     time::Duration,
 };
 
-use block2::{Block, IntoBlock, RcBlock};
+use block2::{Block, RcBlock};
 use c_enum::c_enum;
-use objc2::{
-    encode::{EncodeArguments, EncodeReturn},
-    Encode,
-};
+use objc2::Encode;
 use objc2_foundation::MainThreadMarker;
 
-use super::{IMut, IRef, IRefCounted};
+use super::{IRef, IRefCounted};
 
 type DispatchFunction = unsafe extern "C" fn(*mut c_void);
 type DispatchBlock = Block<dyn Fn()>;
@@ -38,11 +35,11 @@ pub struct DispatchQueue {
 
 unsafe impl IRefCounted for DispatchQueue {
     unsafe fn release(this: *const Self) {
-        dispatch_release(this);
+        unsafe { dispatch_release(this) };
     }
 
     unsafe fn retain(this: *const Self) {
-        dispatch_retain(this);
+        unsafe { dispatch_retain(this) };
     }
 }
 
@@ -69,7 +66,7 @@ impl DispatchQueue {
         unsafe { dispatch_async_f(self, Box::into_raw(f) as *mut _, trampoline_once::<F>) }
     }
 
-    pub fn dispatch_after<F>(&self, delay: Duration, f: F)
+    pub fn dispatch_after<F>(&self, _delay: Duration, _f: F)
     where
         F: FnOnce() + Send + 'static,
     {
@@ -88,7 +85,7 @@ pub struct MainThreadQueue {
 
 impl MainThreadQueue {
     pub fn new(_mtm: MainThreadMarker) -> Self {
-        let queue = unsafe { dispatch_get_main_queue() };
+        let queue = dispatch_get_main_queue();
         Self {
             queue,
             _marker: PhantomData,
@@ -105,7 +102,7 @@ impl MainThreadQueue {
 }
 
 unsafe extern "C" fn trampoline_once<F: FnOnce() + 'static>(context: *mut c_void) {
-    let f = Box::from_raw(context as *mut F);
+    let f = unsafe { Box::from_raw(context as *mut F) };
     (*f)();
 }
 
@@ -123,7 +120,7 @@ where
     B: Encode + Copy + Send + 'static,
     F: Fn(A, B) + Clone + 'static,
 {
-    let queue = unsafe { dispatch_get_main_queue() };
+    let queue = dispatch_get_main_queue();
     RcBlock::new(move |a: A, b: B| {
         let _f = f.clone();
         let f = Box::new(move || _f(a, b));
@@ -134,16 +131,23 @@ where
 }
 
 #[link(name = "System", kind = "dylib")]
-extern "C" {
+unsafe extern "C" {
     static _dispatch_main_q: DispatchQueue;
-    fn dispatch_get_global_queue(identifier: QueuePriority, flags: c_ulong) -> *mut DispatchQueue;
+    unsafe fn dispatch_get_global_queue(
+        identifier: QueuePriority,
+        flags: c_ulong,
+    ) -> *mut DispatchQueue;
 
-    fn dispatch_release(object: *const DispatchQueue);
-    fn dispatch_retain(object: *const DispatchQueue);
+    unsafe fn dispatch_release(object: *const DispatchQueue);
+    unsafe fn dispatch_retain(object: *const DispatchQueue);
 
-    fn dispatch_async(queue: *const DispatchQueue, block: *mut DispatchBlock);
-    fn dispatch_async_f(queue: *const DispatchQueue, context: *mut c_void, work: DispatchFunction);
-    fn dispatch_after_f(
+    unsafe fn dispatch_async(queue: *const DispatchQueue, block: *mut DispatchBlock);
+    unsafe fn dispatch_async_f(
+        queue: *const DispatchQueue,
+        context: *mut c_void,
+        work: DispatchFunction,
+    );
+    unsafe fn dispatch_after_f(
         when: DispatchTime,
         queue: *const DispatchQueue,
         context: *mut c_void,

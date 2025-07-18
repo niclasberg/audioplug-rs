@@ -1,25 +1,25 @@
 use super::{
+    BuildContext, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext, ReadContext,
+    Runtime, Signal, View, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef,
+    WindowId, WriteContext,
     clipboard::Clipboard,
     effect::{BindingFn, EffectContext},
-    layout_window, BuildContext, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext,
-    ReadContext, Runtime, Signal, View, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut,
-    WidgetRef, WindowId, WriteContext,
+    layout_window,
 };
 use crate::{
     app::{
+        AnyView, FxIndexSet, ReadSignal, Scope, WidgetContext,
         effect::{EffectFn, WatchContext},
         event_channel::HandleEventFn,
         event_handling::{set_focus_widget, set_mouse_capture_widget},
         layout::LayoutMode,
         overlay::{OverlayContainer, OverlayOptions},
-        AnyView, FxIndexSet, ReadSignal, Scope, WidgetContext,
     },
     core::{Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
     style::StyleBuilder,
 };
-use rustc_hash::FxBuildHasher;
 use slotmap::{Key, SecondaryMap, SlotMap};
 use std::{
     any::Any,

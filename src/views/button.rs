@@ -103,7 +103,7 @@ impl Widget for ButtonWidget {
         }
     }
 
-    fn status_updated(&mut self, event: StatusChange, ctx: &mut EventContext) {
+    fn status_change(&mut self, event: StatusChange, ctx: &mut EventContext) {
         match event {
             StatusChange::FocusGained => {
                 self.is_hot = true;

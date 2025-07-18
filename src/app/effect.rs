@@ -1,5 +1,5 @@
 use crate::{
-    app::{accessor::SourceId, TypedWidgetId, Widget, WidgetContext, WidgetMut, WidgetRef},
+    app::{TypedWidgetId, Widget, WidgetContext, WidgetMut, WidgetRef},
     param::ParameterId,
 };
 
@@ -89,8 +89,8 @@ impl Effect {
         mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
     ) -> Self {
         let owner = cx.owner();
-        let id = cx.runtime_mut().create_binding_node(
-            SourceId::Parameter(parameter_id),
+        let id = cx.runtime_mut().create_parameter_binding_node(
+            parameter_id,
             BindingState::new(move |cx| {
                 let value = cx
                     .runtime()
@@ -111,8 +111,8 @@ impl Effect {
         mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
     ) -> Self {
         let owner = cx.owner();
-        let id = cx.runtime_mut().create_binding_node(
-            SourceId::Node(node_id),
+        let id = cx.runtime_mut().create_node_binding_node(
+            node_id,
             BindingState::new(move |cx| {
                 cx.runtime_mut().update_if_necessary(node_id);
                 if let Some(node) = cx.runtime_mut().lease_node(node_id) {

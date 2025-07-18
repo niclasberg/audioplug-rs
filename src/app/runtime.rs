@@ -1,24 +1,19 @@
 use super::{
-    accessor::SourceId,
+    NodeId, ReactiveContext, ReadContext, WidgetId, WindowId, WriteContext,
     animation::{AnimationState, DerivedAnimationState},
     app_state::Task,
     effect::{BindingState, EffectState},
     event_channel::EventHandlerState,
     memo::MemoState,
     signal::SignalState,
-    NodeId, ReactiveContext, ReadContext, WidgetId, WindowId, WriteContext,
 };
 use crate::{
-    app::{FxHashMap, FxHashSet},
+    app::{FxHashMap, FxHashSet, FxIndexMap, FxIndexSet, widget_status::WidgetStatusFlags},
     param::{AnyParameterMap, ParamRef, ParameterId},
 };
-use indexmap::IndexSet;
 use slotmap::{SecondaryMap, SlotMap};
-use std::{
-    any::Any,
-    collections::{HashSet, VecDeque},
-    rc::Rc,
-};
+use smallvec::SmallVec;
+use std::{any::Any, collections::VecDeque, rc::Rc};
 
 pub struct Node {
     pub(super) node_type: NodeType,
@@ -29,6 +24,13 @@ pub struct Node {
 pub enum Owner {
     Widget(WidgetId),
     Node(NodeId),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum SourceId {
+    Parameter(ParameterId),
+    Node(NodeId),
+    Widget(WidgetId),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -96,31 +98,29 @@ impl NodeType {
 }
 
 pub struct SubscriberMap {
-    pub(super) sources: SecondaryMap<NodeId, IndexSet<NodeId>>,
-    pub(super) observers: SecondaryMap<NodeId, IndexSet<NodeId>>,
-    parameter_subscriptions: FxHashMap<ParameterId, IndexSet<NodeId>>,
-    parameter_dependencies: SecondaryMap<NodeId, IndexSet<ParameterId>>,
+    sources: SecondaryMap<NodeId, SmallVec<[SourceId; 4]>>,
+    observers: SecondaryMap<NodeId, FxIndexSet<NodeId>>,
+    parameter_observers: FxHashMap<ParameterId, FxIndexSet<NodeId>>,
+    widget_observers: SecondaryMap<WidgetId, SmallVec<[(NodeId, WidgetStatusFlags); 4]>>,
 }
 
 impl SubscriberMap {
     fn new(parameter_ids: &Vec<ParameterId>) -> Self {
         let mut parameter_subscriptions = FxHashMap::default();
         for &parameter_id in parameter_ids {
-            parameter_subscriptions.insert(parameter_id, IndexSet::new());
+            parameter_subscriptions.insert(parameter_id, FxIndexSet::default());
         }
 
         Self {
             sources: Default::default(),
             observers: Default::default(),
-            parameter_subscriptions,
-            parameter_dependencies: Default::default(),
+            parameter_observers: parameter_subscriptions,
+            widget_observers: Default::default(),
         }
     }
 
     pub fn insert_node(&mut self, node_id: NodeId) {
-        self.sources.insert(node_id, IndexSet::new());
-        self.observers.insert(node_id, IndexSet::new());
-        self.parameter_dependencies.insert(node_id, IndexSet::new());
+        self.observers.insert(node_id, FxIndexSet::default());
     }
 
     pub fn remove_node(&mut self, id: NodeId) {
@@ -129,55 +129,97 @@ impl SubscriberMap {
             .observers
             .remove(id)
             .expect("Missing observers for node");
-        for node_id in observers {
-            self.sources[node_id].swap_remove(&id);
+        for observer_id in observers {
+            self.sources[observer_id].retain(|source_id| *source_id != SourceId::Node(id));
         }
 
         // Remove other nodes' subscriptions to this node
-        let sources = self.sources.remove(id).expect("Missing sources for node");
-        for node_id in sources {
-            self.observers[node_id].swap_remove(&id);
+        if let Some(sources) = self.sources.remove(id) {
+            for source_id in sources {
+                Self::remove_source_from_observer(
+                    &mut self.observers,
+                    &mut self.parameter_observers,
+                    &mut self.widget_observers,
+                    source_id,
+                    id,
+                );
+            }
         }
+    }
 
-        // Remove parameter subcriptions
-        let parameter_dependencies = self
-            .parameter_dependencies
-            .remove(id)
-            .expect("Missing parameter dependencies for node");
-        for parameter_id in parameter_dependencies {
-            self.parameter_subscriptions
-                .get_mut(&parameter_id)
-                .expect("Missing parameter subscription")
-                .swap_remove(&id);
+    #[inline(always)]
+    fn remove_source_from_observer(
+        observers: &mut SecondaryMap<NodeId, FxIndexSet<NodeId>>,
+        parameter_observers: &mut FxHashMap<ParameterId, FxIndexSet<NodeId>>,
+        widget_observers: &mut SecondaryMap<WidgetId, SmallVec<[(NodeId, WidgetStatusFlags); 4]>>,
+        source_id: SourceId,
+        observer_id: NodeId,
+    ) {
+        match source_id {
+            SourceId::Parameter(parameter_id) => {
+                parameter_observers
+                    .get_mut(&parameter_id)
+                    .expect("Missing parameter subscription")
+                    .swap_remove(&observer_id);
+            }
+            SourceId::Node(node_id) => {
+                observers[node_id].swap_remove(&observer_id);
+            }
+            SourceId::Widget(widget_id) => {
+                widget_observers[widget_id].retain(|(node_id, _)| *node_id != observer_id);
+            }
         }
     }
 
     pub fn clear_node_sources(&mut self, node_id: NodeId) {
-        let sources = self
-            .sources
-            .get_mut(node_id)
-            .expect("Missing sources for node");
-        for node_id in sources.drain(..) {
-            self.observers[node_id].swap_remove(&node_id);
+        if let Some(sources) = self.sources.get_mut(node_id) {
+            for source_id in sources.drain(..) {
+                Self::remove_source_from_observer(
+                    &mut self.observers,
+                    &mut self.parameter_observers,
+                    &mut self.widget_observers,
+                    source_id,
+                    node_id,
+                );
+            }
         }
     }
 
     pub fn add_parameter_subscription(&mut self, source_id: ParameterId, observer_id: NodeId) {
-        self.parameter_subscriptions
+        self.parameter_observers
             .get_mut(&source_id)
             .unwrap()
             .insert(observer_id);
-        self.parameter_dependencies[observer_id].insert(source_id);
+        self.sources
+            .entry(observer_id)
+            .unwrap()
+            .or_default()
+            .push(SourceId::Parameter(source_id));
     }
 
     pub fn add_node_subscription(&mut self, source_id: NodeId, observer_id: NodeId) {
-        self.sources[observer_id].insert(source_id);
         self.observers[source_id].insert(observer_id);
+        self.sources
+            .entry(observer_id)
+            .unwrap()
+            .or_default()
+            .push(SourceId::Node(source_id));
     }
 
-    pub fn remove_subscription(&mut self, source_id: NodeId, observer_id: NodeId) {
-        self.sources[source_id].swap_remove(&observer_id);
-        self.observers[observer_id].swap_remove(&source_id);
+    pub fn add_widget_status_subscription(
+        &mut self,
+        widget_id: WidgetId,
+        status_mask: WidgetStatusFlags,
+        observer_id: NodeId,
+    ) {
+        // Maybe check if it exists and then merge masks?
+        let observers = self.widget_observers.entry(widget_id).unwrap().or_default();
+        observers.push((observer_id, status_mask));
+        self.sources
+            .entry(observer_id)
+            .unwrap()
+            .or_default()
+            .push(SourceId::Widget(widget_id));
     }
 }
 
@@ -234,19 +276,25 @@ impl Runtime {
         self.create_node(NodeType::Trigger, NodeState::Clean, owner)
     }
 
-    pub(crate) fn create_binding_node(
+    pub(crate) fn create_node_binding_node(
         &mut self,
-        source: SourceId,
+        source: NodeId,
         state: BindingState,
         owner: Option<Owner>,
     ) -> NodeId {
         let id = self.create_node(NodeType::Binding(state), NodeState::Clean, owner);
-        match source {
-            SourceId::Parameter(source_id) => {
-                self.subscriptions.add_parameter_subscription(source_id, id)
-            }
-            SourceId::Node(source_id) => self.subscriptions.add_node_subscription(source_id, id),
-        };
+        self.subscriptions.add_node_subscription(source, id);
+        id
+    }
+
+    pub(crate) fn create_parameter_binding_node(
+        &mut self,
+        source: ParameterId,
+        state: BindingState,
+        owner: Option<Owner>,
+    ) -> NodeId {
+        let id = self.create_node(NodeType::Binding(state), NodeState::Clean, owner);
+        self.subscriptions.add_parameter_subscription(source, id);
         id
     }
 
@@ -376,7 +424,7 @@ impl Runtime {
     }
 
     fn notify_source_changed(&mut self, mut nodes_to_notify: VecDeque<NodeId>) {
-        let mut nodes_to_check = HashSet::new();
+        let mut nodes_to_check = FxHashSet::default();
 
         {
             let direct_child_count = nodes_to_notify.len();
@@ -420,9 +468,11 @@ impl Runtime {
 
         if self.nodes[node_id].state == NodeState::Check {
             for source_id in self.subscriptions.sources[node_id].clone() {
-                self.update_if_necessary(source_id);
-                if self.nodes[node_id].state == NodeState::Dirty {
-                    break;
+                if let SourceId::Node(source_id) = source_id {
+                    self.update_if_necessary(source_id);
+                    if self.nodes[node_id].state == NodeState::Dirty {
+                        break;
+                    }
                 }
             }
         }
@@ -487,7 +537,7 @@ impl Runtime {
         nodes_to_notify.clear();
         nodes_to_notify.extend(
             self.subscriptions
-                .parameter_subscriptions
+                .parameter_observers
                 .get_mut(&source_id)
                 .unwrap()
                 .iter(),
@@ -516,11 +566,20 @@ impl Runtime {
         }
     }
 
-    pub fn track_parameter(&mut self, source_id: crate::param::ParameterId, scope: Scope) {
+    pub fn track_parameter(&mut self, source_id: ParameterId, scope: Scope) {
         if let Scope::Node(node_id) = scope {
             self.subscriptions
                 .add_parameter_subscription(source_id, node_id);
         }
+    }
+
+    pub fn track_widget_status(
+        &mut self,
+        widget_id: WidgetId,
+        status_mask: WidgetStatusFlags,
+        scope: Scope,
+    ) {
+        if let Scope::Node(node_id) = scope {}
     }
 }
 

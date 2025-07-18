@@ -23,6 +23,7 @@ mod view_sequence;
 mod widget;
 mod widget_data;
 mod widget_ref;
+mod widget_status;
 mod window;
 
 use std::{
@@ -38,20 +39,20 @@ pub use animation::{
 };
 pub(crate) use app_state::AppState;
 pub use effect::{Effect, EffectContext, EffectState, WatchContext};
-pub use event_channel::{create_event_channel, EventChannel, EventReceiver};
-pub use event_handling::{handle_window_event, CallbackContext, EventContext, MouseEventContext};
+pub use event_channel::{EventChannel, EventReceiver, create_event_channel};
+pub use event_handling::{CallbackContext, EventContext, MouseEventContext, handle_window_event};
 pub use host_handle::HostHandle;
 use indexmap::{IndexMap, IndexSet};
-pub use layout::{layout_window, LayoutContext};
+pub use layout::{LayoutContext, layout_window};
 pub use memo::{Memo, MemoContext};
 pub use overlay::{OverlayAnchor, OverlayOptions};
 pub use param::{ParamContext, ParamSetter};
 pub use read_signal::ReadSignal;
 pub use readable::*;
 pub use render::{
-    invalidate_window, render_window, Brush, BrushRef, Canvas, CanvasContext, CanvasWidget,
-    LinearGradient, PathGeometry, PathGeometryBuilder, RadialGradient, RenderContext, Shape,
-    ShapeRef, TextLayout,
+    Brush, BrushRef, Canvas, CanvasContext, CanvasWidget, LinearGradient, PathGeometry,
+    PathGeometryBuilder, RadialGradient, RenderContext, Shape, ShapeRef, TextLayout,
+    invalidate_window, render_window,
 };
 pub use runtime::*;
 use rustc_hash::FxBuildHasher;

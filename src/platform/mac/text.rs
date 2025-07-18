@@ -8,9 +8,9 @@ use objc2_core_foundation::{
 };
 use objc2_core_graphics::{CGColor, CGPath};
 use objc2_core_text::{
-    kCTFontAttributeName, kCTFontFamilyNameAttribute, kCTFontSlantTrait, kCTFontTraitsAttribute,
-    kCTFontWeightTrait, kCTForegroundColorAttributeName, CTFont, CTFontDescriptor, CTFrame,
-    CTFramesetter, CTLine,
+    CTFont, CTFontDescriptor, CTFrame, CTFramesetter, CTLine, kCTFontAttributeName,
+    kCTFontFamilyNameAttribute, kCTFontSlantTrait, kCTFontTraitsAttribute, kCTFontWeightTrait,
+    kCTForegroundColorAttributeName,
 };
 
 use super::conversions::{cfrange_contains, cfstring_from_str, cgcolor_from_color};
@@ -114,9 +114,9 @@ fn get_lines_from_frame(frame: &CTFrame) -> Vec<TextLine> {
         let mut lines = Vec::<CFRetained<CTLine>>::new();
 
         unsafe extern "C-unwind" fn push_line(line_ptr: *const c_void, lines_vec: *mut c_void) {
-            let lines = &mut *(lines_vec as *mut Vec<CFRetained<CTLine>>);
-            let line = NonNull::new_unchecked(std::mem::transmute(line_ptr));
-            lines.push(CFRetained::retain(line));
+            let line = unsafe { NonNull::new_unchecked(std::mem::transmute(line_ptr)) };
+            let lines = unsafe { &mut *(lines_vec as *mut Vec<CFRetained<CTLine>>) };
+            lines.push(unsafe { CFRetained::retain(line) });
         }
 
         lines_array.apply_function(

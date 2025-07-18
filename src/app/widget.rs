@@ -3,9 +3,9 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crate::{style::DisplayStyle, AnimationFrame, KeyEvent, MouseEvent};
+use crate::{AnimationFrame, KeyEvent, MouseEvent, app::ReadSignal, style::DisplayStyle};
 
-use super::{animation::AnimationContext, EventContext, MouseEventContext, RenderContext};
+use super::{EventContext, MouseEventContext, RenderContext, animation::AnimationContext};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EventStatus {
@@ -44,7 +44,7 @@ pub trait Widget: Any {
     }
 
     #[allow(unused_variables)]
-    fn status_updated(&mut self, event: StatusChange, cx: &mut EventContext) {}
+    fn status_change(&mut self, event: StatusChange, cx: &mut EventContext) {}
 
     #[allow(unused_variables)]
     fn animation_frame(&mut self, frame: AnimationFrame, cx: &mut AnimationContext) {}
@@ -99,8 +99,8 @@ impl Widget for Box<dyn Widget> {
         self.deref_mut().key_event(event, ctx)
     }
 
-    fn status_updated(&mut self, event: StatusChange, ctx: &mut EventContext) {
-        self.deref_mut().status_updated(event, ctx)
+    fn status_change(&mut self, event: StatusChange, ctx: &mut EventContext) {
+        self.deref_mut().status_change(event, ctx)
     }
 
     fn animation_frame(&mut self, frame: AnimationFrame, ctx: &mut AnimationContext) {
@@ -150,7 +150,7 @@ pub trait WrappedWidget: Any {
     }
 
     fn status_updated(&mut self, event: StatusChange, cx: &mut EventContext) {
-        self.inner_mut().status_updated(event, cx);
+        self.inner_mut().status_change(event, cx);
     }
 
     fn animation_frame(&mut self, frame: AnimationFrame, cx: &mut AnimationContext) {
@@ -179,7 +179,7 @@ impl<T: WrappedWidget> Widget for T {
         self.key_event(event, cx)
     }
 
-    fn status_updated(&mut self, event: StatusChange, cx: &mut EventContext) {
+    fn status_change(&mut self, event: StatusChange, cx: &mut EventContext) {
         self.status_updated(event, cx);
     }
 

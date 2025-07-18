@@ -1,11 +1,8 @@
-use std::{any::Any, marker::PhantomData};
+use std::marker::PhantomData;
 
-use crate::{
-    app::{Accessor, ReadSignal},
-    param::{AnyParameter, NormalizedValue, Parameter, ParameterId, ParameterInfo, PlainValue},
-};
+use crate::param::{AnyParameter, NormalizedValue, ParameterId, ParameterInfo, PlainValue};
 
-use super::{accessor::SourceId, HostHandle, ReactiveContext, ReadContext, Readable};
+use super::{HostHandle, ReactiveContext};
 
 pub trait ParamContext: ReactiveContext {
     fn host_handle(&self) -> &dyn HostHandle;

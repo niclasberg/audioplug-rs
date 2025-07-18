@@ -33,7 +33,7 @@ fn main() {
     let _ = Window::open(
         &mut app,
         Stateful::new(|cx| {
-            let items = Signal::new_with(cx, |cx| vec![Todo::new(cx, "Item1", false)]);
+            let todos = Signal::new_with(cx, |cx| vec![Todo::new(cx, "Item1", false)]);
             let text_input = Signal::new(cx, "".to_string());
             Container::new(Column::new((
                 Label::new("TODO app"),
@@ -44,7 +44,7 @@ fn main() {
                             if Key::Enter == key {
                                 let title = text_input.get_untracked(cx);
                                 if !title.is_empty() {
-                                    items.update(cx, move |cx, todos| {
+                                    todos.update(cx, move |cx, todos| {
                                         todos.push(Todo::new(cx, &title, false))
                                     });
                                     text_input.set(cx, "".to_string());
@@ -57,23 +57,23 @@ fn main() {
                     }),
                 Row::new((
                     Button::new_with_label("Shuffle").on_click(move |cx| {
-                        items.update(cx, move |_, items| {
+                        todos.update(cx, move |_, items| {
                             items.shuffle(&mut rand::rng());
                         });
                     }),
                     Button::new_with_label("Sort").on_click(move |cx| {
-                        items.update(cx, move |cx, items| {
+                        todos.update(cx, move |cx, items| {
                             items.sort_by_key(|item| item.name.get_untracked(cx));
                         });
                     }),
                 )),
-                Column::new(items.map_to_views_keyed(
+                Column::new(todos.map_to_views_keyed(
                     |todo| todo.index,
                     move |todo| {
                         let index = todo.index;
                         todo_view(todo, {
                             move |cx| {
-                                items.update(cx, |_, items| {
+                                todos.update(cx, |_, items| {
                                     items.retain(|x| x.index != index);
                                 });
                             }

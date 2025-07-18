@@ -3,8 +3,8 @@ use std::{any::Any, hash::Hash, marker::PhantomData};
 use rustc_hash::FxBuildHasher;
 
 use crate::app::{
-    diff::DiffOp, Accessor, AnyView, BuildContext, Computed, Effect, FxIndexSet, View,
-    ViewSequence, WatchContext, Widget, WidgetId, WidgetMut, WidgetRef,
+    Accessor, AnyView, BuildContext, Computed, Effect, FxIndexSet, View, ViewSequence,
+    WatchContext, Widget, WidgetId, WidgetMut, WidgetRef,
 };
 
 use super::{Owner, Runtime, Scope, WindowId};
