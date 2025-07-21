@@ -1,5 +1,5 @@
 use super::{
-    NodeId, ReactiveContext, ReadContext, WriteContext,
+    NodeId,
     animation::{AnimationState, DerivedAnimationState},
     cached::CachedState,
     effect::{BindingState, EffectState},
@@ -7,19 +7,19 @@ use super::{
     var::SignalState,
 };
 use crate::{
+    param::{AnyParameterMap, ParamRef, ParameterId},
     ui::{
-        FxHashMap, FxHashSet, FxIndexSet, WidgetId, WindowId, app_state::Task,
+        AppState, FxHashMap, FxHashSet, FxIndexSet, WidgetId, app_state::Task,
         widget_status::WidgetStatusFlags,
     },
-    param::{AnyParameterMap, ParamRef, ParameterId},
 };
 use slotmap::{SecondaryMap, SlotMap};
 use smallvec::SmallVec;
 use std::{any::Any, collections::VecDeque, rc::Rc, time::Instant};
 
 pub struct Node {
-    pub(super) node_type: NodeType,
-    state: NodeState,
+    pub(crate) node_type: NodeType,
+    pub(crate) state: NodeState,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -52,7 +52,7 @@ pub enum Scope {
 }*/
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
-enum NodeState {
+pub enum NodeState {
     /// Reactive value is valid, no need to recompute
     Clean = 0,
     /// Reactive value might be stale, check parent nodes to decide whether to recompute
@@ -95,6 +95,55 @@ impl NodeType {
             NodeType::EventHandler(_) => {
                 panic!("Cannot get value of EventHandler")
             }
+        }
+    }
+
+    pub fn update(&mut self, node_id: NodeId, app_state: &mut AppState) {
+        match self {
+            NodeType::Effect(EffectState { f }) => {
+                // Clear the sources, they will be re-populated while running the effect function
+                app_state.runtime.subscriptions.clear_node_sources(node_id);
+                let task = Task::RunEffect {
+                    id: node_id,
+                    f: Rc::downgrade(f),
+                };
+                app_state.push_task(task);
+            }
+            NodeType::Binding(BindingState { f }) => {
+                let task = Task::UpdateBinding {
+                    f: Rc::downgrade(f),
+                    node_id,
+                };
+                app_state.push_task(task);
+            }
+            NodeType::DerivedAnimation(anim) => {
+                // Clear the sources, they will be re-populated while running the reset function
+                app_state.runtime.subscriptions.clear_node_sources(node_id);
+                if anim.reset(node_id, self) {
+                    app_state.request_animation(anim.window_id, node_id);
+                }
+            }
+            NodeType::Memo(memo) => {
+                // Clear the sources, they will be re-populated while running the memo function
+                app_state.runtime.subscriptions.clear_node_sources(node_id);
+                if memo.eval(node_id, self) {
+                    for &observer_id in app_state.runtime.subscriptions.observers[node_id].iter() {
+                        app_state.runtime.nodes[observer_id].state = NodeState::Dirty;
+                    }
+                }
+            }
+            NodeType::Animation(..) => {
+                panic!("Animations cannot depend on other reactive nodes")
+            }
+            NodeType::Trigger => panic!("Triggers cannot depend on other reactive nodes"),
+            NodeType::Signal(_) => panic!("Signals cannot depend on other reactive nodes"),
+            NodeType::EventEmitter => {
+                panic!("Event emitters cannot depend on other reactive nodes")
+            }
+            NodeType::EventHandler(..) => {
+                panic!("Event handlers should not be notified, use publish_event instead")
+            }
+            NodeType::TmpRemoved => panic!("Circular dependency?"),
         }
     }
 }
@@ -225,24 +274,20 @@ impl SubscriberMap {
     }
 }
 
-pub struct Runtime {
+pub struct ReactiveGraph {
     nodes: SlotMap<NodeId, Node>,
     pub(crate) subscriptions: SubscriberMap,
-    pending_tasks: VecDeque<Task>,
     pub(crate) parameters: Rc<dyn AnyParameterMap>,
-    scratch_buffer: VecDeque<NodeId>,
     nodes_owned_by_node: SecondaryMap<NodeId, FxHashSet<NodeId>>,
     nodes_owned_by_widget: SecondaryMap<WidgetId, FxHashSet<NodeId>>,
 }
 
-impl Runtime {
+impl ReactiveGraph {
     pub fn new(parameter_map: Rc<dyn AnyParameterMap>) -> Self {
         Self {
             nodes: Default::default(),
             subscriptions: SubscriberMap::new(&parameter_map.parameter_ids()),
-            pending_tasks: Default::default(),
             parameters: parameter_map,
-            scratch_buffer: Default::default(),
             nodes_owned_by_node: Default::default(),
             nodes_owned_by_widget: Default::default(),
         }
@@ -426,153 +471,11 @@ impl Runtime {
         std::mem::swap(&mut self.nodes[node_id].node_type, &mut node);
     }
 
-    pub fn notify(&mut self, node_id: NodeId) {
-        let mut observers = std::mem::take(&mut self.scratch_buffer);
-        observers.clear();
-        observers.extend(self.subscriptions.observers[node_id].iter());
-        self.notify_source_changed(observers);
-    }
-
-    fn notify_source_changed(&mut self, mut nodes_to_notify: VecDeque<NodeId>) {
-        let mut nodes_to_check = FxHashSet::default();
-
-        {
-            let direct_child_count = nodes_to_notify.len();
-            let mut i = 0;
-            while let Some(node_id) = nodes_to_notify.pop_front() {
-                // Mark direct nodes as Dirty and grand-children as Check
-                let new_state = if i < direct_child_count {
-                    NodeState::Dirty
-                } else {
-                    NodeState::Check
-                };
-                let node = self.nodes.get_mut(node_id).expect("Node has been removed");
-                if node.state < new_state {
-                    node.state = new_state;
-                    match &node.node_type {
-                        NodeType::Effect(_)
-                        | NodeType::Binding(_)
-                        | NodeType::DerivedAnimation(_) => {
-                            nodes_to_check.insert(node_id);
-                        }
-                        _ => {}
-                    }
-                    nodes_to_notify.extend(self.subscriptions.observers[node_id].iter());
-                }
-                i += 1;
-            }
-        }
-
-        // Swap back the scratch buffer. Saves us from having to reallocate
-        std::mem::swap(&mut self.scratch_buffer, &mut nodes_to_notify);
-
-        for node_id in nodes_to_check {
-            self.update_if_necessary(node_id);
-        }
-    }
-
-    pub fn update_if_necessary(&mut self, node_id: NodeId) {
-        if self.nodes[node_id].state == NodeState::Clean {
-            return;
-        }
-
-        if self.nodes[node_id].state == NodeState::Check {
-            for source_id in self.subscriptions.sources[node_id].clone() {
-                if let SourceId::Node(source_id) = source_id {
-                    self.update_if_necessary(source_id);
-                    if self.nodes[node_id].state == NodeState::Dirty {
-                        break;
-                    }
-                }
-            }
-        }
-
-        if self.nodes[node_id].state == NodeState::Dirty {
-            let mut node_type =
-                std::mem::replace(&mut self.nodes[node_id].node_type, NodeType::TmpRemoved);
-            match &mut node_type {
-                NodeType::Effect(EffectState { f }) => {
-                    // Clear the sources, they will be re-populated while running the effect function
-                    self.subscriptions.clear_node_sources(node_id);
-                    let task = Task::RunEffect {
-                        id: node_id,
-                        f: Rc::downgrade(f),
-                    };
-                    self.pending_tasks.push_back(task);
-                }
-                NodeType::Binding(BindingState { f }) => {
-                    let task = Task::UpdateBinding {
-                        f: Rc::downgrade(f),
-                        node_id,
-                    };
-                    self.pending_tasks.push_back(task);
-                }
-                NodeType::DerivedAnimation(anim) => {
-                    // Clear the sources, they will be re-populated while running the reset function
-                    self.subscriptions.clear_node_sources(node_id);
-                    if anim.reset(node_id, self) {
-                        self.request_animation(anim.window_id, node_id);
-                    }
-                }
-                NodeType::Memo(memo) => {
-                    // Clear the sources, they will be re-populated while running the memo function
-                    self.subscriptions.clear_node_sources(node_id);
-                    if memo.eval(node_id, self) {
-                        for &observer_id in self.subscriptions.observers[node_id].iter() {
-                            self.nodes[observer_id].state = NodeState::Dirty;
-                        }
-                    }
-                }
-                NodeType::Animation(..) => {
-                    panic!("Animations cannot depend on other reactive nodes")
-                }
-                NodeType::Trigger => panic!("Triggers cannot depend on other reactive nodes"),
-                NodeType::Signal(_) => panic!("Signals cannot depend on other reactive nodes"),
-                NodeType::EventEmitter => {
-                    panic!("Event emitters cannot depend on other reactive nodes")
-                }
-                NodeType::EventHandler(..) => {
-                    panic!("Event handlers should not be notified, use publish_event instead")
-                }
-                NodeType::TmpRemoved => panic!("Circular dependency?"),
-            }
-            std::mem::swap(&mut self.nodes[node_id].node_type, &mut node_type);
-        }
-
-        self.nodes[node_id].state = NodeState::Clean;
-    }
-
-    pub(crate) fn notify_parameter_subscribers(&mut self, source_id: ParameterId) {
-        let mut nodes_to_notify = std::mem::take(&mut self.scratch_buffer);
-        nodes_to_notify.clear();
-        nodes_to_notify.extend(
-            self.subscriptions
-                .parameter_observers
-                .get_mut(&source_id)
-                .unwrap()
-                .iter(),
-        );
-        self.notify_source_changed(nodes_to_notify);
-    }
-
     pub(crate) fn mark_node_as_clean(&mut self, node_id: NodeId) {
         self.nodes[node_id].state = NodeState::Clean;
     }
 
-    pub(crate) fn push_task(&mut self, task: Task) {
-        self.pending_tasks.push_back(task);
-    }
-
-    pub(crate) fn take_tasks(&mut self) -> VecDeque<Task> {
-        std::mem::take(&mut self.pending_tasks)
-    }
-
     pub fn publish_event(&mut self, _source_id: NodeId, _event: Rc<dyn Any>) {}
-
-    pub(super) fn request_animation(&mut self, window_id: WindowId, node_id: NodeId) {
-        let task = Task::UpdateAnimation { node_id, window_id };
-        self.pending_tasks.push_back(task);
-    }
 
     pub fn track(&mut self, source_id: NodeId, scope: Scope) {
         if let Scope::Node(node_id) = scope {
@@ -594,24 +497,6 @@ impl Runtime {
         scope: Scope,
     ) {
         if let Scope::Node(node_id) = scope {}
-    }
-}
-
-impl ReactiveContext for Runtime {
-    fn runtime(&self) -> &Runtime {
-        self
-    }
-
-    fn runtime_mut(&mut self) -> &mut Runtime {
-        self
-    }
-}
-
-impl WriteContext for Runtime {}
-
-impl ReadContext for Runtime {
-    fn scope(&self) -> Scope {
-        Scope::Root
     }
 }
 

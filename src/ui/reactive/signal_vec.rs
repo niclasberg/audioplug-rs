@@ -3,7 +3,7 @@ use std::{any::Any, marker::PhantomData};
 use crate::ui::Accessor;
 
 use super::{
-    CreateContext, NodeId, NodeType, Owner, ReactiveValue, Runtime, Trigger, WriteContext,
+    CreateContext, NodeId, NodeType, Owner, ReactiveValue, ReactiveGraph, Trigger, WriteContext,
     var::SignalState,
 };
 
@@ -51,7 +51,7 @@ impl<T: Any> SignalVec<T> {
         cx.runtime_mut().notify(self.id);
     }
 
-    fn with_inner<R>(&self, cx: &Runtime, f: impl FnOnce(&Inner<T>) -> R) -> R {
+    fn with_inner<R>(&self, cx: &ReactiveGraph, f: impl FnOnce(&Inner<T>) -> R) -> R {
         let value = match &cx.get_node(self.id).node_type {
             NodeType::Signal(signal) => signal.value.as_ref(),
             _ => unreachable!(),
@@ -59,7 +59,7 @@ impl<T: Any> SignalVec<T> {
         f(value.downcast_ref().expect("Signal had wrong type"))
     }
 
-    fn with_inner_mut<R>(&self, cx: &mut Runtime, f: impl FnOnce(&mut Inner<T>) -> R) -> R {
+    fn with_inner_mut<R>(&self, cx: &mut ReactiveGraph, f: impl FnOnce(&mut Inner<T>) -> R) -> R {
         let value = match &mut cx.get_node_mut(self.id).node_type {
             NodeType::Signal(signal) => signal.value.as_mut(),
             _ => unreachable!(),

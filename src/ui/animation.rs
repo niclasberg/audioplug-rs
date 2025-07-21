@@ -2,10 +2,7 @@ use std::time::Instant;
 
 use crate::{
     AnimationFrame,
-    ui::{
-        AppState, ReactiveContext, WidgetId, WindowId, layout::request_layout,
-        render::invalidate_widget,
-    },
+    ui::{AppState, WidgetId, WindowId, layout::request_layout, render::invalidate_widget},
 };
 
 /// Should be called when the animation timer for a window ticks.
@@ -27,9 +24,9 @@ pub(super) fn drive_animations(
     let node_ids = std::mem::take(&mut app_state.window_mut(window_id).pending_node_animations);
     let now = Instant::now();
     for node_id in node_ids {
-        let did_change = app_state.runtime_mut().try_drive_animation(node_id, now);
+        let did_change = app_state.runtime.try_drive_animation(node_id, now);
         if did_change {
-            app_state.runtime_mut().notify(node_id);
+            app_state.notify(node_id);
             // Re-queue the animation for the next frame
             app_state
                 .window_mut(window_id)

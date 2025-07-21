@@ -3,26 +3,26 @@ use std::{any::Any, hash::Hash, marker::PhantomData};
 use rustc_hash::FxBuildHasher;
 
 use crate::ui::{
-    Accessor, AnyView, BuildContext, Computed, Effect, FxIndexSet, View, ViewSequence,
-    WatchContext, Widget, WidgetId, WidgetMut, WidgetRef, WindowId,
+    Accessor, AnyView, AppState, BuildContext, Computed, Effect, FxIndexSet, View, ViewSequence,
+    WatchContext, Widget, WidgetId, WidgetMut, WidgetRef, WindowId, widget_status::WidgetStatus,
 };
 
-use super::{Owner, Runtime, Scope};
+use super::{Owner, ReactiveGraph, Scope};
 
 pub trait ReactiveContext {
     /// Get immutable access to the underlying reactive runtime. This method
     /// is mostly used internally, users should rarely have to interact directly
     /// with the runtime.
-    fn runtime(&self) -> &Runtime;
+    fn app_state(&self) -> &AppState;
 
     /// Get mutable access to the underlying reactive runtime. This method
     /// is mostly used internally, users should rarely have to interact directly
     /// with the runtime.
-    fn runtime_mut(&mut self) -> &mut Runtime;
+    fn app_state_mut(&mut self) -> &mut AppState;
 
     fn as_create_context(&mut self, owner: Owner) -> LocalCreateContext {
         LocalCreateContext {
-            runtime: self.runtime_mut(),
+            app_state: self.app_state_mut(),
             owner,
         }
     }
@@ -60,17 +60,17 @@ pub trait ReadContext: ReactiveContext {
 pub trait WriteContext: ReactiveContext {}
 
 pub struct LocalCreateContext<'a> {
-    runtime: &'a mut Runtime,
+    app_state: &'a mut AppState,
     owner: Owner,
 }
 
 impl ReactiveContext for LocalCreateContext<'_> {
-    fn runtime(&self) -> &Runtime {
-        self.runtime
+    fn app_state(&self) -> &AppState {
+        &self.app_state
     }
 
-    fn runtime_mut(&mut self) -> &mut Runtime {
-        self.runtime
+    fn app_state_mut(&mut self) -> &mut AppState {
+        &mut self.app_state
     }
 }
 
@@ -81,23 +81,23 @@ impl CreateContext for LocalCreateContext<'_> {
 }
 
 pub struct LocalReadContext<'a> {
-    runtime: &'a mut Runtime,
+    app_state: &'a mut AppState,
     scope: Scope,
 }
 
 impl<'a> LocalReadContext<'a> {
-    pub fn new(runtime: &'a mut Runtime, scope: Scope) -> Self {
-        Self { runtime, scope }
+    pub fn new(app_state: &'a mut AppState, scope: Scope) -> Self {
+        Self { app_state, scope }
     }
 }
 
 impl ReactiveContext for LocalReadContext<'_> {
-    fn runtime(&self) -> &Runtime {
-        self.runtime
+    fn app_state(&self) -> &AppState {
+        &self.app_state
     }
 
-    fn runtime_mut(&mut self) -> &mut Runtime {
-        self.runtime
+    fn app_state_mut(&mut self) -> &mut AppState {
+        self.app_state
     }
 }
 

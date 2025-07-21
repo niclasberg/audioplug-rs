@@ -7,18 +7,20 @@ use super::{
     layout::RecomputeLayout,
     layout_window,
     overlay::{OverlayContainer, OverlayOptions},
-    reactive::{BindingFn, EffectContext, EffectFn, HandleEventFn, Runtime, WatchContext},
+    reactive::{BindingFn, EffectContext, EffectFn, HandleEventFn, ReactiveGraph, WatchContext},
     style::StyleBuilder,
 };
 use crate::{
     core::{Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
+    ui::{FxHashSet, NodeState, NodeType, widget_status::WidgetStatus},
 };
 use slotmap::{Key, SecondaryMap, SlotMap};
 use std::{
     any::Any,
     cell::{Cell, RefCell},
+    collections::VecDeque,
     rc::{Rc, Weak},
 };
 
@@ -37,9 +39,11 @@ pub struct AppState {
     pub(super) widget_data: SlotMap<WidgetId, WidgetData>,
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
     pub(super) mouse_capture_widget: Option<WidgetId>,
-    pub(super) runtime: Runtime,
+    pub(super) runtime: ReactiveGraph,
     host_handle: Option<Box<dyn HostHandle>>,
     id_buffer: Cell<Vec<WidgetId>>,
+    pending_tasks: VecDeque<Task>,
+    node_id_buffer: VecDeque<NodeId>,
 }
 
 pub enum WidgetInsertPos {
@@ -55,9 +59,11 @@ impl AppState {
             widgets: Default::default(),
             windows: Default::default(),
             mouse_capture_widget: None,
-            runtime: Runtime::new(parameters),
+            runtime: ReactiveGraph::new(parameters),
             host_handle: None,
             id_buffer: Default::default(),
+            pending_tasks: Default::default(),
+            node_id_buffer: Default::default(),
         }
     }
 
@@ -79,7 +85,7 @@ impl AppState {
             return false;
         };
         param_ref.set_value_plain(value);
-        self.runtime.notify_parameter_subscribers(id);
+        self.notify_parameter_subscribers(id);
         self.run_effects();
         true
     }
@@ -93,7 +99,7 @@ impl AppState {
             return false;
         };
         param_ref.set_value_normalized(value);
-        self.runtime.notify_parameter_subscribers(id);
+        self.notify_parameter_subscribers(id);
         self.run_effects();
         true
     }
@@ -351,7 +357,7 @@ impl AppState {
     }
 
     pub fn run_effects(&mut self) {
-        let mut tasks = self.runtime.take_tasks();
+        let mut tasks = std::mem::take(&mut self.pending_tasks);
 
         if tasks.is_empty() {
             return;
@@ -359,7 +365,7 @@ impl AppState {
 
         while let Some(task) = tasks.pop_front() {
             task.run(self);
-            tasks.extend(self.runtime.take_tasks().into_iter());
+            tasks.extend(self.pending_tasks.drain(..));
         }
 
         // Layout if needed
@@ -373,6 +379,104 @@ impl AppState {
         Clipboard {
             handle: &self.window(window_id).handle,
         }
+    }
+}
+
+impl AppState {
+    pub(crate) fn push_task(&mut self, task: Task) {
+        self.pending_tasks.push_back(task);
+    }
+
+    pub fn request_animation(&mut self, window_id: WindowId, node_id: NodeId) {
+        self.window_mut(window_id)
+            .pending_node_animations
+            .insert(node_id);
+    }
+
+    pub fn notify(&mut self, node_id: NodeId) {
+        let mut observers = std::mem::take(&mut self.node_id_buffer);
+        observers.clear();
+        observers.extend(self.runtime.subscriptions.observers[node_id].iter());
+        self.notify_source_changed(observers);
+    }
+
+    fn notify_source_changed(&mut self, mut nodes_to_notify: VecDeque<NodeId>) {
+        let mut nodes_to_check = FxHashSet::default();
+
+        {
+            let direct_child_count = nodes_to_notify.len();
+            let mut i = 0;
+            while let Some(node_id) = nodes_to_notify.pop_front() {
+                // Mark direct nodes as Dirty and grand-children as Check
+                let new_state = if i < direct_child_count {
+                    NodeState::Dirty
+                } else {
+                    NodeState::Check
+                };
+                let node = self.runtime.get_node_mut(node_id);
+                if node.state < new_state {
+                    node.state = new_state;
+                    match &node.node_type {
+                        NodeType::Effect(_)
+                        | NodeType::Binding(_)
+                        | NodeType::DerivedAnimation(_) => {
+                            nodes_to_check.insert(node_id);
+                        }
+                        _ => {}
+                    }
+                    nodes_to_notify.extend(self.subscriptions.observers[node_id].iter());
+                }
+                i += 1;
+            }
+        }
+
+        // Swap back the scratch buffer. Saves us from having to reallocate
+        std::mem::swap(&mut self.node_id_buffer, &mut nodes_to_notify);
+
+        for node_id in nodes_to_check {
+            self.update_if_necessary(node_id);
+        }
+    }
+
+    pub fn update_if_necessary(&mut self, node_id: NodeId) {
+        if self.runtime.get_node(node_id).state == NodeState::Clean {
+            return;
+        }
+
+        if self.runtime.get_node(node_id).state == NodeState::Check {
+            for source_id in self.subscriptions.sources[node_id].clone() {
+                if let SourceId::Node(source_id) = source_id {
+                    self.update_if_necessary(source_id);
+                    if self.nodes[node_id].state == NodeState::Dirty {
+                        break;
+                    }
+                }
+            }
+        }
+
+        if self.nodes[node_id].state == NodeState::Dirty {
+            let mut node_type = std::mem::replace(
+                &mut self.runtime.get_node_mut(node_id).node_type,
+                NodeType::TmpRemoved,
+            );
+            node_type.update(node_id, app_state);
+            std::mem::swap(&mut self.nodes[node_id].node_type, &mut node_type);
+        }
+
+        self.nodes[node_id].state = NodeState::Clean;
+    }
+
+    pub(crate) fn notify_parameter_subscribers(&mut self, source_id: ParameterId) {
+        let mut nodes_to_notify = std::mem::take(&mut self.scratch_buffer);
+        nodes_to_notify.clear();
+        nodes_to_notify.extend(
+            self.subscriptions
+                .parameter_observers
+                .get_mut(&source_id)
+                .unwrap()
+                .iter(),
+        );
+        self.notify_source_changed(nodes_to_notify);
     }
 }
 
@@ -574,12 +678,16 @@ impl WidgetContext for EffectContextImpl<'_> {
 }
 
 impl ReactiveContext for EffectContextImpl<'_> {
-    fn runtime(&self) -> &Runtime {
+    fn runtime(&self) -> &ReactiveGraph {
         self.app_state.runtime()
     }
 
-    fn runtime_mut(&mut self) -> &mut Runtime {
+    fn runtime_mut(&mut self) -> &mut ReactiveGraph {
         self.app_state.runtime_mut()
+    }
+
+    fn widget_status(&self, widget_id: WidgetId) -> Option<WidgetStatus> {
+        self.app_state.widget_status(widget_id)
     }
 }
 
@@ -654,12 +762,16 @@ impl Task {
 }
 
 impl ReactiveContext for AppState {
-    fn runtime(&self) -> &Runtime {
+    fn runtime(&self) -> &ReactiveGraph {
         &self.runtime
     }
 
-    fn runtime_mut(&mut self) -> &mut Runtime {
+    fn runtime_mut(&mut self) -> &mut ReactiveGraph {
         &mut self.runtime
+    }
+
+    fn widget_status(&self, widget_id: WidgetId) -> Option<WidgetStatus> {
+        todo!()
     }
 }
 

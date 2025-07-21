@@ -4,8 +4,9 @@ use crate::{
     core::{Point, Rectangle},
     platform,
     ui::{
-        AppState, BrushRef, BuildContext, EffectState, NodeId, Owner, ReactiveContext, ReadContext,
-        Runtime, Scope, ShapeRef, TextLayout, View, Widget, WidgetId, style::LayoutMode,
+        AppState, BrushRef, BuildContext, EffectState, NodeId, Owner, ReactiveContext,
+        ReactiveGraph, ReadContext, Scope, ShapeRef, TextLayout, View, Widget, WidgetId,
+        style::LayoutMode, widget_status::WidgetStatus,
     },
 };
 
@@ -123,12 +124,16 @@ impl CanvasContext<'_, '_, '_> {
 }
 
 impl ReactiveContext for CanvasContext<'_, '_, '_> {
-    fn runtime(&self) -> &Runtime {
+    fn runtime(&self) -> &ReactiveGraph {
         self.app_state.runtime()
     }
 
-    fn runtime_mut(&mut self) -> &mut Runtime {
+    fn runtime_mut(&mut self) -> &mut ReactiveGraph {
         self.app_state.runtime_mut()
+    }
+
+    fn widget_status(&self, widget_id: WidgetId) -> Option<WidgetStatus> {
+        self.app_state.widget_status(widget_id)
     }
 }
 

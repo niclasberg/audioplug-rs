@@ -6,13 +6,13 @@ use std::{
 };
 
 use crate::{
-    ui::WindowId,
     core::{Interpolate, SpringPhysics},
+    ui::{AppState, WindowId},
 };
 
 use super::{
     Accessor, CreateContext, Effect, LocalReadContext, NodeId, NodeType, ReactiveContext,
-    ReactiveValue, ReadContext, ReadSignal, Runtime, Scope, ViewContext, WatchContext,
+    ReactiveGraph, ReactiveValue, ReadContext, ReadSignal, Scope, ViewContext, WatchContext,
     WriteContext,
 };
 
@@ -92,10 +92,10 @@ pub struct DerivedAnimationState {
 }
 
 impl DerivedAnimationState {
-    pub fn reset(&mut self, node_id: NodeId, runtime: &mut Runtime) -> bool {
+    pub fn reset(&mut self, node_id: NodeId, app_state: &mut AppState) -> bool {
         (self.reset_fn)(
             &mut self.inner,
-            &mut LocalReadContext::new(runtime, Scope::Node(node_id)),
+            &mut LocalReadContext::new(app_state, Scope::Node(node_id)),
         )
     }
 }
@@ -120,7 +120,10 @@ impl<T: 'static> Animated<T> {
         let inner = Box::new(animation);
         let state = AnimationState { inner, window_id };
         Self {
-            id: cx.runtime_mut().create_animation_node(state, owner),
+            id: cx
+                .app_state_mut()
+                .runtime
+                .create_animation_node(state, owner),
             _phantom: PhantomData,
         }
     }
@@ -142,7 +145,7 @@ impl<T: 'static> Animated<T> {
 
 impl<T: Any> Animated<T> {
     pub fn set_target(&self, cx: &mut dyn WriteContext, value: T) {
-        let node = cx.runtime_mut().get_node_mut(self.id);
+        let node = cx.app_state_mut().runtime.get_node_mut(self.id);
         let window_id_if_changed = match &mut node.node_type {
             NodeType::Animation(anim) => {
                 anim.inner.set_target_dyn(&value).then_some(anim.window_id)
@@ -150,17 +153,17 @@ impl<T: Any> Animated<T> {
             _ => unreachable!(),
         };
         if let Some(window_id) = window_id_if_changed {
-            cx.runtime_mut().request_animation(window_id, self.id);
+            cx.app_state_mut().request_animation(window_id, self.id);
         }
     }
 
     pub fn set_target_and_value(&self, cx: &mut dyn WriteContext, value: T) {
-        let node = cx.runtime_mut().get_node_mut(self.id);
+        let node = cx.app_state_mut().runtime.get_node_mut(self.id);
         match &mut node.node_type {
             NodeType::Animation(anim) => anim.inner.set_target_and_value_dyn(&value),
             _ => unreachable!(),
         };
-        cx.runtime_mut().notify(self.id);
+        cx.app_state_mut().notify(self.id);
     }
 }
 

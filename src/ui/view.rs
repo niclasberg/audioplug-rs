@@ -191,12 +191,12 @@ impl<W: Widget + ?Sized> ReadContext for BuildContext<'_, W> {
 }
 
 impl<W: Widget + ?Sized> ReactiveContext for BuildContext<'_, W> {
-    fn runtime(&self) -> &super::Runtime {
-        self.app_state.runtime()
+    fn app_state(&self) -> &AppState {
+        self.app_state
     }
 
-    fn runtime_mut(&mut self) -> &mut super::Runtime {
-        self.app_state.runtime_mut()
+    fn app_state_mut(&mut self) -> &mut AppState {
+        self.app_state
     }
 }
 

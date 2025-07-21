@@ -10,9 +10,9 @@ use super::{
 };
 use crate::{
     KeyEvent, MouseEvent,
-    ui::{StatusChange, Widget, WidgetMut, layout::RecomputeLayout},
     core::{Key, Rectangle},
     platform::WindowEvent,
+    ui::{StatusChange, Widget, WidgetMut, layout::RecomputeLayout},
 };
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
@@ -99,7 +99,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         }
         WindowEvent::ThemeChanged(theme) => {
             let signal = app_state.window(window_id).theme_signal;
-            signal.set(app_state.runtime_mut(), theme);
+            signal.set(app_state, theme);
         }
         _ => {}
     };
@@ -246,7 +246,6 @@ impl<'a> MouseEventContext<'a> {
         f: impl FnOnce(WidgetMut<'_, W>) + 'static,
     ) {
         self.app_state
-            .runtime
             .push_task(super::app_state::Task::UpdateWidget {
                 widget_id: self.id,
                 f: Box::new(move |widget| f(widget.unchecked_cast())),
@@ -327,7 +326,6 @@ impl<'a> EventContext<'a> {
         f: impl FnOnce(WidgetMut<'_, W>) + 'static,
     ) {
         self.app_state
-            .runtime
             .push_task(super::app_state::Task::UpdateWidget {
                 widget_id: self.id,
                 f: Box::new(move |widget| f(widget.unchecked_cast())),
@@ -355,11 +353,11 @@ impl ReadContext for CallbackContext<'_> {
 impl WriteContext for CallbackContext<'_> {}
 
 impl ReactiveContext for CallbackContext<'_> {
-    fn runtime(&self) -> &super::Runtime {
-        self.app_state.runtime()
+    fn app_state(&self) -> &AppState {
+        self.app_state
     }
 
-    fn runtime_mut(&mut self) -> &mut super::Runtime {
-        self.app_state.runtime_mut()
+    fn app_state_mut(&mut self) -> &mut AppState {
+        self.app_state
     }
 }

@@ -3,20 +3,20 @@ use std::{any::Any, marker::PhantomData, ops::DerefMut};
 use crate::ui::{Accessor, Effect, ReadSignal};
 
 use super::{
-    CreateContext, NodeId, NodeType, ReactiveContext, ReadContext, ReactiveValue, Runtime, Scope,
+    CreateContext, NodeId, NodeType, ReactiveContext, ReadContext, ReactiveValue, ReactiveGraph, Scope,
 };
 
 pub struct CachedContext<'a> {
     pub(super) memo_id: NodeId,
-    pub(super) runtime: &'a mut Runtime,
+    pub(super) runtime: &'a mut ReactiveGraph,
 }
 
 impl ReactiveContext for CachedContext<'_> {
-    fn runtime(&self) -> &Runtime {
+    fn runtime(&self) -> &ReactiveGraph {
         self.runtime
     }
 
-    fn runtime_mut(&mut self) -> &mut Runtime {
+    fn runtime_mut(&mut self) -> &mut ReactiveGraph {
         self.runtime
     }
 }
@@ -141,7 +141,7 @@ pub struct CachedState {
 }
 
 impl CachedState {
-    pub fn eval(&mut self, memo_id: NodeId, runtime: &mut Runtime) -> bool {
+    pub fn eval(&mut self, memo_id: NodeId, runtime: &mut ReactiveGraph) -> bool {
         let mut cx = CachedContext { memo_id, runtime };
         (self.f)(&mut cx, &mut self.value)
     }

@@ -1,6 +1,6 @@
 use crate::{
-    ui::{AppState, CreateContext, ReactiveContext, ReadSignal, View, ViewContext, WidgetId},
     core::WindowTheme,
+    ui::{AppState, CreateContext, ReactiveContext, ReadSignal, View, ViewContext, WidgetId},
 };
 
 pub struct ScopeContext<'a> {
@@ -15,12 +15,12 @@ impl ScopeContext<'_> {
 }
 
 impl ReactiveContext for ScopeContext<'_> {
-    fn runtime(&self) -> &crate::ui::Runtime {
-        self.app_state.runtime()
+    fn app_state(&self) -> &AppState {
+        self.app_state
     }
 
-    fn runtime_mut(&mut self) -> &mut crate::ui::Runtime {
-        self.app_state.runtime_mut()
+    fn app_state_mut(&mut self) -> &mut AppState {
+        self.app_state
     }
 }
 
