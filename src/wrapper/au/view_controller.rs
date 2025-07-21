@@ -2,10 +2,10 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 use super::MyAudioUnit;
 use crate::{
-    app::{AppState, HostHandle, MyHandler},
+    Editor, Plugin,
     param::{NormalizedValue, ParameterId, ParameterInfo, ParameterMap, Params, PlainValue},
     platform::{mac::dispatch::create_block_dispatching_to_main2, view::View},
-    Editor, Plugin,
+    ui::{AppState, HostHandle, MyHandler},
 };
 use block2::RcBlock;
 use objc2::rc::Retained;

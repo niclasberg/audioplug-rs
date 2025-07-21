@@ -1,8 +1,10 @@
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
-use objc2::{define_class, msg_send, MainThreadOnly};
-use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate};
-use objc2_foundation::{MainThreadMarker, NSObject};
+use objc2::{MainThreadOnly, define_class, msg_send, sel};
+use objc2_app_kit::{
+    NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate, NSMenu, NSMenuItem,
+};
+use objc2_foundation::{MainThreadMarker, NSObject, NSProcessInfo, NSString, ns_string};
 
 define_class!(
     #[unsafe(super(NSObject))]
@@ -12,10 +14,30 @@ define_class!(
 
     unsafe impl NSApplicationDelegate for MyApplicationDelegate {
         #[unsafe(method(applicationDidFinishLaunching:))]
-        unsafe fn did_finish_launching(&self, sender: *mut AnyObject) {
-            println!("Did finish launching!");
-            // Do something with `sender`
-            dbg!(sender);
+        unsafe fn did_finish_launching(&self, _sender: *mut AnyObject) {
+            let mtm = MainThreadMarker::new().expect("Should be called on the main thread");
+            let main_menu = NSMenu::new(mtm);
+            NSApplication::sharedApplication(mtm).setMainMenu(Some(&main_menu));
+
+            let app_menu_item = NSMenuItem::new(mtm);
+            main_menu.addItem(&app_menu_item);
+
+            let app_menu =
+                unsafe { NSMenu::initWithTitle(NSMenu::alloc(mtm), ns_string!("Application")) };
+            app_menu_item.setSubmenu(Some(&app_menu));
+
+            let process_name = NSProcessInfo::processInfo().processName();
+
+            let quit_title = NSString::from_str(&format!("Quit {process_name}"));
+            let quit_item = unsafe {
+                NSMenuItem::initWithTitle_action_keyEquivalent(
+                    NSMenuItem::alloc(mtm),
+                    &quit_title,
+                    Some(sel!(terminate:)),
+                    ns_string!("q"),
+                )
+            };
+            app_menu.addItem(&quit_item);
         }
     }
 

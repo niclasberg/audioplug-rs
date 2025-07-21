@@ -1,10 +1,10 @@
 use crate::{
-    app::LinearGradient,
     core::{
         Color, ColorMap, ColorStop, Point, Rectangle, RoundedRectangle, ShadowOptions, Transform,
         Vec2,
     },
     platform::{BrushRef, NativeTextLayout, ShapeRef},
+    ui::LinearGradient,
 };
 use objc2_core_foundation::{CFRetained, CGAffineTransform, CGFloat, CGRect, CGSize};
 use objc2_core_graphics::{
@@ -14,7 +14,7 @@ use objc2_core_image::CIContext;
 use objc2_core_text::CTFrame;
 use objc2_foundation::NSRect;
 
-use super::{conversions::cgcolor_from_color, Bitmap, Error};
+use super::{Bitmap, Error, conversions::cgcolor_from_color};
 
 pub struct RendererRef<'a> {
     pub(super) context: &'a CGContext,
@@ -150,7 +150,7 @@ impl<'a> RendererRef<'a> {
                 unsafe { CGContext::fill_ellipse_in_rect(Some(&self.context), rect.into()) }
             }
             ShapeRef::Geometry(path_geometry) => unsafe {
-                CGContext::add_path(Some(&self.context), Some(&path_geometry.0 .0));
+                CGContext::add_path(Some(&self.context), Some(&path_geometry.0.0));
                 CGContext::fill_path(Some(&self.context));
             },
         }
@@ -180,7 +180,7 @@ impl<'a> RendererRef<'a> {
                         )
                     },
                     ShapeRef::Geometry(path_geometry) => unsafe {
-                        CGContext::add_path(Some(&self.context), Some(&path_geometry.0 .0));
+                        CGContext::add_path(Some(&self.context), Some(&path_geometry.0.0));
                         CGContext::stroke_path(Some(&self.context));
                     },
                 }
@@ -295,7 +295,7 @@ impl<'a> RendererRef<'a> {
                 CGContext::add_ellipse_in_rect(Some(&self.context), ellipse.bounds().into())
             },
             ShapeRef::Geometry(path_geometry) => unsafe {
-                CGContext::add_path(Some(&self.context), Some(&path_geometry.0 .0))
+                CGContext::add_path(Some(&self.context), Some(&path_geometry.0.0))
             },
         }
     }
