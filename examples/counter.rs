@@ -1,9 +1,9 @@
 use audioplug::{
-    ui::*,
-    core::{Color, Key, Size, UnitPoint},
-    style::{AlignSelf, Length, UiRect},
-    views::*,
     App,
+    core::{Color, Key, Size, UnitPoint},
+    ui::style::{AlignSelf, Length, UiRect},
+    ui::*,
+    views::*,
 };
 
 fn main() {

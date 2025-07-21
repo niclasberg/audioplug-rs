@@ -1,6 +1,7 @@
 mod accessor;
 mod animation;
 mod cached;
+mod computed;
 pub(super) mod diff;
 mod effect;
 mod event_channel;
@@ -13,10 +14,10 @@ mod trigger;
 mod tween;
 mod var;
 
-pub use accessor::{Accessor, Computed};
+pub use accessor::Accessor;
 pub use animation::{Animated, AnimatedFn, Animation, Easing, SpringOptions, TweenOptions};
-
 pub use cached::{Cached, CachedContext};
+pub use computed::Computed;
 pub(super) use effect::{BindingFn, EffectFn};
 pub use effect::{Effect, EffectContext, EffectState, WatchContext};
 pub(super) use event_channel::HandleEventFn;

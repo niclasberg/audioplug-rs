@@ -1,11 +1,11 @@
 use crate::{
     KeyEvent, MouseButton, MouseEvent,
+    core::{Color, Key, Rectangle, Size},
     ui::{
         Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
         RenderContext, View, Widget,
+        style::{AvailableSpace, LayoutMode, Length, Measure, Style, UiRect},
     },
-    core::{Color, Key, Rectangle, Size},
-    style::{AvailableSpace, LayoutMode, Length, Measure, Style, UiRect},
 };
 
 pub struct Checkbox {

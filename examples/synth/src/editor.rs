@@ -1,8 +1,8 @@
 use audioplug::{
-    ui::{Canvas, PathGeometry, ReactiveValue, View},
     core::{Color, ShadowOptions, Size, Vec2},
     param::{AnyParameter, FloatParameter, Parameter},
-    style::{AlignItems, Length, UiRect},
+    ui::style::{AlignItems, Length, UiRect},
+    ui::{Canvas, PathGeometry, ReactiveValue, View},
     views::{Checkbox, Column, Label, ParameterKnob, ParameterSlider, Row, ViewExt},
     Editor,
 };

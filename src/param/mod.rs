@@ -170,7 +170,6 @@ pub trait Parameter<T>: AnyParameter {
     fn value(&self) -> T;
     fn set_value(&self, value: T);
 
-    fn as_any(&self) -> &dyn Any;
     fn as_signal(&self) -> ReadSignal<T>
     where
         Self: Sized,

@@ -1,13 +1,12 @@
 use std::marker::PhantomData;
 
 use crate::{
-    ui::{
-        AppState, BrushRef, BuildContext, EffectState, NodeId, Owner, ReactiveContext, ReadContext,
-        Runtime, Scope, ShapeRef, TextLayout, View, Widget, WidgetId,
-    },
     core::{Point, Rectangle},
     platform,
-    style::LayoutMode,
+    ui::{
+        AppState, BrushRef, BuildContext, EffectState, NodeId, Owner, ReactiveContext, ReadContext,
+        Runtime, Scope, ShapeRef, TextLayout, View, Widget, WidgetId, style::LayoutMode,
+    },
 };
 
 /// View that allows custom rendering.

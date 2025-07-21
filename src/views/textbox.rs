@@ -1,11 +1,11 @@
+use crate::MouseEvent;
+use crate::core::{Color, Cursor, Key, Modifiers, Rectangle, Size};
+use crate::event::{KeyEvent, MouseButton};
 use crate::ui::{
     Accessor, AnimationContext, AppState, BuildContext, EventContext, EventStatus,
     MouseEventContext, RenderContext, StatusChange, TextLayout, View, Widget,
+    style::{AvailableSpace, LayoutMode, Length, Measure, Style, UiRect},
 };
-use crate::core::{Color, Cursor, Key, Modifiers, Rectangle, Size};
-use crate::event::{KeyEvent, MouseButton};
-use crate::style::{AvailableSpace, LayoutMode, Length, Measure, Style, UiRect};
-use crate::MouseEvent;
 use std::ops::Range;
 use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 

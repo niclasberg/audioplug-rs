@@ -1,6 +1,6 @@
 use super::{
-    traversal::ParameterTraversal, AnyParameter, NormalizedValue, ParamRef, ParamVisitor,
-    Parameter, ParameterId, ParameterInfo, ParseError, PlainValue,
+    AnyParameter, NormalizedValue, ParamRef, ParamVisitor, Parameter, ParameterId, ParameterInfo,
+    ParseError, PlainValue, traversal::ParameterTraversal,
 };
 use std::{any::Any, cell::Cell};
 
@@ -42,10 +42,6 @@ impl AnyParameter for BoolParameter {
 }
 
 impl Parameter<bool> for BoolParameter {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn value(&self) -> bool {
         self.value.get()
     }

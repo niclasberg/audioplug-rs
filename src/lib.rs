@@ -1,4 +1,3 @@
-pub mod ui;
 mod audio_buffer;
 mod audiolayout;
 pub mod core;
@@ -9,14 +8,14 @@ pub mod midi;
 pub mod param;
 pub mod platform;
 mod plugin;
-pub mod style;
+pub mod ui;
 pub mod util;
 pub mod views;
 pub mod wrapper;
 
-pub use ui::App;
 pub use audio_buffer::*;
 pub use audiolayout::*;
 pub use editor::*;
 pub use event::{AnimationFrame, KeyEvent, MouseButton, MouseButtons, MouseEvent};
 pub use plugin::*;
+pub use ui::App;

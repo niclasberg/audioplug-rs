@@ -3,7 +3,7 @@ use std::sync::atomic::AtomicUsize;
 use audioplug::{
     App, KeyEvent,
     core::{Color, Key},
-    style::{Length, UiRect},
+    ui::style::{Length, UiRect},
     ui::*,
     views::*,
 };
@@ -35,6 +35,7 @@ fn main() {
         Stateful::new(|cx| {
             let todos = Var::new_with(cx, |cx| vec![Todo::new(cx, "Item1", false)]);
             let text_input = Var::new(cx, "".to_string());
+
             Container::new(Column::new((
                 Label::new("TODO app"),
                 TextBox::new(move |cx, value| text_input.set(cx, value.to_string()))

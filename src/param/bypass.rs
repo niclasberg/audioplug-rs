@@ -1,8 +1,8 @@
 use std::{any::Any, cell::Cell};
 
 use super::{
-    bool::BoolParameterInfo, AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId,
-    ParameterInfo, PlainValue,
+    AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue,
+    bool::BoolParameterInfo,
 };
 
 pub struct ByPassParameter {
@@ -49,9 +49,5 @@ impl Parameter<bool> for ByPassParameter {
 
     fn set_value(&self, value: bool) {
         self.value.replace(value);
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 }

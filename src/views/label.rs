@@ -1,9 +1,11 @@
 use std::cell::RefCell;
 
 use crate::{
-    ui::{Accessor, BuildContext, RenderContext, TextLayout, View, Widget, WidgetMut},
     core::{Color, Size},
-    style::{AvailableSpace, LayoutMode, Measure},
+    ui::{
+        Accessor, BuildContext, RenderContext, TextLayout, View, Widget, WidgetMut,
+        style::{AvailableSpace, LayoutMode, Measure, Style},
+    },
 };
 
 pub struct Label {
@@ -56,12 +58,7 @@ pub struct TextWidget {
 }
 
 impl Measure for TextWidget {
-    fn measure(
-        &self,
-        _style: &crate::style::Style,
-        width: AvailableSpace,
-        height: AvailableSpace,
-    ) -> Size {
+    fn measure(&self, _style: &Style, width: AvailableSpace, height: AvailableSpace) -> Size {
         let mut text_layout = self.text_layout.borrow_mut();
 
         let width_constraint = match width {

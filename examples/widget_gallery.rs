@@ -1,6 +1,6 @@
 use audioplug::App;
 use audioplug::core::{Align, Color, ShadowKind, ShadowOptions, Size, Vec2};
-use audioplug::style::{ImageEffect, Length, UiRect};
+use audioplug::ui::style::{ImageEffect, Length, UiRect};
 use audioplug::ui::*;
 use audioplug::views::*;
 use std::path::Path;

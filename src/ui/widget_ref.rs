@@ -4,14 +4,11 @@ use std::{
 };
 
 use super::{
-    layout::request_layout, render::invalidate_widget, AppState, View, Widget, WidgetData,
-    WidgetFlags, WidgetId,
-};
-use crate::{
-    ui::{app_state::WidgetInsertPos, diff::DiffOp, OverlayOptions},
-    core::Rectangle,
+    AppState, OverlayOptions, View, Widget, WidgetData, WidgetFlags, WidgetId,
+    app_state::WidgetInsertPos, diff::DiffOp, layout::request_layout, render::invalidate_widget,
     style::Style,
 };
+use crate::core::Rectangle;
 
 pub struct ChildIter<'a> {
     app_state: &'a AppState,

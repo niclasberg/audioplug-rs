@@ -1,7 +1,9 @@
 use crate::{
-    ui::{BuildContext, RenderContext, Shape, View, Widget},
     core::{Color, Rectangle, Size},
-    style::{AvailableSpace, LayoutMode, Length, Measure, Style},
+    ui::{
+        BuildContext, RenderContext, Shape, View, Widget,
+        style::{AvailableSpace, LayoutMode, Length, Measure, Style},
+    },
 };
 
 pub trait Fill {

@@ -1,10 +1,12 @@
 use std::path::Path;
 
 use crate::{
-    ui::{View, Widget},
     core::{Color, Size},
     platform,
-    style::{AvailableSpace, LayoutMode, Measure},
+    ui::{
+        View, Widget,
+        style::{AvailableSpace, LayoutMode, Measure, Style},
+    },
 };
 
 pub struct Image {
@@ -33,12 +35,7 @@ pub struct ImageWidget {
 }
 
 impl Measure for ImageWidget {
-    fn measure(
-        &self,
-        _style: &crate::style::Style,
-        width: AvailableSpace,
-        height: AvailableSpace,
-    ) -> Size {
+    fn measure(&self, _style: &Style, width: AvailableSpace, height: AvailableSpace) -> Size {
         let image_size = self
             .source
             .as_ref()

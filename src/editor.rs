@@ -1,10 +1,12 @@
 use std::marker::PhantomData;
 
 use crate::{
-    ui::{AnyView, Var, View},
     core::Size,
     param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params},
-    style::{Length, UiRect},
+    ui::{
+        AnyView, Var, View,
+        style::{Length, UiRect},
+    },
     views::{Column, Container, Label, ParameterSlider, Row, Stateful, ViewExt},
 };
 

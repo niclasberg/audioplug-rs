@@ -76,10 +76,6 @@ impl Parameter<f64> for FloatParameter {
     fn set_value(&self, value: f64) {
         self.value.replace(value);
     }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 impl ParameterTraversal for FloatParameter {

@@ -1,13 +1,13 @@
 use crate::{
+    MouseEvent,
+    core::{Color, Key},
+    event::{KeyEvent, MouseButton},
     ui::{
         Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
         RenderContext, StatusChange, View, Widget,
+        style::{FlexStyle, LayoutMode, Length, Style, UiRect},
     },
-    core::{Color, Key},
-    event::{KeyEvent, MouseButton},
-    style::{LayoutMode, FlexStyle, Length, Style, UiRect},
     views::Label,
-    MouseEvent,
 };
 
 type ClickFn = dyn FnMut(&mut CallbackContext);

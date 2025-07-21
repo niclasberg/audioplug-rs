@@ -57,10 +57,6 @@ impl Parameter<i64> for IntParameter {
     fn set_value(&self, value: i64) {
         self.value.replace(value);
     }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 impl ParameterTraversal for IntParameter {

@@ -1,22 +1,19 @@
 use super::{
-    BuildContext, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext, ReadContext,
-    Var, View, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId,
-    WriteContext,
+    AnyView, BuildContext, CreateContext, FxIndexSet, HostHandle, NodeId, ParamContext,
+    ReactiveContext, ReadContext, ReadSignal, Scope, Var, View, Widget, WidgetContext, WidgetData,
+    WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext,
     clipboard::Clipboard,
+    event_handling::{set_focus_widget, set_mouse_capture_widget},
+    layout::RecomputeLayout,
     layout_window,
+    overlay::{OverlayContainer, OverlayOptions},
     reactive::{BindingFn, EffectContext, EffectFn, HandleEventFn, Runtime, WatchContext},
+    style::StyleBuilder,
 };
 use crate::{
-    ui::{
-        AnyView, FxIndexSet, ReadSignal, Scope, WidgetContext,
-        event_handling::{set_focus_widget, set_mouse_capture_widget},
-        layout::RecomputeLayout,
-        overlay::{OverlayContainer, OverlayOptions},
-    },
     core::{Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
-    style::StyleBuilder,
 };
 use slotmap::{Key, SecondaryMap, SlotMap};
 use std::{

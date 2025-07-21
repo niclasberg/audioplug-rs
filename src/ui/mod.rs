@@ -8,6 +8,7 @@ mod overlay;
 mod param;
 mod reactive;
 mod render;
+pub mod style;
 mod view;
 mod view_sequence;
 mod widget;

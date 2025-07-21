@@ -1,6 +1,6 @@
-use crate::ui::{OverlayAnchor, OverlayOptions};
+use super::style::{AvailableSpace, LayoutMode, ResolveInto, Style, UiRect};
+use super::{OverlayAnchor, OverlayOptions};
 use crate::core::{HAlign, Point, Rectangle, Size, VAlign, Vec2};
-use crate::style::{AvailableSpace, LayoutMode, ResolveInto, Style, UiRect};
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree,
     TraversePartialTree, TraverseTree,

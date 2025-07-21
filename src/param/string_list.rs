@@ -37,10 +37,6 @@ impl Parameter<usize> for StringListParameter {
     fn set_value(&self, value: usize) {
         self.index.replace(value);
     }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 pub struct StringListParameterInfo {

@@ -1,13 +1,9 @@
 use bitflags::bitflags;
 use slotmap::{Key, KeyData, new_key_type};
 
-use crate::{
-    ui::ReadSignal,
-    core::{Point, Rectangle, RoundedRectangle, Size},
-    style::Style,
-};
+use crate::core::{Point, Rectangle, RoundedRectangle, Size};
 
-use super::{Shape, WindowId};
+use super::{ReadSignal, Shape, WindowId, style::Style};
 
 new_key_type! {
     pub struct WidgetId;

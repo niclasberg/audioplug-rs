@@ -1,7 +1,7 @@
-use audioplug::ui::*;
 use audioplug::core::{Color, Size};
 use audioplug::param::{BoolParameter, FloatParameter, Parameter, ParameterId, Params};
-use audioplug::style::UiRect;
+use audioplug::ui::style::UiRect;
+use audioplug::ui::*;
 use audioplug::views::*;
 use audioplug::wrapper::vst3::VST3Categories;
 use audioplug::{

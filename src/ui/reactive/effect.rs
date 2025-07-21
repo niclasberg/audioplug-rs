@@ -1,6 +1,8 @@
+use slotmap::Key;
+
 use crate::{
-    ui::{TypedWidgetId, Widget, WidgetContext, WidgetMut, WidgetRef},
     param::ParameterId,
+    ui::{TypedWidgetId, Widget, WidgetContext, WidgetMut, WidgetRef},
 };
 
 use super::{CreateContext, NodeId, ReactiveContext, ReadContext, WriteContext};
@@ -49,6 +51,10 @@ pub struct Effect {
 }
 
 impl Effect {
+    pub(super) fn new_empty() -> Self {
+        Self { id: NodeId::null() }
+    }
+
     pub fn new(
         cx: &mut dyn CreateContext,
         f: impl FnMut(&mut dyn EffectContext) + 'static,
@@ -154,7 +160,9 @@ impl Effect {
     }
 
     pub fn dispose(self, cx: &mut dyn ReactiveContext) {
-        cx.runtime_mut().remove_node(self.id);
+        if !self.id.is_null() {
+            cx.runtime_mut().remove_node(self.id);
+        }
     }
 }
 
