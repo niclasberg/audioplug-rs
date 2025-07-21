@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     KeyEvent, MouseEvent,
-    app::{StatusChange, Widget, WidgetMut, layout::LayoutMode},
+    ui::{StatusChange, Widget, WidgetMut, layout::RecomputeLayout},
     core::{Key, Rectangle},
     platform::WindowEvent,
 };
@@ -18,7 +18,7 @@ use crate::{
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
         WindowEvent::Resize { .. } => {
-            layout_window(app_state, window_id, LayoutMode::Force);
+            layout_window(app_state, window_id, RecomputeLayout::Force);
             invalidate_window(app_state, window_id);
         }
         WindowEvent::Mouse(mouse_event) => {
@@ -247,8 +247,7 @@ impl<'a> MouseEventContext<'a> {
     ) {
         self.app_state
             .runtime
-            .pending_tasks
-            .push_back(super::app_state::Task::UpdateWidget {
+            .push_task(super::app_state::Task::UpdateWidget {
                 widget_id: self.id,
                 f: Box::new(move |widget| f(widget.unchecked_cast())),
             });
@@ -329,8 +328,7 @@ impl<'a> EventContext<'a> {
     ) {
         self.app_state
             .runtime
-            .pending_tasks
-            .push_back(super::app_state::Task::UpdateWidget {
+            .push_task(super::app_state::Task::UpdateWidget {
                 widget_id: self.id,
                 f: Box::new(move |widget| f(widget.unchecked_cast())),
             });

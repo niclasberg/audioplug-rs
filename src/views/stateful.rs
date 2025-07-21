@@ -1,5 +1,5 @@
 use crate::{
-    app::{AppState, CreateContext, ReactiveContext, ReadSignal, View, ViewContext, WidgetId},
+    ui::{AppState, CreateContext, ReactiveContext, ReadSignal, View, ViewContext, WidgetId},
     core::WindowTheme,
 };
 
@@ -15,23 +15,23 @@ impl ScopeContext<'_> {
 }
 
 impl ReactiveContext for ScopeContext<'_> {
-    fn runtime(&self) -> &crate::app::Runtime {
+    fn runtime(&self) -> &crate::ui::Runtime {
         self.app_state.runtime()
     }
 
-    fn runtime_mut(&mut self) -> &mut crate::app::Runtime {
+    fn runtime_mut(&mut self) -> &mut crate::ui::Runtime {
         self.app_state.runtime_mut()
     }
 }
 
 impl CreateContext for ScopeContext<'_> {
-    fn owner(&self) -> Option<crate::app::Owner> {
-        Some(crate::app::Owner::Widget(self.id))
+    fn owner(&self) -> Option<crate::ui::Owner> {
+        Some(crate::ui::Owner::Widget(self.id))
     }
 }
 
 impl ViewContext for ScopeContext<'_> {
-    fn window_id(&self) -> crate::app::WindowId {
+    fn window_id(&self) -> crate::ui::WindowId {
         self.app_state.get_window_id_for_widget(self.id)
     }
 }
@@ -57,7 +57,7 @@ where
 {
     type Element = V::Element;
 
-    fn build(self, ctx: &mut crate::app::BuildContext<Self::Element>) -> Self::Element {
+    fn build(self, ctx: &mut crate::ui::BuildContext<Self::Element>) -> Self::Element {
         let inner_view = (self.f)(&mut ScopeContext {
             id: ctx.id().id,
             app_state: ctx.app_state,

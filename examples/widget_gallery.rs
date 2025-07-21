@@ -1,8 +1,8 @@
-use audioplug::app::*;
+use audioplug::App;
 use audioplug::core::{Align, Color, ShadowKind, ShadowOptions, Size, Vec2};
 use audioplug::style::{ImageEffect, Length, UiRect};
+use audioplug::ui::*;
 use audioplug::views::*;
-use audioplug::App;
 use std::path::Path;
 use std::time::Duration;
 
@@ -20,7 +20,7 @@ fn main() {
     let _ = Window::open(
         &mut app,
         Stateful::new(|cx| {
-            let tab = Signal::new(cx, Tab::Overview);
+            let tab = Var::new(cx, Tab::Overview);
             Row::new((
                 Column::new((
                     menu_button("Overview", tab, Tab::Overview),
@@ -42,7 +42,7 @@ fn main() {
     app.run();
 }
 
-fn menu_button(label: &str, tab_signal: Signal<Tab>, tab: Tab) -> impl View {
+fn menu_button(label: &str, tab_signal: Var<Tab>, tab: Tab) -> impl View {
     Button::new(Label::new(label))
         .on_click(move |cx| tab_signal.set(cx, tab))
         .style(|style| {
@@ -59,9 +59,9 @@ fn menu_button(label: &str, tab_signal: Signal<Tab>, tab: Tab) -> impl View {
 
 fn overview() -> impl View {
     Stateful::new(|cx| {
-        let checkbox_enabled = Signal::new(cx, false);
-        let text = Signal::new(cx, "".to_string());
-        let slider_value = Signal::new(cx, 100.0);
+        let checkbox_enabled = Var::new(cx, false);
+        let text = Var::new(cx, "".to_string());
+        let slider_value = Var::new(cx, 100.0);
         let checkbox_bg = AnimatedFn::tween(
             cx,
             move |cx| {
@@ -93,7 +93,7 @@ fn overview() -> impl View {
         });
 
         slider_value.watch(cx, move |_, value| {
-            println!("Effect::watch: slider_value: {}", value);
+            println!("Effect::watch: slider_value: {value}");
         });
 
         Column::new((

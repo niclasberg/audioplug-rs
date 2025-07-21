@@ -8,7 +8,7 @@ use super::{
     WidgetFlags, WidgetId,
 };
 use crate::{
-    app::{app_state::WidgetInsertPos, diff::DiffOp, OverlayOptions},
+    ui::{app_state::WidgetInsertPos, diff::DiffOp, OverlayOptions},
     core::Rectangle,
     style::Style,
 };

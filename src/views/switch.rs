@@ -1,4 +1,4 @@
-use crate::app::{BuildContext, Effect, ReadContext, View};
+use crate::ui::{BuildContext, Effect, ReadContext, View};
 
 pub struct Switch<FValue, FView> {
     f_value: FValue,

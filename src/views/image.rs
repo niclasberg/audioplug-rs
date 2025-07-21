@@ -1,10 +1,10 @@
 use std::path::Path;
 
 use crate::{
-    app::{View, Widget},
+    ui::{View, Widget},
     core::{Color, Size},
     platform,
-    style::{AvailableSpace, DisplayStyle, Measure},
+    style::{AvailableSpace, LayoutMode, Measure},
 };
 
 pub struct Image {
@@ -21,7 +21,7 @@ impl Image {
 impl View for Image {
     type Element = ImageWidget;
 
-    fn build(self, _cx: &mut crate::app::BuildContext<Self::Element>) -> Self::Element {
+    fn build(self, _cx: &mut crate::ui::BuildContext<Self::Element>) -> Self::Element {
         ImageWidget {
             source: self.source,
         }
@@ -75,11 +75,11 @@ impl Widget for ImageWidget {
         "Image"
     }
 
-    fn display_style(&self) -> DisplayStyle {
-        DisplayStyle::Leaf(self)
+    fn layout_mode(&self) -> LayoutMode {
+        LayoutMode::Leaf(self)
     }
 
-    fn render(&mut self, ctx: &mut crate::app::RenderContext) {
+    fn render(&mut self, ctx: &mut crate::ui::RenderContext) {
         if let Some(source) = &self.source {
             ctx.draw_bitmap(source, ctx.content_bounds())
         } else {

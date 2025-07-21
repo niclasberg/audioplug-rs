@@ -10,7 +10,7 @@ use vst3_sys::utils::SharedVstPtr;
 use vst3_sys::VstPtr;
 use vst3_sys::VST3;
 
-use crate::app::{AppState, Window};
+use crate::ui::{AppState, Window};
 use crate::core::Rectangle;
 use crate::param::ParameterMap;
 use crate::Editor;

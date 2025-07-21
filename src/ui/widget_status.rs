@@ -1,4 +1,4 @@
-use crate::app::ReadSignal;
+use crate::ui::ReadSignal;
 use bitflags::bitflags;
 
 #[derive(Clone, Copy)]

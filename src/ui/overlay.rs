@@ -1,5 +1,5 @@
 use crate::{
-    app::WidgetId,
+    ui::WidgetId,
     core::{Align, Vec2},
 };
 

@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
-use super::{Brush, BuildContext, LinearGradient, ReadContext, Readable, Widget, WidgetMut};
+use super::{Effect, ReactiveValue, ReadContext, ReadSignal};
 use crate::{
-    app::{Effect, ReadSignal},
+    ui::{Brush, BuildContext, LinearGradient, Widget, WidgetMut},
     core::Color,
 };
 

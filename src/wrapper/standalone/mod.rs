@@ -2,7 +2,7 @@ use rtrb::{Consumer, Producer, RingBuffer};
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    app::{AppState, HostHandle, Window},
+    ui::{AppState, HostHandle, Window},
     param::{NormalizedValue, ParameterId, ParameterInfo, ParameterMap, Params},
     platform::{self, AudioHost},
     App, Editor, Plugin,

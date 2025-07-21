@@ -1,10 +1,10 @@
 use std::{any::Any, marker::PhantomData};
 
-use crate::app::Accessor;
+use crate::ui::Accessor;
 
 use super::{
-    CreateContext, NodeId, NodeType, Owner, Readable, Runtime, Trigger, WriteContext,
-    signal::SignalState,
+    CreateContext, NodeId, NodeType, Owner, ReactiveValue, Runtime, Trigger, WriteContext,
+    var::SignalState,
 };
 
 #[derive(Copy, Clone)]
@@ -82,7 +82,7 @@ impl<T> From<SignalVec<T>> for Accessor<Vec<T>> {
     }
 }
 
-impl<T: Any> Readable for SignalVec<T> {
+impl<T: Any> ReactiveValue for SignalVec<T> {
     type Value = Vec<T>;
 
     fn track(&self, cx: &mut dyn super::ReadContext) {
@@ -125,7 +125,7 @@ impl<T: Any> From<AtIndex<SignalVec<T>, T>> for Accessor<T> {
     }
 }
 
-impl<T: Any> Readable for AtIndex<SignalVec<T>, T> {
+impl<T: Any> ReactiveValue for AtIndex<SignalVec<T>, T> {
     type Value = T;
 
     fn track(&self, cx: &mut dyn super::ReadContext) {

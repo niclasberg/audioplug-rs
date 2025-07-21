@@ -1,7 +1,7 @@
 use taffy::{AlignSelf, JustifySelf};
 
 use crate::{
-    app::{Accessor, Brush, BuildContext, Widget},
+    ui::{Accessor, Brush, BuildContext, Widget},
     core::{Color, ShadowOptions, Size},
 };
 

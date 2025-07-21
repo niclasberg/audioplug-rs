@@ -1,12 +1,12 @@
 use crate::{
-    app::{
+    ui::{
         Accessor, BuildContext, CallbackContext, EventContext, EventStatus, LinearGradient,
         MouseEventContext, ParamSetter, RenderContext, StatusChange, View, Widget,
     },
     core::{Circle, Color, Key, Point, Rectangle, RoundedRectangle, Size, UnitPoint},
     event::MouseButton,
     param::{AnyParameter, NormalizedValue, PlainValue},
-    style::{AvailableSpace, DisplayStyle, Length, Measure, Style},
+    style::{AvailableSpace, LayoutMode, Length, Measure, Style},
     KeyEvent, MouseEvent,
 };
 
@@ -445,7 +445,7 @@ impl Widget for SliderWidget {
         );
     }
 
-    fn display_style(&self) -> DisplayStyle {
-        DisplayStyle::Leaf(self)
+    fn layout_mode(&self) -> LayoutMode {
+        LayoutMode::Leaf(self)
     }
 }

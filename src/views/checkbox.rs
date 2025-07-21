@@ -1,11 +1,11 @@
 use crate::{
-    app::{
+    KeyEvent, MouseButton, MouseEvent,
+    ui::{
         Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
         RenderContext, View, Widget,
     },
     core::{Color, Key, Rectangle, Size},
-    style::{AvailableSpace, DisplayStyle, Length, Measure, Style, UiRect},
-    KeyEvent, MouseButton, MouseEvent,
+    style::{AvailableSpace, LayoutMode, Length, Measure, Style, UiRect},
 };
 
 pub struct Checkbox {
@@ -142,8 +142,8 @@ impl Widget for CheckboxWidget {
         }
     }
 
-    fn display_style(&self) -> DisplayStyle {
-        DisplayStyle::Leaf(self)
+    fn layout_mode(&self) -> LayoutMode {
+        LayoutMode::Leaf(self)
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {

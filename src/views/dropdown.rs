@@ -1,5 +1,5 @@
 use crate::{
-    app::{
+    ui::{
         Accessor, EventContext, EventStatus, MouseEventContext, OverlayAnchor, OverlayOptions,
         ReadContext, View, Widget, WidgetId, WidgetMut, WrappedWidget,
     },
@@ -26,7 +26,7 @@ impl<VTrigger: View, VMenu: View, FMenu: Fn() -> VMenu + 'static> View
 {
     type Element = DropdownWidget<VTrigger::Element, FMenu>;
 
-    fn build(self, cx: &mut crate::app::BuildContext<Self::Element>) -> Self::Element {
+    fn build(self, cx: &mut crate::ui::BuildContext<Self::Element>) -> Self::Element {
         let trigger_widget = cx.build_inner(self.trigger_view);
         cx.set_focusable(true);
 

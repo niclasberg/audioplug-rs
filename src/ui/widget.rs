@@ -3,7 +3,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crate::{AnimationFrame, KeyEvent, MouseEvent, app::ReadSignal, style::DisplayStyle};
+use crate::{AnimationFrame, KeyEvent, MouseEvent, ui::ReadSignal, style::LayoutMode};
 
 use super::{EventContext, MouseEventContext, RenderContext, animation::AnimationContext};
 
@@ -49,7 +49,8 @@ pub trait Widget: Any {
     #[allow(unused_variables)]
     fn animation_frame(&mut self, frame: AnimationFrame, cx: &mut AnimationContext) {}
 
-    fn display_style(&self) -> DisplayStyle;
+    /// Returns the layout mode (or algorithm) to be used to layout the Widget's children
+    fn layout_mode(&self) -> LayoutMode;
 
     /// Widgets that wrap another widget (like background, styled etc) need to implement this method and return the
     /// wrapped widget in order for downcasting to work properly.
@@ -107,8 +108,8 @@ impl Widget for Box<dyn Widget> {
         self.deref_mut().animation_frame(frame, ctx);
     }
 
-    fn display_style(&self) -> DisplayStyle {
-        self.deref().display_style()
+    fn layout_mode(&self) -> LayoutMode {
+        self.deref().layout_mode()
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {
@@ -129,8 +130,8 @@ pub trait WrappedWidget: Any {
 
     fn inner(&self) -> &Self::Inner;
     fn inner_mut(&mut self) -> &mut Self::Inner;
-    fn display_style(&self) -> DisplayStyle {
-        self.inner().display_style()
+    fn display_style(&self) -> LayoutMode {
+        self.inner().layout_mode()
     }
 
     fn debug_label(&self) -> &'static str {
@@ -159,7 +160,7 @@ pub trait WrappedWidget: Any {
 }
 
 impl<T: WrappedWidget> Widget for T {
-    fn display_style(&self) -> DisplayStyle {
+    fn layout_mode(&self) -> LayoutMode {
         self.display_style()
     }
 

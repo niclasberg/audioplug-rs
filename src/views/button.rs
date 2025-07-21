@@ -1,11 +1,11 @@
 use crate::{
-    app::{
+    ui::{
         Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
         RenderContext, StatusChange, View, Widget,
     },
     core::{Color, Key},
     event::{KeyEvent, MouseButton},
-    style::{DisplayStyle, FlexStyle, Length, Style, UiRect},
+    style::{LayoutMode, FlexStyle, Length, Style, UiRect},
     views::Label,
     MouseEvent,
 };
@@ -141,7 +141,7 @@ impl Widget for ButtonWidget {
         ctx.render_children()
     }
 
-    fn display_style(&self) -> DisplayStyle {
-        DisplayStyle::Flex(&FLEX_STYLE)
+    fn layout_mode(&self) -> LayoutMode {
+        LayoutMode::Flex(&FLEX_STYLE)
     }
 }

@@ -1,7 +1,7 @@
 use crate::{
-    app::{BuildContext, RenderContext, Shape, View, Widget},
+    ui::{BuildContext, RenderContext, Shape, View, Widget},
     core::{Color, Rectangle, Size},
-    style::{AvailableSpace, DisplayStyle, Length, Measure, Style},
+    style::{AvailableSpace, LayoutMode, Length, Measure, Style},
 };
 
 pub trait Fill {
@@ -60,7 +60,7 @@ impl Widget for Filled {
         )
     }
 
-    fn display_style(&self) -> DisplayStyle {
-        DisplayStyle::Leaf(self)
+    fn layout_mode(&self) -> LayoutMode {
+        LayoutMode::Leaf(self)
     }
 }

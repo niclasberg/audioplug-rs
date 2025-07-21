@@ -1,23 +1,24 @@
 use std::{any::Any, marker::PhantomData};
 
-use crate::app::{Accessor, Effect, Owner, ReactiveContext, ReadSignal};
+use crate::ui::{Accessor, Effect, Owner, ReactiveContext, ReadSignal};
 
-use super::{CreateContext, NodeId, NodeType, ReadContext, Readable, WriteContext};
+use super::{CreateContext, NodeId, NodeType, ReactiveValue, ReadContext, WriteContext};
 
-pub struct Signal<T> {
-    pub(super) id: NodeId,
+/// A value that may change over time.
+pub struct Var<T> {
+    pub(crate) id: NodeId,
     _marker: PhantomData<*mut T>,
 }
 
-impl<T> Clone for Signal<T> {
+impl<T> Clone for Var<T> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<T> Copy for Signal<T> {}
+impl<T> Copy for Var<T> {}
 
-impl<T: Any> Signal<T> {
+impl<T: Any> Var<T> {
     pub fn new(cx: &mut dyn CreateContext, value: T) -> Self {
         let state = SignalState::new(value);
         let owner = cx.owner();
@@ -78,13 +79,13 @@ impl<T: Any> Signal<T> {
     }
 }
 
-impl<T: 'static> From<Signal<T>> for Accessor<T> {
-    fn from(value: Signal<T>) -> Self {
+impl<T: 'static> From<Var<T>> for Accessor<T> {
+    fn from(value: Var<T>) -> Self {
         Accessor::ReadSignal(value.as_read_signal())
     }
 }
 
-impl<T: 'static> Readable for Signal<T> {
+impl<T: 'static> ReactiveValue for Var<T> {
     type Value = T;
 
     fn track(&self, cx: &mut dyn ReadContext) {

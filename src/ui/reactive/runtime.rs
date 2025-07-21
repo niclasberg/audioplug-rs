@@ -1,19 +1,21 @@
 use super::{
-    NodeId, ReactiveContext, ReadContext, WidgetId, WindowId, WriteContext,
+    NodeId, ReactiveContext, ReadContext, WriteContext,
     animation::{AnimationState, DerivedAnimationState},
-    app_state::Task,
+    cached::CachedState,
     effect::{BindingState, EffectState},
     event_channel::EventHandlerState,
-    memo::MemoState,
-    signal::SignalState,
+    var::SignalState,
 };
 use crate::{
-    app::{FxHashMap, FxHashSet, FxIndexMap, FxIndexSet, widget_status::WidgetStatusFlags},
+    ui::{
+        FxHashMap, FxHashSet, FxIndexSet, WidgetId, WindowId, app_state::Task,
+        widget_status::WidgetStatusFlags,
+    },
     param::{AnyParameterMap, ParamRef, ParameterId},
 };
 use slotmap::{SecondaryMap, SlotMap};
 use smallvec::SmallVec;
-use std::{any::Any, collections::VecDeque, rc::Rc};
+use std::{any::Any, collections::VecDeque, rc::Rc, time::Instant};
 
 pub struct Node {
     pub(super) node_type: NodeType,
@@ -63,7 +65,7 @@ pub enum NodeType {
     TmpRemoved,
     Trigger,
     Signal(SignalState),
-    Memo(MemoState),
+    Memo(CachedState),
     Effect(EffectState),
     Binding(BindingState),
     Animation(AnimationState),
@@ -225,9 +227,9 @@ impl SubscriberMap {
 
 pub struct Runtime {
     nodes: SlotMap<NodeId, Node>,
-    pub(super) subscriptions: SubscriberMap,
-    pub(super) pending_tasks: VecDeque<Task>,
-    pub(super) parameters: Rc<dyn AnyParameterMap>,
+    pub(crate) subscriptions: SubscriberMap,
+    pending_tasks: VecDeque<Task>,
+    pub(crate) parameters: Rc<dyn AnyParameterMap>,
     scratch_buffer: VecDeque<NodeId>,
     nodes_owned_by_node: SecondaryMap<NodeId, FxHashSet<NodeId>>,
     nodes_owned_by_widget: SecondaryMap<WidgetId, FxHashSet<NodeId>>,
@@ -254,7 +256,7 @@ impl Runtime {
         self.create_node(NodeType::Signal(state), NodeState::Clean, owner)
     }
 
-    pub(crate) fn create_memo_node(&mut self, state: MemoState, owner: Option<Owner>) -> NodeId {
+    pub(crate) fn create_memo_node(&mut self, state: CachedState, owner: Option<Owner>) -> NodeId {
         self.create_node(NodeType::Memo(state), NodeState::Dirty, owner)
     }
 
@@ -355,7 +357,7 @@ impl Runtime {
         id
     }
 
-    pub(super) fn clear_nodes_for_widget(&mut self, widget_id: WidgetId) {
+    pub(crate) fn clear_nodes_for_widget(&mut self, widget_id: WidgetId) {
         if let Some(bindings) = self.nodes_owned_by_widget.remove(widget_id) {
             for node_id in bindings {
                 self.remove_node(node_id);
@@ -391,8 +393,16 @@ impl Runtime {
             .map(|node| NodeType::get_value_ref(&node.node_type))
     }
 
-    pub fn try_get_node_mut(&mut self, node_id: NodeId) -> Option<&mut Node> {
-        self.nodes.get_mut(node_id)
+    pub fn try_drive_animation(&mut self, node_id: NodeId, now: Instant) -> bool {
+        if let Some(node) = self.nodes.get_mut(node_id) {
+            match &mut node.node_type {
+                NodeType::Animation(animation) => animation.inner.drive(now),
+                NodeType::DerivedAnimation(animation) => animation.inner.drive(now),
+                _ => unreachable!(),
+            }
+        } else {
+            false
+        }
     }
 
     pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
@@ -532,7 +542,7 @@ impl Runtime {
         self.nodes[node_id].state = NodeState::Clean;
     }
 
-    pub(super) fn notify_parameter_subscribers(&mut self, source_id: ParameterId) {
+    pub(crate) fn notify_parameter_subscribers(&mut self, source_id: ParameterId) {
         let mut nodes_to_notify = std::mem::take(&mut self.scratch_buffer);
         nodes_to_notify.clear();
         nodes_to_notify.extend(
@@ -545,11 +555,15 @@ impl Runtime {
         self.notify_source_changed(nodes_to_notify);
     }
 
-    pub(super) fn mark_node_as_clean(&mut self, node_id: NodeId) {
+    pub(crate) fn mark_node_as_clean(&mut self, node_id: NodeId) {
         self.nodes[node_id].state = NodeState::Clean;
     }
 
-    pub(super) fn take_tasks(&mut self) -> VecDeque<Task> {
+    pub(crate) fn push_task(&mut self, task: Task) {
+        self.pending_tasks.push_back(task);
+    }
+
+    pub(crate) fn take_tasks(&mut self) -> VecDeque<Task> {
         std::mem::take(&mut self.pending_tasks)
     }
 

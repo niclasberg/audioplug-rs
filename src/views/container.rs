@@ -1,7 +1,7 @@
 use crate::{
-    app::{Accessor, BuildContext, Memo, View, ViewSequence, Widget},
+    ui::{Accessor, BuildContext, Cached, View, ViewSequence, Widget},
     style::{
-        AlignItems, DisplayStyle, FlexDirection, FlexStyle, FlexWrap, GridStyle, JustifyContent,
+        AlignItems, FlexDirection, FlexStyle, FlexWrap, GridStyle, JustifyContent, LayoutMode,
         Length,
     },
 };
@@ -113,7 +113,7 @@ impl<VS: ViewSequence, const IS_ROW: bool> View for FlexContainer<VS, IS_ROW> {
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
         Container {
             view_seq: self.view_seq,
-            style: Memo::new(cx, move |cx, _| {
+            style: Cached::new(cx, move |cx, _| {
                 ContainerStyle::Flex(FlexStyle {
                     direction: if IS_ROW {
                         FlexDirection::Row
@@ -198,16 +198,16 @@ impl Widget for ContainerWidget {
         "Container"
     }
 
-    fn render(&mut self, ctx: &mut crate::app::RenderContext) {
+    fn render(&mut self, ctx: &mut crate::ui::RenderContext) {
         ctx.render_children()
     }
 
-    fn display_style(&self) -> DisplayStyle {
+    fn layout_mode(&self) -> LayoutMode {
         match &self.container_style {
-            ContainerStyle::Block => DisplayStyle::Block,
-            ContainerStyle::Stack => DisplayStyle::Stack,
-            ContainerStyle::Flex(flex_style) => DisplayStyle::Flex(flex_style),
-            ContainerStyle::Grid(grid_style) => DisplayStyle::Grid(grid_style),
+            ContainerStyle::Block => LayoutMode::Block,
+            ContainerStyle::Stack => LayoutMode::Stack,
+            ContainerStyle::Flex(flex_style) => LayoutMode::Flex(flex_style),
+            ContainerStyle::Grid(grid_style) => LayoutMode::Grid(grid_style),
         }
     }
 }

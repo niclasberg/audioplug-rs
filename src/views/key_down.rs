@@ -1,5 +1,5 @@
 use crate::{
-    app::{BuildContext, EventContext, EventStatus, View, Widget, WrappedWidget, WriteContext},
+    ui::{BuildContext, EventContext, EventStatus, View, Widget, WrappedWidget, WriteContext},
     KeyEvent,
 };
 

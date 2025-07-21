@@ -1,4 +1,4 @@
-pub mod app;
+pub mod ui;
 mod audio_buffer;
 mod audiolayout;
 pub mod core;
@@ -14,7 +14,7 @@ pub mod util;
 pub mod views;
 pub mod wrapper;
 
-pub use app::App;
+pub use ui::App;
 pub use audio_buffer::*;
 pub use audiolayout::*;
 pub use editor::*;

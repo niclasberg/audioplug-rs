@@ -1,11 +1,6 @@
-use std::{
-    collections::{HashMap, HashSet},
-    hash::Hash,
-};
+use std::hash::Hash;
 
-use rustc_hash::FxBuildHasher;
-
-use crate::app::{FxHashMap, FxHashSet, FxIndexSet};
+use crate::ui::FxIndexSet;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum DiffOp<'a, T> {

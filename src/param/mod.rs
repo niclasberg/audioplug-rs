@@ -20,7 +20,7 @@ pub use parameter_map::{AnyParameterMap, ParameterMap, Params};
 pub use string_list::StringListParameter;
 pub use traversal::{ParamVisitor, ParameterTraversal};
 
-use crate::app::ReadSignal;
+use crate::ui::ReadSignal;
 
 #[derive(Clone, Debug)]
 pub struct ParseError;

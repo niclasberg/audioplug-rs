@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    app::{AnyView, Signal, View},
+    ui::{AnyView, Var, View},
     core::Size,
     param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params},
     style::{Length, UiRect},
@@ -60,7 +60,7 @@ impl ParamVisitor for CreateParameterViewsVisitor {
         let name = group.name().to_string();
 
         let view = Stateful::new(move |cx| {
-            let hide_children = Signal::new(cx, false);
+            let hide_children = Var::new(cx, false);
             Column::new((
                 Label::new(name),
                 Column::new(child_visitor.views)

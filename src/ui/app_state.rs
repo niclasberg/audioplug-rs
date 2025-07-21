@@ -1,18 +1,16 @@
 use super::{
     BuildContext, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext, ReadContext,
-    Runtime, Signal, View, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef,
-    WindowId, WriteContext,
+    Var, View, Widget, WidgetData, WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId,
+    WriteContext,
     clipboard::Clipboard,
-    effect::{BindingFn, EffectContext},
     layout_window,
+    reactive::{BindingFn, EffectContext, EffectFn, HandleEventFn, Runtime, WatchContext},
 };
 use crate::{
-    app::{
+    ui::{
         AnyView, FxIndexSet, ReadSignal, Scope, WidgetContext,
-        effect::{EffectFn, WatchContext},
-        event_channel::HandleEventFn,
         event_handling::{set_focus_widget, set_mouse_capture_widget},
-        layout::LayoutMode,
+        layout::RecomputeLayout,
         overlay::{OverlayContainer, OverlayOptions},
     },
     core::{Point, WindowTheme},
@@ -33,7 +31,7 @@ pub(super) struct WindowState {
     pub(super) focus_widget: Option<WidgetId>,
     pub(super) pending_widget_animations: FxIndexSet<WidgetId>,
     pub(super) pending_node_animations: FxIndexSet<NodeId>,
-    pub(super) theme_signal: Signal<WindowTheme>,
+    pub(super) theme_signal: Var<WindowTheme>,
     pub(super) overlays: OverlayContainer,
 }
 
@@ -104,7 +102,7 @@ impl AppState {
     }
 
     pub fn add_window(&mut self, handle: platform::Handle, view: impl View) -> WindowId {
-        let theme_signal = Signal::new(self, handle.theme());
+        let theme_signal = Var::new(self, handle.theme());
 
         let window_id = self.windows.insert(WindowState {
             handle,
@@ -123,7 +121,7 @@ impl AppState {
         self.windows[window_id].root_widget = widget_id;
         self.build_and_insert_widget(widget_id, view);
 
-        layout_window(self, window_id, LayoutMode::Force);
+        layout_window(self, window_id, RecomputeLayout::Force);
 
         window_id
     }
@@ -370,7 +368,7 @@ impl AppState {
         // Layout if needed
         let window_ids: Vec<_> = self.windows.iter().map(|window| window.0).collect();
         for window_id in window_ids {
-            layout_window(self, window_id, LayoutMode::IfNeeded);
+            layout_window(self, window_id, RecomputeLayout::IfNeeded);
         }
     }
 

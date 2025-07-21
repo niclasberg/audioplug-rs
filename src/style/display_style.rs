@@ -33,7 +33,7 @@ pub trait Measure {
 }
 
 #[derive(Copy, Clone)]
-pub enum DisplayStyle<'a> {
+pub enum LayoutMode<'a> {
     Block,
     Stack,
     Flex(&'a FlexStyle),

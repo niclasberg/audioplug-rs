@@ -4,7 +4,7 @@ use std::rc::Rc;
 use raw_window_handle::RawWindowHandle;
 
 use super::View;
-use crate::app::{handle_window_event, render_window, AppState, WindowId};
+use crate::ui::{handle_window_event, render_window, AppState, WindowId};
 use crate::core::{Cursor, Point, Rectangle};
 use crate::platform::{WindowEvent, WindowHandler};
 use crate::{platform, App};

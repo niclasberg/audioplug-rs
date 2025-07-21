@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    app::{Accessor, CreateContext, Effect, NodeId, ReadContext, Readable, WatchContext},
+    ui::{Accessor, CreateContext, Effect, NodeId, ReadContext, ReactiveValue, WatchContext},
     param::ParameterId,
 };
 
@@ -46,7 +46,7 @@ impl<T> ReadSignal<T> {
     }
 }
 
-impl<T: 'static> Readable for ReadSignal<T> {
+impl<T: 'static> ReactiveValue for ReadSignal<T> {
     type Value = T;
 
     fn track(&self, cx: &mut dyn ReadContext) {

@@ -1,4 +1,4 @@
-use crate::app::{diff::DiffOp, Effect, ReadContext};
+use crate::ui::{diff::DiffOp, Effect, ReadContext};
 
 use super::{Accessor, BuildContext, View, Widget};
 

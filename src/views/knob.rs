@@ -1,12 +1,12 @@
 use crate::{
-    app::{
+    MouseButton, MouseEvent,
+    ui::{
         Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
         ParamSetter, RenderContext, StatusChange, View, Widget,
     },
     core::{Circle, Color, Modifiers, Point, Rectangle, Size},
     param::{AnyParameter, NormalizedValue, PlainValue},
-    style::{AvailableSpace, DisplayStyle, Measure},
-    MouseButton, MouseEvent,
+    style::{AvailableSpace, LayoutMode, Measure},
 };
 
 use super::util::{denormalize_value, round_to_steps};
@@ -57,7 +57,7 @@ impl Default for Knob {
 impl View for Knob {
     type Element = KnobWidget;
 
-    fn build(self, cx: &mut crate::app::BuildContext<Self::Element>) -> Self::Element {
+    fn build(self, cx: &mut crate::ui::BuildContext<Self::Element>) -> Self::Element {
         cx.set_focusable(true);
         KnobWidget {
             normalized_value: 0.0,
@@ -173,8 +173,8 @@ impl Measure for KnobWidget {
 }
 
 impl Widget for KnobWidget {
-    fn display_style(&self) -> DisplayStyle {
-        DisplayStyle::Leaf(self)
+    fn layout_mode(&self) -> LayoutMode {
+        LayoutMode::Leaf(self)
     }
 
     fn debug_label(&self) -> &'static str {

@@ -13,7 +13,7 @@ use vst3_sys::{c_void, VST3};
 
 use vst3_sys as vst3_com;
 
-use crate::app::{AppState, HostHandle};
+use crate::ui::{AppState, HostHandle};
 use crate::param::{
     AnyParameterMap, NormalizedValue, ParamRef, ParameterId, ParameterMap, Params, PlainValue,
 };

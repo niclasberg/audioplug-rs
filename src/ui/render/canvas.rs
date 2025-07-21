@@ -1,13 +1,13 @@
 use std::marker::PhantomData;
 
 use crate::{
-    app::{
+    ui::{
         AppState, BrushRef, BuildContext, EffectState, NodeId, Owner, ReactiveContext, ReadContext,
         Runtime, Scope, ShapeRef, TextLayout, View, Widget, WidgetId,
     },
     core::{Point, Rectangle},
     platform,
-    style::DisplayStyle,
+    style::LayoutMode,
 };
 
 /// View that allows custom rendering.
@@ -148,15 +148,15 @@ pub struct CanvasWidget<State> {
 }
 
 impl<State: 'static> Widget for CanvasWidget<State> {
-    fn display_style(&self) -> DisplayStyle {
-        DisplayStyle::Block
+    fn layout_mode(&self) -> LayoutMode {
+        LayoutMode::Block
     }
 
     fn debug_label(&self) -> &'static str {
         "Canvas"
     }
 
-    fn render(&mut self, cx: &mut crate::app::RenderContext) {
+    fn render(&mut self, cx: &mut crate::ui::RenderContext) {
         cx.app_state
             .runtime
             .subscriptions

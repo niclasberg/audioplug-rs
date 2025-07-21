@@ -1,5 +1,5 @@
 use crate::{
-    app::{
+    ui::{
         Accessor, BuildContext, CallbackContext, EventStatus, MouseEventContext, OverlayOptions,
         View, Widget, WrappedWidget, WriteContext,
     },

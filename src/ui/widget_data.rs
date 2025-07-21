@@ -2,7 +2,7 @@ use bitflags::bitflags;
 use slotmap::{Key, KeyData, new_key_type};
 
 use crate::{
-    app::ReadSignal,
+    ui::ReadSignal,
     core::{Point, Rectangle, RoundedRectangle, Size},
     style::Style,
 };

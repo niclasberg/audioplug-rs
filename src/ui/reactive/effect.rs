@@ -1,5 +1,5 @@
 use crate::{
-    app::{TypedWidgetId, Widget, WidgetContext, WidgetMut, WidgetRef},
+    ui::{TypedWidgetId, Widget, WidgetContext, WidgetMut, WidgetRef},
     param::ParameterId,
 };
 
@@ -30,7 +30,7 @@ impl dyn WatchContext + '_ {
     }
 }
 
-pub(super) type EffectFn = dyn FnMut(&mut dyn EffectContext);
+pub type EffectFn = dyn FnMut(&mut dyn EffectContext);
 
 pub struct EffectState {
     pub(super) f: Rc<RefCell<EffectFn>>,
@@ -158,7 +158,7 @@ impl Effect {
     }
 }
 
-pub(super) type BindingFn = dyn FnMut(&mut dyn WatchContext);
+pub type BindingFn = dyn FnMut(&mut dyn WatchContext);
 
 pub struct BindingState {
     pub f: Rc<RefCell<BindingFn>>,

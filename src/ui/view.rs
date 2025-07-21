@@ -3,7 +3,7 @@ use super::{
     TypedWidgetId, ViewContext, Widget, WidgetFlags, WidgetId,
 };
 use crate::{
-    app::{
+    ui::{
         app_state::WidgetInsertPos, overlay::OverlayOptions, CallbackContext, EventStatus,
         MouseEventContext, ViewSequence, WrappedWidget,
     },

@@ -6,102 +6,18 @@ use std::{
 };
 
 use crate::{
-    AnimationFrame,
-    app::{Accessor, CreateContext, Effect, ReadSignal, WatchContext},
+    ui::WindowId,
     core::{Interpolate, SpringPhysics},
 };
 
 use super::{
-    AppState, LocalReadContext, NodeId, NodeType, ReactiveContext, ReadContext, Readable, Runtime,
-    Scope, ViewContext, WidgetId, WindowId, WriteContext, layout::request_layout,
-    render::invalidate_widget,
+    Accessor, CreateContext, Effect, LocalReadContext, NodeId, NodeType, ReactiveContext,
+    ReactiveValue, ReadContext, ReadSignal, Runtime, Scope, ViewContext, WatchContext,
+    WriteContext,
 };
 
-mod spring;
-mod tween;
-
-pub use spring::{SpringAnimation, SpringOptions};
-pub use tween::{Easing, TweenAnimation, TweenOptions};
-
-/// Should be called when the animation timer for a window ticks.
-/// Steps all animations that have been enqueued for window.
-pub(super) fn drive_animations(
-    app_state: &mut AppState,
-    window_id: WindowId,
-    animation_frame: AnimationFrame,
-) {
-    let widget_ids = std::mem::take(&mut app_state.window_mut(window_id).pending_widget_animations);
-    for widget_id in widget_ids {
-        let mut ctx = AnimationContext {
-            id: widget_id,
-            app_state,
-        };
-        ctx.run_animation(animation_frame)
-    }
-
-    let node_ids = std::mem::take(&mut app_state.window_mut(window_id).pending_node_animations);
-    let now = Instant::now();
-    for node_id in node_ids {
-        let did_change = if let Some(node) = app_state.runtime_mut().try_get_node_mut(node_id) {
-            match &mut node.node_type {
-                NodeType::Animation(animation) => animation.inner.drive(now),
-                NodeType::DerivedAnimation(animation) => animation.inner.drive(now),
-                _ => unreachable!(),
-            }
-        } else {
-            false
-        };
-
-        if did_change {
-            app_state.runtime_mut().notify(node_id);
-            // Re-queue the animation for the next frame
-            app_state
-                .window_mut(window_id)
-                .pending_node_animations
-                .insert(node_id);
-        }
-    }
-
-    app_state.run_effects();
-}
-
-pub fn request_animation_frame(app_state: &mut AppState, widget_id: WidgetId) {
-    let window_id = app_state.get_window_id_for_widget(widget_id);
-    app_state
-        .window_mut(window_id)
-        .pending_widget_animations
-        .insert(widget_id);
-}
-
-pub struct AnimationContext<'a> {
-    id: WidgetId,
-    app_state: &'a mut AppState,
-}
-
-impl AnimationContext<'_> {
-    fn run_animation(&mut self, animation_frame: AnimationFrame) {
-        if let Some(mut widget) = self.app_state.widgets.remove(self.id) {
-            widget.animation_frame(animation_frame, self);
-            self.app_state.widgets.insert(self.id, widget);
-        }
-    }
-
-    pub fn has_focus(&self) -> bool {
-        self.app_state.widget_has_focus(self.id)
-    }
-
-    pub fn request_render(&mut self) {
-        invalidate_widget(self.app_state, self.id);
-    }
-
-    pub fn request_animation(&mut self) {
-        request_animation_frame(self.app_state, self.id)
-    }
-
-    pub fn request_layout(&mut self) {
-        request_layout(self.app_state, self.id);
-    }
-}
+pub use super::spring::{SpringAnimation, SpringOptions};
+pub use super::tween::{Easing, TweenAnimation, TweenOptions};
 
 pub trait Animation {
     type Value;
@@ -260,7 +176,7 @@ impl<T: 'static> From<Animated<T>> for Accessor<T> {
     }
 }
 
-impl<T: 'static> Readable for Animated<T> {
+impl<T: 'static> ReactiveValue for Animated<T> {
     type Value = T;
 
     fn track(&self, cx: &mut dyn ReadContext) {
@@ -378,7 +294,7 @@ impl<T> From<AnimatedFn<T>> for Accessor<T> {
     }
 }
 
-impl<T: 'static> Readable for AnimatedFn<T> {
+impl<T: 'static> ReactiveValue for AnimatedFn<T> {
     type Value = T;
 
     fn track(&self, cx: &mut dyn ReadContext) {

@@ -1,10 +1,10 @@
-use crate::app::{
+use crate::ui::{
     Accessor, AnimationContext, AppState, BuildContext, EventContext, EventStatus,
     MouseEventContext, RenderContext, StatusChange, TextLayout, View, Widget,
 };
 use crate::core::{Color, Cursor, Key, Modifiers, Rectangle, Size};
 use crate::event::{KeyEvent, MouseButton};
-use crate::style::{AvailableSpace, DisplayStyle, Length, Measure, Style, UiRect};
+use crate::style::{AvailableSpace, LayoutMode, Length, Measure, Style, UiRect};
 use crate::MouseEvent;
 use std::ops::Range;
 use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
@@ -544,7 +544,7 @@ impl Widget for TextBoxWidget {
         });
     }
 
-    fn display_style(&self) -> DisplayStyle {
-        DisplayStyle::Leaf(self)
+    fn layout_mode(&self) -> LayoutMode {
+        LayoutMode::Leaf(self)
     }
 }

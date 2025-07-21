@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData, rc::Rc};
 
-use crate::app::{CreateContext, NodeId, WatchContext, WriteContext};
+use crate::ui::{CreateContext, NodeId, WatchContext, WriteContext};
 
 pub struct EventChannel<T> {
     emitter_id: NodeId,
@@ -51,7 +51,7 @@ pub fn create_event_channel<T: Any>(
     (emitter, receiver)
 }
 
-pub(super) type HandleEventFn = dyn Fn(&mut dyn WatchContext, &dyn Any);
+pub type HandleEventFn = dyn Fn(&mut dyn WatchContext, &dyn Any);
 
 pub struct EventHandlerState {
     f: Rc<HandleEventFn>,

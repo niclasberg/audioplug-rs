@@ -1,5 +1,5 @@
 use audioplug::{
-    app::*,
+    ui::*,
     core::{Color, Key, Size, UnitPoint},
     style::{AlignSelf, Length, UiRect},
     views::*,
@@ -11,7 +11,7 @@ fn main() {
     let _ = Window::open(
         &mut app,
         Stateful::new(|cx| {
-            let count = Signal::new(cx, 0);
+            let count = Var::new(cx, 0);
 
             let trigger = Trigger::new(cx);
             Effect::new(cx, move |cx| {

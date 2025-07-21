@@ -5,11 +5,11 @@ mod length;
 mod ui_rect;
 
 use crate::{
-    app::Brush,
+    ui::Brush,
     core::{Color, Cursor, ShadowOptions, Size},
 };
 pub use builder::StyleBuilder;
-pub use display_style::{AvailableSpace, DisplayStyle, FlexStyle, GridStyle, Measure};
+pub use display_style::{AvailableSpace, LayoutMode, FlexStyle, GridStyle, Measure};
 pub use image_effect::ImageEffect;
 pub use length::Length;
 pub use taffy::{

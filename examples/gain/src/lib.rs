@@ -1,4 +1,4 @@
-use audioplug::app::*;
+use audioplug::ui::*;
 use audioplug::core::{Color, Size};
 use audioplug::param::{BoolParameter, FloatParameter, Parameter, ParameterId, Params};
 use audioplug::style::UiRect;

@@ -2,12 +2,12 @@ use std::{any::Any, hash::Hash, marker::PhantomData};
 
 use rustc_hash::FxBuildHasher;
 
-use crate::app::{
+use crate::ui::{
     Accessor, AnyView, BuildContext, Computed, Effect, FxIndexSet, View, ViewSequence,
-    WatchContext, Widget, WidgetId, WidgetMut, WidgetRef,
+    WatchContext, Widget, WidgetId, WidgetMut, WidgetRef, WindowId,
 };
 
-use super::{Owner, Runtime, Scope, WindowId};
+use super::{Owner, Runtime, Scope};
 
 pub trait ReactiveContext {
     /// Get immutable access to the underlying reactive runtime. This method
@@ -107,7 +107,7 @@ impl ReadContext for LocalReadContext<'_> {
     }
 }
 
-pub trait Readable: Into<Accessor<Self::Value>> {
+pub trait ReactiveValue: Into<Accessor<Self::Value>> {
     type Value;
 
     /// Map the current value using `f` and subscribe to changes
@@ -142,7 +142,7 @@ pub trait Readable: Into<Accessor<Self::Value>> {
         self.with_ref_untracked(cx, Self::Value::clone)
     }
 
-    fn map<R, F>(self, f: F) -> impl Readable<Value = R>
+    fn map<R, F>(self, f: F) -> impl ReactiveValue<Value = R>
     where
         F: Fn(&Self::Value) -> R + 'static,
         R: 'static,
@@ -191,7 +191,7 @@ struct MapToViewsKeyedImpl<R, F, FKey> {
 
 impl<S, C: 'static, K, T, V, F, FKey> ViewSequence for MapToViewsKeyedImpl<S, F, FKey>
 where
-    S: Readable<Value = C> + 'static,
+    S: ReactiveValue<Value = C> + 'static,
     for<'a> &'a C: IntoIterator<Item = &'a T>,
     K: Hash + Eq + 'static,
     T: 'static,
@@ -241,7 +241,7 @@ impl<S, T, R, F> From<Mapped<S, T, R, F>> for Accessor<R>
 where
     T: 'static,
     R: 'static,
-    S: Readable<Value = T> + 'static,
+    S: ReactiveValue<Value = T> + 'static,
     F: Fn(&T) -> R + 'static,
 {
     fn from(value: Mapped<S, T, R, F>) -> Self {
@@ -251,9 +251,9 @@ where
     }
 }
 
-impl<S, T, R, F> Readable for Mapped<S, T, R, F>
+impl<S, T, R, F> ReactiveValue for Mapped<S, T, R, F>
 where
-    S: Readable<Value = T> + 'static,
+    S: ReactiveValue<Value = T> + 'static,
     T: Any,
     R: 'static,
     F: Fn(&T) -> R + 'static,

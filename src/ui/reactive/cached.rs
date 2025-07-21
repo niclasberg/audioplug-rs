@@ -1,17 +1,17 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
-use crate::app::{Accessor, Effect, ReadSignal};
+use crate::ui::{Accessor, Effect, ReadSignal};
 
 use super::{
-    CreateContext, NodeId, NodeType, ReactiveContext, ReadContext, Readable, Runtime, Scope,
+    CreateContext, NodeId, NodeType, ReactiveContext, ReadContext, ReactiveValue, Runtime, Scope,
 };
 
-pub struct MemoContext<'a> {
+pub struct CachedContext<'a> {
     pub(super) memo_id: NodeId,
     pub(super) runtime: &'a mut Runtime,
 }
 
-impl ReactiveContext for MemoContext<'_> {
+impl ReactiveContext for CachedContext<'_> {
     fn runtime(&self) -> &Runtime {
         self.runtime
     }
@@ -21,29 +21,29 @@ impl ReactiveContext for MemoContext<'_> {
     }
 }
 
-impl ReadContext for MemoContext<'_> {
+impl ReadContext for CachedContext<'_> {
     fn scope(&self) -> Scope {
         Scope::Node(self.memo_id)
     }
 }
 
-pub struct Memo<T> {
+pub struct Cached<T> {
     pub(super) id: NodeId,
     _marker: PhantomData<fn() -> T>,
 }
 
-impl<T> Clone for Memo<T> {
+impl<T> Clone for Cached<T> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<T> Copy for Memo<T> {}
+impl<T> Copy for Cached<T> {}
 
-impl<T: Any> Memo<T> {
+impl<T: Any> Cached<T> {
     pub fn new(
         cx: &mut impl CreateContext,
-        f: impl Fn(&mut MemoContext, Option<&T>) -> T + 'static,
+        f: impl Fn(&mut CachedContext, Option<&T>) -> T + 'static,
     ) -> Self
     where
         T: PartialEq,
@@ -53,10 +53,10 @@ impl<T: Any> Memo<T> {
 
     pub fn new_with_compare(
         cx: &mut impl CreateContext,
-        f: impl Fn(&mut MemoContext, Option<&T>) -> T + 'static,
+        f: impl Fn(&mut CachedContext, Option<&T>) -> T + 'static,
         compare: fn(&T, &T) -> bool,
     ) -> Self {
-        let state = MemoState {
+        let state = CachedState {
             f: Box::new(move |cx, value| {
                 if let Some(value) = value {
                     let value = value.deref_mut().downcast_mut::<T>().unwrap();
@@ -89,13 +89,13 @@ impl<T: Any> Memo<T> {
     }
 }
 
-impl<T: 'static> From<Memo<T>> for Accessor<T> {
-    fn from(value: Memo<T>) -> Self {
+impl<T: 'static> From<Cached<T>> for Accessor<T> {
+    fn from(value: Cached<T>) -> Self {
         Self::ReadSignal(value.as_read_signal())
     }
 }
 
-impl<T: 'static> Readable for Memo<T> {
+impl<T: 'static> ReactiveValue for Cached<T> {
     type Value = T;
 
     fn track(&self, cx: &mut dyn ReadContext) {
@@ -133,16 +133,16 @@ fn update_and_get_memo_value(cx: &mut dyn ReactiveContext, id: NodeId) -> &dyn A
     }
 }
 
-type MemoFn = dyn Fn(&mut MemoContext, &mut Option<Box<dyn Any>>) -> bool;
+type MemoFn = dyn Fn(&mut CachedContext, &mut Option<Box<dyn Any>>) -> bool;
 
-pub struct MemoState {
+pub struct CachedState {
     pub(super) f: Box<MemoFn>,
     pub(super) value: Option<Box<dyn Any>>,
 }
 
-impl MemoState {
+impl CachedState {
     pub fn eval(&mut self, memo_id: NodeId, runtime: &mut Runtime) -> bool {
-        let mut cx = MemoContext { memo_id, runtime };
+        let mut cx = CachedContext { memo_id, runtime };
         (self.f)(&mut cx, &mut self.value)
     }
 }
@@ -151,7 +151,7 @@ impl MemoState {
 mod tests {
     use super::*;
     use crate::{
-        app::{AppState, Effect, Signal},
+        ui::{AppState, Effect, Var},
         param::ParameterMap,
     };
     use std::{cell::Cell, rc::Rc};
@@ -164,8 +164,8 @@ mod tests {
     #[test]
     fn memo() {
         with_appstate(|cx| {
-            let signal = Signal::new(cx, 1);
-            let memo = Memo::new(cx, move |cx, _| signal.get(cx) * 2);
+            let signal = Var::new(cx, 1);
+            let memo = Cached::new(cx, move |cx, _| signal.get(cx) * 2);
             assert_eq!(memo.get(cx), 2);
             signal.set(cx, 2);
             assert_eq!(memo.get(cx), 4);
@@ -178,9 +178,9 @@ mod tests {
     #[test]
     fn effect_in_diamond_should_run_once() {
         with_appstate(|cx| {
-            let signal = Signal::new(cx, 1);
-            let memo1 = Memo::new(cx, move |cx, _| signal.get(cx) * 2);
-            let memo2 = Memo::new(cx, move |cx, _| signal.get(cx) * 3);
+            let signal = Var::new(cx, 1);
+            let memo1 = Cached::new(cx, move |cx, _| signal.get(cx) * 2);
+            let memo2 = Cached::new(cx, move |cx, _| signal.get(cx) * 3);
 
             let call_count = Rc::new(Cell::new(0));
             let _call_count = call_count.clone();

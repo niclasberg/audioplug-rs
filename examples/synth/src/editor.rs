@@ -1,5 +1,5 @@
 use audioplug::{
-    app::{Canvas, PathGeometry, Readable, View},
+    ui::{Canvas, PathGeometry, ReactiveValue, View},
     core::{Color, ShadowOptions, Size, Vec2},
     param::{AnyParameter, FloatParameter, Parameter},
     style::{AlignItems, Length, UiRect},

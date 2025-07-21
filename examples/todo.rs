@@ -2,9 +2,9 @@ use std::sync::atomic::AtomicUsize;
 
 use audioplug::{
     App, KeyEvent,
-    app::*,
     core::{Color, Key},
     style::{Length, UiRect},
+    ui::*,
     views::*,
 };
 use rand::prelude::*;
@@ -13,8 +13,8 @@ use taffy::AlignSelf;
 #[derive(Clone, Copy)]
 struct Todo {
     index: usize,
-    name: Signal<String>,
-    completed: Signal<bool>,
+    name: Var<String>,
+    completed: Var<bool>,
 }
 
 static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
@@ -22,8 +22,8 @@ impl Todo {
     pub fn new(cx: &mut dyn CreateContext, name: &str, completed: bool) -> Self {
         Self {
             index: NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
-            name: Signal::new(cx, name.to_string()),
-            completed: Signal::new(cx, completed),
+            name: Var::new(cx, name.to_string()),
+            completed: Var::new(cx, completed),
         }
     }
 }
@@ -33,25 +33,26 @@ fn main() {
     let _ = Window::open(
         &mut app,
         Stateful::new(|cx| {
-            let todos = Signal::new_with(cx, |cx| vec![Todo::new(cx, "Item1", false)]);
-            let text_input = Signal::new(cx, "".to_string());
+            let todos = Var::new_with(cx, |cx| vec![Todo::new(cx, "Item1", false)]);
+            let text_input = Var::new(cx, "".to_string());
             Container::new(Column::new((
                 Label::new("TODO app"),
                 TextBox::new(move |cx, value| text_input.set(cx, value.to_string()))
                     .value(text_input)
                     .on_key_event(move |cx, event| {
-                        if let KeyEvent::KeyDown { key, .. } = event {
-                            if Key::Enter == key {
-                                let title = text_input.get_untracked(cx);
-                                if !title.is_empty() {
-                                    todos.update(cx, move |cx, todos| {
-                                        todos.push(Todo::new(cx, &title, false))
-                                    });
-                                    text_input.set(cx, "".to_string());
-                                }
-
-                                return EventStatus::Handled;
+                        if let KeyEvent::KeyDown {
+                            key: Key::Enter, ..
+                        } = event
+                        {
+                            let title = text_input.get_untracked(cx);
+                            if !title.is_empty() {
+                                todos.update(cx, move |cx, todos| {
+                                    todos.push(Todo::new(cx, &title, false))
+                                });
+                                text_input.set(cx, "".to_string());
                             }
+
+                            return EventStatus::Handled;
                         }
                         EventStatus::Ignored
                     }),

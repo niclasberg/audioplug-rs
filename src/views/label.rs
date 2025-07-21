@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 
 use crate::{
-    app::{Accessor, BuildContext, RenderContext, TextLayout, View, Widget, WidgetMut},
+    ui::{Accessor, BuildContext, RenderContext, TextLayout, View, Widget, WidgetMut},
     core::{Color, Size},
-    style::{AvailableSpace, DisplayStyle, Measure},
+    style::{AvailableSpace, LayoutMode, Measure},
 };
 
 pub struct Label {
@@ -86,8 +86,8 @@ impl Widget for TextWidget {
         "Label"
     }
 
-    fn display_style(&self) -> DisplayStyle {
-        DisplayStyle::Leaf(self)
+    fn layout_mode(&self) -> LayoutMode {
+        LayoutMode::Leaf(self)
     }
 
     fn render(&mut self, ctx: &mut RenderContext) {
