@@ -6,7 +6,7 @@ mod host_handle;
 mod layout;
 mod overlay;
 mod param;
-mod reactive;
+pub(super) mod reactive;
 mod render;
 pub mod style;
 mod view;
@@ -33,7 +33,12 @@ pub use layout::{LayoutContext, layout_window};
 pub use overlay::{OverlayAnchor, OverlayOptions};
 pub use param::{ParamContext, ParamSetter};
 
-pub use reactive::*;
+pub use reactive::{
+    Accessor, Animated, AnimatedFn, Animation, Cached, CachedContext, Computed, CreateContext,
+    Easing, Effect, EffectContext, EventChannel, EventReceiver, Mapped, Node, NodeId, Owner,
+    ReactiveContext, ReactiveGraph, ReactiveValue, ReadContext, ReadSignal, Scope, SpringOptions,
+    Trigger, TweenOptions, Var, ViewContext, WatchContext, WidgetContext, WriteContext,
+};
 pub use render::{
     Brush, BrushRef, Canvas, CanvasContext, CanvasWidget, LinearGradient, PathGeometry,
     PathGeometryBuilder, RadialGradient, RenderContext, Shape, ShapeRef, TextLayout,

@@ -1,8 +1,9 @@
 use std::{any::Any, marker::PhantomData};
 
-use crate::ui::{Accessor, Effect, Owner, ReactiveContext, ReadSignal};
-
-use super::{CreateContext, NodeId, NodeType, ReactiveValue, ReadContext, WriteContext};
+use super::{
+    Accessor, CreateContext, Effect, NodeId, NodeType, Owner, ReactiveContext, ReactiveValue,
+    ReadContext, ReadSignal, WriteContext,
+};
 
 /// A value that may change over time.
 pub struct Var<T> {
@@ -21,8 +22,7 @@ impl<T> Copy for Var<T> {}
 impl<T: Any> Var<T> {
     pub fn new(cx: &mut dyn CreateContext, value: T) -> Self {
         let state = SignalState::new(value);
-        let owner = cx.owner();
-        let id = cx.runtime_mut().create_signal_node(state, owner);
+        let id = cx.create_signal_node(state);
         Self {
             id,
             _marker: PhantomData,
@@ -54,7 +54,7 @@ impl<T: Any> Var<T> {
         cx: &mut dyn WriteContext,
         f: impl FnOnce(&mut dyn CreateContext, &mut T),
     ) {
-        if let Some(mut node) = cx.runtime_mut().lease_node(self.id) {
+        if let Some(mut node) = cx.app_state_mut().runtime.lease_node(self.id) {
             match &mut node {
                 NodeType::Signal(signal) => {
                     let value = signal
@@ -65,9 +65,9 @@ impl<T: Any> Var<T> {
                 }
                 _ => unreachable!(),
             }
-            cx.runtime_mut().unlease_node(self.id, node);
+            cx.app_state_mut().runtime.unlease_node(self.id, node);
         }
-        cx.runtime_mut().notify(self.id);
+        super::notify(cx.app_state_mut(), self.id);
     }
 
     pub fn as_read_signal(self) -> ReadSignal<T> {
@@ -75,7 +75,7 @@ impl<T: Any> Var<T> {
     }
 
     pub fn dispose(self, cx: &mut dyn ReactiveContext) {
-        cx.runtime_mut().remove_node(self.id);
+        cx.app_state_mut().runtime.remove_node(self.id);
     }
 }
 
@@ -89,8 +89,7 @@ impl<T: 'static> ReactiveValue for Var<T> {
     type Value = T;
 
     fn track(&self, cx: &mut dyn ReadContext) {
-        let scope = cx.scope();
-        cx.runtime_mut().track(self.id, scope);
+        cx.track(self.id);
     }
 
     fn with_ref_untracked<R>(
@@ -98,7 +97,8 @@ impl<T: 'static> ReactiveValue for Var<T> {
         cx: &mut dyn super::ReactiveContext,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
-        f(cx.runtime_mut()
+        f(cx.app_state_mut()
+            .runtime
             .get_node_value_ref(self.id)
             .unwrap()
             .downcast_ref()

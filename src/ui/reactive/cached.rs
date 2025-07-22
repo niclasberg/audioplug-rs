@@ -1,23 +1,21 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
-use crate::ui::{Accessor, Effect, ReadSignal};
+use crate::ui::{Accessor, AppState, Effect, ReadSignal};
 
-use super::{
-    CreateContext, NodeId, NodeType, ReactiveContext, ReadContext, ReactiveValue, ReactiveGraph, Scope,
-};
+use super::{CreateContext, NodeId, NodeType, ReactiveContext, ReactiveValue, ReadContext, Scope};
 
 pub struct CachedContext<'a> {
     pub(super) memo_id: NodeId,
-    pub(super) runtime: &'a mut ReactiveGraph,
+    pub(super) app_state: &'a mut AppState,
 }
 
 impl ReactiveContext for CachedContext<'_> {
-    fn runtime(&self) -> &ReactiveGraph {
-        self.runtime
+    fn app_state(&self) -> &AppState {
+        self.app_state
     }
 
-    fn runtime_mut(&mut self) -> &mut ReactiveGraph {
-        self.runtime
+    fn app_state_mut(&mut self) -> &mut AppState {
+        self.app_state
     }
 }
 
@@ -42,7 +40,7 @@ impl<T> Copy for Cached<T> {}
 
 impl<T: Any> Cached<T> {
     pub fn new(
-        cx: &mut impl CreateContext,
+        cx: &mut dyn CreateContext,
         f: impl Fn(&mut CachedContext, Option<&T>) -> T + 'static,
     ) -> Self
     where
@@ -52,7 +50,7 @@ impl<T: Any> Cached<T> {
     }
 
     pub fn new_with_compare(
-        cx: &mut impl CreateContext,
+        cx: &mut dyn CreateContext,
         f: impl Fn(&mut CachedContext, Option<&T>) -> T + 'static,
         compare: fn(&T, &T) -> bool,
     ) -> Self {
@@ -75,8 +73,7 @@ impl<T: Any> Cached<T> {
             }),
             value: None,
         };
-        let owner = cx.owner();
-        let id = cx.runtime_mut().create_memo_node(state, owner);
+        let id = cx.create_memo_node(state);
 
         Self {
             id,
@@ -99,8 +96,7 @@ impl<T: 'static> ReactiveValue for Cached<T> {
     type Value = T;
 
     fn track(&self, cx: &mut dyn ReadContext) {
-        let scope = cx.scope();
-        cx.runtime_mut().track(self.id, scope);
+        cx.track(self.id);
     }
 
     fn with_ref_untracked<R>(
@@ -122,8 +118,8 @@ impl<T: 'static> ReactiveValue for Cached<T> {
 }
 
 fn update_and_get_memo_value(cx: &mut dyn ReactiveContext, id: NodeId) -> &dyn Any {
-    cx.runtime_mut().update_if_necessary(id);
-    match &cx.runtime_mut().get_node_mut(id).node_type {
+    super::update_if_necessary(cx.app_state_mut(), id);
+    match &cx.app_state_mut().runtime.get_node_mut(id).node_type {
         NodeType::Memo(state) => state
             .value
             .as_ref()
@@ -141,8 +137,8 @@ pub struct CachedState {
 }
 
 impl CachedState {
-    pub fn eval(&mut self, memo_id: NodeId, runtime: &mut ReactiveGraph) -> bool {
-        let mut cx = CachedContext { memo_id, runtime };
+    pub fn eval(&mut self, memo_id: NodeId, app_state: &mut AppState) -> bool {
+        let mut cx = CachedContext { memo_id, app_state };
         (self.f)(&mut cx, &mut self.value)
     }
 }
@@ -151,8 +147,8 @@ impl CachedState {
 mod tests {
     use super::*;
     use crate::{
-        ui::{AppState, Effect, Var},
         param::ParameterMap,
+        ui::{AppState, Effect, Var},
     };
     use std::{cell::Cell, rc::Rc};
 

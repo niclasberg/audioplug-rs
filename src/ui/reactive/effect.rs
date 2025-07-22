@@ -59,12 +59,10 @@ impl Effect {
         cx: &mut dyn CreateContext,
         f: impl FnMut(&mut dyn EffectContext) + 'static,
     ) -> Self {
-        let owner = cx.owner();
-        let id = cx.runtime_mut().create_effect_node(
+        let id = cx.create_effect_node(
             EffectState {
                 f: Rc::new(RefCell::new(f)),
             },
-            owner,
             true,
         );
         Self { id }
@@ -74,16 +72,14 @@ impl Effect {
         cx: &mut dyn CreateContext,
         f: impl Fn(&mut dyn EffectContext, Option<T>) -> T + 'static,
     ) -> Self {
-        let owner = cx.owner();
         let mut state: Option<T> = None;
-        let id = cx.runtime_mut().create_effect_node(
+        let id = cx.create_effect_node(
             EffectState {
                 f: Rc::new(RefCell::new(move |cx: &mut dyn EffectContext| {
                     let old_state = state.take();
                     state = Some(f(cx, old_state));
                 })),
             },
-            owner,
             true,
         );
         Self { id }
@@ -95,11 +91,12 @@ impl Effect {
         mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
     ) -> Self {
         let owner = cx.owner();
-        let id = cx.runtime_mut().create_parameter_binding_node(
+        let id = cx.create_parameter_binding_node(
             parameter_id,
             BindingState::new(move |cx| {
                 let value = cx
-                    .runtime()
+                    .app_state_mut()
+                    .runtime
                     .get_parameter_ref(parameter_id)
                     .value_as()
                     .unwrap();
@@ -116,21 +113,19 @@ impl Effect {
         node_id: NodeId,
         mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
     ) -> Self {
-        let owner = cx.owner();
-        let id = cx.runtime_mut().create_node_binding_node(
+        let id = cx.create_node_binding_node(
             node_id,
             BindingState::new(move |cx| {
-                cx.runtime_mut().update_if_necessary(node_id);
-                if let Some(node) = cx.runtime_mut().lease_node(node_id) {
+                super::update_if_necessary(cx.app_state_mut(), node_id);
+                if let Some(node) = cx.app_state_mut().runtime.lease_node(node_id) {
                     let value = node
                         .get_value_ref()
                         .downcast_ref()
                         .expect("Node should have the correct value type");
                     f(cx, value);
-                    cx.runtime_mut().unlease_node(node_id, node);
+                    cx.app_state_mut().runtime.unlease_node(node_id, node);
                 }
             }),
-            owner,
         );
 
         Self { id }

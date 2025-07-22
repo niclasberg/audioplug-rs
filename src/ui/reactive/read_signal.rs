@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 
 use crate::{
-    ui::{Accessor, CreateContext, Effect, NodeId, ReadContext, ReactiveValue, WatchContext},
     param::ParameterId,
+    ui::{Accessor, CreateContext, Effect, NodeId, ReactiveValue, ReadContext, WatchContext},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -50,12 +50,9 @@ impl<T: 'static> ReactiveValue for ReadSignal<T> {
     type Value = T;
 
     fn track(&self, cx: &mut dyn ReadContext) {
-        let scope = cx.scope();
         match self.source {
-            ReadSignalSource::Parameter(parameter_id) => {
-                cx.runtime_mut().track_parameter(parameter_id, scope)
-            }
-            ReadSignalSource::Node(node_id) => cx.runtime_mut().track(node_id, scope),
+            ReadSignalSource::Parameter(parameter_id) => cx.track_parameter(parameter_id),
+            ReadSignalSource::Node(node_id) => cx.track(node_id),
         }
     }
 
@@ -67,16 +64,18 @@ impl<T: 'static> ReactiveValue for ReadSignal<T> {
         match self.source {
             ReadSignalSource::Parameter(parameter_id) => {
                 let value = cx
-                    .runtime()
+                    .app_state()
+                    .runtime
                     .get_parameter_ref(parameter_id)
                     .value_as()
                     .unwrap();
                 f(&value)
             }
             ReadSignalSource::Node(node_id) => {
-                cx.runtime_mut().update_if_necessary(node_id);
+                super::update_if_necessary(cx.app_state_mut(), node_id);
                 let value = cx
-                    .runtime_mut()
+                    .app_state()
+                    .runtime
                     .get_node_value_ref(node_id)
                     .unwrap()
                     .downcast_ref()

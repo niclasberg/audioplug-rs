@@ -26,7 +26,7 @@ pub(super) fn drive_animations(
     for node_id in node_ids {
         let did_change = app_state.runtime.try_drive_animation(node_id, now);
         if did_change {
-            app_state.notify(node_id);
+            super::reactive::notify(app_state, node_id);
             // Re-queue the animation for the next frame
             app_state
                 .window_mut(window_id)

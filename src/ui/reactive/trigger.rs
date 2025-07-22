@@ -10,20 +10,18 @@ pub struct Trigger {
 
 impl Trigger {
     pub fn new(cx: &mut dyn CreateContext) -> Self {
-        let owner = cx.owner();
         Self {
-            node_id: cx.runtime_mut().create_trigger(owner),
+            node_id: cx.create_trigger(),
             _marker: PhantomData,
         }
     }
 
     pub fn track(&self, cx: &mut dyn ReadContext) {
-        let scope = cx.scope();
-        cx.runtime_mut().track(self.node_id, scope);
+        cx.track(self.node_id);
     }
 
     pub fn notify(&self, cx: &mut dyn WriteContext) {
-        cx.runtime_mut().notify(self.node_id);
+        super::notify(cx.app_state_mut(), self.node_id);
     }
 }
 

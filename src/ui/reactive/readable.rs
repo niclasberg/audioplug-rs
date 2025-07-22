@@ -1,13 +1,25 @@
-use std::{any::Any, hash::Hash, marker::PhantomData};
+use std::{any::Any, collections::VecDeque, hash::Hash, marker::PhantomData, rc::Rc};
 
 use rustc_hash::FxBuildHasher;
 
-use crate::ui::{
-    Accessor, AnyView, AppState, BuildContext, Computed, Effect, FxIndexSet, View, ViewSequence,
-    WatchContext, Widget, WidgetId, WidgetMut, WidgetRef, WindowId, widget_status::WidgetStatus,
+use crate::{
+    param::ParameterId,
+    ui::{
+        AnyView, AppState, BuildContext, FxHashSet, FxIndexSet, View, ViewSequence, Widget,
+        WidgetId, WidgetMut, WidgetRef, WindowId,
+        app_state::Task,
+        reactive::{
+            animation::{AnimationState, DerivedAnimationState},
+            effect::BindingState,
+        },
+        widget_status::{WidgetStatus, WidgetStatusFlags},
+    },
 };
 
-use super::{Owner, ReactiveGraph, Scope};
+use super::{
+    Accessor, Computed, Effect, NodeId, NodeState, NodeType, Owner, ReactiveGraph, Scope,
+    WatchContext,
+};
 
 pub trait ReactiveContext {
     /// Get immutable access to the underlying reactive runtime. This method
@@ -28,6 +40,8 @@ pub trait ReactiveContext {
     }
 }
 
+impl dyn ReactiveContext + '_ {}
+
 /// Contexts implementing `CreateContext` allows reactive elements to be created.
 pub trait CreateContext: ReactiveContext {
     /// Returns the owner that should be assigned to newly created reactive nodes.
@@ -37,6 +51,103 @@ pub trait CreateContext: ReactiveContext {
     /// - Another node (`Some(Owner::Node)`): When the other node is removed, the node is removed
     /// - No owner (None): will not be cleaned up until the plugin instance is exited.
     fn owner(&self) -> Option<Owner>;
+}
+
+impl dyn CreateContext + '_ {
+    pub(crate) fn create_signal_node(&mut self, state: super::var::SignalState) -> NodeId {
+        let owner = self.owner();
+        self.app_state_mut()
+            .runtime
+            .create_node(NodeType::Signal(state), NodeState::Clean, owner)
+    }
+
+    pub(crate) fn create_memo_node(&mut self, state: super::cached::CachedState) -> NodeId {
+        let owner = self.owner();
+        self.app_state_mut()
+            .runtime
+            .create_node(NodeType::Memo(state), NodeState::Dirty, owner)
+    }
+
+    pub(crate) fn create_effect_node(
+        &mut self,
+        state: super::EffectState,
+        run_effect: bool,
+    ) -> NodeId {
+        let f = Rc::downgrade(&state.f);
+        let owner = self.owner();
+        let id = self.app_state_mut().runtime.create_node(
+            NodeType::Effect(state),
+            NodeState::Dirty,
+            owner,
+        );
+        if run_effect {
+            self.app_state_mut().push_task(Task::RunEffect { id, f });
+        }
+        id
+    }
+
+    pub(crate) fn create_trigger(&mut self) -> NodeId {
+        let owner = self.owner();
+        self.app_state_mut()
+            .runtime
+            .create_node(NodeType::Trigger, NodeState::Clean, owner)
+    }
+
+    pub(crate) fn create_node_binding_node(
+        &mut self,
+        source: NodeId,
+        state: BindingState,
+    ) -> NodeId {
+        let owner = self.owner();
+        let graph = &mut self.app_state_mut().runtime;
+        let id = graph.create_node(NodeType::Binding(state), NodeState::Clean, owner);
+        graph.add_node_subscription(source, id);
+        id
+    }
+
+    pub(crate) fn create_parameter_binding_node(
+        &mut self,
+        source: ParameterId,
+        state: BindingState,
+        owner: Option<Owner>,
+    ) -> NodeId {
+        let id = self.create_node(NodeType::Binding(state), NodeState::Clean, owner);
+        self.subscriptions.add_parameter_subscription(source, id);
+        id
+    }
+
+    pub(crate) fn create_animation_node(&mut self, state: AnimationState) -> NodeId {
+        let owner = self.owner();
+        self.app_state_mut().runtime.create_node(
+            NodeType::Animation(state),
+            NodeState::Clean,
+            owner,
+        )
+    }
+
+    pub(crate) fn create_derived_animation_node(
+        &mut self,
+        state_fn: impl FnOnce(&mut Self, NodeId) -> DerivedAnimationState,
+    ) -> NodeId {
+        let owner = self.owner();
+        let id =
+            self.app_state_mut()
+                .runtime
+                .create_node(NodeType::TmpRemoved, NodeState::Clean, owner);
+        let state = state_fn(self, id);
+        let _ = std::mem::replace(
+            &mut self.app_state_mut().runtime.nodes[id].node_type,
+            NodeType::DerivedAnimation(state),
+        );
+        id
+    }
+
+    pub(crate) fn create_event_emitter(&mut self) -> NodeId {
+        let owner = self.owner();
+        self.app_state_mut()
+            .runtime
+            .create_node(NodeType::EventEmitter, NodeState::Clean, owner)
+    }
 }
 
 /// Allows access to the underlying window (needed for example to create timers and animations)
@@ -56,8 +167,39 @@ pub trait ReadContext: ReactiveContext {
     fn scope(&self) -> Scope;
 }
 
+impl dyn ReadContext + '_ {
+    pub fn track(&mut self, source_id: NodeId) {
+        if let Scope::Node(node_id) = self.scope() {
+            self.app_state_mut()
+                .runtime
+                .subscriptions
+                .add_node_subscription(source_id, node_id);
+        }
+    }
+
+    pub fn track_parameter(&mut self, source_id: ParameterId) {
+        if let Scope::Node(node_id) = self.scope() {
+            self.app_state_mut()
+                .runtime
+                .subscriptions
+                .add_parameter_subscription(source_id, node_id);
+        }
+    }
+
+    pub fn track_widget_status(&mut self, widget_id: WidgetId, status_mask: WidgetStatusFlags) {
+        if let Scope::Node(node_id) = self.scope() {}
+    }
+}
+
 /// Allows writing to reactive nodes
 pub trait WriteContext: ReactiveContext {}
+
+impl dyn WriteContext + '_ {
+    pub fn publish_event(&mut self, _source_id: NodeId, _event: Rc<dyn Any>) {
+        self.app_state_mut()
+            .push_task(Task::HandleEvent { f: (), event: () });
+    }
+}
 
 pub struct LocalCreateContext<'a> {
     app_state: &'a mut AppState,

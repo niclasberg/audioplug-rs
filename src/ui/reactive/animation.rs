@@ -7,13 +7,12 @@ use std::{
 
 use crate::{
     core::{Interpolate, SpringPhysics},
-    ui::{AppState, WindowId},
+    ui::{AppState, WindowId, reactive::notify},
 };
 
 use super::{
     Accessor, CreateContext, Effect, LocalReadContext, NodeId, NodeType, ReactiveContext,
-    ReactiveGraph, ReactiveValue, ReadContext, ReadSignal, Scope, ViewContext, WatchContext,
-    WriteContext,
+    ReactiveValue, ReadContext, ReadSignal, Scope, ViewContext, WatchContext, WriteContext,
 };
 
 pub use super::spring::{SpringAnimation, SpringOptions};
@@ -116,14 +115,10 @@ impl<T> Copy for Animated<T> {}
 impl<T: 'static> Animated<T> {
     pub fn new(cx: &mut dyn ViewContext, animation: impl Animation<Value = T> + 'static) -> Self {
         let window_id = cx.window_id();
-        let owner = cx.owner();
         let inner = Box::new(animation);
         let state = AnimationState { inner, window_id };
         Self {
-            id: cx
-                .app_state_mut()
-                .runtime
-                .create_animation_node(state, owner),
+            id: cx.create_animation_node(state),
             _phantom: PhantomData,
         }
     }
@@ -163,7 +158,7 @@ impl<T: Any> Animated<T> {
             NodeType::Animation(anim) => anim.inner.set_target_and_value_dyn(&value),
             _ => unreachable!(),
         };
-        cx.app_state_mut().notify(self.id);
+        notify(cx.app_state_mut(), self.id);
     }
 }
 
@@ -183,13 +178,11 @@ impl<T: 'static> ReactiveValue for Animated<T> {
     type Value = T;
 
     fn track(&self, cx: &mut dyn ReadContext) {
-        let scope = cx.scope();
-        cx.runtime_mut().track(self.id, scope);
+        cx.track(self.id);
     }
 
     fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&T) -> R) -> R {
-        let scope = cx.scope();
-        cx.runtime_mut().track(self.id, scope);
+        cx.track(self.id);
         f(get_animation_value_ref(cx, self.id)
             .downcast_ref()
             .expect("Animation value had wrong type"))
@@ -301,13 +294,11 @@ impl<T: 'static> ReactiveValue for AnimatedFn<T> {
     type Value = T;
 
     fn track(&self, cx: &mut dyn ReadContext) {
-        let scope = cx.scope();
-        cx.runtime_mut().track(self.id, scope);
+        cx.track(self.id);
     }
 
     fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&T) -> R) -> R {
-        let scope = cx.scope();
-        cx.runtime_mut().track(self.id, scope);
+        cx.track(self.id);
         f(get_animation_value_ref(cx, self.id)
             .downcast_ref()
             .expect("AnimationFn value had wrong type"))
@@ -331,8 +322,8 @@ impl<T: 'static> ReactiveValue for AnimatedFn<T> {
     }
 }
 
-fn get_animation_value_ref(cx: &mut dyn ReactiveContext, node_id: NodeId) -> &dyn Any {
-    match &cx.runtime().get_node(node_id).node_type {
+fn get_animation_value_ref(cx: &dyn ReactiveContext, node_id: NodeId) -> &dyn Any {
+    match &cx.app_state().runtime.get_node(node_id).node_type {
         NodeType::Animation(animation) => animation.inner.value_dyn(),
         NodeType::DerivedAnimation(animation) => animation.inner.value_dyn(),
         _ => unreachable!(),

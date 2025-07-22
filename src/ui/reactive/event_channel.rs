@@ -9,8 +9,7 @@ pub struct EventChannel<T> {
 
 impl<T: Any> EventChannel<T> {
     pub fn publish(&self, cx: &mut dyn WriteContext, event: T) {
-        cx.runtime_mut()
-            .publish_event(self.emitter_id, Rc::new(event));
+        cx.publish_event(self.emitter_id, Rc::new(event));
     }
 
     pub fn subscribe(

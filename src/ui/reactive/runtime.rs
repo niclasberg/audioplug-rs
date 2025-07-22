@@ -8,14 +8,11 @@ use super::{
 };
 use crate::{
     param::{AnyParameterMap, ParamRef, ParameterId},
-    ui::{
-        AppState, FxHashMap, FxHashSet, FxIndexSet, WidgetId, app_state::Task,
-        widget_status::WidgetStatusFlags,
-    },
+    ui::{FxHashMap, FxHashSet, FxIndexSet, WidgetId, widget_status::WidgetStatusFlags},
 };
 use slotmap::{SecondaryMap, SlotMap};
 use smallvec::SmallVec;
-use std::{any::Any, collections::VecDeque, rc::Rc, time::Instant};
+use std::{any::Any, rc::Rc, time::Instant};
 
 pub struct Node {
     pub(crate) node_type: NodeType,
@@ -29,7 +26,7 @@ pub enum Owner {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum SourceId {
+pub(crate) enum SourceId {
     Parameter(ParameterId),
     Node(NodeId),
     Widget(WidgetId),
@@ -97,81 +94,75 @@ impl NodeType {
             }
         }
     }
-
-    pub fn update(&mut self, node_id: NodeId, app_state: &mut AppState) {
-        match self {
-            NodeType::Effect(EffectState { f }) => {
-                // Clear the sources, they will be re-populated while running the effect function
-                app_state.runtime.subscriptions.clear_node_sources(node_id);
-                let task = Task::RunEffect {
-                    id: node_id,
-                    f: Rc::downgrade(f),
-                };
-                app_state.push_task(task);
-            }
-            NodeType::Binding(BindingState { f }) => {
-                let task = Task::UpdateBinding {
-                    f: Rc::downgrade(f),
-                    node_id,
-                };
-                app_state.push_task(task);
-            }
-            NodeType::DerivedAnimation(anim) => {
-                // Clear the sources, they will be re-populated while running the reset function
-                app_state.runtime.subscriptions.clear_node_sources(node_id);
-                if anim.reset(node_id, self) {
-                    app_state.request_animation(anim.window_id, node_id);
-                }
-            }
-            NodeType::Memo(memo) => {
-                // Clear the sources, they will be re-populated while running the memo function
-                app_state.runtime.subscriptions.clear_node_sources(node_id);
-                if memo.eval(node_id, self) {
-                    for &observer_id in app_state.runtime.subscriptions.observers[node_id].iter() {
-                        app_state.runtime.nodes[observer_id].state = NodeState::Dirty;
-                    }
-                }
-            }
-            NodeType::Animation(..) => {
-                panic!("Animations cannot depend on other reactive nodes")
-            }
-            NodeType::Trigger => panic!("Triggers cannot depend on other reactive nodes"),
-            NodeType::Signal(_) => panic!("Signals cannot depend on other reactive nodes"),
-            NodeType::EventEmitter => {
-                panic!("Event emitters cannot depend on other reactive nodes")
-            }
-            NodeType::EventHandler(..) => {
-                panic!("Event handlers should not be notified, use publish_event instead")
-            }
-            NodeType::TmpRemoved => panic!("Circular dependency?"),
-        }
-    }
 }
 
-pub struct SubscriberMap {
-    sources: SecondaryMap<NodeId, SmallVec<[SourceId; 4]>>,
-    observers: SecondaryMap<NodeId, FxIndexSet<NodeId>>,
-    parameter_observers: FxHashMap<ParameterId, FxIndexSet<NodeId>>,
-    widget_observers: SecondaryMap<WidgetId, SmallVec<[(NodeId, WidgetStatusFlags); 4]>>,
+pub struct ReactiveGraph {
+    pub(super) nodes: SlotMap<NodeId, Node>,
+    pub(crate) parameters: Rc<dyn AnyParameterMap>,
+    nodes_owned_by_node: SecondaryMap<NodeId, FxHashSet<NodeId>>,
+    nodes_owned_by_widget: SecondaryMap<WidgetId, FxHashSet<NodeId>>,
+    pub(super) sources: SecondaryMap<NodeId, SmallVec<[SourceId; 4]>>,
+    pub(super) observers: SecondaryMap<NodeId, FxIndexSet<NodeId>>,
+    pub(super) parameter_observers: FxHashMap<ParameterId, FxIndexSet<NodeId>>,
+    pub(super) widget_observers: SecondaryMap<WidgetId, SmallVec<[(NodeId, WidgetStatusFlags); 4]>>,
 }
 
-impl SubscriberMap {
-    fn new(parameter_ids: &Vec<ParameterId>) -> Self {
+impl ReactiveGraph {
+    pub fn new(parameter_map: Rc<dyn AnyParameterMap>) -> Self {
         let mut parameter_subscriptions = FxHashMap::default();
-        for &parameter_id in parameter_ids {
+        for parameter_id in parameter_map.parameter_ids() {
             parameter_subscriptions.insert(parameter_id, FxIndexSet::default());
         }
 
         Self {
+            nodes: Default::default(),
             sources: Default::default(),
             observers: Default::default(),
             parameter_observers: parameter_subscriptions,
             widget_observers: Default::default(),
+            parameters: parameter_map,
+            nodes_owned_by_node: Default::default(),
+            nodes_owned_by_widget: Default::default(),
         }
     }
 
-    pub fn insert_node(&mut self, node_id: NodeId) {
-        self.observers.insert(node_id, FxIndexSet::default());
+    pub(crate) fn create_node(
+        &mut self,
+        node_type: NodeType,
+        state: NodeState,
+        owner: Option<Owner>,
+    ) -> NodeId {
+        let node = Node { node_type, state };
+        let id = self.nodes.insert(node);
+        self.observers.insert(id, FxIndexSet::default());
+
+        match owner {
+            Some(Owner::Widget(widget_id)) => {
+                self.nodes_owned_by_widget
+                    .entry(widget_id)
+                    .unwrap()
+                    .or_default()
+                    .insert(id);
+            }
+            Some(Owner::Node(node_id)) => {
+                self.nodes_owned_by_node
+                    .entry(node_id)
+                    .unwrap()
+                    .or_default()
+                    .insert(id);
+            }
+            _ => {}
+        };
+
+        id
+    }
+
+    pub(crate) fn clear_nodes_for_widget(&mut self, widget_id: WidgetId) {
+        if let Some(bindings) = self.nodes_owned_by_widget.remove(widget_id) {
+            for node_id in bindings {
+                self.remove_node(node_id);
+            }
+        }
     }
 
     pub fn remove_node(&mut self, id: NodeId) {
@@ -196,6 +187,68 @@ impl SubscriberMap {
                 );
             }
         }
+
+        self.nodes.remove(id).expect("Missing node");
+        if let Some(child_ids) = self.nodes_owned_by_node.remove(id) {
+            for child_id in child_ids {
+                self.remove_node(child_id);
+            }
+        }
+    }
+
+    pub fn get_node(&self, node_id: NodeId) -> &Node {
+        self.nodes.get(node_id).expect("Node not found")
+    }
+
+    pub fn try_get_node(&self, node_id: NodeId) -> Option<&Node> {
+        self.nodes.get(node_id)
+    }
+
+    pub fn get_node_mut(&mut self, node_id: NodeId) -> &mut Node {
+        self.nodes.get_mut(node_id).expect("Node not found")
+    }
+
+    pub fn get_node_value_ref(&self, node_id: NodeId) -> Option<&dyn Any> {
+        self.nodes
+            .get(node_id)
+            .map(|node| NodeType::get_value_ref(&node.node_type))
+    }
+
+    pub fn try_drive_animation(&mut self, node_id: NodeId, now: Instant) -> bool {
+        if let Some(node) = self.nodes.get_mut(node_id) {
+            match &mut node.node_type {
+                NodeType::Animation(animation) => animation.inner.drive(now),
+                NodeType::DerivedAnimation(animation) => animation.inner.drive(now),
+                _ => unreachable!(),
+            }
+        } else {
+            false
+        }
+    }
+
+    pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
+        self.parameters
+            .get_by_id(parameter_id)
+            .expect("Invalid parameter id")
+            .as_param_ref()
+    }
+
+    /// Temporarily remove a node and return it
+    pub(super) fn lease_node(&mut self, node_id: NodeId) -> Option<NodeType> {
+        if let Some(node) = self.nodes.get_mut(node_id) {
+            Some(std::mem::replace(&mut node.node_type, NodeType::TmpRemoved))
+        } else {
+            None
+        }
+    }
+
+    /// Return a node that has previously been leased
+    pub(super) fn unlease_node(&mut self, node_id: NodeId, mut node: NodeType) {
+        std::mem::swap(&mut self.nodes[node_id].node_type, &mut node);
+    }
+
+    pub(crate) fn mark_node_as_clean(&mut self, node_id: NodeId) {
+        self.nodes[node_id].state = NodeState::Clean;
     }
 
     #[inline(always)]
@@ -271,232 +324,6 @@ impl SubscriberMap {
             .unwrap()
             .or_default()
             .push(SourceId::Widget(widget_id));
-    }
-}
-
-pub struct ReactiveGraph {
-    nodes: SlotMap<NodeId, Node>,
-    pub(crate) subscriptions: SubscriberMap,
-    pub(crate) parameters: Rc<dyn AnyParameterMap>,
-    nodes_owned_by_node: SecondaryMap<NodeId, FxHashSet<NodeId>>,
-    nodes_owned_by_widget: SecondaryMap<WidgetId, FxHashSet<NodeId>>,
-}
-
-impl ReactiveGraph {
-    pub fn new(parameter_map: Rc<dyn AnyParameterMap>) -> Self {
-        Self {
-            nodes: Default::default(),
-            subscriptions: SubscriberMap::new(&parameter_map.parameter_ids()),
-            parameters: parameter_map,
-            nodes_owned_by_node: Default::default(),
-            nodes_owned_by_widget: Default::default(),
-        }
-    }
-
-    pub(crate) fn create_signal_node(
-        &mut self,
-        state: SignalState,
-        owner: Option<Owner>,
-    ) -> NodeId {
-        self.create_node(NodeType::Signal(state), NodeState::Clean, owner)
-    }
-
-    pub(crate) fn create_memo_node(&mut self, state: CachedState, owner: Option<Owner>) -> NodeId {
-        self.create_node(NodeType::Memo(state), NodeState::Dirty, owner)
-    }
-
-    pub(crate) fn create_effect_node(
-        &mut self,
-        state: EffectState,
-        owner: Option<Owner>,
-        run_effect: bool,
-    ) -> NodeId {
-        let f = Rc::downgrade(&state.f);
-        let id = self.create_node(NodeType::Effect(state), NodeState::Dirty, owner);
-        if run_effect {
-            self.pending_tasks.push_back(Task::RunEffect { id, f });
-        }
-        id
-    }
-
-    pub(crate) fn create_trigger(&mut self, owner: Option<Owner>) -> NodeId {
-        self.create_node(NodeType::Trigger, NodeState::Clean, owner)
-    }
-
-    pub(crate) fn create_node_binding_node(
-        &mut self,
-        source: NodeId,
-        state: BindingState,
-        owner: Option<Owner>,
-    ) -> NodeId {
-        let id = self.create_node(NodeType::Binding(state), NodeState::Clean, owner);
-        self.subscriptions.add_node_subscription(source, id);
-        id
-    }
-
-    pub(crate) fn create_parameter_binding_node(
-        &mut self,
-        source: ParameterId,
-        state: BindingState,
-        owner: Option<Owner>,
-    ) -> NodeId {
-        let id = self.create_node(NodeType::Binding(state), NodeState::Clean, owner);
-        self.subscriptions.add_parameter_subscription(source, id);
-        id
-    }
-
-    pub(crate) fn create_animation_node(
-        &mut self,
-        state: AnimationState,
-        owner: Option<Owner>,
-    ) -> NodeId {
-        self.create_node(NodeType::Animation(state), NodeState::Clean, owner)
-    }
-
-    pub(crate) fn create_derived_animation_node(
-        &mut self,
-        state_fn: impl FnOnce(&mut Self, NodeId) -> DerivedAnimationState,
-        owner: Option<Owner>,
-    ) -> NodeId {
-        let id = self.create_node(NodeType::TmpRemoved, NodeState::Clean, owner);
-        let state = state_fn(self, id);
-        let _ = std::mem::replace(
-            &mut self.nodes[id].node_type,
-            NodeType::DerivedAnimation(state),
-        );
-        id
-    }
-
-    pub(crate) fn create_event_emitter(&mut self, owner: Option<Owner>) -> NodeId {
-        self.create_node(NodeType::EventEmitter, NodeState::Clean, owner)
-    }
-
-    fn create_node(
-        &mut self,
-        node_type: NodeType,
-        state: NodeState,
-        owner: Option<Owner>,
-    ) -> NodeId {
-        let node = Node { node_type, state };
-        let id = self.nodes.insert(node);
-        self.subscriptions.insert_node(id);
-
-        match owner {
-            Some(Owner::Widget(widget_id)) => {
-                self.nodes_owned_by_widget
-                    .entry(widget_id)
-                    .unwrap()
-                    .or_default()
-                    .insert(id);
-            }
-            Some(Owner::Node(node_id)) => {
-                self.nodes_owned_by_node
-                    .entry(node_id)
-                    .unwrap()
-                    .or_default()
-                    .insert(id);
-            }
-            _ => {}
-        };
-
-        id
-    }
-
-    pub(crate) fn clear_nodes_for_widget(&mut self, widget_id: WidgetId) {
-        if let Some(bindings) = self.nodes_owned_by_widget.remove(widget_id) {
-            for node_id in bindings {
-                self.remove_node(node_id);
-            }
-        }
-    }
-
-    pub fn remove_node(&mut self, id: NodeId) {
-        self.subscriptions.remove_node(id);
-        self.nodes.remove(id).expect("Missing node");
-        if let Some(child_ids) = self.nodes_owned_by_node.remove(id) {
-            for child_id in child_ids {
-                self.remove_node(child_id);
-            }
-        }
-    }
-
-    pub fn get_node(&self, node_id: NodeId) -> &Node {
-        self.nodes.get(node_id).expect("Node not found")
-    }
-
-    pub fn try_get_node(&self, node_id: NodeId) -> Option<&Node> {
-        self.nodes.get(node_id)
-    }
-
-    pub fn get_node_mut(&mut self, node_id: NodeId) -> &mut Node {
-        self.nodes.get_mut(node_id).expect("Node not found")
-    }
-
-    pub fn get_node_value_ref(&self, node_id: NodeId) -> Option<&dyn Any> {
-        self.nodes
-            .get(node_id)
-            .map(|node| NodeType::get_value_ref(&node.node_type))
-    }
-
-    pub fn try_drive_animation(&mut self, node_id: NodeId, now: Instant) -> bool {
-        if let Some(node) = self.nodes.get_mut(node_id) {
-            match &mut node.node_type {
-                NodeType::Animation(animation) => animation.inner.drive(now),
-                NodeType::DerivedAnimation(animation) => animation.inner.drive(now),
-                _ => unreachable!(),
-            }
-        } else {
-            false
-        }
-    }
-
-    pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
-        self.parameters
-            .get_by_id(parameter_id)
-            .expect("Invalid parameter id")
-            .as_param_ref()
-    }
-
-    /// Temporarily remove a node and return it
-    pub(super) fn lease_node(&mut self, node_id: NodeId) -> Option<NodeType> {
-        if let Some(node) = self.nodes.get_mut(node_id) {
-            Some(std::mem::replace(&mut node.node_type, NodeType::TmpRemoved))
-        } else {
-            None
-        }
-    }
-
-    /// Return a node that has previously been leased
-    pub(super) fn unlease_node(&mut self, node_id: NodeId, mut node: NodeType) {
-        std::mem::swap(&mut self.nodes[node_id].node_type, &mut node);
-    }
-
-    pub(crate) fn mark_node_as_clean(&mut self, node_id: NodeId) {
-        self.nodes[node_id].state = NodeState::Clean;
-    }
-
-    pub fn publish_event(&mut self, _source_id: NodeId, _event: Rc<dyn Any>) {}
-
-    pub fn track(&mut self, source_id: NodeId, scope: Scope) {
-        if let Scope::Node(node_id) = scope {
-            self.subscriptions.add_node_subscription(source_id, node_id);
-        }
-    }
-
-    pub fn track_parameter(&mut self, source_id: ParameterId, scope: Scope) {
-        if let Scope::Node(node_id) = scope {
-            self.subscriptions
-                .add_parameter_subscription(source_id, node_id);
-        }
-    }
-
-    pub fn track_widget_status(
-        &mut self,
-        widget_id: WidgetId,
-        status_mask: WidgetStatusFlags,
-        scope: Scope,
-    ) {
-        if let Scope::Node(node_id) = scope {}
     }
 }
 

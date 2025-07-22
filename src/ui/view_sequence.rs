@@ -1,4 +1,4 @@
-use crate::ui::{Effect, ReactiveValue, ReadContext, diff::DiffOp};
+use crate::ui::{Effect, ReactiveValue, ReadContext};
 
 use super::{Accessor, BuildContext, View, Widget};
 
@@ -120,7 +120,9 @@ where
             let new_values: Vec<T> = (self.values_fn)(cx).into_iter().collect();
             let mut widget = cx.widget_mut(id);
             if let Some(old_values) = old_values {
-                for diff in super::diff::diff_slices(old_values.as_slice(), new_values.as_slice()) {
+                for diff in
+                    super::reactive::diff::diff_slices(old_values.as_slice(), new_values.as_slice())
+                {
                     widget.apply_diff_to_children(diff, &self.view_fn);
                 }
             } else {
