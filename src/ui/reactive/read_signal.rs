@@ -2,18 +2,34 @@ use std::marker::PhantomData;
 
 use crate::{
     param::ParameterId,
-    ui::{Accessor, CreateContext, Effect, NodeId, ReactiveValue, ReadContext, WatchContext},
+    ui::{
+        Accessor, AppState, CreateContext, Effect, NodeId, ReactiveValue, ReadContext,
+        WatchContext, WidgetId, reactive::widget_status::WidgetStatusFlags,
+    },
 };
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum ReadSignalSource {
+enum ReadSignalSource<T> {
     Node(NodeId),
     Parameter(ParameterId),
+    WidgetStatus {
+        widget_id: WidgetId,
+        getter: fn(&AppState, WidgetId) -> T,
+        status_mask: WidgetStatusFlags,
+    },
 }
 
+impl<T> Clone for ReadSignalSource<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for ReadSignalSource<T> {}
+
 pub struct ReadSignal<T> {
-    source: ReadSignalSource,
-    _marker: PhantomData<*const T>,
+    source: ReadSignalSource<T>,
+    // Disable Send + Sync
+    _phantom: PhantomData<*const T>,
 }
 
 impl<T> Clone for ReadSignal<T> {
@@ -34,14 +50,29 @@ impl<T> ReadSignal<T> {
     pub(super) fn from_node(node_id: NodeId) -> Self {
         Self {
             source: ReadSignalSource::Node(node_id),
-            _marker: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
     pub(crate) fn from_parameter(parameter_id: ParameterId) -> Self {
         Self {
             source: ReadSignalSource::Parameter(parameter_id),
-            _marker: PhantomData,
+            _phantom: PhantomData,
+        }
+    }
+
+    pub(crate) fn from_widget_status(
+        widget_id: WidgetId,
+        getter: fn(&AppState, WidgetId) -> T,
+        status_mask: WidgetStatusFlags,
+    ) -> Self {
+        Self {
+            source: ReadSignalSource::WidgetStatus {
+                widget_id,
+                getter,
+                status_mask,
+            },
+            _phantom: PhantomData,
         }
     }
 }
@@ -53,6 +84,11 @@ impl<T: 'static> ReactiveValue for ReadSignal<T> {
         match self.source {
             ReadSignalSource::Parameter(parameter_id) => cx.track_parameter(parameter_id),
             ReadSignalSource::Node(node_id) => cx.track(node_id),
+            ReadSignalSource::WidgetStatus {
+                widget_id,
+                status_mask,
+                ..
+            } => cx.track_widget_status(widget_id, status_mask),
         }
     }
 
@@ -82,6 +118,12 @@ impl<T: 'static> ReactiveValue for ReadSignal<T> {
                     .expect("Node should have the correct value type");
                 f(value)
             }
+            ReadSignalSource::WidgetStatus {
+                widget_id, getter, ..
+            } => {
+                let value = getter(cx.app_state(), widget_id);
+                f(&value)
+            }
         }
     }
 
@@ -94,6 +136,11 @@ impl<T: 'static> ReactiveValue for ReadSignal<T> {
                 Effect::watch_parameter(cx, parameter_id, f)
             }
             ReadSignalSource::Node(node_id) => Effect::watch_node(cx, node_id, f),
+            ReadSignalSource::WidgetStatus {
+                widget_id,
+                getter,
+                status_mask,
+            } => todo!(),
         }
     }
 }

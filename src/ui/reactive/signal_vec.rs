@@ -1,9 +1,9 @@
 use std::{any::Any, marker::PhantomData};
 
-use crate::ui::Accessor;
+use crate::ui::{Accessor, ReactiveContext};
 
 use super::{
-    CreateContext, NodeId, NodeType, Owner, ReactiveValue, ReactiveGraph, Trigger, WriteContext,
+    CreateContext, NodeId, NodeType, Owner, ReactiveGraph, ReactiveValue, Trigger, WriteContext,
     var::SignalState,
 };
 
@@ -20,8 +20,7 @@ impl<T: Any> SignalVec<T> {
             triggers: Vec::new(),
             len_trigger: None,
         });
-        let owner = cx.owner();
-        let id = cx.runtime_mut().create_signal_node(state, owner);
+        let id = super::create_var_node(cx, state);
         Self {
             id,
             _phantom: PhantomData,
@@ -30,37 +29,43 @@ impl<T: Any> SignalVec<T> {
 
     pub fn push(&self, cx: &mut impl WriteContext, value: T) {
         let trigger = Trigger::new(&mut cx.as_create_context(Owner::Node(self.id)));
-        self.with_inner_mut(cx.runtime_mut(), move |inner| {
+        self.with_inner_mut(cx, move |inner| {
             inner.values.push(value);
             inner.triggers.push(trigger);
         });
-        cx.runtime_mut().notify(self.id);
+        super::notify(cx.app_state_mut(), self.id);
     }
 
     pub fn extend(&self, cx: &mut impl WriteContext, iter: impl IntoIterator<Item = T>) {
-        self.with_inner_mut(cx.runtime_mut(), move |inner| {
+        self.with_inner_mut(cx, move |inner| {
             inner.values.extend(iter);
         });
-        cx.runtime_mut().notify(self.id);
+        super::notify(cx.app_state_mut(), self.id);
     }
 
     pub fn retain(&self, cx: &mut impl WriteContext, f: impl Fn(&T) -> bool) {
-        self.with_inner_mut(cx.runtime_mut(), move |inner| {
+        self.with_inner_mut(cx, move |inner| {
             inner.values.retain(f);
         });
-        cx.runtime_mut().notify(self.id);
+        super::notify(cx.app_state_mut(), self.id);
     }
 
-    fn with_inner<R>(&self, cx: &ReactiveGraph, f: impl FnOnce(&Inner<T>) -> R) -> R {
-        let value = match &cx.get_node(self.id).node_type {
+    fn with_inner<R>(&self, cx: &dyn ReactiveContext, f: impl FnOnce(&Inner<T>) -> R) -> R {
+        let graph = &cx.app_state().runtime;
+        let value = match &graph.get_node(self.id).node_type {
             NodeType::Signal(signal) => signal.value.as_ref(),
             _ => unreachable!(),
         };
         f(value.downcast_ref().expect("Signal had wrong type"))
     }
 
-    fn with_inner_mut<R>(&self, cx: &mut ReactiveGraph, f: impl FnOnce(&mut Inner<T>) -> R) -> R {
-        let value = match &mut cx.get_node_mut(self.id).node_type {
+    fn with_inner_mut<R>(
+        &self,
+        cx: &mut dyn ReactiveContext,
+        f: impl FnOnce(&mut Inner<T>) -> R,
+    ) -> R {
+        let graph = &mut cx.app_state_mut().runtime;
+        let value = match &mut graph.get_node_mut(self.id).node_type {
             NodeType::Signal(signal) => signal.value.as_mut(),
             _ => unreachable!(),
         };
@@ -86,14 +91,12 @@ impl<T: Any> ReactiveValue for SignalVec<T> {
     type Value = Vec<T>;
 
     fn track(&self, cx: &mut dyn super::ReadContext) {
-        let scope = cx.scope();
-        cx.runtime_mut().track(self.id, scope);
+        cx.track(self.id);
     }
 
     fn with_ref<R>(&self, cx: &mut dyn super::ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-        let scope = cx.scope();
-        cx.runtime_mut().track(self.id, scope);
-        self.with_inner(cx.runtime(), move |value| f(&value.values))
+        cx.track(self.id);
+        self.with_inner(cx, move |value| f(&value.values))
     }
 
     fn with_ref_untracked<R>(
@@ -101,7 +104,7 @@ impl<T: Any> ReactiveValue for SignalVec<T> {
         cx: &mut dyn super::ReactiveContext,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
-        self.with_inner(cx.runtime(), move |value| f(&value.values))
+        self.with_inner(cx, move |value| f(&value.values))
     }
 
     fn watch<F>(self, cx: &mut dyn CreateContext, f: F) -> super::Effect
@@ -129,8 +132,7 @@ impl<T: Any> ReactiveValue for AtIndex<SignalVec<T>, T> {
     type Value = T;
 
     fn track(&self, cx: &mut dyn super::ReadContext) {
-        let scope = cx.scope();
-        cx.runtime_mut().track(self.id, scope);
+        cx.track(self.id);
     }
 
     fn with_ref_untracked<R>(
@@ -138,9 +140,8 @@ impl<T: Any> ReactiveValue for AtIndex<SignalVec<T>, T> {
         cx: &mut dyn super::ReactiveContext,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
-        self.parent.with_inner(cx.runtime(), move |inner| {
-            f(inner.values.get(self.index).unwrap())
-        })
+        self.parent
+            .with_inner(cx, move |inner| f(inner.values.get(self.index).unwrap()))
     }
 
     fn watch<F>(self, cx: &mut dyn CreateContext, f: F) -> super::Effect

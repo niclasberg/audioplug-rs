@@ -22,7 +22,7 @@ impl<T> Copy for Var<T> {}
 impl<T: Any> Var<T> {
     pub fn new(cx: &mut dyn CreateContext, value: T) -> Self {
         let state = SignalState::new(value);
-        let id = cx.create_signal_node(state);
+        let id = super::create_var_node(cx, state);
         Self {
             id,
             _marker: PhantomData,

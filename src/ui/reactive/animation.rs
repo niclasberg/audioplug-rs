@@ -118,7 +118,7 @@ impl<T: 'static> Animated<T> {
         let inner = Box::new(animation);
         let state = AnimationState { inner, window_id };
         Self {
-            id: cx.create_animation_node(state),
+            id: super::create_animation_node(cx, state),
             _phantom: PhantomData,
         }
     }
@@ -226,24 +226,23 @@ impl<T: 'static> AnimatedFn<T> {
         f_anim: impl FnOnce(T) -> A,
     ) -> Self {
         let window_id = cx.window_id();
-        let owner = cx.owner();
-        let id = cx.runtime_mut().create_derived_animation_node(
-            move |runtime, id| {
-                let value = f_value(&mut LocalReadContext::new(runtime, Scope::Node(id)));
-                let inner = Box::new(f_anim(value));
-                let reset_fn = Box::new(
-                    move |animation: &mut dyn AnyAnimation, cx: &mut dyn ReadContext| {
-                        animation.set_target_dyn(&f_value(cx))
-                    },
-                );
-                DerivedAnimationState {
-                    inner,
-                    reset_fn,
-                    window_id,
-                }
-            },
-            owner,
-        );
+        let id = super::create_derived_animation_node(cx, move |cx, id| {
+            let value = f_value(&mut LocalReadContext::new(
+                cx.app_state_mut(),
+                Scope::Node(id),
+            ));
+            let inner = Box::new(f_anim(value));
+            let reset_fn = Box::new(
+                move |animation: &mut dyn AnyAnimation, cx: &mut dyn ReadContext| {
+                    animation.set_target_dyn(&f_value(cx))
+                },
+            );
+            DerivedAnimationState {
+                inner,
+                reset_fn,
+                window_id,
+            }
+        });
 
         Self {
             id,

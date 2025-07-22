@@ -14,7 +14,6 @@ use crate::{
     core::{Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
-    ui::widget_status::WidgetStatus,
 };
 use slotmap::{Key, SecondaryMap, SlotMap};
 use std::{
@@ -627,10 +626,6 @@ pub(super) enum Task {
         f: Weak<HandleEventFn>,
         event: Rc<dyn Any>,
     },
-    UpdateAnimation {
-        node_id: NodeId,
-        window_id: WindowId,
-    },
 }
 
 impl Task {
@@ -651,12 +646,6 @@ impl Task {
                     (RefCell::borrow_mut(&f))(app_state);
                     app_state.runtime.mark_node_as_clean(node_id);
                 }
-            }
-            Task::UpdateAnimation { node_id, window_id } => {
-                app_state
-                    .window_mut(window_id)
-                    .pending_node_animations
-                    .insert(node_id);
             }
             Task::HandleEvent { f, event } => {
                 if let Some(f) = f.upgrade() {

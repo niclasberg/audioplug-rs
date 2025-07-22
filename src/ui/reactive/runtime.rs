@@ -5,10 +5,11 @@ use super::{
     effect::{BindingState, EffectState},
     event_channel::EventHandlerState,
     var::SignalState,
+    widget_status::WidgetStatusFlags,
 };
 use crate::{
     param::{AnyParameterMap, ParamRef, ParameterId},
-    ui::{FxHashMap, FxHashSet, FxIndexSet, WidgetId, widget_status::WidgetStatusFlags},
+    ui::{FxHashMap, FxHashSet, FxIndexSet, WidgetId},
 };
 use slotmap::{SecondaryMap, SlotMap};
 use smallvec::SmallVec;
@@ -326,48 +327,3 @@ impl ReactiveGraph {
             .push(SourceId::Widget(widget_id));
     }
 }
-
-/*#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn map_signal() {
-        let mut cx = ReactiveGraph::new();
-        let signal = cx.create_signal(0);
-        let mapped_signal = signal.clone().map(|x| x * 2);
-        signal.set(&mut cx, 2);
-        cx.create_effect(move |cx| {
-            assert_eq!(mapped_signal.get(cx), 4);
-        });
-        assert_eq!(mapped_signal.get_untracked(&cx), 4);
-    }
-
-    #[test]
-    fn effects_execute_upon_creation() {
-        let mut cx = ReactiveGraph::new();
-        let signal = cx.create_signal(0);
-        cx.create_effect(move |cx| {
-            signal.set(cx, 1);
-        });
-
-        assert_eq!(signal.get_untracked(&cx), 1);
-    }
-
-    #[test]
-    fn effects_execute_when_signal_changes() {
-        let mut cx = ReactiveGraph::new();
-        let source_signal = cx.create_signal(0);
-        let dest_signal = cx.create_signal(0);
-        cx.create_effect(move |cx| {
-            let new_value = source_signal.get(cx);
-            dest_signal.set(cx, new_value);
-        });
-
-        source_signal.set(&mut cx, 1);
-        assert_eq!(dest_signal.get_untracked(&cx), 1);
-
-        source_signal.set(&mut cx, 2);
-        assert_eq!(dest_signal.get_untracked(&cx), 2);
-    }
-}*/

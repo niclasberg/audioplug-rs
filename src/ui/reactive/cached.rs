@@ -73,7 +73,7 @@ impl<T: Any> Cached<T> {
             }),
             value: None,
         };
-        let id = cx.create_memo_node(state);
+        let id = super::create_memo_node(cx, state);
 
         Self {
             id,

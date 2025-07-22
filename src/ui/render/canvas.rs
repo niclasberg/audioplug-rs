@@ -4,9 +4,10 @@ use crate::{
     core::{Point, Rectangle},
     platform,
     ui::{
-        AppState, BrushRef, BuildContext, EffectState, NodeId, Owner, ReactiveContext,
-        ReactiveGraph, ReadContext, Scope, ShapeRef, TextLayout, View, Widget, WidgetId,
-        style::LayoutMode, widget_status::WidgetStatus,
+        AppState, BrushRef, BuildContext, NodeId, Owner, ReactiveContext, ReadContext, Scope,
+        ShapeRef, TextLayout, View, Widget, WidgetId,
+        reactive::{EffectState, create_effect_node},
+        style::LayoutMode,
     },
 };
 
@@ -52,9 +53,11 @@ where
         let state = EffectState::new(move |cx| {
             cx.widget_mut(widget_id).request_render();
         });
-        let effect_id =
-            cx.runtime_mut()
-                .create_effect_node(state, Some(Owner::Widget(widget_id.id)), false);
+        let effect_id = create_effect_node(
+            &mut cx.as_create_context(Owner::Widget(widget_id.id)),
+            state,
+            false,
+        );
 
         CanvasWidget {
             effect_id,
@@ -124,16 +127,12 @@ impl CanvasContext<'_, '_, '_> {
 }
 
 impl ReactiveContext for CanvasContext<'_, '_, '_> {
-    fn runtime(&self) -> &ReactiveGraph {
-        self.app_state.runtime()
+    fn app_state(&self) -> &AppState {
+        self.app_state
     }
 
-    fn runtime_mut(&mut self) -> &mut ReactiveGraph {
-        self.app_state.runtime_mut()
-    }
-
-    fn widget_status(&self, widget_id: WidgetId) -> Option<WidgetStatus> {
-        self.app_state.widget_status(widget_id)
+    fn app_state_mut(&mut self) -> &mut AppState {
+        self.app_state
     }
 }
 
@@ -161,10 +160,7 @@ impl<State: 'static> Widget for CanvasWidget<State> {
     }
 
     fn render(&mut self, cx: &mut crate::ui::RenderContext) {
-        cx.app_state
-            .runtime
-            .subscriptions
-            .clear_node_sources(self.effect_id);
+        cx.app_state.runtime.clear_node_sources(self.effect_id);
         let mut cx = CanvasContext {
             widget_id: cx.id,
             effect_id: self.effect_id,

@@ -11,14 +11,6 @@ impl<T: Any> EventChannel<T> {
     pub fn publish(&self, cx: &mut dyn WriteContext, event: T) {
         cx.publish_event(self.emitter_id, Rc::new(event));
     }
-
-    pub fn subscribe(
-        &self,
-        cx: &mut dyn CreateContext,
-        f: impl Fn(&mut dyn WatchContext, &T),
-    ) -> EventSubscription {
-        todo!()
-    }
 }
 
 pub struct EventSubscription {
@@ -32,13 +24,20 @@ pub struct EventReceiver<T> {
     _phantom: PhantomData<*const T>,
 }
 
-impl<T: Any> EventReceiver<T> {}
+impl<T: Any> EventReceiver<T> {
+    pub fn subscribe(
+        &self,
+        cx: &mut dyn CreateContext,
+        f: impl Fn(&mut dyn WatchContext, &T),
+    ) -> EventSubscription {
+        todo!()
+    }
+}
 
 pub fn create_event_channel<T: Any>(
     cx: &mut dyn CreateContext,
 ) -> (EventChannel<T>, EventReceiver<T>) {
-    let owner = cx.owner();
-    let emitter_id = cx.runtime_mut().create_event_emitter(owner);
+    let emitter_id = super::create_event_emitter(cx);
     let emitter = EventChannel {
         emitter_id,
         _phantom: PhantomData,

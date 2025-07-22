@@ -13,6 +13,7 @@ mod spring;
 mod trigger;
 mod tween;
 mod var;
+mod widget_status;
 
 use std::{collections::VecDeque, rc::Rc};
 
@@ -20,8 +21,8 @@ pub use accessor::Accessor;
 pub use animation::{Animated, AnimatedFn, Animation, Easing, SpringOptions, TweenOptions};
 pub use cached::{Cached, CachedContext};
 pub use computed::Computed;
-pub(super) use effect::{BindingFn, EffectFn};
-pub use effect::{Effect, EffectContext, EffectState, WatchContext};
+pub(super) use effect::{BindingFn, EffectFn, EffectState};
+pub use effect::{Effect, EffectContext, WatchContext};
 pub(super) use event_channel::HandleEventFn;
 pub use event_channel::{EventChannel, EventReceiver, create_event_channel};
 pub use read_signal::ReadSignal;
@@ -131,6 +132,7 @@ pub fn update_if_necessary(app_state: &mut AppState, node_id: NodeId) {
                 // Clear the sources, they will be re-populated while running the memo function
                 app_state.runtime.clear_node_sources(node_id);
                 if memo.eval(node_id, app_state) {
+                    // Memo eval returned false, meaning that it has changed.
                     for &observer_id in app_state.runtime.observers[node_id].iter() {
                         app_state.runtime.nodes[observer_id].state = NodeState::Dirty;
                     }

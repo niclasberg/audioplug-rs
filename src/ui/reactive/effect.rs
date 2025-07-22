@@ -59,7 +59,8 @@ impl Effect {
         cx: &mut dyn CreateContext,
         f: impl FnMut(&mut dyn EffectContext) + 'static,
     ) -> Self {
-        let id = cx.create_effect_node(
+        let id = super::create_effect_node(
+            cx,
             EffectState {
                 f: Rc::new(RefCell::new(f)),
             },
@@ -73,7 +74,8 @@ impl Effect {
         f: impl Fn(&mut dyn EffectContext, Option<T>) -> T + 'static,
     ) -> Self {
         let mut state: Option<T> = None;
-        let id = cx.create_effect_node(
+        let id = super::create_effect_node(
+            cx,
             EffectState {
                 f: Rc::new(RefCell::new(move |cx: &mut dyn EffectContext| {
                     let old_state = state.take();
@@ -90,8 +92,8 @@ impl Effect {
         parameter_id: ParameterId,
         mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
     ) -> Self {
-        let owner = cx.owner();
-        let id = cx.create_parameter_binding_node(
+        let id = super::create_parameter_binding_node(
+            cx,
             parameter_id,
             BindingState::new(move |cx| {
                 let value = cx
@@ -102,7 +104,6 @@ impl Effect {
                     .unwrap();
                 f(cx, &value);
             }),
-            owner,
         );
 
         Self { id }
@@ -113,7 +114,8 @@ impl Effect {
         node_id: NodeId,
         mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
     ) -> Self {
-        let id = cx.create_node_binding_node(
+        let id = super::create_node_binding_node(
+            cx,
             node_id,
             BindingState::new(move |cx| {
                 super::update_if_necessary(cx.app_state_mut(), node_id);
@@ -136,9 +138,9 @@ impl Effect {
         value_fn: impl Fn(&mut dyn ReadContext) -> T + 'static,
         mut handler_fn: impl FnMut(&mut dyn WatchContext, &T, Option<&T>) + 'static,
     ) -> Self {
-        let owner = cx.owner();
         let mut current_value: Option<T> = None;
-        let id = cx.runtime_mut().create_effect_node(
+        let id = super::create_effect_node(
+            cx,
             EffectState {
                 f: Rc::new(RefCell::new(move |cx: &mut dyn EffectContext| {
                     let old_value = current_value.take();
@@ -147,7 +149,6 @@ impl Effect {
                     current_value = Some(new_value);
                 })),
             },
-            owner,
             true,
         );
 
@@ -156,7 +157,7 @@ impl Effect {
 
     pub fn dispose(self, cx: &mut dyn ReactiveContext) {
         if !self.id.is_null() {
-            cx.runtime_mut().remove_node(self.id);
+            cx.app_state_mut().runtime.remove_node(self.id);
         }
     }
 }

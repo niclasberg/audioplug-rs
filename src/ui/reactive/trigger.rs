@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use crate::ui::ReactiveContext;
+
 use super::{CreateContext, NodeId, ReadContext, WriteContext};
 
 #[derive(Clone, Copy)]
@@ -11,7 +13,7 @@ pub struct Trigger {
 impl Trigger {
     pub fn new(cx: &mut dyn CreateContext) -> Self {
         Self {
-            node_id: cx.create_trigger(),
+            node_id: super::create_trigger(cx),
             _marker: PhantomData,
         }
     }
@@ -20,7 +22,7 @@ impl Trigger {
         cx.track(self.node_id);
     }
 
-    pub fn notify(&self, cx: &mut dyn WriteContext) {
+    pub fn notify(&self, cx: &mut dyn ReactiveContext) {
         super::notify(cx.app_state_mut(), self.node_id);
     }
 }
