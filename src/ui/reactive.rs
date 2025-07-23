@@ -29,15 +29,12 @@ pub use readable::*;
 pub use runtime::*;
 pub use trigger::Trigger;
 pub use var::Var;
+pub use widget_status::{FOCUS_STATUS, WidgetStatus, WidgetStatusFlags};
 
 use crate::{
     core::FxHashSet,
     param::ParameterId,
-    ui::{
-        AppState, WidgetId,
-        app_state::Task,
-        reactive::{effect::BindingState, widget_status::WidgetStatusFlags},
-    },
+    ui::{AppState, WidgetId, app_state::Task, reactive::effect::BindingState},
 };
 
 slotmap::new_key_type! {
@@ -189,7 +186,7 @@ pub(crate) fn notify_widget_status_changed(
         nodes_to_notify.extend(
             widget_observers
                 .iter()
-                .filter(|(_, mask)| mask.contains(change_mask)),
+                .filter_map(|(node_id, mask)| mask.contains(change_mask).then_some(node_id)),
         );
     }
     notify_source_changed(app_state, nodes_to_notify);

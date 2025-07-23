@@ -1,15 +1,28 @@
 use super::{
     AppState, CallbackContext, CreateContext, EventStatus, MouseEventContext, Owner, ParamContext,
-    ReactiveContext, ReadContext, Scope, TypedWidgetId, ViewContext, ViewSequence, Widget,
-    WidgetFlags, WidgetId, WrappedWidget,
+    ReactiveContext, ReadContext, ReadSignal, Scope, TypedWidgetId, ViewContext, ViewSequence,
+    Widget, WidgetFlags, WidgetId, WrappedWidget,
     app_state::WidgetInsertPos,
     overlay::OverlayOptions,
+    reactive::FOCUS_STATUS,
     style::{Style, StyleBuilder},
 };
 use crate::{MouseButton, MouseEvent};
 use std::marker::PhantomData;
 
 pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn Widget>>;
+
+pub struct ViewSignals {
+    pub focused: ReadSignal<bool>,
+}
+
+impl ViewSignals {
+    pub fn new(widget_id: WidgetId) -> Self {
+        Self {
+            focused: FOCUS_STATUS.as_read_signal(widget_id),
+        }
+    }
+}
 
 pub trait View: 'static {
     type Element: Widget + 'static;
@@ -31,6 +44,17 @@ pub trait View: 'static {
         OnClick {
             parent_view: self,
             on_click_fn: f,
+        }
+    }
+
+    fn style(self, f: impl FnOnce(StyleBuilder) -> StyleBuilder) -> Styled<Self>
+    where
+        Self: Sized,
+    {
+        let style_builder = f(StyleBuilder::default());
+        Styled {
+            view: self,
+            style_builder,
         }
     }
 }
@@ -103,6 +127,21 @@ impl<W: Widget, F: Fn(&mut CallbackContext) + 'static> WrappedWidget for OnClick
             }
             _ => self.parent.mouse_event(event, cx),
         }
+    }
+}
+
+pub struct Styled<V> {
+    pub(super) view: V,
+    pub(super) style_builder: StyleBuilder,
+}
+
+impl<V: View> View for Styled<V> {
+    type Element = V::Element;
+
+    fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
+        let widget = self.view.build(cx);
+        cx.apply_style(move |style| style.merge(self.style_builder));
+        widget
     }
 }
 

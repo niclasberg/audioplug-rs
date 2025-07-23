@@ -30,5 +30,5 @@ pub use slider::{ParameterSlider, Slider};
 pub use stateful::Stateful;
 pub use switch::Switch;
 pub use textbox::TextBox;
-pub use view_ext::{Styled, ViewExt};
+pub use view_ext::ViewExt;
 pub use xy_pad::XyPad;
