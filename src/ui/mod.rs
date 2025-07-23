@@ -60,11 +60,6 @@ slotmap::new_key_type! {
     pub struct WindowId;
 }
 
-type FxHashSet<K> = HashSet<K, FxBuildHasher>;
-type FxHashMap<K, V> = HashMap<K, V, FxBuildHasher>;
-type FxIndexSet<T> = IndexSet<T, FxBuildHasher>;
-type FxIndexMap<K, V> = IndexMap<K, V, FxBuildHasher>;
-
 pub struct TypedWidgetId<W: Widget + ?Sized> {
     pub id: WidgetId,
     _phantom: PhantomData<fn() -> W>,

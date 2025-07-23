@@ -8,8 +8,9 @@ use super::{
     widget_status::WidgetStatusFlags,
 };
 use crate::{
+    core::{FxHashMap, FxHashSet, FxIndexSet},
     param::{AnyParameterMap, ParamRef, ParameterId},
-    ui::{FxHashMap, FxHashSet, FxIndexSet, WidgetId},
+    ui::WidgetId,
 };
 use slotmap::{SecondaryMap, SlotMap};
 use smallvec::SmallVec;

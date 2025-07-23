@@ -5,6 +5,7 @@ mod color;
 mod color_map;
 mod constraint;
 mod cursor;
+pub mod diff;
 mod ellipse;
 mod interpolation;
 mod keyboard;
@@ -18,6 +19,8 @@ mod transform;
 mod unit_point;
 mod vector;
 
+use std::collections::{HashMap, HashSet};
+
 pub use alignment::{Align, HAlign, VAlign};
 pub use axis::Axis;
 pub use border::Border;
@@ -26,11 +29,13 @@ pub use color_map::*;
 pub use constraint::*;
 pub use cursor::Cursor;
 pub use ellipse::{Circle, Ellipse};
+use indexmap::{IndexMap, IndexSet};
 pub use interpolation::{Interpolate, SpringPhysics, SpringProperties};
 pub use keyboard::{Key, Modifiers};
 pub use point::Point;
 pub use rectangle::Rectangle;
 pub use rounded_rectangle::RoundedRectangle;
+use rustc_hash::FxBuildHasher;
 pub use size::Size;
 pub use text::*;
 pub use transform::Transform;
@@ -78,3 +83,8 @@ impl Default for ShadowOptions {
         }
     }
 }
+
+pub(crate) type FxHashSet<K> = HashSet<K, FxBuildHasher>;
+pub(crate) type FxHashMap<K, V> = HashMap<K, V, FxBuildHasher>;
+pub(crate) type FxIndexSet<T> = IndexSet<T, FxBuildHasher>;
+pub(crate) type FxIndexMap<K, V> = IndexMap<K, V, FxBuildHasher>;

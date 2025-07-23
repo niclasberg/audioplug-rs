@@ -3,10 +3,11 @@ use std::{any::Any, hash::Hash, marker::PhantomData, rc::Rc};
 use rustc_hash::FxBuildHasher;
 
 use crate::{
+    core::{FxIndexSet, diff},
     param::ParameterId,
     ui::{
-        AnyView, AppState, BuildContext, FxIndexSet, View, ViewSequence, Widget, WidgetId,
-        WidgetMut, WidgetRef, WindowId,
+        AnyView, AppState, BuildContext, View, ViewSequence, Widget, WidgetId, WidgetMut,
+        WidgetRef, WindowId,
         app_state::Task,
         reactive::{
             animation::{AnimationState, DerivedAnimationState},
@@ -358,7 +359,7 @@ where
             let value_vec: Vec<_> = values.into_iter().collect();
             let mut widget = cx.widget_mut(widget_id);
 
-            super::diff::diff_keyed_with(&old_indices, &new_indices, &value_vec, |diff| {
+            diff::diff_keyed_with(&old_indices, &new_indices, &value_vec, |diff| {
                 let f = |x: &&T| (self.view_fn)(*x);
                 widget.apply_diff_to_children(diff, &f)
             });

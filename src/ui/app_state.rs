@@ -1,7 +1,7 @@
 use super::{
-    AnyView, BuildContext, CreateContext, FxIndexSet, HostHandle, NodeId, ParamContext,
-    ReactiveContext, ReadContext, ReadSignal, Scope, Var, View, Widget, WidgetContext, WidgetData,
-    WidgetFlags, WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext,
+    AnyView, BuildContext, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext,
+    ReadContext, ReadSignal, Scope, Var, View, Widget, WidgetContext, WidgetData, WidgetFlags,
+    WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext,
     clipboard::Clipboard,
     event_handling::{set_focus_widget, set_mouse_capture_widget},
     layout::RecomputeLayout,
@@ -11,7 +11,7 @@ use super::{
     style::StyleBuilder,
 };
 use crate::{
-    core::{Point, WindowTheme},
+    core::{FxIndexSet, Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
 };

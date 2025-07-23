@@ -2,7 +2,6 @@ mod accessor;
 mod animation;
 mod cached;
 mod computed;
-pub(super) mod diff;
 mod effect;
 mod event_channel;
 mod read_signal;
@@ -32,8 +31,13 @@ pub use trigger::Trigger;
 pub use var::Var;
 
 use crate::{
+    core::FxHashSet,
     param::ParameterId,
-    ui::{AppState, FxHashSet, app_state::Task, reactive::effect::BindingState},
+    ui::{
+        AppState, WidgetId,
+        app_state::Task,
+        reactive::{effect::BindingState, widget_status::WidgetStatusFlags},
+    },
 };
 
 slotmap::new_key_type! {
@@ -171,5 +175,22 @@ pub(crate) fn notify_parameter_subscribers(app_state: &mut AppState, source_id: 
             .unwrap()
             .iter(),
     );
+    notify_source_changed(app_state, nodes_to_notify);
+}
+
+pub(crate) fn notify_widget_status_changed(
+    app_state: &mut AppState,
+    widget_id: WidgetId,
+    change_mask: WidgetStatusFlags,
+) {
+    let mut nodes_to_notify = std::mem::take(&mut app_state.node_id_buffer);
+    nodes_to_notify.clear();
+    if let Some(widget_observers) = app_state.runtime.widget_observers.get(widget_id) {
+        nodes_to_notify.extend(
+            widget_observers
+                .iter()
+                .filter(|(_, mask)| mask.contains(change_mask)),
+        );
+    }
     notify_source_changed(app_state, nodes_to_notify);
 }

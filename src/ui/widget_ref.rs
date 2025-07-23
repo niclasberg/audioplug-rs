@@ -5,10 +5,9 @@ use std::{
 
 use super::{
     AppState, OverlayOptions, View, Widget, WidgetData, WidgetFlags, WidgetId,
-    app_state::WidgetInsertPos, layout::request_layout, reactive::diff::DiffOp,
-    render::invalidate_widget, style::Style,
+    app_state::WidgetInsertPos, layout::request_layout, render::invalidate_widget, style::Style,
 };
-use crate::core::Rectangle;
+use crate::core::{Rectangle, diff::DiffOp};
 
 pub struct ChildIter<'a> {
     app_state: &'a AppState,

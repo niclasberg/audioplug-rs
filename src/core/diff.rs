@@ -1,6 +1,6 @@
 use std::hash::Hash;
 
-use crate::ui::FxIndexSet;
+use super::FxIndexSet;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum DiffOp<'a, T> {
