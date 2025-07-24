@@ -7,19 +7,21 @@ use super::{
     reactive::FOCUS_STATUS,
     style::{Style, StyleBuilder},
 };
-use crate::{MouseButton, MouseEvent};
+use crate::{MouseButton, MouseEvent, ui::reactive::CLICKED_STATUS};
 use std::marker::PhantomData;
 
 pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn Widget>>;
 
 pub struct ViewSignals {
     pub focused: ReadSignal<bool>,
+    pub clicked: ReadSignal<bool>,
 }
 
 impl ViewSignals {
     pub fn new(widget_id: WidgetId) -> Self {
         Self {
-            focused: FOCUS_STATUS.as_read_signal(widget_id),
+            focused: FOCUS_STATUS.into_read_signal(widget_id),
+            clicked: CLICKED_STATUS.into_read_signal(widget_id),
         }
     }
 }
@@ -47,14 +49,14 @@ pub trait View: 'static {
         }
     }
 
-    fn style(self, f: impl FnOnce(StyleBuilder) -> StyleBuilder) -> Styled<Self>
+    fn style<F>(self, builder_fn: F) -> Styled<Self, F>
     where
         Self: Sized,
+        F: FnOnce(&mut StyleBuilder, ViewSignals) + 'static,
     {
-        let style_builder = f(StyleBuilder::default());
         Styled {
             view: self,
-            style_builder,
+            builder_fn,
         }
     }
 }
@@ -130,17 +132,17 @@ impl<W: Widget, F: Fn(&mut CallbackContext) + 'static> WrappedWidget for OnClick
     }
 }
 
-pub struct Styled<V> {
+pub struct Styled<V, F> {
     pub(super) view: V,
-    pub(super) style_builder: StyleBuilder,
+    pub(super) builder_fn: F,
 }
 
-impl<V: View> View for Styled<V> {
+impl<V: View, F: FnOnce(&mut StyleBuilder, ViewSignals) + 'static> View for Styled<V, F> {
     type Element = V::Element;
 
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
         let widget = self.view.build(cx);
-        cx.apply_style(move |style| style.merge(self.style_builder));
+        cx.apply_style(self.builder_fn);
         widget
     }
 }
@@ -204,8 +206,8 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
         })
     }
 
-    pub fn apply_style(&mut self, style_fn: impl FnOnce(&mut StyleBuilder)) {
-        style_fn(self.style_builder);
+    pub fn apply_style(&mut self, style_fn: impl FnOnce(&mut StyleBuilder, ViewSignals)) {
+        style_fn(self.style_builder, ViewSignals::new(self.id));
     }
 
     pub fn set_default_style(&mut self, style: Style) {

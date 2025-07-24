@@ -4,7 +4,7 @@ use crate::{
     event::{KeyEvent, MouseButton},
     ui::{
         Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
-        RenderContext, StatusChange, View, Widget,
+        ReactiveValue, RenderContext, StatusChange, View, Widget,
         style::{FlexStyle, LayoutMode, Length, Style, UiRect},
     },
     views::Label,
@@ -41,10 +41,17 @@ impl<V: View> View for Button<V> {
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         ctx.set_focusable(true);
         ctx.add_child(self.child);
-        ctx.set_default_style(Style {
-            background: Some(Color::from_rgb8(121, 153, 141).into()),
-            padding: UiRect::all(Length::Px(4.0)),
-            ..Default::default()
+        ctx.apply_style(|s, signals| {
+            s.background(signals.clicked.map(move |&clicked| {
+                println!("Clicked: {clicked}");
+                if clicked {
+                    Color::from_rgb8(121, 153, 141)
+                } else {
+                    Color::from_rgb8(101, 133, 121)
+                }
+                .into()
+            }))
+            .padding(UiRect::all(Length::Px(4.0)));
         });
 
         ButtonWidget {

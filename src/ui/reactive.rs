@@ -29,7 +29,7 @@ pub use readable::*;
 pub use runtime::*;
 pub use trigger::Trigger;
 pub use var::Var;
-pub use widget_status::{FOCUS_STATUS, WidgetStatus, WidgetStatusFlags};
+pub use widget_status::{CLICKED_STATUS, FOCUS_STATUS, WidgetStatusFlags};
 
 use crate::{
     core::FxHashSet,
@@ -44,7 +44,7 @@ slotmap::new_key_type! {
 pub fn notify(app_state: &mut AppState, node_id: NodeId) {
     let mut observers = std::mem::take(&mut app_state.node_id_buffer);
     observers.clear();
-    observers.extend(app_state.runtime.observers[node_id].iter());
+    observers.extend(app_state.runtime.node_observers[node_id].iter());
     notify_source_changed(app_state, observers);
 }
 
@@ -70,7 +70,7 @@ fn notify_source_changed(app_state: &mut AppState, mut nodes_to_notify: VecDeque
                     }
                     _ => {}
                 }
-                nodes_to_notify.extend(app_state.runtime.observers[node_id].iter());
+                nodes_to_notify.extend(app_state.runtime.node_observers[node_id].iter());
             }
             i += 1;
         }
@@ -134,7 +134,7 @@ pub fn update_if_necessary(app_state: &mut AppState, node_id: NodeId) {
                 app_state.runtime.clear_node_sources(node_id);
                 if memo.eval(node_id, app_state) {
                     // Memo eval returned false, meaning that it has changed.
-                    for &observer_id in app_state.runtime.observers[node_id].iter() {
+                    for &observer_id in app_state.runtime.node_observers[node_id].iter() {
                         app_state.runtime.nodes[observer_id].state = NodeState::Dirty;
                     }
                 }
@@ -180,14 +180,14 @@ pub(crate) fn notify_widget_status_changed(
     widget_id: WidgetId,
     change_mask: WidgetStatusFlags,
 ) {
-    let mut nodes_to_notify = std::mem::take(&mut app_state.node_id_buffer);
-    nodes_to_notify.clear();
     if let Some(widget_observers) = app_state.runtime.widget_observers.get(widget_id) {
+        let mut nodes_to_notify = std::mem::take(&mut app_state.node_id_buffer);
+        nodes_to_notify.clear();
         nodes_to_notify.extend(
             widget_observers
                 .iter()
                 .filter_map(|(node_id, mask)| mask.contains(change_mask).then_some(node_id)),
         );
+        notify_source_changed(app_state, nodes_to_notify);
     }
-    notify_source_changed(app_state, nodes_to_notify);
 }

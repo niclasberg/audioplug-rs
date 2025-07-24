@@ -104,7 +104,7 @@ pub struct ReactiveGraph {
     nodes_owned_by_node: SecondaryMap<NodeId, FxHashSet<NodeId>>,
     nodes_owned_by_widget: SecondaryMap<WidgetId, FxHashSet<NodeId>>,
     pub(super) sources: SecondaryMap<NodeId, SmallVec<[SourceId; 4]>>,
-    pub(super) observers: SecondaryMap<NodeId, FxIndexSet<NodeId>>,
+    pub(super) node_observers: SecondaryMap<NodeId, FxIndexSet<NodeId>>,
     pub(super) parameter_observers: FxHashMap<ParameterId, FxIndexSet<NodeId>>,
     pub(super) widget_observers: SecondaryMap<WidgetId, SmallVec<[(NodeId, WidgetStatusFlags); 4]>>,
 }
@@ -119,7 +119,7 @@ impl ReactiveGraph {
         Self {
             nodes: Default::default(),
             sources: Default::default(),
-            observers: Default::default(),
+            node_observers: Default::default(),
             parameter_observers: parameter_subscriptions,
             widget_observers: Default::default(),
             parameters: parameter_map,
@@ -136,7 +136,7 @@ impl ReactiveGraph {
     ) -> NodeId {
         let node = Node { node_type, state };
         let id = self.nodes.insert(node);
-        self.observers.insert(id, FxIndexSet::default());
+        self.node_observers.insert(id, FxIndexSet::default());
 
         match owner {
             Some(Owner::Widget(widget_id)) => {
@@ -170,7 +170,7 @@ impl ReactiveGraph {
     pub fn remove_node(&mut self, id: NodeId) {
         // Remove the node's subscriptions to other nodes
         let observers = self
-            .observers
+            .node_observers
             .remove(id)
             .expect("Missing observers for node");
         for observer_id in observers {
@@ -181,7 +181,7 @@ impl ReactiveGraph {
         if let Some(sources) = self.sources.remove(id) {
             for source_id in sources {
                 Self::remove_source_from_observer(
-                    &mut self.observers,
+                    &mut self.node_observers,
                     &mut self.parameter_observers,
                     &mut self.widget_observers,
                     source_id,
@@ -281,7 +281,7 @@ impl ReactiveGraph {
         if let Some(sources) = self.sources.get_mut(node_id) {
             for source_id in sources.drain(..) {
                 Self::remove_source_from_observer(
-                    &mut self.observers,
+                    &mut self.node_observers,
                     &mut self.parameter_observers,
                     &mut self.widget_observers,
                     source_id,
@@ -304,7 +304,7 @@ impl ReactiveGraph {
     }
 
     pub fn add_node_subscription(&mut self, source_id: NodeId, observer_id: NodeId) {
-        self.observers[source_id].insert(observer_id);
+        self.node_observers[source_id].insert(observer_id);
         self.sources
             .entry(observer_id)
             .unwrap()

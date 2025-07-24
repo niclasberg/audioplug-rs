@@ -185,7 +185,13 @@ impl dyn ReadContext + '_ {
     }
 
     pub fn track_widget_status(&mut self, widget_id: WidgetId, status_mask: WidgetStatusFlags) {
-        if let Scope::Node(node_id) = self.scope() {}
+        if let Scope::Node(node_id) = self.scope() {
+            self.app_state_mut().runtime.add_widget_status_subscription(
+                widget_id,
+                status_mask,
+                node_id,
+            );
+        }
     }
 }
 

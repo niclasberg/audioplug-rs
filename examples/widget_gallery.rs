@@ -26,7 +26,9 @@ fn main() {
                     menu_button("Overview", tab, Tab::Overview),
                     menu_button("Buttons", tab, Tab::Buttons),
                 ))
-                .style(|style| style.margin(UiRect::right_px(5.0))),
+                .style(|style, _| {
+                    style.margin(UiRect::right_px(5.0));
+                }),
                 Switch::new(
                     move |cx| tab.get(cx),
                     move |tab| match tab {
@@ -35,7 +37,9 @@ fn main() {
                     },
                 ),
             ))
-            .style(|s| s.background(Color::EARTH_YELLOW).width(Length::Vw(100.0)))
+            .style(|s, _| {
+                s.background(Color::EARTH_YELLOW).width(Length::Vw(100.0));
+            })
         }),
     );
 
@@ -45,7 +49,7 @@ fn main() {
 fn menu_button(label: &str, tab_signal: Var<Tab>, tab: Tab) -> impl View {
     Button::new(Label::new(label))
         .on_click(move |cx| tab_signal.set(cx, tab))
-        .style(|style| {
+        .style(move |style, _| {
             style.background(tab_signal.map(move |current_tab| {
                 if *current_tab == tab {
                     Color::EARTH_YELLOW.tint(0.2)
@@ -53,7 +57,7 @@ fn menu_button(label: &str, tab_signal: Var<Tab>, tab: Tab) -> impl View {
                     Color::EARTH_YELLOW
                 }
                 .into()
-            }))
+            }));
         })
 }
 
@@ -104,10 +108,10 @@ fn overview() -> impl View {
                     animated.get(cx)
                 )
             }))
-            .style(|s| {
+            .style(|s, _| {
                 s.border(Length::Px(2.0), Color::GRAY90)
                     .corner_radius(Size::new(2.0, 2.0))
-                    .effects(vec![ImageEffect::GaussianBlur { radius: 10.0 }])
+                    .effects(vec![ImageEffect::GaussianBlur { radius: 10.0 }]);
             }),
             Row::new((
                 Label::new("Slider"),
@@ -115,7 +119,9 @@ fn overview() -> impl View {
                     .range(1.0, 500.0)
                     .value(slider_value)
                     .on_value_changed(move |cx, value| slider_value.set(cx, value))
-                    .style(|s| s.height(Length::Px(25.0))),
+                    .style(|s, _| {
+                        s.height(Length::Px(25.0));
+                    }),
             ))
             .spacing(Length::Px(5.0))
             .v_align_center(),
@@ -124,7 +130,9 @@ fn overview() -> impl View {
                 Label::new("Checkbox"),
                 Checkbox::new()
                     .checked(checkbox_enabled)
-                    .style(|s| s.background(checkbox_bg.map(|c| Brush::Solid(*c)))),
+                    .style(move |s, _| {
+                        s.background(checkbox_bg.map(|c| Brush::Solid(*c)));
+                    }),
             ))
             .v_align_center()
             .spacing(Length::Px(5.0)),
@@ -137,14 +145,14 @@ fn overview() -> impl View {
                         Label::new("Eat banana"),
                     ))
                     .spacing(Length::Px(2.5))
-                    .style(|s| {
+                    .style(|s, _| {
                         s.corner_radius(Size::splat(5.0))
                             .background(Color::EARTH_YELLOW)
                             .box_shadow(ShadowOptions {
                                 radius: 5.0,
                                 ..Default::default()
                             })
-                            .padding(UiRect::all_px(5.0))
+                            .padding(UiRect::all_px(5.0));
                     })
                 }),
             ))
@@ -161,7 +169,7 @@ fn overview() -> impl View {
             Row::new((
                 Label::new("Image"),
                 Image::from_file(Path::new("./ferris.png"))
-                    .style(|style| {
+                    .style(move |style, _| {
                         style
                             .max_width(Length::Px(200.0))
                             .height(animated.map(Length::from_px))
@@ -172,7 +180,7 @@ fn overview() -> impl View {
                                 color: Color::BLACK.with_alpha(0.3),
                                 kind: ShadowKind::InnerShadow,
                                 ..Default::default()
-                            })
+                            });
                     })
                     .overlay(
                         OverlayOptions {

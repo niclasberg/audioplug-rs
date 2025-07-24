@@ -12,7 +12,11 @@ use crate::{
     KeyEvent, MouseEvent,
     core::{Key, Rectangle},
     platform::WindowEvent,
-    ui::{StatusChange, Widget, WidgetMut, layout::RecomputeLayout},
+    ui::{
+        StatusChange, Widget, WidgetMut,
+        layout::RecomputeLayout,
+        reactive::{CLICKED_STATUS, FOCUS_STATUS, notify_widget_status_changed},
+    },
 };
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
@@ -118,19 +122,26 @@ pub fn set_focus_widget(
         );
 
         if let Some(old_focus_widget) = app_state.window(window_id).focus_widget {
-            let mut ctx = EventContext::new(old_focus_widget, app_state);
-            ctx.dispatch_status_updated(StatusChange::FocusLost);
-            app_state.run_effects();
+            dispatch_focus_change(app_state, old_focus_widget, false);
         }
 
         app_state.window_mut(window_id).focus_widget = new_focus_widget;
 
         if let Some(focus_gained_widget) = new_focus_widget {
-            let mut ctx = EventContext::new(focus_gained_widget, app_state);
-            ctx.dispatch_status_updated(StatusChange::FocusGained);
-            app_state.run_effects();
+            dispatch_focus_change(app_state, focus_gained_widget, true);
         }
     }
+}
+
+fn dispatch_focus_change(app_state: &mut AppState, widget_id: WidgetId, has_focus: bool) {
+    let mut ctx = EventContext::new(widget_id, app_state);
+    ctx.dispatch_status_updated(if has_focus {
+        StatusChange::FocusGained
+    } else {
+        StatusChange::FocusLost
+    });
+    notify_widget_status_changed(app_state, widget_id, FOCUS_STATUS.mask);
+    app_state.run_effects();
 }
 
 /*pub fn clear_focus_and_mouse_capture(app_state: &mut AppState, widget_id: WidgetId) {
@@ -147,20 +158,32 @@ pub fn set_mouse_capture_widget(app_state: &mut AppState, new_capture_widget: Op
             "Mouse capture change {:?}, {:?}",
             app_state.mouse_capture_widget, new_capture_widget
         );
-        if let Some(old_mouse_capture_widget) = app_state.mouse_capture_widget {
-            let mut ctx = EventContext::new(old_mouse_capture_widget, app_state);
-            ctx.dispatch_status_updated(StatusChange::MouseCaptureLost);
-            app_state.run_effects();
-        }
+        let old_capture_widget =
+            std::mem::replace(&mut app_state.mouse_capture_widget, new_capture_widget);
 
-        app_state.mouse_capture_widget = new_capture_widget;
+        if let Some(old_mouse_capture_widget) = old_capture_widget {
+            dispatch_mouse_capture_change(app_state, old_mouse_capture_widget, false);
+        }
 
         if let Some(new_capture_widget) = new_capture_widget {
-            let mut ctx = EventContext::new(new_capture_widget, app_state);
-            ctx.dispatch_status_updated(StatusChange::MouseCaptured);
-            app_state.run_effects();
+            dispatch_mouse_capture_change(app_state, new_capture_widget, true);
         }
     }
+}
+
+fn dispatch_mouse_capture_change(
+    app_state: &mut AppState,
+    widget_id: WidgetId,
+    has_mouse_capture: bool,
+) {
+    let mut ctx = EventContext::new(widget_id, app_state);
+    ctx.dispatch_status_updated(if has_mouse_capture {
+        StatusChange::MouseCaptured
+    } else {
+        StatusChange::MouseCaptureLost
+    });
+    notify_widget_status_changed(app_state, widget_id, CLICKED_STATUS.mask);
+    app_state.run_effects();
 }
 
 pub struct MouseEventContext<'a> {

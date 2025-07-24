@@ -50,7 +50,9 @@ impl Editor for MyEditor {
             Label::new("Gain").color(Color::BLUE),
             ParameterSlider::new(&parameters.gain),
         ))
-        .style(|style| style.padding(UiRect::all_px(10.0)))
+        .style(|style, _| {
+            style.padding(UiRect::all_px(10.0));
+        })
     }
 }
 

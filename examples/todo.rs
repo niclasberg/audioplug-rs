@@ -83,10 +83,10 @@ fn main() {
                     },
                 )),
             )))
-            .style(|s| {
+            .style(|s, _| {
                 s.width(Length::Vw(100.0))
                     .height(Length::Vh(100.0))
-                    .background(Color::WHEAT)
+                    .background(Color::WHEAT);
             })
         }),
     );
@@ -98,23 +98,21 @@ fn todo_view<F: Fn(&mut dyn WriteContext) + 'static>(
     on_remove: F,
 ) -> impl View + use<F> {
     let completed = todo.completed;
+    let name = todo.name;
     Row::new((
         Checkbox::new()
             .checked(todo.completed)
             .on_click(move |cx| completed.update(cx, |_, value| *value = !*value)),
-        Label::new(todo.name).style(|style| style.flex_grow(1.0)),
-        Button::new(Label::new("Remove"))
-            .on_click(move |cx| on_remove(cx))
-            .style(|style| style.justify_self(AlignSelf::End)),
+        Label::new(todo.name).style(|style, _| {
+            style.flex_grow(1.0);
+        }),
+        Button::new(Label::new("Remove")).on_click(move |cx| on_remove(cx)),
     ))
     .v_align_center()
     .spacing(Length::Px(5.0))
-    .style(|s| {
-        s.background(
-            todo.completed
-                .map(|&c| if c { Color::GREEN } else { Color::RED }.into()),
-        )
-        .padding(UiRect::all_px(5.0))
-        .width(Length::Percent(100.0))
+    .style(move |s, _| {
+        s.background(completed.map(|&c| if c { Color::GREEN } else { Color::RED }.into()))
+            .padding(UiRect::all_px(5.0))
+            .width(Length::Percent(100.0));
     })
 }

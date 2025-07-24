@@ -20,21 +20,22 @@ fn main() {
             });
             Container::new(
                 Column::new((
-                    Label::new(count.map(|cnt| format!("Count: {}", cnt))),
+                    Label::new(count.map(|cnt| format!("Count: {cnt}"))),
                     Button::new(Label::new("Increase"))
                         .on_click(move |cx| count.update(cx, |_, value| *value += 1)),
                     Button::new(Label::new("Decrease"))
                         .on_click(move |cx| count.update(cx, |_, value| *value -= 1)),
                     Button::new(Label::new("Trigger")).on_click(move |cx| trigger.notify(cx)),
-                    Label::new("No children to show")
-                        .style(|style| style.hidden(count.map(|x| *x > 0))),
+                    Label::new("No children to show").style(move |style, _| {
+                        style.hidden(count.map(|x| *x > 0));
+                    }),
                     Column::new(IndexedViewSeq::new(
                         count.map(|&x| x.max(0) as usize),
                         |i| Label::new(format!("Child {}", i + 1)),
                     )),
                 ))
                 .spacing(Length::Px(10.0))
-                .style(|style| {
+                .style(move |style, _| {
                     style
                         .width(Length::Percent(30.0))
                         .min_width(Length::Px(200.0))
@@ -48,10 +49,10 @@ fn main() {
                                 Color::RED
                             }
                             .into()
-                        }))
+                        }));
                 }),
             )
-            .style(|style| {
+            .style(|style, _| {
                 style
                     .height(Length::Vh(100.0))
                     .width(Length::Vw(100.0))
@@ -60,7 +61,7 @@ fn main() {
                         (Color::WHITE, Color::GRAY90),
                         UnitPoint::TOP_LEFT,
                         UnitPoint::BOTTOM_RIGHT,
-                    ))
+                    ));
             })
             .on_key_event(move |cx, event| match event {
                 audioplug::KeyEvent::KeyDown { key, .. } => match key {

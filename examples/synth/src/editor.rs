@@ -3,7 +3,7 @@ use audioplug::{
     param::{AnyParameter, FloatParameter, Parameter},
     ui::style::{AlignItems, Length, UiRect},
     ui::{Canvas, PathGeometry, ReactiveValue, View},
-    views::{Checkbox, Column, Label, ParameterKnob, ParameterSlider, Row, ViewExt},
+    views::{Checkbox, Column, Label, ParameterKnob, ParameterSlider, Row},
     Editor,
 };
 
@@ -27,19 +27,19 @@ impl Editor for SynthEditor {
     }
 
     fn view(&self, parameters: &Self::Parameters) -> impl View {
-        Column::new((header_view(), main_view(parameters))).style(|s| {
+        Column::new((header_view(), main_view(parameters))).style(|s, _| {
             s.width(Length::Vw(100.0))
                 .height(Length::Vh(100.0))
-                .background(Color::ASPARAGUS)
+                .background(Color::ASPARAGUS);
         })
     }
 }
 
 fn header_view() -> impl View {
-    Row::new((Label::new("hello"),)).style(|s| {
+    Row::new((Label::new("hello"),)).style(|s, _| {
         s.width(Length::Percent(100.0))
             .background(Color::BITTER_LEMON)
-            .box_shadow(SHADOW)
+            .box_shadow(SHADOW);
     })
 }
 
@@ -51,9 +51,9 @@ fn main_view(parameters: &SynthParams) -> impl View {
         .collect();
 
     Row::new((
-        Column::new(oscillator_views)
-            .spacing(SPACER)
-            .style(|s| s.width(Length::Percent(30.0))),
+        Column::new(oscillator_views).spacing(SPACER).style(|s, _| {
+            s.width(Length::Percent(30.0));
+        }),
         Column::new((
             filter_view(&parameters.filter),
             amp_envelope_view(&parameters.envelope),
@@ -61,7 +61,9 @@ fn main_view(parameters: &SynthParams) -> impl View {
         .spacing(SPACER),
     ))
     .spacing(SPACER)
-    .style(|s| s.padding(PADDING))
+    .style(|s, _| {
+        s.padding(PADDING);
+    })
 }
 
 fn oscillator_view(params: &OscillatorParams) -> impl View {
@@ -79,22 +81,26 @@ fn filter_view(params: &FilterParams) -> impl View {
         Column::new((
             ParameterSlider::new(&params.cutoff)
                 .vertical()
-                .style(|s| s.height(Length::Px(120.0))),
+                .style(|s, _| {
+                    s.height(Length::Px(120.0));
+                }),
             Label::new("Cutoff"),
         )),
         Column::new((
             ParameterSlider::new(&params.resonance)
                 .vertical()
-                .style(|s| s.height(Length::Px(120.0))),
+                .style(|s, _| {
+                    s.height(Length::Px(120.0));
+                }),
             Label::new("Resonance"),
         )),
     ))
     .spacing(SPACER)
-    .style(|s| {
+    .style(|s, _| {
         s.padding(PADDING)
             .corner_radius(Size::new(5.0, 5.0))
             .background(Color::BLACK.with_alpha(0.2))
-            .box_shadow(SHADOW)
+            .box_shadow(SHADOW);
     })
 }
 
@@ -110,29 +116,37 @@ fn amp_envelope_view(params: &AmpEnvelopeParams) -> impl View {
         Row::new((
             Column::new((
                 ParameterKnob::new(&params.attack),
-                Label::new("A").style(|s| s.align_self(AlignItems::Center)),
+                Label::new("A").style(|s, _| {
+                    s.align_self(AlignItems::Center);
+                }),
             )),
             Column::new((
                 ParameterKnob::new(&params.decay),
-                Label::new("D").style(|s| s.align_self(AlignItems::Center)),
+                Label::new("D").style(|s, _| {
+                    s.align_self(AlignItems::Center);
+                }),
             )),
             Column::new((
                 ParameterKnob::new(&params.sustain),
-                Label::new("S").style(|s| s.align_self(AlignItems::Center)),
+                Label::new("S").style(|s, _| {
+                    s.align_self(AlignItems::Center);
+                }),
             )),
             Column::new((
                 ParameterKnob::new(&params.release),
-                Label::new("R").style(|s| s.align_self(AlignItems::Center)),
+                Label::new("R").style(|s, _| {
+                    s.align_self(AlignItems::Center);
+                }),
             )),
         ))
         .spacing(SPACER),
     ))
     .spacing(SPACER)
-    .style(|s| {
+    .style(|s, _| {
         s.padding(PADDING)
             .corner_radius(Size::new(5.0, 5.0))
             .background(Color::BLACK.with_alpha(0.2))
-            .box_shadow(SHADOW)
+            .box_shadow(SHADOW);
     })
 }
 
@@ -169,10 +183,10 @@ fn envelope_graph(
 
         cx.fill(&geometry, Color::BLACK);
     })
-    .style(|s| {
+    .style(|s, _| {
         s.background(Color::WHITE.with_alpha(0.2))
             .padding(UiRect::all_px(2.0))
             .width(Length::Percent(100.0))
-            .height(Length::Px(30.0))
+            .height(Length::Px(30.0));
     })
 }

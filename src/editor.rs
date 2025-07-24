@@ -7,7 +7,7 @@ use crate::{
         AnyView, Var, View,
         style::{Length, UiRect},
     },
-    views::{Column, Container, Label, ParameterSlider, Row, Stateful, ViewExt},
+    views::{Column, Container, Label, ParameterSlider, Row, Stateful},
 };
 
 pub trait Editor: 'static {
@@ -65,10 +65,13 @@ impl ParamVisitor for CreateParameterViewsVisitor {
             let hide_children = Var::new(cx, false);
             Column::new((
                 Label::new(name),
-                Column::new(child_visitor.views)
-                    .style(|style| style.padding(UiRect::left_px(20.0)).hidden(hide_children)),
+                Column::new(child_visitor.views).style(move |style, _| {
+                    style.padding(UiRect::left_px(20.0)).hidden(hide_children);
+                }),
             ))
-            .style(|style| style.padding(UiRect::top_px(10.0)))
+            .style(|style, _| {
+                style.padding(UiRect::top_px(10.0));
+            })
         });
         self.views.push(view.into_any_view());
     }
@@ -90,7 +93,8 @@ impl<P: Params> Editor for GenericEditor<P> {
     fn view(&self, parameters: &P) -> impl View {
         let mut visitor = CreateParameterViewsVisitor::new();
         parameters.visit(&mut visitor);
-        Container::new(Column::new(visitor.views))
-            .style(|s| s.width(Length::Vw(100.0)).height(Length::Vh(100.0)))
+        Container::new(Column::new(visitor.views)).style(|s, _| {
+            s.width(Length::Vw(100.0)).height(Length::Vh(100.0));
+        })
     }
 }

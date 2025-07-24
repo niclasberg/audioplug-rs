@@ -1,8 +1,8 @@
 use taffy::{AlignSelf, JustifySelf};
 
 use crate::{
-    ui::{Accessor, Brush, BuildContext, Widget},
     core::{Color, ShadowOptions, Size},
+    ui::{Accessor, Brush, BuildContext, Widget},
 };
 
 use super::{ImageEffect, Length, Style, UiRect};
@@ -33,97 +33,92 @@ pub struct StyleBuilder {
 }
 
 impl StyleBuilder {
-    pub fn hidden(mut self, value: impl Into<Accessor<bool>>) -> Self {
+    pub fn hidden(&mut self, value: impl Into<Accessor<bool>>) -> &mut Self {
         self.hidden = Some(value.into());
         self
     }
 
-    pub fn padding(mut self, value: impl Into<Accessor<UiRect>>) -> Self {
+    pub fn padding(&mut self, value: impl Into<Accessor<UiRect>>) -> &mut Self {
         self.padding = Some(value.into());
         self
     }
 
-    pub fn margin(mut self, value: impl Into<Accessor<UiRect>>) -> Self {
+    pub fn margin(&mut self, value: impl Into<Accessor<UiRect>>) -> &mut Self {
         self.margin = Some(value.into());
         self
     }
 
-    pub fn height(mut self, value: impl Into<Accessor<Length>>) -> Self {
+    pub fn height(&mut self, value: impl Into<Accessor<Length>>) -> &mut Self {
         self.height = Some(value.into());
         self
     }
 
-    pub fn width(mut self, value: impl Into<Accessor<Length>>) -> Self {
+    pub fn width(&mut self, value: impl Into<Accessor<Length>>) -> &mut Self {
         self.width = Some(value.into());
         self
     }
 
-    pub fn min_width(mut self, value: impl Into<Accessor<Length>>) -> Self {
+    pub fn min_width(&mut self, value: impl Into<Accessor<Length>>) -> &mut Self {
         self.min_width = Some(value.into());
         self
     }
 
-    pub fn max_width(mut self, value: impl Into<Accessor<Length>>) -> Self {
+    pub fn max_width(&mut self, value: impl Into<Accessor<Length>>) -> &mut Self {
         self.max_width = Some(value.into());
         self
     }
 
-    pub fn min_height(mut self, value: impl Into<Accessor<Length>>) -> Self {
+    pub fn min_height(&mut self, value: impl Into<Accessor<Length>>) -> &mut Self {
         self.min_height = Some(value.into());
         self
     }
 
-    pub fn max_height(mut self, value: impl Into<Accessor<Length>>) -> Self {
+    pub fn max_height(&mut self, value: impl Into<Accessor<Length>>) -> &mut Self {
         self.max_height = Some(value.into());
         self
     }
 
-    pub fn background(mut self, value: impl Into<Accessor<Brush>>) -> Self {
+    pub fn background(&mut self, value: impl Into<Accessor<Brush>>) -> &mut Self {
         self.background = Some(value.into());
         self
     }
 
-    pub fn corner_radius(mut self, value: impl Into<Accessor<Size>>) -> Self {
+    pub fn corner_radius(&mut self, value: impl Into<Accessor<Size>>) -> &mut Self {
         self.corner_radius = Some(value.into());
         self
     }
 
     pub fn border(
-        mut self,
+        &mut self,
         value: impl Into<Accessor<Length>>,
         color: impl Into<Accessor<Color>>,
-    ) -> Self {
+    ) -> &mut Self {
         self.border = Some(value.into());
         self.border_color = Some(color.into());
         self
     }
 
-    pub fn align_self(mut self, value: impl Into<Accessor<AlignSelf>>) -> Self {
+    pub fn align_self(&mut self, value: impl Into<Accessor<AlignSelf>>) -> &mut Self {
         self.align_self = Some(value.into());
         self
     }
 
-    pub fn justify_self(mut self, value: impl Into<Accessor<JustifySelf>>) -> Self {
-        self.justify_self = Some(value.into());
-        self
-    }
-
-    pub fn flex_grow(mut self, value: impl Into<Accessor<f32>>) -> Self {
+    pub fn flex_grow(&mut self, value: impl Into<Accessor<f32>>) -> &mut Self {
         self.flex_grow = Some(value.into());
         self
     }
 
-    pub fn flex_shrink(mut self, value: impl Into<Accessor<f32>>) -> Self {
+    pub fn flex_shrink(&mut self, value: impl Into<Accessor<f32>>) -> &mut Self {
         self.flex_shrink = Some(value.into());
         self
     }
 
-    pub fn box_shadow(mut self, value: impl Into<Accessor<ShadowOptions>>) -> Self {
+    pub fn box_shadow(&mut self, value: impl Into<Accessor<ShadowOptions>>) -> &mut Self {
         self.box_shadow = Some(value.into());
         self
     }
 
-    pub fn effects(mut self, value: impl Into<Accessor<Vec<ImageEffect>>>) -> Self {
+    pub fn effects(&mut self, value: impl Into<Accessor<Vec<ImageEffect>>>) -> &mut Self {
         self.effects = Some(value.into());
         self
     }
