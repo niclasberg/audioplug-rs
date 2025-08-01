@@ -1,8 +1,9 @@
 use std::cell::{OnceCell, RefCell};
 
+use dispatch2::MainThreadBound;
 use objc2::rc::{Retained, Weak};
 use objc2::runtime::{NSObject, NSObjectProtocol};
-use objc2::{define_class, msg_send, sel, AllocAnyThread, DefinedClass, MainThreadOnly};
+use objc2::{AllocAnyThread, DefinedClass, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSEvent, NSGraphicsContext, NSResponder, NSTrackingArea, NSTrackingAreaOptions, NSView,
     NSViewFrameDidChangeNotification,
@@ -12,12 +13,12 @@ use objc2_foundation::{MainThreadMarker, NSDate, NSNotificationCenter, NSRect, N
 use objc2_metal::MTLCreateSystemDefaultDevice;
 
 use super::{Handle, RendererRef};
+use crate::AnimationFrame;
 use crate::core::{Point, Vec2};
 use crate::event::{KeyEvent, MouseButton, MouseEvent};
-use crate::platform::mac::keyboard::{get_modifiers, key_from_code};
 use crate::platform::WindowEvent;
 use crate::platform::WindowHandler;
-use crate::AnimationFrame;
+use crate::platform::mac::keyboard::{get_modifiers, key_from_code};
 
 pub struct Ivars {
     handler: RefCell<Box<dyn WindowHandler>>,
@@ -217,7 +218,10 @@ impl View {
         this.ivars()
             .handler
             .borrow_mut()
-            .init(Handle::new(Weak::from_retained(&this)));
+            .init(Handle::new(MainThreadBound::new(
+                Weak::from_retained(&this),
+                mtm,
+            )));
 
         // Initialize animation timer
         let timer = unsafe {

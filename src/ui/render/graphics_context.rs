@@ -61,7 +61,7 @@ impl<'a> GraphicsContext<'a> {
             .find(|pm| *pm == wgpu::PresentMode::Mailbox)
             .unwrap_or(wgpu::PresentMode::Fifo);
 
-        let size = handle.inner_rect().size().map(|x| x as u32);
+        let size = handle.physical_size();
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,

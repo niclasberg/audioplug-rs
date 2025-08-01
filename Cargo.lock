@@ -113,6 +113,7 @@ dependencies = [
  "block2",
  "bytemuck",
  "c-enum",
+ "dispatch2",
  "indexmap",
  "midi-consts",
  "num",
@@ -128,6 +129,7 @@ dependencies = [
  "objc2-core-text",
  "objc2-foundation",
  "objc2-metal",
+ "pollster",
  "rand",
  "raw-window-handle",
  "rtrb",
@@ -331,6 +333,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89a09f22a6c6069a18470eb92d2298acf25463f14256d24778e1230d789a2aec"
 dependencies = [
  "bitflags",
+ "block2",
+ "libc",
  "objc2",
 ]
 
@@ -1087,6 +1091,12 @@ name = "pkg-config"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
+
+[[package]]
+name = "pollster"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f3a9f18d041e6d0e102a0a46750538147e5e8992d3b4873aaafee2520b00ce3"
 
 [[package]]
 name = "portable-atomic"

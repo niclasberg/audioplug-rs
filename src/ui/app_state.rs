@@ -14,7 +14,9 @@ use crate::{
     core::{FxIndexSet, Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
+    ui::render::GraphicsContext,
 };
+use pollster::FutureExt;
 use slotmap::{Key, SecondaryMap, SlotMap};
 use std::{
     any::Any,
@@ -31,6 +33,7 @@ pub(super) struct WindowState {
     pub(super) pending_node_animations: FxIndexSet<NodeId>,
     pub(super) theme_signal: Var<WindowTheme>,
     pub(super) overlays: OverlayContainer,
+    pub(super) graphics_context: GraphicsContext<'static>,
 }
 
 pub struct AppState {
@@ -105,6 +108,9 @@ impl AppState {
 
     pub fn add_window(&mut self, handle: platform::Handle, view: impl View) -> WindowId {
         let theme_signal = Var::new(self, handle.theme());
+        let graphics_context = GraphicsContext::new(&handle)
+            .block_on()
+            .expect("Graphics initialization failed");
 
         let window_id = self.windows.insert(WindowState {
             handle,
@@ -114,6 +120,7 @@ impl AppState {
             pending_node_animations: FxIndexSet::default(),
             theme_signal,
             overlays: Default::default(),
+            graphics_context,
         });
 
         let widget_id = self

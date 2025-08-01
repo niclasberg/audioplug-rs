@@ -7,6 +7,7 @@ mod canvas;
 mod graphics_context;
 use super::{AppState, WidgetId, WindowId};
 pub use canvas::{Canvas, CanvasContext, CanvasWidget};
+pub(super) use graphics_context::{GraphicsContext, GraphicsInitError};
 pub use platform::TextLayout;
 pub use platform::{Brush, BrushRef, LinearGradient, RadialGradient};
 pub use platform::{PathGeometry, PathGeometryBuilder, Shape, ShapeRef};
