@@ -43,7 +43,6 @@ pub use render::{
     PathGeometryBuilder, RadialGradient, RenderContext, Shape, ShapeRef, TextLayout,
     invalidate_window, render_window,
 };
-use rustc_hash::FxBuildHasher;
 
 pub use view::*;
 pub use view_sequence::*;
@@ -91,9 +90,21 @@ impl<T: Widget + ?Sized> Clone for TypedWidgetId<T> {
 
 impl<T: Widget + ?Sized> Copy for TypedWidgetId<T> {}
 
+pub struct AppContext {
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+}
+
+impl AppContext {
+    pub fn new() -> Self {
+        todo!()
+    }
+}
+
 pub struct App {
     native: platform::Application,
     pub(crate) state: Rc<RefCell<AppState>>,
+    pub(crate) context: AppContext,
 }
 
 impl App {
@@ -106,6 +117,7 @@ impl App {
         Self {
             native: platform::Application::new(),
             state,
+            context: AppContext::new(),
         }
     }
 

@@ -1,16 +1,21 @@
 use std::cell::Cell;
 use std::ffi::{CStr, CString};
+use std::num::NonZeroIsize;
 use std::rc::Rc;
 
 use crate::core::{Rectangle, WindowTheme};
-use crate::platform::win::util;
-use windows::core::Result;
+use crate::platform::win::util::{self, get_theme};
+use raw_window_handle::{
+    DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawWindowHandle,
+    Win32WindowHandle, WindowHandle,
+};
 use windows::Win32::Foundation::{HANDLE, HGLOBAL, HWND, RECT};
 use windows::Win32::Graphics::Gdi::InvalidateRect;
 use windows::Win32::System::DataExchange::CloseClipboard;
 use windows::Win32::System::Memory::GMEM_MOVEABLE;
 use windows::Win32::System::Ole::CF_TEXT;
 use windows::Win32::System::{DataExchange, Memory};
+use windows::core::Result;
 
 use super::util::get_client_rect;
 
@@ -22,18 +27,26 @@ impl<F: Fn()> Drop for ScopeExit<F> {
     }
 }
 
+#[repr(transparent)]
 pub struct Handle {
     hwnd: HWND,
-    theme: Rc<Cell<WindowTheme>>,
 }
 
+// WGPU requires the handle to be sync + send
+unsafe impl Send for Handle {}
+unsafe impl Sync for Handle {}
+
 impl Handle {
-    pub(crate) fn new(hwnd: HWND, theme: Rc<Cell<WindowTheme>>) -> Self {
-        Self { hwnd, theme }
+    pub(crate) fn new(hwnd: HWND) -> Self {
+        Self { hwnd }
+    }
+
+    pub fn inner_rect(&self) -> Rectangle<i32> {
+        get_client_rect(self.hwnd)
     }
 
     pub fn theme(&self) -> WindowTheme {
-        self.theme.get()
+        get_theme()
     }
 
     pub fn invalidate_window(&self) {
@@ -107,5 +120,20 @@ impl Handle {
 
             Ok(result.ok())
         }
+    }
+}
+
+impl HasWindowHandle for Handle {
+    fn window_handle(&self) -> std::result::Result<WindowHandle<'_>, HandleError> {
+        let hwnd_isize = NonZeroIsize::new(self.hwnd.0 as _).unwrap();
+        let raw_handle = RawWindowHandle::Win32(Win32WindowHandle::new(hwnd_isize));
+        let handle = unsafe { WindowHandle::borrow_raw(raw_handle) };
+        Ok(handle)
+    }
+}
+
+impl HasDisplayHandle for Handle {
+    fn display_handle(&self) -> std::result::Result<DisplayHandle<'_>, HandleError> {
+        Ok(DisplayHandle::windows())
     }
 }

@@ -27,7 +27,7 @@ use windows::{
 use KeyboardAndMouse::{ReleaseCapture, SetCapture};
 
 use super::{
-    com, cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, renderer::RendererGeneration, util::{get_scale_factor_for_window, get_theme}, Handle, Renderer
+    cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, renderer::RendererGeneration, util::{get_scale_factor_for_window, get_theme}, Handle, Renderer
 };
 use crate::event::MouseButton;
 use crate::{
@@ -60,7 +60,7 @@ struct WindowState {
     ticks_per_second: f64,
     current_key_event: RefCell<Option<TmpKeyEvent>>,
     captured_mouse_buttons: RefCell<MouseButtons>,
-    theme: Rc<Cell<WindowTheme>>,
+    theme: Cell<WindowTheme>,
     quit_app_on_exit: bool,
 }
 
@@ -79,7 +79,7 @@ impl WindowState {
         match message {
             WM_CREATE => {
                 {
-                    self.handler.borrow_mut().init(Handle::new(hwnd, self.theme.clone()));
+                    self.handler.borrow_mut().init(Handle::new(hwnd));
                 }
 
                 unsafe {
@@ -137,9 +137,9 @@ impl WindowState {
                     let logical_width = loword(lparam) as u32;
                     let logical_height = hiword(lparam) as u32;
 
-                    let scale_factor = get_scale_factor_for_window(hwnd);
-                    let pixel_width = (logical_width as f64 * scale_factor).round() as u32;
-                    let pixel_height = (logical_height as f64 * scale_factor).round() as u32;
+                    //let scale_factor = get_scale_factor_for_window(hwnd);
+                    //let pixel_width = (logical_width as f64 * scale_factor).round() as u32;
+                    //let pixel_height = (logical_height as f64 * scale_factor).round() as u32;
 
                     if let Some(renderer) = self.renderer.borrow_mut().as_mut() {
                         renderer.resize(logical_width, logical_height).unwrap();
@@ -349,10 +349,7 @@ impl WindowState {
                 button,
                 position,
                 modifiers,
-                is_double_click: match message {
-                    WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK => true,
-                    _ => false
-                },
+                is_double_click: matches!(message, WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK),
             },
             WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP => MouseEvent::Up {
                 button,
@@ -412,7 +409,7 @@ impl Window {
     }
 
     pub fn set_scale_factor(&self, scale_factor: f32) {
-        println!("Scale factor changed from host to {}", scale_factor);
+        println!("Scale factor changed from host to {scale_factor}");
     }
 
     pub fn set_size(&self, size: Rectangle<i32>) -> Result<()> {
@@ -466,7 +463,7 @@ impl Window {
             ticks_per_second,
             current_key_event: RefCell::new(None),
             captured_mouse_buttons: Default::default(),
-            theme: Rc::new(Cell::new(get_theme())),
+            theme: Cell::new(get_theme()),
             quit_app_on_exit,
         });
 
@@ -551,22 +548,25 @@ unsafe extern "system" fn wndproc(
     lparam: LPARAM,
 ) -> LRESULT {
     if message == WM_NCCREATE {
-        let create_struct = &*(lparam.0 as *const CREATESTRUCTW);
+        let create_struct = unsafe { &*(lparam.0 as *const CREATESTRUCTW) };
         let window_state_ptr = create_struct.lpCreateParams;
-        SetWindowLongPtrW(hwnd, GWLP_USERDATA, window_state_ptr as _);
+        unsafe { SetWindowLongPtrW(hwnd, GWLP_USERDATA, window_state_ptr as _) };
     }
 
-    let window_state_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const WindowState;
+    let window_state_ptr = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) } as *const WindowState;
     if !window_state_ptr.is_null() {
         if message == WM_NCDESTROY {
-            SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
-            drop(Rc::from_raw(window_state_ptr));
-            DefWindowProcW(hwnd, message, wparam, lparam)
+            unsafe { 
+                SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+                drop(Rc::from_raw(window_state_ptr));
+                DefWindowProcW(hwnd, message, wparam, lparam)
+            }
         } else {
-            let result = (*window_state_ptr).handle_message(hwnd, message, wparam, lparam);
-            result.unwrap_or_else(|| DefWindowProcW(hwnd, message, wparam, lparam))
+            let window_state = unsafe { &(*window_state_ptr) };
+            let result = window_state.handle_message(hwnd, message, wparam, lparam);
+            result.unwrap_or_else(|| unsafe { DefWindowProcW(hwnd, message, wparam, lparam) })
         }
     } else {
-        DefWindowProcW(hwnd, message, wparam, lparam)
+        unsafe { DefWindowProcW(hwnd, message, wparam, lparam) }
     }
 }

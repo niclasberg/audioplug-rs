@@ -4,6 +4,7 @@ use crate::{
 };
 
 mod canvas;
+mod graphics_context;
 use super::{AppState, WidgetId, WindowId};
 pub use canvas::{Canvas, CanvasContext, CanvasWidget};
 pub use platform::TextLayout;
