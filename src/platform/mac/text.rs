@@ -1,6 +1,6 @@
 use std::{ffi::c_void, mem::MaybeUninit, ops::Deref, ptr::NonNull};
 
-use crate::core::{Color, FontFamily, FontOptions, FontStyle, FontWeight, Point, Rectangle, Size};
+use crate::core::{Color, FontFamily, FontOptions, FontStyle, FontWeight, Point, Rect, Size, Vec2};
 use objc2_app_kit::{NSFontWeightBold, NSFontWeightRegular};
 use objc2_core_foundation::{
     CFDictionary, CFIndex, CFMutableAttributedString, CFMutableDictionary, CFNumber, CFRange,
@@ -59,7 +59,7 @@ impl TextFrame {
             max_size.into(),
         );
 
-        let rect = Rectangle::from_origin(Point::ZERO, size.into());
+        let rect = Rect::from_origin(Point::ZERO, size.into());
         let path = unsafe { CGPath::with_rect(rect.into(), std::ptr::null()) };
         let frame = unsafe { frame_setter.frame(string_range, &path, None) };
         let lines = get_lines_from_frame(&frame);
@@ -227,10 +227,8 @@ impl NativeTextLayout {
 
     pub fn text_index_at_point(&self, point: Point) -> Option<usize> {
         self.text_frame.lines.iter().find_map(|line| {
-            let origin: Point = (line.origin).into();
-            let point: Point = point + origin;
-            let point = (origin + point).into();
-            let index = line.string_index_for_position(point);
+            let origin: Vec2 = (line.origin).into();
+            let index = line.string_index_for_position((point + origin).into());
             if index < 0 {
                 None
             } else {
@@ -250,7 +248,7 @@ impl NativeTextLayout {
                 let origin: Point = line.origin.into();
                 let line_index = index - line.char_range.location;
                 let offset = line.offset_for_string_index(line_index);
-                origin + Point::new(offset, -line.descent)
+                origin + Vec2::new(offset, -line.descent)
             })
             .unwrap_or(Point::ZERO)
     }

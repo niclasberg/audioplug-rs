@@ -8,12 +8,12 @@ use objc2::{
 use objc2_app_kit::{NSPasteboard, NSPasteboardTypeString};
 use objc2_foundation::NSString;
 use raw_window_handle::{
-    AppKitWindowHandle, DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle,
-    RawWindowHandle, WindowHandle,
+    AppKitDisplayHandle, AppKitWindowHandle, DisplayHandle, HandleError, RawDisplayHandle,
+    RawWindowHandle,
 };
 
 use super::{Error, view::View};
-use crate::core::{Rectangle, Size, WindowTheme};
+use crate::core::{PhysicalSize, Rect, WindowTheme};
 
 pub struct Handle {
     view: MainThreadBound<Weak<View>>,
@@ -29,7 +29,7 @@ impl Handle {
         self.view.get(mtm).load()
     }
 
-    pub fn global_bounds(&self) -> Rectangle {
+    pub fn global_bounds(&self) -> Rect {
         self.view_ref()
             .map(|view| view.bounds().into())
             .unwrap_or_default()
@@ -45,7 +45,7 @@ impl Handle {
         }
     }
 
-    pub fn invalidate(&self, rect: Rectangle) {
+    pub fn invalidate(&self, rect: Rect) {
         if let Some(view) = self.view_ref() {
             unsafe { view.setNeedsDisplayInRect(rect.into()) }
         }
@@ -71,13 +71,13 @@ impl Handle {
         }
     }
 
-    pub fn physical_size(&self) -> Size<u32> {
-        todo!()
+    pub fn physical_size(&self) -> PhysicalSize {
+        self.view_ref()
+            .map(|view| view.physical_size())
+            .unwrap_or_default()
     }
-}
 
-impl HasWindowHandle for Handle {
-    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+    pub fn raw_window_handle(&self) -> Result<RawWindowHandle, HandleError> {
         if let Some(mtm) = MainThreadMarker::new() {
             let view_ptr = self
                 .view
@@ -91,15 +91,13 @@ impl HasWindowHandle for Handle {
                 NonNull::new(view_ptr as *mut c_void).expect("View pointer should never be null");
             let handle = AppKitWindowHandle::new(view_ptr);
             let handle = RawWindowHandle::AppKit(handle);
-            Ok(unsafe { WindowHandle::borrow_raw(handle) })
+            Ok(handle)
         } else {
             Err(HandleError::Unavailable)
         }
     }
-}
 
-impl HasDisplayHandle for Handle {
-    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
-        Ok(DisplayHandle::appkit())
+    pub fn raw_display_handle(&self) -> Result<RawDisplayHandle, HandleError> {
+        Ok(RawDisplayHandle::AppKit(AppKitDisplayHandle::new()))
     }
 }

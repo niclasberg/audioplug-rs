@@ -87,7 +87,7 @@ impl Default for ShadowOptions {
 }
 
 /// Strong type for logical coordinates
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Default, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PhysicalCoord(pub i32);
 impl PhysicalCoord {
     pub const ZERO: Self = Self(0);

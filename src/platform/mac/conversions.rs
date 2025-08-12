@@ -1,4 +1,4 @@
-use crate::core::{Color, Point, Rectangle, Size, Transform, Vec2};
+use crate::core::{Color, Point, Rect, Size, Transform, Vec2};
 use objc2_core_foundation::{
     CFIndex, CFRange, CFRetained, CFString, CFStringBuiltInEncodings, CGAffineTransform, CGPoint,
     CGRect, CGSize,
@@ -17,6 +17,12 @@ impl Into<CGPoint> for Point {
 impl From<CGPoint> for Point {
     fn from(value: CGPoint) -> Self {
         Point::new(value.x, value.y)
+    }
+}
+
+impl From<CGPoint> for Vec2 {
+    fn from(value: CGPoint) -> Self {
+        Vec2::new(value.x, value.y)
     }
 }
 
@@ -44,7 +50,7 @@ impl From<CGSize> for Size {
     }
 }
 
-impl Into<CGRect> for Rectangle {
+impl Into<CGRect> for Rect {
     fn into(self) -> CGRect {
         CGRect {
             origin: self.origin().into(),
@@ -53,9 +59,9 @@ impl Into<CGRect> for Rectangle {
     }
 }
 
-impl From<CGRect> for Rectangle {
+impl From<CGRect> for Rect {
     fn from(value: CGRect) -> Self {
-        Rectangle::from_origin(value.origin.into(), value.size.into())
+        Rect::from_origin(value.origin.into(), value.size.into())
     }
 }
 

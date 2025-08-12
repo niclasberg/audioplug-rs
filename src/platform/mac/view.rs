@@ -14,7 +14,7 @@ use objc2_metal::MTLCreateSystemDefaultDevice;
 
 use super::{Handle, RendererRef};
 use crate::AnimationFrame;
-use crate::core::{Point, Vec2};
+use crate::core::{PhysicalCoord, PhysicalSize, Point, Rect, Vec2};
 use crate::event::{KeyEvent, MouseButton, MouseEvent};
 use crate::platform::WindowEvent;
 use crate::platform::WindowHandler;
@@ -140,9 +140,10 @@ define_class!(
 
         #[unsafe(method(frameDidChange:))]
         fn frame_did_change(&self, _event: &NSEvent) {
-            let visible_rect = self.visibleRect();
-            let new_size = visible_rect.size.into();
-            self.dispatch_event(WindowEvent::Resize { new_size });
+            let logical_rect = self.visibleRect();
+            let logical_size = logical_rect.size.into();
+            let physical_size = self.physical_size();
+            self.dispatch_event(WindowEvent::Resize { logical_size, physical_size });
         }
 
         #[unsafe(method(acceptsFirstMouse:))]
@@ -152,16 +153,16 @@ define_class!(
 
         #[unsafe(method(drawRect:))]
         fn draw_rect(&self, rect: NSRect) {
-            let graphics_context = unsafe { NSGraphicsContext::currentContext() }.unwrap();
-            let context = unsafe { graphics_context.CGContext() };
-            let ci_context = self.ivars().ci_context.get_or_init(|| unsafe {
-                let metal_device = MTLCreateSystemDefaultDevice().unwrap();
-                CIContext::contextWithMTLDevice(&metal_device)
-            });
+            //let graphics_context = unsafe { NSGraphicsContext::currentContext() }.unwrap();
+            //let context = unsafe { graphics_context.CGContext() };
+            //let ci_context = self.ivars().ci_context.get_or_init(|| unsafe {
+            //    let metal_device = MTLCreateSystemDefaultDevice().unwrap();
+            //    CIContext::contextWithMTLDevice(&metal_device)
+            //});
 
-            let renderer = RendererRef::new(&context, &ci_context, rect);
+            //let renderer = RendererRef::new(&context, &ci_context, rect);
 
-            self.ivars().handler.borrow_mut().render(renderer);
+            self.ivars().handler.borrow_mut().paint(rect.into());
         }
 
         #[unsafe(method(onAnimationTimer:))]
@@ -284,6 +285,15 @@ impl View {
             let y = pos.y;
             Some(Point::new(x, y))
         }
+    }
+
+    pub(super) fn physical_size(&self) -> PhysicalSize {
+        let logical_rect = self.visibleRect();
+        let physical_rect = unsafe { self.convertRectToBacking(logical_rect) };
+        PhysicalSize::new(
+            PhysicalCoord(physical_rect.size.width.ceil() as _),
+            PhysicalCoord(physical_rect.size.height.ceil() as _),
+        )
     }
 }
 

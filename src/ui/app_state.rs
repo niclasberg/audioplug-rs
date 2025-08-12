@@ -14,6 +14,7 @@ use crate::{
     core::{FxIndexSet, Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
+    ui::paint::WGPUSurface,
 };
 use slotmap::{Key, SecondaryMap, SlotMap};
 use std::{
@@ -24,7 +25,8 @@ use std::{
 };
 
 pub(super) struct WindowState {
-    pub(super) handle: platform::WindowHandle,
+    pub(super) handle: platform::Handle,
+    pub(super) wgpu_surface: WGPUSurface,
     pub(super) root_widget: WidgetId,
     pub(super) focus_widget: Option<WidgetId>,
     pub(super) pending_widget_animations: FxIndexSet<WidgetId>,
@@ -104,11 +106,17 @@ impl AppState {
         true
     }
 
-    pub fn add_window(&mut self, handle: platform::WindowHandle, view: impl View) -> WindowId {
+    pub fn add_window(
+        &mut self,
+        handle: platform::Handle,
+        wgpu_surface: WGPUSurface,
+        view: impl View,
+    ) -> WindowId {
         let theme_signal = Var::new(self, handle.theme());
 
         let window_id = self.windows.insert(WindowState {
             handle,
+            wgpu_surface,
             root_widget: WidgetId::null(),
             focus_widget: None,
             pending_widget_animations: FxIndexSet::default(),

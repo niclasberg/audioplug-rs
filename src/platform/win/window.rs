@@ -79,14 +79,7 @@ impl WindowState {
     ) -> Option<LRESULT> {
         match message {
             WM_CREATE => {
-                {
-                    // It would be neat to run this on the executor
-                    let handle = WindowHandle::new(Handle::new(hwnd))
-                        .block_on()
-                        .expect("Graphics initialization failed");
-
-                    self.handler.borrow_mut().init(handle);
-                }
+                self.handler.borrow_mut().init(Handle::new(hwnd));
 
                 unsafe {
                     SetTimer(Some(hwnd), ANIMATION_FRAME_TIMER, 1000 / 60, None);

@@ -22,7 +22,10 @@ use crate::{
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
         WindowEvent::Resize { physical_size, .. } => {
-            app_state.window_mut(window_id).handle.resize(physical_size);
+            app_state
+                .window_mut(window_id)
+                .wgpu_surface
+                .resize(physical_size);
             layout_window(app_state, window_id, RecomputeLayout::Force);
             invalidate_window(app_state, window_id);
         }

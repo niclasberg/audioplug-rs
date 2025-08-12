@@ -1,14 +1,15 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use pollster::FutureExt;
 use raw_window_handle::RawWindowHandle;
 
 use super::View;
 use crate::App;
 use crate::core::{Cursor, Point, Rect};
 use crate::platform::{self, WindowEvent};
-use crate::ui::paint::paint_window;
-use crate::ui::{AppState, WindowId, handle_window_event, render_window};
+use crate::ui::paint::{WGPUSurface, paint_window};
+use crate::ui::{AppState, WindowId, handle_window_event};
 
 struct PreInit<F>(F);
 struct Constructed(WindowId);
@@ -29,10 +30,15 @@ impl<V: View> WindowState<V> {
         }
     }
 
-    fn initialize(self, app_state: &mut AppState, handle: platform::WindowHandle) -> Self {
+    fn initialize(self, app_state: &mut AppState, handle: platform::Handle) -> Self {
         match self {
             WindowState::PreInit(PreInit(view)) => {
-                let window_id = app_state.add_window(handle, view);
+                // It would be neat to run this on the executor
+                let surface = WGPUSurface::new(&handle)
+                    .block_on()
+                    .expect("Graphics initialization failed");
+
+                let window_id = app_state.add_window(handle, surface, view);
                 Self::Initialized(Constructed(window_id))
             }
             WindowState::Initialized(_) | WindowState::Initializing => {
@@ -59,7 +65,7 @@ impl<V: View> MyHandler<V> {
 }
 
 impl<V: View> platform::WindowHandler for MyHandler<V> {
-    fn init(&mut self, handle: platform::WindowHandle) {
+    fn init(&mut self, handle: platform::Handle) {
         let mut app_state = self.app_state.borrow_mut();
 
         let state = std::mem::replace(&mut self.state, WindowState::Initializing);

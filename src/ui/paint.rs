@@ -8,22 +8,24 @@ use crate::{
     ui::{AppState, WindowId},
 };
 
+mod wgpu_surface;
+pub use wgpu_surface::{GraphicsInitError, WGPUSurface};
+
 pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: Rect) {
     println!("Paint window, dirty rect: {dirty_rect:?}");
 
     let window = &mut app_state.windows[window_id];
-    let surface_texture = window
-        .handle
+    let wgpu_surface = &mut window.wgpu_surface;
+    let surface_texture = wgpu_surface
         .surface
         .get_current_texture()
         .expect("Unable to get surface texture");
     let texture_view = surface_texture.texture.create_view(&TextureViewDescriptor {
-        format: Some(window.handle.surface_format.add_srgb_suffix()),
+        format: Some(wgpu_surface.surface_format.add_srgb_suffix()),
         ..Default::default()
     });
 
-    let mut encoder = window
-        .handle
+    let mut encoder = wgpu_surface
         .device
         .create_command_encoder(&CommandEncoderDescriptor {
             label: Some("AudioPlug command encoder"),
@@ -47,10 +49,7 @@ pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: R
 
     drop(_render_pass);
 
-    window
-        .handle
-        .queue
-        .submit(std::iter::once(encoder.finish()));
+    wgpu_surface.queue.submit(std::iter::once(encoder.finish()));
 
     surface_texture.present();
 

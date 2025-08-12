@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
-use crate::core::Rectangle;
+use crate::core::Rect;
 use crate::platform::WindowHandler;
 use objc2::rc::{Retained, Weak};
 use objc2_app_kit::{NSBackingStoreType, NSView, NSWindow, NSWindowStyleMask};
@@ -63,7 +63,7 @@ impl Window {
         Ok(Self::AttachedToView(Weak::from_retained(&view)))
     }
 
-    pub fn set_size(&self, size: Rectangle<i32>) -> Result<(), Error> {
+    pub fn set_size(&self, size: Rect<i32>) -> Result<(), Error> {
         let size = CGSize::new(size.width() as f64, size.height() as f64);
         match self {
             Window::OSWindow(_, _) => Ok(()),
@@ -80,7 +80,7 @@ impl Window {
 
     pub fn set_scale_factor(&self, _scale_factor: f32) {}
 
-    pub fn size(&self) -> Result<Rectangle<i32>, Error> {
+    pub fn size(&self) -> Result<Rect<i32>, Error> {
         let frame = match self {
             Window::OSWindow(view, _) => Ok(view.frame()),
             Window::AttachedToView(view) => {

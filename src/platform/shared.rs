@@ -2,12 +2,11 @@ use crate::{
     MouseEvent,
     core::{Cursor, PhysicalSize, Point, Rect, ScaleFactor, Size, WindowTheme},
     event::{AnimationFrame, KeyEvent},
+    platform::Handle,
 };
 
-use super::WindowHandle;
-
 pub trait WindowHandler {
-    fn init(&mut self, handle: WindowHandle);
+    fn init(&mut self, handle: Handle);
     fn event(&mut self, event: WindowEvent);
     fn paint(&mut self, dirty_rect: Rect);
     fn get_cursor(&self, point: Point) -> Option<Cursor>;

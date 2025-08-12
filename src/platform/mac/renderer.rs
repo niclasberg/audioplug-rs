@@ -1,8 +1,5 @@
 use crate::{
-    core::{
-        Color, ColorMap, ColorStop, Point, Rectangle, RoundedRectangle, ShadowOptions, Transform,
-        Vec2,
-    },
+    core::{Color, ColorMap, ColorStop, Point, Rect, RoundedRect, ShadowOptions, Transform, Vec2},
     platform::{BrushRef, NativeTextLayout, ShapeRef},
     ui::LinearGradient,
 };
@@ -33,7 +30,7 @@ impl<'a> RendererRef<'a> {
         }
     }
 
-    pub fn dirty_rect(&self) -> Rectangle {
+    pub fn dirty_rect(&self) -> Rect {
         self.dirty_rect.into()
     }
 
@@ -55,7 +52,7 @@ impl<'a> RendererRef<'a> {
         unsafe { CGContext::concat_ctm(Some(&self.context), transform.into()) };
     }
 
-    pub fn clip(&mut self, rect: Rectangle) {
+    pub fn clip(&mut self, rect: Rect) {
         unsafe { CGContext::clip_to_rect(Some(&self.context), rect.into()) }
     }
 
@@ -201,7 +198,7 @@ impl<'a> RendererRef<'a> {
         }
     }
 
-    fn draw_linear_gradient(&self, gradient: &LinearGradient, bounds: Rectangle) {
+    fn draw_linear_gradient(&self, gradient: &LinearGradient, bounds: Rect) {
         let start_point = gradient.start.resolve(bounds);
         let end_point = gradient.end.resolve(bounds);
         unsafe {
@@ -231,7 +228,7 @@ impl<'a> RendererRef<'a> {
                     CGContext::replace_path_with_stroked_path(Some(&self.context));
                     CGContext::clip(Some(&self.context));
                 }
-                self.draw_linear_gradient(linear_gradient, Rectangle::from_points(p0, p1));
+                self.draw_linear_gradient(linear_gradient, Rect::from_points(p0, p1));
 
                 self.restore();
             }
@@ -255,7 +252,7 @@ impl<'a> RendererRef<'a> {
         };
     }
 
-    pub fn draw_bitmap(&mut self, source: &Bitmap, rect: Rectangle) {
+    pub fn draw_bitmap(&mut self, source: &Bitmap, rect: Rect) {
         unsafe { source.0.drawInRect(rect.into()) }
     }
 
@@ -264,7 +261,7 @@ impl<'a> RendererRef<'a> {
         self.add_line_to_point(p1.x, p1.y);
     }
 
-    fn add_rounded_rectangle(&self, rect: RoundedRectangle) {
+    fn add_rounded_rectangle(&self, rect: RoundedRect) {
         let r: CGRect = rect.rect.into();
         let min = r.min();
         let mid = r.mid();
@@ -283,7 +280,7 @@ impl<'a> RendererRef<'a> {
         self.close_path();
     }
 
-    fn add_rectangle(&self, rect: Rectangle) {
+    fn add_rectangle(&self, rect: Rect) {
         unsafe { CGContext::add_rect(Some(&self.context), rect.into()) }
     }
 
@@ -499,7 +496,7 @@ impl NativeGeometry {
         Ok(Self(path))
     }
 
-    pub fn bounds(&self) -> Result<Rectangle, Error> {
+    pub fn bounds(&self) -> Result<Rect, Error> {
         let bounds = unsafe { CGPath::bounding_box(Some(&self.0)) };
         Ok(bounds.into())
     }
