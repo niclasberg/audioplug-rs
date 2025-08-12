@@ -1,10 +1,10 @@
 use crate::{
     MouseButton, MouseEvent,
-    core::{Circle, Color, Modifiers, Point, Rectangle, Size},
+    core::{Circle, Color, Modifiers, Point, Rect, Size, Vec2},
     param::{AnyParameter, NormalizedValue, PlainValue},
     ui::{
         Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
-        ParamSetter, RenderContext, StatusChange, View, Widget,
+        ParamSetter, RenderContext, Scene, StatusChange, View, Widget,
         style::{AvailableSpace, LayoutMode, Measure, Style},
     },
 };
@@ -138,13 +138,13 @@ impl Default for KnobWidget {
 }
 
 impl KnobWidget {
-    fn shape(&self, bounds: Rectangle) -> Circle {
+    fn shape(&self, bounds: Rect) -> Circle {
         let center = bounds.center();
         let radius = bounds.size().width.min(bounds.size().height) / 2.0;
         Circle::new(center, radius)
     }
 
-    fn is_inside_knob(&self, bounds: Rectangle, point: Point) -> bool {
+    fn is_inside_knob(&self, bounds: Rect, point: Point) -> bool {
         self.shape(bounds).contains(point)
     }
 
@@ -256,13 +256,15 @@ impl Widget for KnobWidget {
         }
     }
 
-    fn render(&mut self, cx: &mut RenderContext) {
+    fn render(&mut self, cx: &mut RenderContext) -> Scene {
+        let mut scene = Scene::new();
         let bounds = cx.content_bounds();
         let shape = self.shape(bounds);
 
         let angle = self.current_angle();
-        let dot_pos = shape.center + Point::new(angle.cos(), angle.sin()).scale(0.7 * shape.radius);
-        cx.fill(shape, Color::GREEN);
-        cx.fill(Circle::new(dot_pos, 0.15 * shape.radius), Color::BLACK);
+        let dot_pos = shape.center + Vec2::new(angle.cos(), angle.sin()).scale(0.7 * shape.radius);
+        scene.fill(shape, Color::GREEN);
+        scene.fill(Circle::new(dot_pos, 0.15 * shape.radius), Color::BLACK);
+        scene
     }
 }

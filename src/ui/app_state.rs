@@ -1,6 +1,6 @@
 use super::{
     AnyView, BuildContext, CreateContext, HostHandle, NodeId, ParamContext, ReactiveContext,
-    ReadContext, ReadSignal, Scope, Var, View, Widget, WidgetContext, WidgetData, WidgetFlags,
+    ReadContext, ReadScope, ReadSignal, Var, View, Widget, WidgetContext, WidgetData, WidgetFlags,
     WidgetId, WidgetMut, WidgetRef, WindowId, WriteContext,
     clipboard::Clipboard,
     event_handling::{set_focus_widget, set_mouse_capture_widget},
@@ -14,9 +14,7 @@ use crate::{
     core::{FxIndexSet, Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
-    ui::render::GraphicsContext,
 };
-use pollster::FutureExt;
 use slotmap::{Key, SecondaryMap, SlotMap};
 use std::{
     any::Any,
@@ -26,18 +24,18 @@ use std::{
 };
 
 pub(super) struct WindowState {
-    pub(super) handle: platform::Handle,
+    pub(super) handle: platform::WindowHandle,
     pub(super) root_widget: WidgetId,
     pub(super) focus_widget: Option<WidgetId>,
     pub(super) pending_widget_animations: FxIndexSet<WidgetId>,
     pub(super) pending_node_animations: FxIndexSet<NodeId>,
     pub(super) theme_signal: Var<WindowTheme>,
     pub(super) overlays: OverlayContainer,
-    pub(super) graphics_context: GraphicsContext<'static>,
+    pub(super) widgets_needing_render: FxIndexSet<WidgetId>,
 }
 
 pub struct AppState {
-    windows: SlotMap<WindowId, WindowState>,
+    pub(super) windows: SlotMap<WindowId, WindowState>,
     pub(super) widget_data: SlotMap<WidgetId, WidgetData>,
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
     pub(super) mouse_capture_widget: Option<WidgetId>,
@@ -106,11 +104,8 @@ impl AppState {
         true
     }
 
-    pub fn add_window(&mut self, handle: platform::Handle, view: impl View) -> WindowId {
+    pub fn add_window(&mut self, handle: platform::WindowHandle, view: impl View) -> WindowId {
         let theme_signal = Var::new(self, handle.theme());
-        let graphics_context = GraphicsContext::new(&handle)
-            .block_on()
-            .expect("Graphics initialization failed");
 
         let window_id = self.windows.insert(WindowState {
             handle,
@@ -120,7 +115,7 @@ impl AppState {
             pending_node_animations: FxIndexSet::default(),
             theme_signal,
             overlays: Default::default(),
-            graphics_context,
+            widgets_needing_render: FxIndexSet::default(),
         });
 
         let widget_id = self
@@ -609,8 +604,8 @@ impl ReactiveContext for EffectContextImpl<'_> {
 }
 
 impl ReadContext for EffectContextImpl<'_> {
-    fn scope(&self) -> Scope {
-        Scope::Node(self.effect_id)
+    fn scope(&self) -> ReadScope {
+        ReadScope::Node(self.effect_id)
     }
 }
 
@@ -679,8 +674,8 @@ impl ReactiveContext for AppState {
 }
 
 impl ReadContext for AppState {
-    fn scope(&self) -> super::Scope {
-        super::Scope::Root
+    fn scope(&self) -> super::ReadScope {
+        super::ReadScope::Untracked
     }
 }
 

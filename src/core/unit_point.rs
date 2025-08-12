@@ -1,4 +1,4 @@
-use super::{Point, Rectangle};
+use super::{Point, Rect};
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct UnitValue(f64);
@@ -50,7 +50,7 @@ impl UnitPoint {
         Self { x: x.0, y: y.0 }
     }
 
-    pub fn resolve(&self, bounds: Rectangle) -> Point {
+    pub fn resolve(&self, bounds: Rect) -> Point {
         Point::new(
             bounds.left() + self.x * bounds.width(),
             bounds.top() + self.y * bounds.height(),

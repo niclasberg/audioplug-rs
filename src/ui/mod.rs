@@ -5,6 +5,7 @@ mod event_handling;
 mod host_handle;
 mod layout;
 mod overlay;
+mod paint;
 mod param;
 pub(super) mod reactive;
 mod render;
@@ -16,13 +17,7 @@ mod widget_data;
 mod widget_ref;
 mod window;
 
-use indexmap::{IndexMap, IndexSet};
-use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-    marker::PhantomData,
-    rc::Rc,
-};
+use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 pub use animation::AnimationContext;
 pub(crate) use app_state::AppState;
@@ -35,12 +30,13 @@ pub use param::{ParamContext, ParamSetter};
 pub use reactive::{
     Accessor, Animated, AnimatedFn, Animation, Cached, CachedContext, Computed, CreateContext,
     Easing, Effect, EffectContext, EventChannel, EventReceiver, Mapped, Node, NodeId, Owner,
-    ReactiveContext, ReactiveGraph, ReactiveValue, ReadContext, ReadSignal, Scope, SpringOptions,
-    Trigger, TweenOptions, Var, ViewContext, WatchContext, WidgetContext, WriteContext,
+    ReactiveContext, ReactiveGraph, ReactiveValue, ReadContext, ReadScope, ReadSignal,
+    SpringOptions, Trigger, TweenOptions, Var, ViewContext, WatchContext, WidgetContext,
+    WriteContext,
 };
 pub use render::{
     Brush, BrushRef, Canvas, CanvasContext, CanvasWidget, LinearGradient, PathGeometry,
-    PathGeometryBuilder, RadialGradient, RenderContext, Shape, ShapeRef, TextLayout,
+    PathGeometryBuilder, RadialGradient, RenderContext, Scene, Shape, ShapeRef, TextLayout,
     invalidate_window, render_window,
 };
 
@@ -90,21 +86,9 @@ impl<T: Widget + ?Sized> Clone for TypedWidgetId<T> {
 
 impl<T: Widget + ?Sized> Copy for TypedWidgetId<T> {}
 
-pub struct AppContext {
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-}
-
-impl AppContext {
-    pub fn new() -> Self {
-        todo!()
-    }
-}
-
 pub struct App {
     native: platform::Application,
     pub(crate) state: Rc<RefCell<AppState>>,
-    pub(crate) context: AppContext,
 }
 
 impl App {
@@ -117,7 +101,6 @@ impl App {
         Self {
             native: platform::Application::new(),
             state,
-            context: AppContext::new(),
         }
     }
 

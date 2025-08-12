@@ -1,7 +1,7 @@
 use crate::{
-    core::{Color, Rectangle, Size},
+    core::{Color, Rect, Size},
     ui::{
-        BuildContext, RenderContext, Shape, View, Widget,
+        BuildContext, RenderContext, Scene, Shape, View, Widget,
         style::{AvailableSpace, LayoutMode, Length, Measure, Style},
     },
 };
@@ -16,7 +16,7 @@ impl Fill for Shape {
     }
 }
 
-impl Fill for Rectangle {
+impl Fill for Rect {
     fn fill(self, color: Color) -> Filled {
         Filled {
             shape: self.into(),
@@ -55,11 +55,13 @@ impl Widget for Filled {
         "Filled"
     }
 
-    fn render(&mut self, ctx: &mut RenderContext) {
-        ctx.fill(
+    fn render(&mut self, ctx: &mut RenderContext) -> Scene {
+        let mut scene = Scene::new();
+        scene.fill(
             &self.shape.offset(ctx.global_bounds().top_left()),
             self.color,
-        )
+        );
+        scene
     }
 
     fn layout_mode(&self) -> LayoutMode {

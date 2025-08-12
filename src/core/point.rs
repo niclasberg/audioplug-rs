@@ -3,6 +3,8 @@ use std::{
     ops::{Add, Sub},
 };
 
+use crate::core::{PhysicalCoord, ScaleFactor};
+
 use super::{Interpolate, Size, SpringPhysics, Vec2};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -104,7 +106,8 @@ impl Point<f64> {
         self.x.min(self.y)
     }
 
-    pub fn as_vector(self) -> Vec2 {
+    #[inline(always)]
+    pub fn into_vector(self) -> Vec2 {
         Vec2::new(self.x, self.y)
     }
 
@@ -113,6 +116,16 @@ impl Point<f64> {
             x: self.x.floor(),
             y: self.y.floor(),
         }
+    }
+}
+
+pub type PhysicalPoint = Point<PhysicalCoord>;
+impl PhysicalPoint {
+    pub fn into_logical(self, scale_factor: ScaleFactor) -> Point {
+        Point::new(
+            self.x.0 as f64 * scale_factor.0,
+            self.y.0 as f64 * scale_factor.0,
+        )
     }
 }
 
@@ -145,17 +158,6 @@ impl<T, U: Into<T>> From<(U, U)> for Point<T> {
         Self {
             x: x.into(),
             y: y.into(),
-        }
-    }
-}
-
-impl<T: Add<Output = T>> Add for Point<T> {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
         }
     }
 }

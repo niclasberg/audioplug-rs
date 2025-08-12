@@ -12,7 +12,7 @@ use crate::{
 
 use super::{
     Accessor, CreateContext, Effect, LocalReadContext, NodeId, NodeType, ReactiveContext,
-    ReactiveValue, ReadContext, ReadSignal, Scope, ViewContext, WatchContext, WriteContext,
+    ReactiveValue, ReadContext, ReadSignal, ReadScope, ViewContext, WatchContext, WriteContext,
 };
 
 pub use super::spring::{SpringAnimation, SpringOptions};
@@ -94,7 +94,7 @@ impl DerivedAnimationState {
     pub fn reset(&mut self, node_id: NodeId, app_state: &mut AppState) -> bool {
         (self.reset_fn)(
             &mut self.inner,
-            &mut LocalReadContext::new(app_state, Scope::Node(node_id)),
+            &mut LocalReadContext::new(app_state, ReadScope::Node(node_id)),
         )
     }
 }
@@ -229,7 +229,7 @@ impl<T: 'static> AnimatedFn<T> {
         let id = super::create_derived_animation_node(cx, move |cx, id| {
             let value = f_value(&mut LocalReadContext::new(
                 cx.app_state_mut(),
-                Scope::Node(id),
+                ReadScope::Node(id),
             ));
             let inner = Box::new(f_anim(value));
             let reset_fn = Box::new(

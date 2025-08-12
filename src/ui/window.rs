@@ -4,10 +4,11 @@ use std::rc::Rc;
 use raw_window_handle::RawWindowHandle;
 
 use super::View;
-use crate::ui::{handle_window_event, render_window, AppState, WindowId};
-use crate::core::{Cursor, Point, Rectangle};
-use crate::platform::{WindowEvent, WindowHandler};
-use crate::{platform, App};
+use crate::App;
+use crate::core::{Cursor, Point, Rect};
+use crate::platform::{self, WindowEvent};
+use crate::ui::paint::paint_window;
+use crate::ui::{AppState, WindowId, handle_window_event, render_window};
 
 struct PreInit<F>(F);
 struct Constructed(WindowId);
@@ -28,7 +29,7 @@ impl<V: View> WindowState<V> {
         }
     }
 
-    fn initialize(self, app_state: &mut AppState, handle: platform::Handle) -> Self {
+    fn initialize(self, app_state: &mut AppState, handle: platform::WindowHandle) -> Self {
         match self {
             WindowState::PreInit(PreInit(view)) => {
                 let window_id = app_state.add_window(handle, view);
@@ -57,8 +58,8 @@ impl<V: View> MyHandler<V> {
     }
 }
 
-impl<V: View> WindowHandler for MyHandler<V> {
-    fn init(&mut self, handle: platform::Handle) {
+impl<V: View> platform::WindowHandler for MyHandler<V> {
+    fn init(&mut self, handle: platform::WindowHandle) {
         let mut app_state = self.app_state.borrow_mut();
 
         let state = std::mem::replace(&mut self.state, WindowState::Initializing);
@@ -71,9 +72,9 @@ impl<V: View> WindowHandler for MyHandler<V> {
         handle_window_event(&mut app_state, self.state.window_id(), event)
     }
 
-    fn render(&mut self, renderer: platform::RendererRef<'_>) {
+    fn paint(&mut self, dirty_rect: Rect) {
         let mut app_state = self.app_state.borrow_mut();
-        render_window(&mut app_state, self.state.window_id(), renderer)
+        paint_window(&mut app_state, self.state.window_id(), dirty_rect)
     }
 
     fn get_cursor(&self, pos: Point) -> Option<Cursor> {
@@ -113,11 +114,11 @@ impl Window {
 
     pub fn attach<V: View + 'static>(
         app_state: Rc<RefCell<AppState>>,
-        handle: RawWindowHandle,
+        parent_handle: RawWindowHandle,
         view: V,
     ) -> Self {
         let handler = MyHandler::new(app_state, view);
-        let window: Result<platform::Window, platform::Error> = match handle {
+        let window: Result<platform::Window, platform::Error> = match parent_handle {
             #[cfg(target_os = "windows")]
             RawWindowHandle::Win32(handle) => {
                 let hwnd = handle.hwnd.get() as *mut std::ffi::c_void;
@@ -131,7 +132,7 @@ impl Window {
         Self(window.unwrap())
     }
 
-    pub fn set_size(&self, size: Rectangle<i32>) {
+    pub fn set_size(&self, size: Rect<i32>) {
         self.0.set_size(size).unwrap()
     }
 

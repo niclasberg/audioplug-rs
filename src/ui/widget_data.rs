@@ -1,7 +1,10 @@
 use bitflags::bitflags;
 use slotmap::{Key, KeyData, new_key_type};
 
-use crate::core::{Point, Rectangle, RoundedRectangle, Size};
+use crate::{
+    core::{Point, Rect, RoundedRect, Size},
+    ui::Scene,
+};
 
 use super::{ReadSignal, Shape, WindowId, style::Style};
 
@@ -48,6 +51,7 @@ pub struct WidgetData {
     pub(super) layout: taffy::Layout,
     pub(super) flags: WidgetFlags,
     pub(super) origin: Point,
+    pub(super) scene: Scene,
 }
 
 impl WidgetData {
@@ -63,6 +67,7 @@ impl WidgetData {
             layout: Default::default(),
             flags: WidgetFlags::EMPTY,
             origin: Point::ZERO,
+            scene: Scene::default(),
         }
     }
 
@@ -76,17 +81,17 @@ impl WidgetData {
     }
 
     /// Local bounds of the widget, relative to its parent
-    pub fn local_bounds(&self) -> Rectangle {
-        Rectangle::from_origin(self.offset(), self.size())
+    pub fn local_bounds(&self) -> Rect {
+        Rect::from_origin(self.offset(), self.size())
     }
 
     /// Bounds of the widget, in global coords, including borders and padding
-    pub fn global_bounds(&self) -> Rectangle {
-        Rectangle::from_origin(self.origin(), self.size())
+    pub fn global_bounds(&self) -> Rect {
+        Rect::from_origin(self.origin(), self.size())
     }
 
-    fn subtract_padding_and_border(&self, rect: Rectangle) -> Rectangle {
-        Rectangle::from_ltrb(
+    fn subtract_padding_and_border(&self, rect: Rect) -> Rect {
+        Rect::from_ltrb(
             rect.left() + (self.layout.border.left + self.layout.padding.left) as f64,
             rect.top() + (self.layout.border.top + self.layout.padding.top) as f64,
             rect.right() - (self.layout.border.right + self.layout.padding.right) as f64,
@@ -95,12 +100,12 @@ impl WidgetData {
     }
 
     /// Bounds of the widget, in global coords, excluding borders and padding
-    pub fn content_bounds(&self) -> Rectangle {
+    pub fn content_bounds(&self) -> Rect {
         self.subtract_padding_and_border(self.global_bounds())
     }
 
-    pub fn border(&self) -> Rectangle {
-        Rectangle::from_ltrb(
+    pub fn border(&self) -> Rect {
+        Rect::from_ltrb(
             self.layout.border.left as f64,
             self.layout.border.top as f64,
             self.layout.border.right as f64,
@@ -108,8 +113,8 @@ impl WidgetData {
         )
     }
 
-    pub fn padding(&self) -> Rectangle {
-        Rectangle::from_ltrb(
+    pub fn padding(&self) -> Rect {
+        Rect::from_ltrb(
             self.layout.padding.left as f64,
             self.layout.padding.top as f64,
             self.layout.padding.right as f64,
@@ -173,7 +178,7 @@ impl WidgetData {
         if self.style.corner_radius == Size::ZERO {
             self.global_bounds().into()
         } else {
-            RoundedRectangle::new(self.global_bounds(), self.style.corner_radius).into()
+            RoundedRect::new(self.global_bounds(), self.style.corner_radius).into()
         }
     }
 }

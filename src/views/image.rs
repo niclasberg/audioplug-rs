@@ -4,7 +4,7 @@ use crate::{
     core::{Color, Size},
     platform,
     ui::{
-        View, Widget,
+        Scene, View, Widget,
         style::{AvailableSpace, LayoutMode, Measure, Style},
     },
 };
@@ -76,11 +76,13 @@ impl Widget for ImageWidget {
         LayoutMode::Leaf(self)
     }
 
-    fn render(&mut self, ctx: &mut crate::ui::RenderContext) {
+    fn render(&mut self, ctx: &mut crate::ui::RenderContext) -> Scene {
+        let mut scene = Scene::new();
         if let Some(source) = &self.source {
-            ctx.draw_bitmap(source, ctx.content_bounds())
+            scene.draw_bitmap(source, ctx.content_bounds())
         } else {
-            ctx.fill(ctx.content_bounds(), Color::RED)
+            scene.fill(ctx.content_bounds(), Color::RED)
         }
+        scene
     }
 }

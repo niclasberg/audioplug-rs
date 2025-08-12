@@ -50,8 +50,6 @@ impl<W: Widget> Widget for ScrollWidget<W> {
         "Scroll"
     }
 
-    fn render(&mut self, ctx: &mut RenderContext) {}
-
     fn layout_mode(&self) -> LayoutMode {
         todo!()
     }

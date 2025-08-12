@@ -1,7 +1,7 @@
 use std::ffi::c_char;
 use vst3_sys::{gui::ViewRect, vst::TChar};
 
-use crate::core::Rectangle;
+use crate::core::Rect;
 
 pub fn strcpy(src: &str, dst: &mut [c_char]) {
     let src = src.as_bytes();
@@ -21,14 +21,14 @@ pub fn strcpyw(src: &str, dst: &mut [TChar]) {
     dst[len] = 0;
 }
 
-impl From<ViewRect> for Rectangle<i32> {
+impl From<ViewRect> for Rect<i32> {
     fn from(value: ViewRect) -> Self {
         Self::from_ltrb(value.left, value.top, value.right, value.bottom)
     }
 }
 
-impl From<Rectangle<i32>> for ViewRect {
-    fn from(val: Rectangle<i32>) -> Self {
+impl From<Rect<i32>> for ViewRect {
+    fn from(val: Rect<i32>) -> Self {
         ViewRect {
             left: val.left(),
             top: val.top(),

@@ -1,9 +1,9 @@
 use crate::{
     KeyEvent, MouseButton, MouseEvent,
-    core::{Color, Key, Rectangle, Size},
+    core::{Color, Key, Rect, Size},
     ui::{
         Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
-        RenderContext, View, Widget,
+        RenderContext, Scene, View, Widget,
         style::{AvailableSpace, LayoutMode, Length, Measure, Style, UiRect},
     },
 };
@@ -146,11 +146,12 @@ impl Widget for CheckboxWidget {
         LayoutMode::Leaf(self)
     }
 
-    fn render(&mut self, ctx: &mut RenderContext) {
+    fn render(&mut self, ctx: &mut RenderContext) -> Scene {
+        let mut scene = Scene::new();
         if self.checked {
             let size = (ctx.content_bounds().size().min_element() - 1.0).max(0.0);
-            let bounds = Rectangle::from_center(ctx.content_bounds().center(), Size::splat(size));
-            ctx.draw_lines(
+            let bounds = Rect::from_center(ctx.content_bounds().center(), Size::splat(size));
+            scene.draw_lines(
                 &[
                     bounds.get_relative_point(0., 0.5),
                     bounds.get_relative_point(0.35, 1.0),
@@ -160,5 +161,6 @@ impl Widget for CheckboxWidget {
                 2.0,
             )
         }
+        scene
     }
 }

@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use crate::{
     core::{Color, Size},
     ui::{
-        Accessor, BuildContext, RenderContext, TextLayout, View, Widget, WidgetMut,
+        Accessor, BuildContext, RenderContext, Scene, TextLayout, View, Widget, WidgetMut,
         style::{AvailableSpace, LayoutMode, Measure, Style},
     },
 };
@@ -87,10 +87,12 @@ impl Widget for TextWidget {
         LayoutMode::Leaf(self)
     }
 
-    fn render(&mut self, ctx: &mut RenderContext) {
+    fn render(&mut self, ctx: &mut RenderContext) -> Scene {
+        let mut scene = Scene::new();
         let mut text_layout = self.text_layout.borrow_mut();
         let bounds = ctx.content_bounds();
         text_layout.set_max_size(bounds.size());
-        ctx.draw_text(&text_layout, bounds.top_left())
+        scene.draw_text(&text_layout, bounds.top_left());
+        scene
     }
 }

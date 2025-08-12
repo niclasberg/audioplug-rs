@@ -39,7 +39,7 @@ impl<T: 'static> ReactiveValue for Computed<T> {
     ) -> R {
         let value = (self.f)(&mut LocalReadContext::new(
             cx.app_state_mut(),
-            super::Scope::Root,
+            super::ReadScope::Untracked,
         ));
         f(&value)
     }
@@ -47,7 +47,7 @@ impl<T: 'static> ReactiveValue for Computed<T> {
     fn get_untracked(&self, cx: &mut dyn super::ReactiveContext) -> Self::Value {
         (self.f)(&mut LocalReadContext::new(
             cx.app_state_mut(),
-            super::Scope::Root,
+            super::ReadScope::Untracked,
         ))
     }
 

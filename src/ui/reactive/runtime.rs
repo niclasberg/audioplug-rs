@@ -35,8 +35,8 @@ pub(crate) enum SourceId {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum Scope {
-    Root,
+pub enum ReadScope {
+    Untracked,
     Node(NodeId),
 }
 

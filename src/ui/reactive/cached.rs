@@ -2,7 +2,7 @@ use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
 use crate::ui::{Accessor, AppState, Effect, ReadSignal};
 
-use super::{CreateContext, NodeId, NodeType, ReactiveContext, ReactiveValue, ReadContext, Scope};
+use super::{CreateContext, NodeId, NodeType, ReactiveContext, ReactiveValue, ReadContext, ReadScope};
 
 pub struct CachedContext<'a> {
     pub(super) memo_id: NodeId,
@@ -20,8 +20,8 @@ impl ReactiveContext for CachedContext<'_> {
 }
 
 impl ReadContext for CachedContext<'_> {
-    fn scope(&self) -> Scope {
-        Scope::Node(self.memo_id)
+    fn scope(&self) -> ReadScope {
+        ReadScope::Node(self.memo_id)
     }
 }
 

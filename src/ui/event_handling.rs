@@ -1,5 +1,5 @@
 use super::{
-    AppState, EventStatus, ParamContext, ReactiveContext, ReadContext, Scope, WidgetFlags,
+    AppState, EventStatus, ParamContext, ReactiveContext, ReadContext, ReadScope, WidgetFlags,
     WidgetId, WindowId, WriteContext,
     animation::{drive_animations, request_animation_frame},
     clipboard::Clipboard,
@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     KeyEvent, MouseEvent,
-    core::{Key, Rectangle},
+    core::{Key, Rect},
     platform::WindowEvent,
     ui::{
         StatusChange, Widget, WidgetMut,
@@ -21,7 +21,8 @@ use crate::{
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
-        WindowEvent::Resize { .. } => {
+        WindowEvent::Resize { physical_size, .. } => {
+            app_state.window_mut(window_id).handle.resize(physical_size);
             layout_window(app_state, window_id, RecomputeLayout::Force);
             invalidate_window(app_state, window_id);
         }
@@ -254,7 +255,7 @@ impl<'a> MouseEventContext<'a> {
         request_animation_frame(self.app_state, self.id)
     }
 
-    pub fn bounds(&self) -> Rectangle {
+    pub fn bounds(&self) -> Rect {
         self.app_state.widget_data_ref(self.id).global_bounds()
     }
 
@@ -299,7 +300,7 @@ impl<'a> EventContext<'a> {
         status
     }
 
-    pub fn bounds(&self) -> Rectangle {
+    pub fn bounds(&self) -> Rect {
         self.app_state.widget_data_ref(self.id).global_bounds()
     }
 
@@ -368,8 +369,8 @@ impl ParamContext for CallbackContext<'_> {
 }
 
 impl ReadContext for CallbackContext<'_> {
-    fn scope(&self) -> Scope {
-        Scope::Root
+    fn scope(&self) -> ReadScope {
+        ReadScope::Untracked
     }
 }
 

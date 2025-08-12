@@ -1,6 +1,6 @@
-use crate::core::{Point, Rectangle, Transform};
-use windows::core::Result;
+use crate::core::{Point, Rect, Transform};
 use windows::Win32::Graphics::Direct2D;
+use windows::core::Result;
 
 use super::com::direct2d_factory;
 
@@ -34,7 +34,8 @@ impl NativeGeometry {
         start_angle: f64,
         delta_angle: f64,
     ) -> Result<Self> {
-        let start_point = center + Point::new(start_angle.cos(), start_angle.sin()).scale(radius);
+        todo!()
+        /*let start_point = center + Vec2::new(start_angle.cos(), start_angle.sin()).scale(radius);
         let end_angle = start_angle + delta_angle;
         let end_point = center + Point::new(end_angle.cos(), end_angle.sin()).scale(radius);
         Self::new(|builder| {
@@ -48,7 +49,7 @@ impl NativeGeometry {
             };
             unsafe { builder.sink.AddArc(&arc as *const _) };
             builder.close()
-        })
+        })*/
     }
 
     pub fn transform(&self, transform: Transform) -> Result<Self> {
@@ -57,7 +58,7 @@ impl NativeGeometry {
             .map(|transformed_geometry| Self(transformed_geometry.into()))
     }
 
-    pub fn bounds(&self) -> Result<Rectangle> {
+    pub fn bounds(&self) -> Result<Rect> {
         unsafe { self.0.GetBounds(None) }.map(|bounds| bounds.into())
     }
 }

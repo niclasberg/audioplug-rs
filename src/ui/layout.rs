@@ -1,6 +1,6 @@
 use super::style::{AvailableSpace, LayoutMode, ResolveInto, Style, UiRect};
 use super::{OverlayAnchor, OverlayOptions};
-use crate::core::{HAlign, Point, Rectangle, Size, VAlign, Vec2};
+use crate::core::{HAlign, Point, Rect, Size, VAlign, Vec2};
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree,
     TraversePartialTree, TraverseTree,
@@ -18,7 +18,7 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId, mode: Recomp
     app_state.with_id_buffer_mut(move |app_state, overlay_ids| {
         let window = app_state.window(window_id);
         let window_size = window.handle.global_bounds().size();
-        let window_rect = Rectangle::from_origin(Point::ZERO, window_size);
+        let window_rect = Rect::from_origin(Point::ZERO, window_size);
         let root_id = window.root_widget;
         overlay_ids.extend(window.overlays.iter());
 
@@ -102,7 +102,7 @@ pub(super) fn request_layout(app_state: &mut AppState, widget_id: WidgetId) {
 
 fn compute_overlay_offset(
     app_state: &mut AppState,
-    window_rect: Rectangle,
+    window_rect: Rect,
     overlay_id: WidgetId,
     options: OverlayOptions,
 ) -> Vec2 {
@@ -140,7 +140,7 @@ fn update_node_origins(app_state: &mut AppState, root_widget: WidgetId, position
 
     while let Some((widget_id, parent_origin)) = stack.pop() {
         let data = &mut app_state.widget_data[widget_id];
-        let origin = data.offset() + parent_origin;
+        let origin = data.offset() + parent_origin.into_vector();
         for child in data.children.iter() {
             stack.push((*child, origin))
         }
@@ -163,7 +163,7 @@ impl Iterator for LayoutChildIter<'_> {
 pub struct LayoutContext<'a> {
     app_state: &'a mut AppState,
     window_size: Size,
-    region_to_invalidate: Option<Rectangle>,
+    region_to_invalidate: Option<Rect>,
 }
 
 impl LayoutContext<'_> {

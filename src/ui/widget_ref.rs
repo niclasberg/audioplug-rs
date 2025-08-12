@@ -7,7 +7,7 @@ use super::{
     AppState, OverlayOptions, View, Widget, WidgetData, WidgetFlags, WidgetId,
     app_state::WidgetInsertPos, layout::request_layout, render::invalidate_widget, style::Style,
 };
-use crate::core::{Rectangle, diff::DiffOp};
+use crate::core::{Rect, diff::DiffOp};
 
 pub struct ChildIter<'a> {
     app_state: &'a AppState,
@@ -62,11 +62,11 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
         &self.app_state.widget_data[self.id]
     }
 
-    pub fn local_bounds(&self) -> Rectangle {
+    pub fn local_bounds(&self) -> Rect {
         self.data().local_bounds()
     }
 
-    pub fn global_bounds(&self) -> Rectangle {
+    pub fn global_bounds(&self) -> Rect {
         self.data().global_bounds()
     }
 
@@ -199,11 +199,11 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         }
     }
 
-    pub fn local_bounds(&self) -> Rectangle {
+    pub fn local_bounds(&self) -> Rect {
         self.data().local_bounds()
     }
 
-    pub fn global_bounds(&self) -> Rectangle {
+    pub fn global_bounds(&self) -> Rect {
         self.data().global_bounds()
     }
 

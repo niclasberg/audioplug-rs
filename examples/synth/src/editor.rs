@@ -1,8 +1,10 @@
 use audioplug::{
     core::{Color, ShadowOptions, Size, Vec2},
     param::{AnyParameter, FloatParameter, Parameter},
-    ui::style::{AlignItems, Length, UiRect},
-    ui::{Canvas, PathGeometry, ReactiveValue, View},
+    ui::{
+        style::{AlignItems, Length, UiRect},
+        Canvas, PathGeometry, ReactiveValue, Scene, View,
+    },
     views::{Checkbox, Column, Label, ParameterKnob, ParameterSlider, Row},
     Editor,
 };
@@ -163,7 +165,7 @@ fn envelope_graph(
     let max_env_time =
         attack.info().max_value().0 + decay.info().max_value().0 + release.info().max_value().0;
 
-    Canvas::new(move |cx, _| {
+    Canvas::new(move |cx| {
         let bounds = cx.bounds();
         let s_width = 0.2;
         let a_d_r_width = (1.0 - s_width) / max_env_time;
@@ -181,7 +183,9 @@ fn envelope_graph(
                 .close()
         });
 
-        cx.fill(&geometry, Color::BLACK);
+        let mut scene = Scene::new();
+        scene.fill(&geometry, Color::BLACK);
+        scene
     })
     .style(|s, _| {
         s.background(Color::WHITE.with_alpha(0.2))

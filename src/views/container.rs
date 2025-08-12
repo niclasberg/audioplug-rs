@@ -198,10 +198,6 @@ impl Widget for ContainerWidget {
         "Container"
     }
 
-    fn render(&mut self, ctx: &mut crate::ui::RenderContext) {
-        ctx.render_children()
-    }
-
     fn layout_mode(&self) -> LayoutMode {
         match &self.container_style {
             ContainerStyle::Block => LayoutMode::Block,

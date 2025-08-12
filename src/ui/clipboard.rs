@@ -1,7 +1,7 @@
 use crate::platform;
 
 pub struct Clipboard<'a> {
-    pub(super) handle: &'a platform::Handle,
+    pub(super) handle: &'a platform::WindowHandle,
 }
 
 impl Clipboard<'_> {

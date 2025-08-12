@@ -1,21 +1,24 @@
 use crate::{
-    core::{Cursor, Point, Size, WindowTheme},
-    event::{AnimationFrame, KeyEvent},
     MouseEvent,
+    core::{Cursor, PhysicalSize, Point, Rect, ScaleFactor, Size, WindowTheme},
+    event::{AnimationFrame, KeyEvent},
 };
 
-use super::{Handle, RendererRef};
+use super::WindowHandle;
 
 pub trait WindowHandler {
-    fn init(&mut self, handle: Handle);
+    fn init(&mut self, handle: WindowHandle);
     fn event(&mut self, event: WindowEvent);
-    fn render(&mut self, renderer: RendererRef);
+    fn paint(&mut self, dirty_rect: Rect);
     fn get_cursor(&self, point: Point) -> Option<Cursor>;
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum WindowEvent {
-    Resize { new_size: Size },
+    Resize {
+        logical_size: Size,
+        physical_size: PhysicalSize,
+    },
     Focused,
     Unfocused,
     MouseEnter,
@@ -24,6 +27,6 @@ pub enum WindowEvent {
     Mouse(MouseEvent),
     MouseCaptureEnded,
     Key(KeyEvent),
-    ScaleFactorChanged { scale_factor: f64 },
+    ScaleFactorChanged(ScaleFactor),
     ThemeChanged(WindowTheme),
 }

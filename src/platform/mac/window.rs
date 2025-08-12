@@ -9,8 +9,8 @@ use objc2_core_foundation::CGSize;
 use objc2_foundation::{MainThreadMarker, NSPoint, NSRect, NSSize};
 use raw_window_handle::{AppKitWindowHandle, HasWindowHandle, RawWindowHandle};
 
-use super::view::View;
 use super::Error;
+use super::view::View;
 
 pub enum Window {
     OSWindow(Retained<NSWindow>, Retained<View>),
@@ -49,12 +49,12 @@ impl Window {
     }
 
     pub fn attach(
-        handle: AppKitWindowHandle,
-        widget: impl WindowHandler + 'static,
+        parent_handle: AppKitWindowHandle,
+        handler: impl WindowHandler + 'static,
     ) -> Result<Self, Error> {
         let mtm = MainThreadMarker::new().unwrap();
-        let parent = unsafe { &*(handle.ns_view.as_ptr() as *mut NSView) };
-        let view = View::new(mtm, widget, None);
+        let parent = unsafe { &*(parent_handle.ns_view.as_ptr() as *mut NSView) };
+        let view = View::new(mtm, handler, None);
         unsafe {
             parent.addSubview(&view);
             view.setNeedsDisplay(true);

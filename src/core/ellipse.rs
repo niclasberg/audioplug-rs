@@ -1,19 +1,17 @@
-use super::{Point, Rectangle, Size, Vec2};
+use super::{Point, Rect, Size, Vec2};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Ellipse<T = f64> {
-    pub center: Point<T>,
-    pub radii: Size<T>,
+pub struct Ellipse {
+    pub center: Point,
+    pub radii: Size,
 }
 
-impl<T> Ellipse<T> {
-    pub const fn new(center: Point<T>, radii: Size<T>) -> Self {
+impl Ellipse {
+    pub const fn new(center: Point, radii: Size) -> Self {
         Self { center, radii }
     }
-}
 
-impl Ellipse<f64> {
-    pub fn from_rectangle(rect: Rectangle<f64>) -> Self {
+    pub fn from_rectangle(rect: Rect<f64>) -> Self {
         Self {
             center: rect.center(),
             radii: rect.size() / 2.0,
@@ -34,36 +32,34 @@ impl Ellipse<f64> {
         }
     }
 
-    pub fn bounds(&self) -> Rectangle {
-        Rectangle::from_center(self.center, self.radii.scale(2.0))
+    pub fn bounds(&self) -> Rect {
+        Rect::from_center(self.center, self.radii.scale(2.0))
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Circle<T = f64> {
-    pub center: Point<T>,
-    pub radius: T,
+pub struct Circle {
+    pub center: Point,
+    pub radius: f64,
 }
 
-impl<T> Circle<T> {
-    pub const fn new(center: Point<T>, radius: T) -> Self {
+impl Circle {
+    pub const fn new(center: Point, radius: f64) -> Self {
         Self { center, radius }
     }
 
-    pub fn with_radius(mut self, radius: T) -> Self {
+    pub fn with_radius(mut self, radius: f64) -> Self {
         self.radius = radius;
         self
     }
-}
 
-impl Circle<f64> {
     pub fn contains(&self, pos: Point) -> bool {
         (pos.x - self.center.x).powi(2) + (pos.y - self.center.y).powi(2) <= self.radius.powi(2)
     }
 }
 
-impl<T: Clone> From<Circle<T>> for Ellipse<T> {
-    fn from(value: Circle<T>) -> Self {
-        Self::new(value.center, Size::new(value.radius.clone(), value.radius))
+impl From<Circle> for Ellipse {
+    fn from(value: Circle) -> Self {
+        Self::new(value.center, Size::new(value.radius, value.radius))
     }
 }

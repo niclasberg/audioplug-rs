@@ -3,11 +3,11 @@ use std::ffi::{CStr, CString};
 use std::num::NonZeroIsize;
 use std::rc::Rc;
 
-use crate::core::{Rectangle, WindowTheme};
+use crate::core::{PhysicalCoord, PhysicalSize, Rect, ScaleFactor, Size, WindowTheme};
 use crate::platform::win::util::{self, get_theme};
 use raw_window_handle::{
-    DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawWindowHandle,
-    Win32WindowHandle, WindowHandle,
+    DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawDisplayHandle,
+    RawWindowHandle, Win32WindowHandle, WindowHandle, WindowsDisplayHandle,
 };
 use windows::Win32::Foundation::{HANDLE, HGLOBAL, HWND, RECT};
 use windows::Win32::Graphics::Gdi::InvalidateRect;
@@ -41,8 +41,10 @@ impl Handle {
         Self { hwnd }
     }
 
-    pub fn inner_rect(&self) -> Rectangle<i32> {
-        get_client_rect(self.hwnd)
+    pub fn physical_size(&self) -> PhysicalSize {
+        let client_rect = get_client_rect(self.hwnd);
+        let scale_factor = self.scale_factor();
+        PhysicalSize::from_logical(client_rect.size.into(), scale_factor)
     }
 
     pub fn theme(&self) -> WindowTheme {
@@ -53,12 +55,12 @@ impl Handle {
         let _ = unsafe { InvalidateRect(Some(self.hwnd), None, false) };
     }
 
-    pub fn scale_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> ScaleFactor {
         util::get_scale_factor_for_window(self.hwnd)
     }
 
-    pub fn invalidate(&self, rect: Rectangle) {
-        let rect = rect.scale(self.scale_factor());
+    pub fn invalidate(&self, rect: Rect) {
+        let rect = rect.scale(self.scale_factor().0);
         let rect = RECT {
             left: rect.left().floor() as i32,
             top: rect.top().floor() as i32,
@@ -68,9 +70,9 @@ impl Handle {
         let _ = unsafe { InvalidateRect(Some(self.hwnd), Some(&rect as _), false) };
     }
 
-    pub fn global_bounds(&self) -> Rectangle {
-        let rect: Rectangle = get_client_rect(self.hwnd).into();
-        rect.scale(1.0 / self.scale_factor())
+    pub fn global_bounds(&self) -> Rect {
+        let rect: Rect = get_client_rect(self.hwnd).into();
+        rect.scale(1.0 / self.scale_factor().0)
     }
 
     pub fn set_clipboard(&self, string: &str) -> Result<()> {
@@ -121,19 +123,13 @@ impl Handle {
             Ok(result.ok())
         }
     }
-}
 
-impl HasWindowHandle for Handle {
-    fn window_handle(&self) -> std::result::Result<WindowHandle<'_>, HandleError> {
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
         let hwnd_isize = NonZeroIsize::new(self.hwnd.0 as _).unwrap();
-        let raw_handle = RawWindowHandle::Win32(Win32WindowHandle::new(hwnd_isize));
-        let handle = unsafe { WindowHandle::borrow_raw(raw_handle) };
-        Ok(handle)
+        RawWindowHandle::Win32(Win32WindowHandle::new(hwnd_isize))
     }
-}
 
-impl HasDisplayHandle for Handle {
-    fn display_handle(&self) -> std::result::Result<DisplayHandle<'_>, HandleError> {
-        Ok(DisplayHandle::windows())
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::Windows(WindowsDisplayHandle::new())
     }
 }

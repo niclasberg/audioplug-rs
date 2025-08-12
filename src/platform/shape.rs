@@ -1,16 +1,15 @@
 use std::fmt::Debug;
 
-use crate::core::{Circle, Ellipse, Point, Rectangle, RoundedRectangle, Size, Transform, Vec2};
-use crate::platform;
+use crate::core::{Circle, Ellipse, Point, Rect, RoundedRect, Size, Transform, Vec2};
 
-pub struct PathGeometryBuilder(platform::NativeGeometryBuilder);
+pub struct PathGeometryBuilder(super::NativeGeometryBuilder);
 
 impl PathGeometryBuilder {
     pub fn move_to(self, point: Point) -> Self {
         Self(self.0.move_to(point))
     }
 
-    pub fn add_rectangle(self, rect: Rectangle) -> Self {
+    pub fn add_rectangle(self, rect: Rect) -> Self {
         self.move_to(rect.top_left())
             .add_line_to(rect.bottom_left())
             .add_line_to(rect.bottom_right())
@@ -48,7 +47,7 @@ impl PathGeometryBuilder {
 }
 
 #[derive(Clone)]
-pub struct PathGeometry(pub(crate) platform::NativeGeometry);
+pub struct PathGeometry(pub(crate) super::NativeGeometry);
 
 impl Debug for PathGeometry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -58,9 +57,8 @@ impl Debug for PathGeometry {
 
 impl PathGeometry {
     pub fn new(f: impl FnOnce(PathGeometryBuilder) -> PathGeometryBuilder) -> Self {
-        let geometry =
-            platform::NativeGeometry::new(move |builder| f(PathGeometryBuilder(builder)).0)
-                .expect("Creating native geometry failed");
+        let geometry = super::NativeGeometry::new(move |builder| f(PathGeometryBuilder(builder)).0)
+            .expect("Creating native geometry failed");
         Self(geometry)
     }
 
@@ -68,7 +66,7 @@ impl PathGeometry {
         Self(self.0.transform(transform).expect("Transform failed"))
     }
 
-    pub fn bounds(&self) -> Rectangle {
+    pub fn bounds(&self) -> Rect {
         self.0.bounds().expect("Getting geometry bounds failed")
     }
 }
@@ -76,20 +74,20 @@ impl PathGeometry {
 /// Represents a drawable shape
 #[derive(Debug, Clone)]
 pub enum Shape {
-    Rect(Rectangle),
-    Rounded(RoundedRectangle),
+    Rect(Rect),
+    Rounded(RoundedRect),
     Ellipse(Ellipse),
     Geometry(PathGeometry),
 }
 
 impl Shape {
     pub const fn rect(point: Point, size: Size) -> Self {
-        Shape::Rect(Rectangle::from_origin(point, size))
+        Shape::Rect(Rect::from_origin(point, size))
     }
 
     pub const fn rounded_rect(point: Point, size: Size, corner_radius: Size) -> Self {
-        Self::Rounded(RoundedRectangle {
-            rect: Rectangle::from_origin(point, size),
+        Self::Rounded(RoundedRect {
+            rect: Rect::from_origin(point, size),
             corner_radius,
         })
     }
@@ -114,7 +112,7 @@ impl Shape {
         }
     }
 
-    pub fn bounds(&self) -> Rectangle {
+    pub fn bounds(&self) -> Rect {
         match self {
             Shape::Rect(rect) => *rect,
             Shape::Rounded(rounded) => rounded.bounds(),
@@ -133,14 +131,14 @@ impl Shape {
     }
 }
 
-impl From<Rectangle> for Shape {
-    fn from(value: Rectangle) -> Self {
+impl From<Rect> for Shape {
+    fn from(value: Rect) -> Self {
         Self::Rect(value)
     }
 }
 
-impl From<RoundedRectangle> for Shape {
-    fn from(value: RoundedRectangle) -> Self {
+impl From<RoundedRect> for Shape {
+    fn from(value: RoundedRect) -> Self {
         Self::Rounded(value)
     }
 }
@@ -159,14 +157,14 @@ impl From<Circle> for Shape {
 
 #[derive(Clone, Copy)]
 pub enum ShapeRef<'a> {
-    Rect(Rectangle),
-    Rounded(RoundedRectangle),
+    Rect(Rect),
+    Rounded(RoundedRect),
     Ellipse(Ellipse),
     Geometry(&'a PathGeometry),
 }
 
 impl ShapeRef<'_> {
-    pub fn bounds(&self) -> Rectangle {
+    pub fn bounds(&self) -> Rect {
         match self {
             Self::Rect(rect) => *rect,
             Self::Rounded(rounded) => rounded.bounds(),
@@ -187,14 +185,14 @@ impl<'a> From<&'a Shape> for ShapeRef<'a> {
     }
 }
 
-impl<'a> From<Rectangle> for ShapeRef<'a> {
-    fn from(value: Rectangle) -> Self {
+impl<'a> From<Rect> for ShapeRef<'a> {
+    fn from(value: Rect) -> Self {
         Self::Rect(value)
     }
 }
 
-impl<'a> From<RoundedRectangle> for ShapeRef<'a> {
-    fn from(value: RoundedRectangle) -> Self {
+impl<'a> From<RoundedRect> for ShapeRef<'a> {
+    fn from(value: RoundedRect) -> Self {
         Self::Rounded(value)
     }
 }

@@ -1,32 +1,32 @@
 use std::mem::MaybeUninit;
 use std::sync::LazyLock;
 
-use windows::core::{s, PCSTR};
 use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
 use windows::Win32::UI::Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTW};
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetClientRect, SystemParametersInfoW, SPI_GETHIGHCONTRAST, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+    GetClientRect, SPI_GETHIGHCONTRAST, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SystemParametersInfoW,
 };
+use windows::core::{PCSTR, s};
 
-use crate::core::{Rectangle, WindowTheme};
+use crate::core::{Rect, ScaleFactor, WindowTheme};
 
-pub(super) fn get_client_rect(hwnd: HWND) -> Rectangle<i32> {
+pub(super) fn get_client_rect(hwnd: HWND) -> Rect<i32> {
     let mut rect: RECT = RECT::default();
     if let Ok(()) = unsafe { GetClientRect(hwnd, &mut rect) } {
-        Rectangle::from_ltrb(rect.left, rect.top, rect.right, rect.bottom)
+        Rect::from_ltrb(rect.left, rect.top, rect.right, rect.bottom)
     } else {
-        Rectangle::default()
+        Rect::default()
     }
 }
 
 const BASE_DPI: u32 = 96;
-pub fn dpi_to_scale_factor(dpi: u32) -> f64 {
-    dpi as f64 / BASE_DPI as f64
+pub fn dpi_to_scale_factor(dpi: u32) -> ScaleFactor {
+    ScaleFactor(dpi as f64 / BASE_DPI as f64)
 }
 
-pub fn get_scale_factor_for_window(hwnd: HWND) -> f64 {
+pub fn get_scale_factor_for_window(hwnd: HWND) -> ScaleFactor {
     let dpi = unsafe { GetDpiForWindow(hwnd) };
     dpi_to_scale_factor(dpi)
 }

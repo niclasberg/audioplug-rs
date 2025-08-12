@@ -144,10 +144,6 @@ impl Widget for ButtonWidget {
         }
     }
 
-    fn render(&mut self, ctx: &mut RenderContext) {
-        ctx.render_children()
-    }
-
     fn layout_mode(&self) -> LayoutMode {
         LayoutMode::Flex(&FLEX_STYLE)
     }

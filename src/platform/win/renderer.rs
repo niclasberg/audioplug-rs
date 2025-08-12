@@ -1,6 +1,5 @@
 use bytemuck::{bytes_of, cast_slice};
 use windows::{
-    core::*,
     Win32::{
         Foundation::{HMODULE, HWND, RECT},
         Graphics::{
@@ -8,23 +7,24 @@ use windows::{
             Direct3D, Direct3D11, Dxgi,
         },
     },
+    core::*,
 };
 
 use super::{
-    com::direct2d_factory,
-    filters::{set_effect_property_f32, RoundedRectShadow},
-    util::get_scale_factor_for_window,
     Bitmap,
+    com::direct2d_factory,
+    filters::{RoundedRectShadow, set_effect_property_f32},
+    util::get_scale_factor_for_window,
 };
 use crate::{
-    core::{Color, Point, Rectangle, ShadowOptions, Size, SpringPhysics, Transform, Vec2},
-    platform::{filters::RoundedRectShadowEffect, NativeTextLayout},
+    core::{Color, Point, Rect, ShadowOptions, Size, SpringPhysics, Transform, Vec2},
+    platform::{NativeTextLayout, filters::RoundedRectShadowEffect},
 };
 use crate::{
     core::{Vec2f, Vec4f},
     platform::{
-        filters::{RectShadow, RectShadowEffect},
         BrushRef, ShapeRef,
+        filters::{RectShadow, RectShadowEffect},
     },
 };
 use std::{
@@ -60,7 +60,7 @@ enum PresentState {
     HasPresented,
     Presenting {
         dirty_rect: RECT,
-        scaled_dirty_rect: Rectangle,
+        scaled_dirty_rect: Rect,
     },
 }
 
@@ -183,12 +183,12 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn dirty_rect(&self) -> Rectangle {
+    pub fn dirty_rect(&self) -> Rect {
         match self.present_state {
             PresentState::Init | PresentState::HasPresented => unreachable!(),
             PresentState::PresentingFirstTime => {
                 let size: Size = unsafe { self.render_target.GetSize() }.into();
-                Rectangle::from_origin(Point::ZERO, size)
+                Rect::from_origin(Point::ZERO, size)
             }
             PresentState::Presenting {
                 scaled_dirty_rect, ..
@@ -206,7 +206,7 @@ impl Renderer {
             }
             PresentState::HasPresented => {
                 let scale_factor = self.scale_factor as f64;
-                let scaled_dirty_rect = Rectangle::from_ltrb(
+                let scaled_dirty_rect = Rect::from_ltrb(
                     (dirty_rect.left as f64 / scale_factor).floor(),
                     (dirty_rect.top as f64 / scale_factor).floor(),
                     (dirty_rect.right as f64 / scale_factor).ceil(),
@@ -278,7 +278,7 @@ impl Renderer {
         }
     }
 
-    pub fn clip(&mut self, bounds: Rectangle) {
+    pub fn clip(&mut self, bounds: Rect) {
         unsafe {
             self.render_target
                 .PushAxisAlignedClip(&bounds.into(), Direct2D::D2D1_ANTIALIAS_MODE_PER_PRIMITIVE)
@@ -309,7 +309,7 @@ impl Renderer {
     }
 
     pub fn draw_line(&mut self, p0: Point, p1: Point, brush: BrushRef, line_width: f32) {
-        let bounds = Rectangle::from_points(p0, p1);
+        let bounds = Rect::from_points(p0, p1);
         self.use_brush(bounds, brush, |render_target, brush| unsafe {
             render_target.DrawLine(p0.into(), p1.into(), brush, line_width, None);
         });
@@ -318,7 +318,7 @@ impl Renderer {
     #[inline(always)]
     fn use_brush(
         &mut self,
-        rect: Rectangle,
+        rect: Rect,
         brush: BrushRef,
         f: impl FnOnce(&Direct2D::ID2D1RenderTarget, &Direct2D::ID2D1Brush),
     ) {
@@ -527,13 +527,13 @@ impl Renderer {
                     self.render_target.Clear(Some(&Color::ZERO.into()));
 
                     let transform = Transform::from_translation(
-                        Vec2::splat(options.radius) - rect.top_left().as_vector(),
+                        Vec2::splat(options.radius) - rect.top_left().into_vector(),
                     );
                     self.render_target.SetTransform(&transform.into());
 
                     self.brush.SetColor(&Color::BLACK.into());
                     self.render_target
-                        .FillGeometry(&shape.0 .0, &self.brush, None);
+                        .FillGeometry(&shape.0.0, &self.brush, None);
 
                     self.render_target.SetTransform(&prev_transform);
                     self.render_target.SetTarget(&prev_target);
@@ -583,7 +583,7 @@ impl Renderer {
         }
     }
 
-    pub fn draw_bitmap(&mut self, source: &Bitmap, rect: Rectangle) {
+    pub fn draw_bitmap(&mut self, source: &Bitmap, rect: Rect) {
         source.draw(&self.render_target, self.generation, rect.into())
     }
 }
@@ -628,7 +628,7 @@ unsafe fn fill_shape_impl(
         }
         ShapeRef::Ellipse(ellipse) => render_target.FillEllipse(&ellipse.into(), brush),
         ShapeRef::Geometry(path_geometry) => {
-            render_target.FillGeometry(&path_geometry.0 .0, brush, None)
+            render_target.FillGeometry(&path_geometry.0.0, brush, None)
         }
     }
 }
@@ -650,7 +650,7 @@ unsafe fn stroke_shape_impl(
             render_target.DrawEllipse(&ellipse.into(), brush, line_width, None)
         }
         ShapeRef::Geometry(path_geometry) => {
-            render_target.DrawGeometry(&path_geometry.0 .0, brush, line_width, None)
+            render_target.DrawGeometry(&path_geometry.0.0, brush, line_width, None)
         }
     }
 }

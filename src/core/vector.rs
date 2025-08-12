@@ -94,6 +94,13 @@ macro_rules! impl_vec2 {
                     y: self.y.ceil(),
                 }
             }
+
+            pub fn scale(self, val: $t) -> Self {
+                Self {
+                    x: self.x * val,
+                    y: self.y * val,
+                }
+            }
         }
 
         impl From<Point<$t>> for $name {

@@ -1,11 +1,11 @@
 use crate::{
     KeyEvent, MouseEvent,
-    core::{Circle, Color, Key, Point, Rectangle, RoundedRectangle, Size, UnitPoint},
+    core::{Circle, Color, Key, Point, Rect, RoundedRect, Size, UnitPoint},
     event::MouseButton,
     param::{AnyParameter, NormalizedValue, PlainValue},
     ui::{
         Accessor, BuildContext, CallbackContext, EventContext, EventStatus, LinearGradient,
-        MouseEventContext, ParamSetter, RenderContext, StatusChange, View, Widget,
+        MouseEventContext, ParamSetter, RenderContext, Scene, StatusChange, View, Widget,
         style::{AvailableSpace, LayoutMode, Length, Measure, Style},
     },
 };
@@ -193,7 +193,7 @@ enum State {
 }
 
 impl SliderWidget {
-    fn slider_position(&self, bounds: Rectangle) -> Point {
+    fn slider_position(&self, bounds: Rect) -> Point {
         let slider_bounds = self.inner_bounds(bounds);
         match self.direction {
             Direction::Horizontal => Point {
@@ -207,22 +207,22 @@ impl SliderWidget {
         }
     }
 
-    fn inner_bounds(&self, bounds: Rectangle) -> Rectangle {
+    fn inner_bounds(&self, bounds: Rect) -> Rect {
         match self.direction {
             Direction::Horizontal => bounds.shrink_x(self.knob_radius(bounds)),
             Direction::Vertical => bounds.shrink_y(self.knob_radius(bounds)),
         }
     }
 
-    fn knob_shape(&self, bounds: Rectangle) -> Circle {
+    fn knob_shape(&self, bounds: Rect) -> Circle {
         Circle::new(self.slider_position(bounds), self.knob_radius(bounds))
     }
 
-    fn knob_radius(&self, bounds: Rectangle) -> f64 {
+    fn knob_radius(&self, bounds: Rect) -> f64 {
         bounds.height().min(bounds.width()) / 2.0
     }
 
-    fn absolute_to_normalized_position(&self, position: Point, bounds: Rectangle) -> f64 {
+    fn absolute_to_normalized_position(&self, position: Point, bounds: Rect) -> f64 {
         match self.direction {
             Direction::Horizontal => {
                 ((position.x - bounds.left() - 2.5) / (bounds.width() - 5.0)).clamp(0.0, 1.0)
@@ -413,7 +413,8 @@ impl Widget for SliderWidget {
         }
     }
 
-    fn render(&mut self, ctx: &mut RenderContext) {
+    fn render(&mut self, ctx: &mut RenderContext) -> Scene {
+        let mut scene = Scene::new();
         let bounds = ctx.content_bounds();
         let center = bounds.center();
         let knob_shape = self.knob_shape(bounds);
@@ -424,25 +425,26 @@ impl Widget for SliderWidget {
         }
 
         let indent_rect = match self.direction {
-            Direction::Horizontal => Rectangle::from_center(center, bounds.size.scale_y(0.3)),
-            Direction::Vertical => Rectangle::from_center(center, bounds.size.scale_x(0.3)),
+            Direction::Horizontal => Rect::from_center(center, bounds.size.scale_y(0.3)),
+            Direction::Vertical => Rect::from_center(center, bounds.size.scale_x(0.3)),
         };
         let corner_radius = indent_rect.height().min(indent_rect.width()) / 2.0;
-        let background_rect = RoundedRectangle::new(indent_rect, Size::splat(corner_radius));
+        let background_rect = RoundedRect::new(indent_rect, Size::splat(corner_radius));
         /*let range_indicator_rect = Rectangle::from_ltrb(
         bounds.left(),
         center.y - bounds.height() / 5.0,
         slider_position.x,
         center.y + bounds.height() / 5.0);*/
 
-        ctx.stroke(background_rect, &self.background_gradient, 1.0);
-        ctx.fill(background_rect, Color::BLACK.with_alpha(0.3));
+        scene.stroke(background_rect, &self.background_gradient, 1.0);
+        scene.fill(background_rect, Color::BLACK.with_alpha(0.3));
         //ctx.fill(RoundedRectangle::new(range_indicator_rect, Size::new(1.0, 1.0)), Color::NEON_GREEN);
-        ctx.fill(knob_shape, &self.knob_gradient_down);
-        ctx.fill(
+        scene.fill(knob_shape, &self.knob_gradient_down);
+        scene.fill(
             knob_shape.with_radius(4.0 * knob_radius / 5.0),
             &self.knob_gradient_up,
         );
+        scene
     }
 
     fn layout_mode(&self) -> LayoutMode {

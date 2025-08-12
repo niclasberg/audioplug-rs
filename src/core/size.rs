@@ -2,6 +2,8 @@ use std::ops::{Add, Div, Mul, Sub};
 
 use num::Zero;
 
+use crate::core::{PhysicalCoord, ScaleFactor};
+
 use super::Interpolate;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -128,6 +130,22 @@ impl Size<f64> {
             width: self.width.ceil() as u32,
             height: self.height.ceil() as u32,
         }
+    }
+}
+
+pub type PhysicalSize = Size<PhysicalCoord>;
+impl PhysicalSize {
+    pub fn from_logical(logical_size: Size, scale_factor: ScaleFactor) -> Self {
+        logical_size
+            .scale(scale_factor.0)
+            .map(|x| PhysicalCoord(x.round() as i32))
+    }
+
+    pub fn into_logical(self, scale_factor: ScaleFactor) -> Size {
+        Size::new(
+            self.width.0 as f64 / scale_factor.0,
+            self.height.0 as f64 / scale_factor.0,
+        )
     }
 }
 

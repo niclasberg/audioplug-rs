@@ -6,6 +6,7 @@ use std::{
     sync::Once,
 };
 
+use pollster::FutureExt;
 use windows::{
     core::{w, Result, BOOL, PCWSTR},
     Win32::{
@@ -29,9 +30,9 @@ use KeyboardAndMouse::{ReleaseCapture, SetCapture};
 use super::{
     cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, renderer::RendererGeneration, util::{get_scale_factor_for_window, get_theme}, Handle, Renderer
 };
-use crate::event::MouseButton;
+use crate::{core::{PhysicalSize, ScaleFactor}, event::MouseButton, platform::WindowHandle};
 use crate::{
-    core::{Color, Key, Point, Rectangle, Size, Vec2, WindowTheme},
+    core::{Color, Key, Point, Rect, Size, Vec2, WindowTheme},
     event::{AnimationFrame, KeyEvent, MouseEvent},
     platform::{WindowEvent, WindowHandler},
     MouseButtons,
@@ -79,7 +80,12 @@ impl WindowState {
         match message {
             WM_CREATE => {
                 {
-                    self.handler.borrow_mut().init(Handle::new(hwnd));
+                    // It would be neat to run this on the executor
+                    let handle = WindowHandle::new(Handle::new(hwnd))
+                        .block_on()
+                        .expect("Graphics initialization failed");
+
+                    self.handler.borrow_mut().init(handle);
                 }
 
                 unsafe {
@@ -105,7 +111,17 @@ impl WindowState {
                     Gdi::BeginPaint(hwnd, &mut ps);
                 }
                 
-                let mut renderer_ref = self.renderer.borrow_mut();
+                let scale_factor = get_scale_factor_for_window(hwnd);
+                let dirty_rect = Rect::from_ltrb(
+                    (ps.rcPaint.left as f64 / scale_factor.0).floor(),
+                    (ps.rcPaint.top as f64 / scale_factor.0).floor(),
+                    (ps.rcPaint.right as f64 / scale_factor.0).ceil(),
+                    (ps.rcPaint.bottom as f64 / scale_factor.0).ceil(),
+                );
+
+                self.handler.borrow_mut().paint(dirty_rect);
+
+                /*let mut renderer_ref = self.renderer.borrow_mut();
                 let renderer = renderer_ref.get_or_insert_with(|| {
                     Renderer::new(hwnd, get_scale_factor_for_window(hwnd) as _).unwrap()
                 });
@@ -113,7 +129,7 @@ impl WindowState {
                 renderer.begin_draw(ps.rcPaint);
                 renderer.clear(Color::WHITE);
 
-                self.handler.borrow_mut().render(renderer);
+                
                 
                 if let Err(error) = renderer.end_draw() {
                     // Clear the renderer so that it's recreated on next render
@@ -123,7 +139,7 @@ impl WindowState {
                     } else {
                         panic!("{}", error);
                     }
-                }
+                }*/
 
                 unsafe {
                     Gdi::EndPaint(hwnd, &ps).ok().unwrap();
@@ -136,21 +152,12 @@ impl WindowState {
                 if wparam.0 as u32 != SIZE_MINIMIZED {
                     let logical_width = loword(lparam) as u32;
                     let logical_height = hiword(lparam) as u32;
+                    let logical_size: Size = [logical_width, logical_height].into();
+                    let physical_size = PhysicalSize::from_logical(logical_size, get_scale_factor_for_window(hwnd));
 
-                    //let scale_factor = get_scale_factor_for_window(hwnd);
-                    //let pixel_width = (logical_width as f64 * scale_factor).round() as u32;
-                    //let pixel_height = (logical_height as f64 * scale_factor).round() as u32;
-
-                    if let Some(renderer) = self.renderer.borrow_mut().as_mut() {
-                        renderer.resize(logical_width, logical_height).unwrap();
-                    }
-
-                    let new_size: Size = [logical_width, logical_height].into();
-                    let window_event = WindowEvent::Resize { new_size };
+                    let window_event = WindowEvent::Resize { logical_size, physical_size };
                     self.publish_event(hwnd, window_event);
                     let _ = unsafe { InvalidateRect(Some(hwnd), None, false) };
-                    //self.render(hwnd, Size::new(width, height).into());
-                    
                 }
 
                 Some(LRESULT(0))
@@ -300,7 +307,7 @@ impl WindowState {
 
             WM_SETCURSOR => {
                 let pos: Point = get_message_pos(hwnd).into();
-                let pos = pos.scale(get_scale_factor_for_window(hwnd));
+                let pos = pos.scale(get_scale_factor_for_window(hwnd).0);
                 if let Some(cursor) = self.handler.borrow_mut().get_cursor(pos) {
                     unsafe { SetCursor(Some(get_cursor(cursor))) };
                     Some(LRESULT(0))
@@ -311,11 +318,7 @@ impl WindowState {
 
             WM_DPICHANGED => {
                 let scale_factor = get_scale_factor_for_window(hwnd);
-                if let Some(renderer) = self.renderer.borrow_mut().as_mut() {
-                    renderer.update_scale_factor(scale_factor as _).unwrap();
-                }
-                let scale_factor = get_scale_factor_for_window(hwnd);
-                self.publish_event(hwnd, WindowEvent::ScaleFactorChanged { scale_factor });
+                self.publish_event(hwnd, WindowEvent::ScaleFactorChanged(scale_factor));
                 let _ = unsafe { InvalidateRect(Some(hwnd), None, false) };
                 Some(LRESULT(0))
             },
@@ -333,7 +336,7 @@ impl WindowState {
         }
     }
 
-    fn get_mouse_event(&self, message: u32, _: WPARAM, lparam: LPARAM, scale_factor: f64) -> MouseEvent {
+    fn get_mouse_event(&self, message: u32, _: WPARAM, lparam: LPARAM, scale_factor: ScaleFactor) -> MouseEvent {
         let button = match message {
             WM_LBUTTONDOWN | WM_LBUTTONUP | WM_LBUTTONDBLCLK => MouseButton::LEFT,
             WM_RBUTTONDOWN | WM_RBUTTONUP | WM_RBUTTONDBLCLK => MouseButton::RIGHT,
@@ -367,16 +370,16 @@ impl WindowState {
             .ok()
     }
 
-    fn position_from_lparam(&self, scale_factor: f64, lparam: LPARAM) -> Point {
+    fn position_from_lparam(&self, scale_factor: ScaleFactor, lparam: LPARAM) -> Point {
         let position: Point = point_from_lparam(lparam).into();
-        position.scale(1.0 / scale_factor)
+        position.scale(1.0 / scale_factor.0)
     }
 
     fn position_from_screen_lparam(&self, hwnd: HWND, lparam: LPARAM) -> Point {
         let screen_pos = point_from_lparam(lparam);
         let scale_factor = get_scale_factor_for_window(hwnd);
         let pos: Point = screen_to_client_pos(hwnd, screen_pos.x, screen_pos.y).into();
-        pos.scale(1.0 / scale_factor)
+        pos.scale(1.0 / scale_factor.0)
     }
 }
 
@@ -412,7 +415,7 @@ impl Window {
         println!("Scale factor changed from host to {scale_factor}");
     }
 
-    pub fn set_size(&self, size: Rectangle<i32>) -> Result<()> {
+    pub fn set_size(&self, size: Rect<i32>) -> Result<()> {
         unsafe {
             SetWindowPos(
                 self.handle,

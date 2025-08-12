@@ -11,7 +11,7 @@ use vst3_sys::VstPtr;
 use vst3_sys::VST3;
 
 use crate::ui::{AppState, Window};
-use crate::core::Rectangle;
+use crate::core::Rect;
 use crate::param::ParameterMap;
 use crate::Editor;
 
@@ -159,7 +159,7 @@ impl<E: Editor> IPlugView for PlugView<E> {
 
         if let Some(window) = self.window.borrow().as_ref() {
             let rect =
-                Rectangle::from_ltrb(new_size.left, new_size.top, new_size.right, new_size.bottom);
+                Rect::from_ltrb(new_size.left, new_size.top, new_size.right, new_size.bottom);
             window.set_size(rect);
             kResultOk
         } else {

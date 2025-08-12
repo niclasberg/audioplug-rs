@@ -1,6 +1,6 @@
 use windows::Win32::Graphics::Direct2D;
 
-use crate::core::{Color, Ellipse, Point, Rectangle, RoundedRectangle, Size, Transform, Vec2};
+use crate::core::{Color, Ellipse, Point, Rect, RoundedRect, Size, Transform, Vec2};
 
 impl From<Color> for Direct2D::Common::D2D1_COLOR_F {
     fn from(val: Color) -> Self {
@@ -13,8 +13,8 @@ impl From<Color> for Direct2D::Common::D2D1_COLOR_F {
     }
 }
 
-impl From<Rectangle> for Direct2D::Common::D2D_RECT_F {
-    fn from(val: Rectangle) -> Self {
+impl From<Rect> for Direct2D::Common::D2D_RECT_F {
+    fn from(val: Rect) -> Self {
         Direct2D::Common::D2D_RECT_F {
             left: val.left() as f32,
             top: val.top() as f32,
@@ -24,7 +24,7 @@ impl From<Rectangle> for Direct2D::Common::D2D_RECT_F {
     }
 }
 
-impl From<Direct2D::Common::D2D_RECT_F> for Rectangle {
+impl From<Direct2D::Common::D2D_RECT_F> for Rect {
     fn from(value: Direct2D::Common::D2D_RECT_F) -> Self {
         Self::from_ltrb(
             value.left.into(),
@@ -35,8 +35,8 @@ impl From<Direct2D::Common::D2D_RECT_F> for Rectangle {
     }
 }
 
-impl From<RoundedRectangle> for Direct2D::D2D1_ROUNDED_RECT {
-    fn from(val: RoundedRectangle) -> Self {
+impl From<RoundedRect> for Direct2D::D2D1_ROUNDED_RECT {
+    fn from(val: RoundedRect) -> Self {
         Direct2D::D2D1_ROUNDED_RECT {
             rect: val.rect.into(),
             radiusX: val.corner_radius.width as f32,

@@ -1,4 +1,4 @@
-use crate::core::{Rectangle, Vec2};
+use crate::core::{Rect, Vec2};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Align {
@@ -15,7 +15,7 @@ pub enum Align {
 }
 
 impl Align {
-    pub fn compute_offset(&self, rect_to_align: Rectangle, bounds: Rectangle) -> Vec2 {
+    pub fn compute_offset(&self, rect_to_align: Rect, bounds: Rect) -> Vec2 {
         let offset_x = match self.get_h_align() {
             HAlign::Left => bounds.left() - rect_to_align.left(),
             HAlign::Center => bounds.center().x - rect_to_align.center().x,

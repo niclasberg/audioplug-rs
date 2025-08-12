@@ -3,7 +3,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crate::{AnimationFrame, KeyEvent, MouseEvent};
+use crate::{AnimationFrame, KeyEvent, MouseEvent, ui::Scene};
 
 use super::{
     EventContext, MouseEventContext, RenderContext, animation::AnimationContext, style::LayoutMode,
@@ -40,19 +40,28 @@ pub trait Widget: Any {
         EventStatus::Ignored
     }
 
+    /// Called when a key is pressed/released when the Widget has focus.
+    ///
+    /// Note: In order to be able to receive key events, the widget must be marked as focusable.  
     #[allow(unused_variables)]
     fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventStatus {
         EventStatus::Ignored
     }
 
+    /// Called when a status change (such as gaining/losing focus, mouse over etc.) occurs for the Widget
     #[allow(unused_variables)]
     fn status_change(&mut self, event: StatusChange, cx: &mut EventContext) {}
 
     #[allow(unused_variables)]
     fn animation_frame(&mut self, frame: AnimationFrame, cx: &mut AnimationContext) {}
 
-    /// Returns the layout mode (or algorithm) to be used to layout the Widget's children
+    /// Returns the layout mode (or algorithm) to be used to layout the Widget and its children
     fn layout_mode(&self) -> LayoutMode;
+
+    #[allow(unused_variables)]
+    fn render(&mut self, cx: &mut RenderContext) -> Scene {
+        Scene::new()
+    }
 
     /// Widgets that wrap another widget (like background, styled etc) need to implement this method and return the
     /// wrapped widget in order for downcasting to work properly.
@@ -67,8 +76,6 @@ pub trait Widget: Any {
     }
 
     fn debug_label(&self) -> &'static str;
-
-    fn render(&mut self, cx: &mut RenderContext);
 }
 
 impl dyn Widget + 'static {
@@ -114,7 +121,7 @@ impl Widget for Box<dyn Widget> {
         self.deref().layout_mode()
     }
 
-    fn render(&mut self, ctx: &mut RenderContext) {
+    fn render(&mut self, ctx: &mut RenderContext) -> Scene {
         self.deref_mut().render(ctx)
     }
 
@@ -140,8 +147,8 @@ pub trait WrappedWidget: Any {
         self.inner().debug_label()
     }
 
-    fn render(&mut self, cx: &mut RenderContext) {
-        self.inner_mut().render(cx);
+    fn render(&mut self, cx: &mut RenderContext) -> Scene {
+        self.inner_mut().render(cx)
     }
 
     fn mouse_event(&mut self, event: MouseEvent, cx: &mut MouseEventContext) -> EventStatus {
@@ -170,8 +177,8 @@ impl<T: WrappedWidget> Widget for T {
         self.debug_label()
     }
 
-    fn render(&mut self, cx: &mut RenderContext) {
-        self.render(cx);
+    fn render(&mut self, cx: &mut RenderContext) -> Scene {
+        self.render(cx)
     }
 
     fn mouse_event(&mut self, event: MouseEvent, cx: &mut MouseEventContext) -> EventStatus {

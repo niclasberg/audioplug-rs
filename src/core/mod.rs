@@ -9,6 +9,7 @@ pub mod diff;
 mod ellipse;
 mod interpolation;
 mod keyboard;
+mod path;
 mod point;
 mod rectangle;
 mod rounded_rectangle;
@@ -32,11 +33,12 @@ pub use ellipse::{Circle, Ellipse};
 use indexmap::{IndexMap, IndexSet};
 pub use interpolation::{Interpolate, SpringPhysics, SpringProperties};
 pub use keyboard::{Key, Modifiers};
-pub use point::Point;
-pub use rectangle::Rectangle;
-pub use rounded_rectangle::RoundedRectangle;
+pub use path::{Path, PathElement};
+pub use point::{PhysicalPoint, Point};
+pub use rectangle::{PhysicalRect, Rect};
+pub use rounded_rectangle::RoundedRect;
 use rustc_hash::FxBuildHasher;
-pub use size::Size;
+pub use size::{PhysicalSize, Size};
 pub use text::*;
 pub use transform::Transform;
 pub use unit_point::UnitPoint;
@@ -83,6 +85,16 @@ impl Default for ShadowOptions {
         }
     }
 }
+
+/// Strong type for logical coordinates
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PhysicalCoord(pub i32);
+impl PhysicalCoord {
+    pub const ZERO: Self = Self(0);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct ScaleFactor(pub f64);
 
 pub(crate) type FxHashSet<K> = HashSet<K, FxBuildHasher>;
 pub(crate) type FxHashMap<K, V> = HashMap<K, V, FxBuildHasher>;

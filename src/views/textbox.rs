@@ -1,6 +1,7 @@
 use crate::MouseEvent;
-use crate::core::{Color, Cursor, Key, Modifiers, Rectangle, Size};
+use crate::core::{Color, Cursor, Key, Modifiers, Rect, Size};
 use crate::event::{KeyEvent, MouseButton};
+use crate::ui::Scene;
 use crate::ui::{
     Accessor, AnimationContext, AppState, BuildContext, EventContext, EventStatus,
     MouseEventContext, RenderContext, StatusChange, TextLayout, View, Widget,
@@ -511,7 +512,8 @@ impl Widget for TextBoxWidget {
         }
     }
 
-    fn render(&mut self, ctx: &mut RenderContext) {
+    fn render(&mut self, ctx: &mut RenderContext) -> Scene {
+        let mut scene = Scene::new();
         let bounds = ctx.global_bounds();
 
         let stroke_color = if ctx.has_focus() {
@@ -519,29 +521,33 @@ impl Widget for TextBoxWidget {
         } else {
             Color::from_rgb(0.3, 0.3, 0.3)
         };
-        ctx.stroke(bounds.shrink(1.0), stroke_color, 1.0);
+        scene.stroke(bounds.shrink(1.0), stroke_color, 1.0);
 
         let text_bounds = ctx.content_bounds();
-        ctx.use_clip(text_bounds, |ctx| {
+        scene.use_clip(text_bounds, |scene| {
             if let Some(selection) = self.selection() {
                 let left = self.text_layout.point_at_text_index(selection.start);
                 let right = self.text_layout.point_at_text_index(selection.end);
-                let rect = Rectangle::from_points(
-                    text_bounds.top_left() + left,
-                    text_bounds.bottom_left() + right,
+                let rect = Rect::from_points(
+                    text_bounds.top_left() + left.into_vector(),
+                    text_bounds.bottom_left() + right.into_vector(),
                 );
-                ctx.fill(rect, Color::from_rgb8(68, 85, 90));
+                scene.fill(rect, Color::from_rgb8(68, 85, 90));
             }
 
-            ctx.draw_text(&self.text_layout, text_bounds.origin());
+            scene.draw_text(&self.text_layout, text_bounds.origin());
 
             if ctx.has_focus() && self.cursor_on {
-                let cursor_point = self.text_layout.point_at_text_index(self.position);
+                let cursor_point = self
+                    .text_layout
+                    .point_at_text_index(self.position)
+                    .into_vector();
                 let p0 = text_bounds.bottom_left() + cursor_point;
                 let p1 = text_bounds.top_left() + cursor_point;
-                ctx.draw_line(p0, p1, Color::BLACK, 1.0);
+                scene.draw_line(p0, p1, Color::BLACK, 1.0);
             }
         });
+        scene
     }
 
     fn layout_mode(&self) -> LayoutMode {

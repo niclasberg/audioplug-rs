@@ -1,6 +1,6 @@
 use super::{
     AppState, CallbackContext, CreateContext, EventStatus, MouseEventContext, Owner, ParamContext,
-    ReactiveContext, ReadContext, ReadSignal, Scope, TypedWidgetId, ViewContext, ViewSequence,
+    ReactiveContext, ReadContext, ReadSignal, ReadScope, TypedWidgetId, ViewContext, ViewSequence,
     Widget, WidgetFlags, WidgetId, WrappedWidget,
     app_state::WidgetInsertPos,
     overlay::OverlayOptions,
@@ -226,8 +226,8 @@ impl<W: Widget + ?Sized> ParamContext for BuildContext<'_, W> {
 }
 
 impl<W: Widget + ?Sized> ReadContext for BuildContext<'_, W> {
-    fn scope(&self) -> Scope {
-        Scope::Root
+    fn scope(&self) -> ReadScope {
+        ReadScope::Untracked
     }
 }
 

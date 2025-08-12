@@ -1,17 +1,19 @@
 use std::fmt::Debug;
 use std::ops::{Add, Mul, Neg, Sub};
 
+use crate::core::{PhysicalCoord, RoundedRect, ScaleFactor};
+
 use super::Size;
 use super::Vec2;
 use super::{Interpolate, Point};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub struct Rectangle<T = f64> {
+pub struct Rect<T = f64> {
     pub pos: Point<T>,
     pub size: Size<T>,
 }
 
-impl<T> Rectangle<T> {
+impl<T> Rect<T> {
     pub const fn from_origin(point: Point<T>, size: Size<T>) -> Self {
         Self { pos: point, size }
     }
@@ -72,7 +74,7 @@ impl<T> Rectangle<T> {
     }
 }
 
-impl<T> Rectangle<T>
+impl<T> Rect<T>
 where
     T: Copy
         + PartialEq
@@ -180,7 +182,7 @@ where
     /// center position and reduces the size by 2 times `amount`
     pub fn shrink(&self, amount: T) -> Self {
         Self {
-            pos: self.pos + Point::splat(amount),
+            pos: self.pos.map(|x| x + amount),
             size: self.size - Size::splat(amount + amount),
         }
     }
@@ -202,7 +204,7 @@ where
     }
 }
 
-impl Rectangle<f64> {
+impl Rect<f64> {
     pub const EMPTY: Self = Self {
         pos: Point::ZERO,
         size: Size::ZERO,
@@ -253,10 +255,14 @@ impl Rectangle<f64> {
         let bottom = self.bottom().max(other.bottom());
         Self::from_ltrb(left, top, right, bottom)
     }
+
+    pub fn into_rounded_rect(self, corner_radius: Size) -> RoundedRect {
+        RoundedRect::new(self, corner_radius)
+    }
 }
 
-impl From<Rectangle<i32>> for Rectangle<f64> {
-    fn from(value: Rectangle<i32>) -> Self {
+impl From<Rect<i32>> for Rect<f64> {
+    fn from(value: Rect<i32>) -> Self {
         Self {
             pos: value.pos.into(),
             size: value.size.into(),
@@ -264,7 +270,7 @@ impl From<Rectangle<i32>> for Rectangle<f64> {
     }
 }
 
-impl<T: Default> Default for Rectangle<T> {
+impl<T: Default> Default for Rect<T> {
     fn default() -> Self {
         Self {
             pos: Default::default(),
@@ -273,12 +279,22 @@ impl<T: Default> Default for Rectangle<T> {
     }
 }
 
-impl<T: Interpolate> Interpolate for Rectangle<T> {
+impl<T: Interpolate> Interpolate for Rect<T> {
     fn lerp(&self, other: &Self, scalar: f64) -> Self {
         Self {
             pos: self.pos.lerp(&other.pos, scalar),
             size: self.size.lerp(&other.size, scalar),
         }
+    }
+}
+
+pub type PhysicalRect = Rect<PhysicalCoord>;
+impl PhysicalRect {
+    pub fn into_logical(self, scale_factor: ScaleFactor) -> Rect {
+        Rect::from_origin(
+            self.pos.into_logical(scale_factor),
+            self.size.into_logical(scale_factor),
+        )
     }
 }
 
@@ -290,7 +306,7 @@ mod test {
     fn from_points() {
         let p0 = Point::new(1.0, 4.0);
         let p1 = Point::new(3.0, 2.0);
-        let rect = Rectangle::from_points(p0, p1);
+        let rect = Rect::from_points(p0, p1);
 
         assert_eq!(rect.left(), 1.0);
         assert_eq!(rect.top(), 2.0);
@@ -302,7 +318,7 @@ mod test {
     fn contains() {
         let p0 = Point::new(1, 22);
         let p1 = Point::new(16, 2);
-        let rect = Rectangle::from_points(p0, p1);
+        let rect = Rect::from_points(p0, p1);
 
         assert!(rect.contains(p0));
         assert!(rect.contains(p1));

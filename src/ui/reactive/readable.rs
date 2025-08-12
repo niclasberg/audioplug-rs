@@ -17,7 +17,7 @@ use crate::{
 };
 
 use super::{
-    Accessor, Computed, Effect, NodeId, NodeState, NodeType, Owner, Scope, WatchContext,
+    Accessor, Computed, Effect, NodeId, NodeState, NodeType, Owner, ReadScope, WatchContext,
     widget_status::WidgetStatusFlags,
 };
 
@@ -164,12 +164,12 @@ pub trait WidgetContext {
 
 /// Allows to read and subscribe to reactive nodes
 pub trait ReadContext: ReactiveContext {
-    fn scope(&self) -> Scope;
+    fn scope(&self) -> ReadScope;
 }
 
 impl dyn ReadContext + '_ {
     pub fn track(&mut self, source_id: NodeId) {
-        if let Scope::Node(node_id) = self.scope() {
+        if let ReadScope::Node(node_id) = self.scope() {
             self.app_state_mut()
                 .runtime
                 .add_node_subscription(source_id, node_id);
@@ -177,7 +177,7 @@ impl dyn ReadContext + '_ {
     }
 
     pub fn track_parameter(&mut self, source_id: ParameterId) {
-        if let Scope::Node(node_id) = self.scope() {
+        if let ReadScope::Node(node_id) = self.scope() {
             self.app_state_mut()
                 .runtime
                 .add_parameter_subscription(source_id, node_id);
@@ -185,7 +185,7 @@ impl dyn ReadContext + '_ {
     }
 
     pub fn track_widget_status(&mut self, widget_id: WidgetId, status_mask: WidgetStatusFlags) {
-        if let Scope::Node(node_id) = self.scope() {
+        if let ReadScope::Node(node_id) = self.scope() {
             self.app_state_mut().runtime.add_widget_status_subscription(
                 widget_id,
                 status_mask,
@@ -228,11 +228,11 @@ impl CreateContext for LocalCreateContext<'_> {
 
 pub struct LocalReadContext<'a> {
     app_state: &'a mut AppState,
-    scope: Scope,
+    scope: ReadScope,
 }
 
 impl<'a> LocalReadContext<'a> {
-    pub fn new(app_state: &'a mut AppState, scope: Scope) -> Self {
+    pub fn new(app_state: &'a mut AppState, scope: ReadScope) -> Self {
         Self { app_state, scope }
     }
 }
@@ -248,7 +248,7 @@ impl ReactiveContext for LocalReadContext<'_> {
 }
 
 impl ReadContext for LocalReadContext<'_> {
-    fn scope(&self) -> Scope {
+    fn scope(&self) -> ReadScope {
         self.scope
     }
 }
