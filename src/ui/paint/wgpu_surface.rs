@@ -1,5 +1,9 @@
 use thiserror::Error;
-use wgpu::{DeviceDescriptor, RequestAdapterOptionsBase, SurfaceTargetUnsafe};
+use wgpu::{
+    BufferDescriptor, BufferUsages, DeviceDescriptor, PipelineLayoutDescriptor,
+    RenderPipelineDescriptor, RequestAdapterOptionsBase, ShaderModuleDescriptor,
+    SurfaceTargetUnsafe,
+};
 
 use crate::core::{PhysicalCoord, PhysicalSize};
 
@@ -22,6 +26,7 @@ pub struct WGPUSurface {
     pub config: wgpu::SurfaceConfiguration,
     pub size: PhysicalSize,
     pub surface_format: wgpu::TextureFormat,
+    pub blit_pipeline: wgpu::RenderPipeline,
 }
 
 impl WGPUSurface {
@@ -83,6 +88,50 @@ impl WGPUSurface {
         };
         surface.configure(&device, &config);
 
+        let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/blit.wgsl"));
+        let render_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: Some("Blit pipeline layout"),
+            bind_group_layouts: &[],
+            push_constant_ranges: &[],
+        });
+        let blit_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+            label: Some("Blit pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Cw,
+                cull_mode: Some(wgpu::Face::Back),
+                unclipped_depth: false,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+            cache: None,
+        });
+
         Ok(Self {
             surface,
             device,
@@ -90,6 +139,7 @@ impl WGPUSurface {
             config,
             size,
             surface_format: format,
+            blit_pipeline,
         })
     }
 

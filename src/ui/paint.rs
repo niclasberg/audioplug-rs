@@ -31,23 +31,26 @@ pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: R
             label: Some("AudioPlug command encoder"),
         });
 
-    let _render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-        label: Some("Render pass"),
-        color_attachments: &[Some(RenderPassColorAttachment {
-            view: &texture_view,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-    });
+    {
+        let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+            label: Some("Render pass"),
+            color_attachments: &[Some(RenderPassColorAttachment {
+                view: &texture_view,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
 
-    drop(_render_pass);
+        render_pass.set_pipeline(&wgpu_surface.blit_pipeline);
+        render_pass.draw(0..3, 0..1);
+    }
 
     wgpu_surface.queue.submit(std::iter::once(encoder.finish()));
 
