@@ -11,6 +11,12 @@ pub struct Vec2 {
     pub y: f64,
 }
 
+impl Vec2 {
+    pub const ZERO: Self = Self { x: 0.0, y: 0.0 };
+    pub const X: Self = Self { x: 1.0, y: 0.0 };
+    pub const Y: Self = Self { x: 0.0, y: 1.0 };
+}
+
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub struct Vec2f {
@@ -18,12 +24,28 @@ pub struct Vec2f {
     pub y: f32,
 }
 
+impl Vec2f {
+    pub const ZERO: Self = Self { x: 0.0, y: 0.0 };
+    pub const X: Self = Self { x: 1.0, y: 0.0 };
+    pub const Y: Self = Self { x: 0.0, y: 1.0 };
+}
+
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
+pub struct Vec2i {
+    pub x: i32,
+    pub y: i32,
+}
+
+impl Vec2i {
+    pub const ZERO: Self = Self { x: 0, y: 0 };
+    pub const X: Self = Self { x: 1, y: 0 };
+    pub const Y: Self = Self { x: 0, y: 1 };
+}
+
 macro_rules! impl_vec2 {
     ($name: ident, $t: tt) => {
         impl $name {
-            pub const ZERO: Self = Self { x: 0.0, y: 0.0 };
-            pub const X: Self = Self { x: 1.0, y: 0.0 };
-            pub const Y: Self = Self { x: 0.0, y: 1.0 };
             pub const MIN: Self = Self {
                 x: $t::MIN,
                 y: $t::MIN,

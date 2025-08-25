@@ -48,7 +48,9 @@ pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: R
             occlusion_query_set: None,
         });
 
+        // Blit the texture to the render target
         render_pass.set_pipeline(&wgpu_surface.blit_pipeline);
+        render_pass.set_bind_group(0, &wgpu_surface.blit_bind_group, &[]);
         render_pass.draw(0..3, 0..1);
     }
 
