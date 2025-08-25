@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::style::{AvailableSpace, LayoutMode, ResolveInto, Style, UiRect};
 use super::{OverlayAnchor, OverlayOptions};
 use crate::core::{HAlign, Point, Rect, Size, VAlign, Vec2};
@@ -208,8 +210,8 @@ impl PrintTree for LayoutContext<'_> {
         self.app_state.widgets[node_id.into()].debug_label()
     }
 
-    fn get_final_layout(&self, node_id: taffy::NodeId) -> &taffy::Layout {
-        &self.app_state.widget_data[node_id.into()].layout
+    fn get_final_layout(&self, node_id: taffy::NodeId) -> taffy::Layout {
+        self.app_state.widget_data[node_id.into()].layout
     }
 }
 
@@ -308,6 +310,7 @@ impl LayoutPartialTree for LayoutContext<'_> {
         = LayoutStyle<'b>
     where
         Self: 'b;
+    type CustomIdent = Arc<str>;
 
     fn get_core_container_style(&self, node_id: taffy::NodeId) -> Self::CoreContainerStyle<'_> {
         self.get_layout_style(node_id)
@@ -442,7 +445,11 @@ pub struct LayoutStyle<'a> {
     pub(crate) window_size: Size,
 }
 
+const TAFFY_DEFAULT_STYLE: taffy::Style<Arc<str>> = taffy::Style::<Arc<str>>::DEFAULT;
+
 impl taffy::CoreStyle for LayoutStyle<'_> {
+    type CustomIdent = Arc<str>;
+
     fn box_generation_mode(&self) -> taffy::BoxGenerationMode {
         if self.style.hidden {
             taffy::BoxGenerationMode::None
@@ -456,7 +463,7 @@ impl taffy::CoreStyle for LayoutStyle<'_> {
     }
 
     fn box_sizing(&self) -> taffy::BoxSizing {
-        taffy::Style::DEFAULT.box_sizing
+        taffy::BoxSizing::BorderBox
     }
 
     fn overflow(&self) -> taffy::Point<taffy::Overflow> {
@@ -511,14 +518,14 @@ impl taffy::FlexboxContainerStyle for LayoutStyle<'_> {
     fn flex_direction(&self) -> taffy::FlexDirection {
         match &self.display_style {
             LayoutMode::Flex(flex) => flex.direction,
-            _ => taffy::Style::DEFAULT.flex_direction,
+            _ => TAFFY_DEFAULT_STYLE.flex_direction,
         }
     }
 
     fn flex_wrap(&self) -> taffy::FlexWrap {
         match &self.display_style {
             LayoutMode::Flex(flex) => flex.wrap,
-            _ => taffy::Style::DEFAULT.flex_wrap,
+            _ => TAFFY_DEFAULT_STYLE.flex_wrap,
         }
     }
 
@@ -528,32 +535,32 @@ impl taffy::FlexboxContainerStyle for LayoutStyle<'_> {
                 width: flex.gap.resolve_into(self.window_size),
                 height: flex.gap.resolve_into(self.window_size),
             },
-            _ => taffy::Style::DEFAULT.gap,
+            _ => TAFFY_DEFAULT_STYLE.gap,
         }
     }
 
     fn align_content(&self) -> Option<taffy::AlignContent> {
         match &self.display_style {
             LayoutMode::Flex(flex) => flex.align_content,
-            _ => taffy::Style::DEFAULT.align_content,
+            _ => TAFFY_DEFAULT_STYLE.align_content,
         }
     }
 
     fn align_items(&self) -> Option<taffy::AlignItems> {
         match &self.display_style {
             LayoutMode::Flex(flex) => flex.align_items,
-            _ => taffy::Style::DEFAULT.align_items,
+            _ => TAFFY_DEFAULT_STYLE.align_items,
         }
     }
 
     fn justify_content(&self) -> Option<taffy::JustifyContent> {
-        taffy::Style::DEFAULT.justify_content
+        TAFFY_DEFAULT_STYLE.justify_content
     }
 }
 
 impl taffy::FlexboxItemStyle for LayoutStyle<'_> {
     fn flex_basis(&self) -> taffy::Dimension {
-        taffy::Style::DEFAULT.flex_basis
+        TAFFY_DEFAULT_STYLE.flex_basis
     }
 
     fn flex_grow(&self) -> f32 {
@@ -571,7 +578,7 @@ impl taffy::FlexboxItemStyle for LayoutStyle<'_> {
 
 impl taffy::BlockContainerStyle for LayoutStyle<'_> {
     fn text_align(&self) -> taffy::TextAlign {
-        taffy::Style::DEFAULT.text_align
+        TAFFY_DEFAULT_STYLE.text_align
     }
 }
 
@@ -581,7 +588,7 @@ impl taffy::BlockItemStyle for LayoutStyle<'_> {
     }
 }
 
-impl taffy::GridContainerStyle for LayoutStyle<'_> {
+/*impl taffy::GridContainerStyle for LayoutStyle<'_> {
     type TemplateTrackList<'b>
         = &'b [taffy::TrackSizingFunction]
     where
@@ -614,26 +621,27 @@ impl taffy::GridContainerStyle for LayoutStyle<'_> {
     }
 
     fn grid_auto_flow(&self) -> taffy::GridAutoFlow {
-        taffy::Style::DEFAULT.grid_auto_flow
+        TAFFY_DEFAULT_STYLE.grid_auto_flow
     }
 
     fn gap(&self) -> taffy::Size<taffy::LengthPercentage> {
-        taffy::Style::DEFAULT.gap
+        TAFFY_DEFAULT_STYLE.gap
     }
 
     fn align_content(&self) -> Option<taffy::AlignContent> {
-        taffy::Style::DEFAULT.align_content
+        TAFFY_DEFAULT_STYLE.align_content
     }
 
     fn justify_content(&self) -> Option<taffy::JustifyContent> {
-        taffy::Style::DEFAULT.justify_content
+        TAFFY_DEFAULT_STYLE.justify_content
     }
 
     fn align_items(&self) -> Option<taffy::AlignItems> {
-        taffy::Style::DEFAULT.align_items
+        TAFFY_DEFAULT_STYLE.align_items
     }
 
     fn justify_items(&self) -> Option<taffy::AlignItems> {
-        taffy::Style::DEFAULT.justify_items
+        TAFFY_DEFAULT_STYLE.justify_items
     }
 }
+*/

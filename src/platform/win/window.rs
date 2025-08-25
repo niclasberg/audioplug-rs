@@ -6,7 +6,6 @@ use std::{
     sync::Once,
 };
 
-use pollster::FutureExt;
 use windows::{
     core::{w, Result, BOOL, PCWSTR},
     Win32::{
@@ -30,7 +29,7 @@ use KeyboardAndMouse::{ReleaseCapture, SetCapture};
 use super::{
     cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, renderer::RendererGeneration, util::{get_scale_factor_for_window, get_theme}, Handle, Renderer
 };
-use crate::{core::{PhysicalSize, ScaleFactor}, event::MouseButton, platform::WindowHandle};
+use crate::{core::{PhysicalSize, ScaleFactor}, event::MouseButton};
 use crate::{
     core::{Color, Key, Point, Rect, Size, Vec2, WindowTheme},
     event::{AnimationFrame, KeyEvent, MouseEvent},

@@ -1,13 +1,10 @@
-use std::cell::Cell;
 use std::ffi::{CStr, CString};
 use std::num::NonZeroIsize;
-use std::rc::Rc;
 
-use crate::core::{PhysicalCoord, PhysicalSize, Rect, ScaleFactor, Size, WindowTheme};
+use crate::core::{PhysicalSize, Rect, ScaleFactor, WindowTheme};
 use crate::platform::win::util::{self, get_theme};
 use raw_window_handle::{
-    DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawDisplayHandle,
-    RawWindowHandle, Win32WindowHandle, WindowHandle, WindowsDisplayHandle,
+    HandleError, RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,
 };
 use windows::Win32::Foundation::{HANDLE, HGLOBAL, HWND, RECT};
 use windows::Win32::Graphics::Gdi::InvalidateRect;
@@ -15,7 +12,6 @@ use windows::Win32::System::DataExchange::CloseClipboard;
 use windows::Win32::System::Memory::GMEM_MOVEABLE;
 use windows::Win32::System::Ole::CF_TEXT;
 use windows::Win32::System::{DataExchange, Memory};
-use windows::core::Result;
 
 use super::util::get_client_rect;
 
@@ -75,7 +71,7 @@ impl Handle {
         rect.scale(1.0 / self.scale_factor().0)
     }
 
-    pub fn set_clipboard(&self, string: &str) -> Result<()> {
+    pub fn set_clipboard(&self, string: &str) -> Result<(), windows_core::Error> {
         unsafe { DataExchange::OpenClipboard(Some(self.hwnd)) }?;
         let _close_clipboard =
             ScopeExit(|| unsafe { CloseClipboard().expect("Error while closing clipboard") });
@@ -97,7 +93,7 @@ impl Handle {
         Ok(())
     }
 
-    pub fn get_clipboard(&self) -> Result<Option<String>> {
+    pub fn get_clipboard(&self) -> Result<Option<String>, windows_core::Error> {
         let available =
             unsafe { DataExchange::IsClipboardFormatAvailable(CF_TEXT.0.into()) }.is_ok();
         if !available {
@@ -124,12 +120,12 @@ impl Handle {
         }
     }
 
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
+    pub fn raw_window_handle(&self) -> Result<RawWindowHandle, HandleError> {
         let hwnd_isize = NonZeroIsize::new(self.hwnd.0 as _).unwrap();
-        RawWindowHandle::Win32(Win32WindowHandle::new(hwnd_isize))
+        Ok(RawWindowHandle::Win32(Win32WindowHandle::new(hwnd_isize)))
     }
 
-    pub fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Windows(WindowsDisplayHandle::new())
+    pub fn raw_display_handle(&self) -> Result<RawDisplayHandle, HandleError> {
+        Ok(RawDisplayHandle::Windows(WindowsDisplayHandle::new()))
     }
 }
