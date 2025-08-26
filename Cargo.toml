@@ -12,7 +12,7 @@ members = [ "examples/gain", "examples/synth", "xtask"]
 [dependencies]
 async-task = "4.7.1"
 num = { version = "0.4.3" }
-bitflags = "2.9.1"
+bitflags = "2.9.3"
 vst3-sys = { git = "https://github.com/RustAudio/vst3-sys.git" }
 raw-window-handle = "0.6.2"
 unicode-segmentation = "1.12.0"
@@ -22,12 +22,12 @@ rtrb = "0.3.2"
 midi-consts = "0.1.0"
 serde = "1.0.219"
 atomic_refcell = "0.1.13"
-indexmap = "2.10.0"
-bytemuck = "1.23.1"
+indexmap = "2.11.0"
+bytemuck = { version = "1.23.2", features = ["derive"]}
 rustc-hash = "2.1.1"
 smallvec = "1.15.1"
 wgpu = "26.0.1"
-thiserror = "2.0.12"
+thiserror = "2.0.16"
 pollster = "0.4.0"
 
 [target.'cfg(windows)'.dependencies]

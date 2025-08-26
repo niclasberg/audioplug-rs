@@ -1,10 +1,15 @@
+use bytemuck::{Pod, Zeroable};
 use thiserror::Error;
-use wgpu::{
-    DeviceDescriptor, PipelineLayoutDescriptor, RenderPipelineDescriptor,
-    RequestAdapterOptionsBase, ShaderModuleDescriptor, SurfaceTargetUnsafe,
-};
+use wgpu::util::DeviceExt;
 
 use crate::core::{PhysicalCoord, PhysicalSize};
+
+#[repr(C)]
+#[derive(Clone, Copy, Zeroable, Pod)]
+struct Params {
+    width: u32,
+    height: u32,
+}
 
 #[derive(Error, Debug)]
 pub enum GraphicsInitError {
@@ -35,6 +40,7 @@ pub struct WGPUSurface {
     pub render_tiles_bind_group_layout: wgpu::BindGroupLayout,
     pub render_tiles_bind_group: wgpu::BindGroup,
     pub output_texture: wgpu::Texture,
+    pub params_buffer: wgpu::Buffer,
 }
 
 impl WGPUSurface {
@@ -44,13 +50,13 @@ impl WGPUSurface {
             ..Default::default()
         });
         // SAFETY: This struct is owned by the WindowHandler, whose lifetime is shorter than the OS window itself.
-        let surface_target = SurfaceTargetUnsafe::RawHandle {
+        let surface_target = wgpu::SurfaceTargetUnsafe::RawHandle {
             raw_display_handle: handle.raw_display_handle()?,
             raw_window_handle: handle.raw_window_handle()?,
         };
         let surface = unsafe { instance.create_surface_unsafe(surface_target) }?;
         let adapter = instance
-            .request_adapter(&RequestAdapterOptionsBase {
+            .request_adapter(&wgpu::RequestAdapterOptionsBase {
                 power_preference: wgpu::PowerPreference::default(),
                 force_fallback_adapter: false,
                 compatible_surface: Some(&surface),
@@ -58,7 +64,7 @@ impl WGPUSurface {
             .await?;
 
         let (device, queue) = adapter
-            .request_device(&DeviceDescriptor {
+            .request_device(&wgpu::DeviceDescriptor {
                 label: Some("device"),
                 required_features: wgpu::Features::empty(),
                 required_limits: wgpu::Limits::defaults(),
@@ -99,6 +105,13 @@ impl WGPUSurface {
         };
         surface.configure(&device, &config);
 
+        let params = Params { width, height };
+        let params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Params buffer"),
+            contents: bytemuck::bytes_of(&params),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
         // Output texture for compute shader
         let output_texture = create_output_texture(&device, width, height);
         let output_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -118,8 +131,12 @@ impl WGPUSurface {
             create_blit_bind_group(&device, &blit_bind_group_layout, &tex_view, &output_sampler);
         let (render_tiles_pipeline, render_tiles_bind_group_layout) =
             create_render_tiles_pipeline(&device, width, height);
-        let render_tiles_bind_group =
-            create_render_tiles_bind_group(&device, &render_tiles_bind_group_layout, &tex_view);
+        let render_tiles_bind_group = create_render_tiles_bind_group(
+            &device,
+            &render_tiles_bind_group_layout,
+            &tex_view,
+            &params_buffer,
+        );
 
         Ok(Self {
             surface,
@@ -136,6 +153,7 @@ impl WGPUSurface {
             render_tiles_bind_group,
             output_texture,
             output_sampler,
+            params_buffer,
         })
     }
 
@@ -157,6 +175,12 @@ impl WGPUSurface {
                 &self.blit_bind_group_layout,
                 &texture_view,
                 &self.output_sampler,
+            );
+            self.render_tiles_bind_group = create_render_tiles_bind_group(
+                &self.device,
+                &self.render_tiles_bind_group_layout,
+                &texture_view,
+                &self.params_buffer,
             );
         }
     }
@@ -205,12 +229,12 @@ fn create_blit_pipeline(
             },
         ],
     });
-    let render_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+    let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Blit pipeline layout"),
         bind_group_layouts: &[&bind_group_layout],
         push_constant_ranges: &[],
     });
-    let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Blit pipeline"),
         layout: Some(&render_pipeline_layout),
         vertex: wgpu::VertexState {
@@ -323,5 +347,24 @@ fn create_render_tiles_bind_group(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
     tex_view: &wgpu::TextureView,
+    params_buffer: &wgpu::Buffer,
 ) -> wgpu::BindGroup {
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("Render tiles bind group"),
+        layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: params_buffer,
+                    offset: 0,
+                    size: None,
+                }),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::TextureView(tex_view),
+            },
+        ],
+    })
 }
