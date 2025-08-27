@@ -134,7 +134,8 @@ impl Widget for Box<dyn Widget> {
     }
 }
 
-pub trait WrappedWidget: Any {
+/// A widget that wraps another widget and adds functionality
+pub trait WidgetAdapter: Any {
     type Inner: Widget;
 
     fn inner(&self) -> &Self::Inner;
@@ -168,7 +169,7 @@ pub trait WrappedWidget: Any {
     }
 }
 
-impl<T: WrappedWidget> Widget for T {
+impl<T: WidgetAdapter> Widget for T {
     fn layout_mode(&self) -> LayoutMode {
         self.display_style()
     }

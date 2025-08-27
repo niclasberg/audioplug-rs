@@ -2,7 +2,8 @@ use bytemuck::{Pod, Zeroable};
 use thiserror::Error;
 use wgpu::util::DeviceExt;
 
-use crate::core::{PhysicalCoord, PhysicalSize};
+use super::tiles::TILE_SIZE;
+use crate::core::{PhysicalCoord, PhysicalSize, Size};
 
 #[repr(C)]
 #[derive(Clone, Copy, Zeroable, Pod)]
@@ -109,7 +110,7 @@ impl WGPUSurface {
         let params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Params buffer"),
             contents: bytemuck::bytes_of(&params),
-            usage: wgpu::BufferUsages::UNIFORM,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
         // Output texture for compute shader
@@ -130,7 +131,7 @@ impl WGPUSurface {
         let blit_bind_group =
             create_blit_bind_group(&device, &blit_bind_group_layout, &tex_view, &output_sampler);
         let (render_tiles_pipeline, render_tiles_bind_group_layout) =
-            create_render_tiles_pipeline(&device, width, height);
+            create_render_tiles_pipeline(&device);
         let render_tiles_bind_group = create_render_tiles_bind_group(
             &device,
             &render_tiles_bind_group_layout,
@@ -182,7 +183,16 @@ impl WGPUSurface {
                 &texture_view,
                 &self.params_buffer,
             );
+            self.queue.write_buffer(
+                &self.params_buffer,
+                0,
+                bytemuck::bytes_of(&Params { height, width }),
+            );
         }
+    }
+
+    pub fn render_tiles_workgroup_count(&self) -> Size<u32> {
+        self.size.map(|x| (x.0 as u32 + TILE_SIZE - 1) / TILE_SIZE)
     }
 }
 
@@ -298,8 +308,6 @@ fn create_blit_bind_group(
 
 fn create_render_tiles_pipeline(
     device: &wgpu::Device,
-    width: u32,
-    height: u32,
 ) -> (wgpu::ComputePipeline, wgpu::BindGroupLayout) {
     let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/render_tiles.wgsl"));
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

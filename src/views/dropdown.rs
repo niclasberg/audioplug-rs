@@ -1,7 +1,7 @@
 use crate::{
     ui::{
         Accessor, EventContext, EventStatus, MouseEventContext, OverlayAnchor, OverlayOptions,
-        ReadContext, View, Widget, WidgetId, WidgetMut, WrappedWidget,
+        ReadContext, View, Widget, WidgetId, WidgetMut, WidgetAdapter,
     },
     core::{Align, Key},
     KeyEvent, MouseButton, MouseEvent,
@@ -56,7 +56,7 @@ impl<WTrigger: Widget, V: View, FMenu: Fn() -> V + 'static> DropdownWidget<WTrig
     }
 }
 
-impl<WTrigger: Widget, V: View, FMenu: Fn() -> V + 'static> WrappedWidget
+impl<WTrigger: Widget, V: View, FMenu: Fn() -> V + 'static> WidgetAdapter
     for DropdownWidget<WTrigger, FMenu>
 {
     type Inner = WTrigger;

@@ -42,7 +42,7 @@ pub use render::{
 
 pub use view::*;
 pub use view_sequence::*;
-pub use widget::{EventStatus, StatusChange, Widget, WrappedWidget};
+pub use widget::{EventStatus, StatusChange, Widget, WidgetAdapter};
 pub use widget_data::{WidgetData, WidgetFlags, WidgetId};
 pub use widget_ref::{WidgetMut, WidgetRef};
 #[cfg(target_os = "macos")]

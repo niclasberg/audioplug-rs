@@ -3,11 +3,21 @@ use crate::{
     ui::{BrushRef, ShapeRef, TextLayout},
 };
 
-pub struct Scene {}
+pub enum Command {
+    Fill,
+    Stroke,
+    Clip,
+}
+
+pub struct Scene {
+    commands: Vec<Command>,
+}
 
 impl Scene {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            commands: Vec::new(),
+        }
     }
 
     pub fn fill<'c, 'd>(&mut self, shape: impl Into<ShapeRef<'c>>, brush: impl Into<BrushRef<'d>>) {
@@ -67,6 +77,6 @@ impl Scene {
 
 impl Default for Scene {
     fn default() -> Self {
-        Self {}
+        Self::new()
     }
 }

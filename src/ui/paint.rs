@@ -8,6 +8,7 @@ use crate::{
     ui::{AppState, WindowId},
 };
 
+mod tiles;
 mod wgpu_surface;
 pub use wgpu_surface::{GraphicsInitError, WGPUSurface};
 
@@ -32,9 +33,11 @@ pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: R
         });
 
     {
+        let dims = wgpu_surface.render_tiles_workgroup_count();
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
         compute_pass.set_pipeline(&wgpu_surface.render_tiles_pipeline);
         compute_pass.set_bind_group(0, &wgpu_surface.render_tiles_bind_group, &[]);
+        compute_pass.dispatch_workgroups(dims.width, dims.height, 1);
     }
 
     {

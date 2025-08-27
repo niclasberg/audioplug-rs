@@ -33,7 +33,7 @@ pub use ellipse::{Circle, Ellipse};
 use indexmap::{IndexMap, IndexSet};
 pub use interpolation::{Interpolate, SpringPhysics, SpringProperties};
 pub use keyboard::{Key, Modifiers};
-pub use path::{Path, PathElement};
+pub use path::{CubicBezier, Line, Path, PathElement, QuadBezier};
 pub use point::{PhysicalPoint, Point};
 pub use rectangle::{PhysicalRect, Rect};
 pub use rounded_rectangle::RoundedRect;

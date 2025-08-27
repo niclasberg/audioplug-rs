@@ -1,7 +1,7 @@
 use super::{
     AppState, CallbackContext, CreateContext, EventStatus, MouseEventContext, Owner, ParamContext,
-    ReactiveContext, ReadContext, ReadSignal, ReadScope, TypedWidgetId, ViewContext, ViewSequence,
-    Widget, WidgetFlags, WidgetId, WrappedWidget,
+    ReactiveContext, ReadContext, ReadScope, ReadSignal, TypedWidgetId, ViewContext, ViewSequence,
+    Widget, WidgetAdapter, WidgetFlags, WidgetId,
     app_state::WidgetInsertPos,
     overlay::OverlayOptions,
     reactive::FOCUS_STATUS,
@@ -95,7 +95,7 @@ pub struct OnClickWidget<W, F> {
     on_click_fn: F,
 }
 
-impl<W: Widget, F: Fn(&mut CallbackContext) + 'static> WrappedWidget for OnClickWidget<W, F> {
+impl<W: Widget, F: Fn(&mut CallbackContext) + 'static> WidgetAdapter for OnClickWidget<W, F> {
     type Inner = W;
 
     fn inner(&self) -> &Self::Inner {

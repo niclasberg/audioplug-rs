@@ -1,6 +1,6 @@
 use crate::{
-    ui::{BuildContext, EventContext, EventStatus, View, Widget, WrappedWidget, WriteContext},
     KeyEvent,
+    ui::{BuildContext, EventContext, EventStatus, View, Widget, WidgetAdapter, WriteContext},
 };
 
 pub struct OnKeyEvent<V, F> {
@@ -26,7 +26,7 @@ pub struct OnKeyEventWidget<W, F> {
     f: F,
 }
 
-impl<W: Widget, F: FnMut(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static> WrappedWidget
+impl<W: Widget, F: FnMut(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static> WidgetAdapter
     for OnKeyEventWidget<W, F>
 {
     type Inner = W;
