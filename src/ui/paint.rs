@@ -32,6 +32,12 @@ pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: R
         });
 
     {
+        let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
+        compute_pass.set_pipeline(&wgpu_surface.render_tiles_pipeline);
+        compute_pass.set_bind_group(0, &wgpu_surface.render_tiles_bind_group, &[]);
+    }
+
+    {
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("Render pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
