@@ -92,8 +92,23 @@ impl Line {
             (1.0 - t) * self.p0.y + t * self.p1.y,
         )
     }
+
+    pub fn split(&self, t: f64) -> (Self, Self) {
+        assert!(t >= 0.0 && t <= 1.0);
+        let pos_split = self.eval(t);
+        let line1 = Self {
+            p0: self.p0,
+            p1: pos_split,
+        };
+        let line2 = Self {
+            p0: pos_split,
+            p1: self.p1,
+        };
+        (line1, line2)
+    }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct QuadBezier {
     p0: Point,
     p1: Point,
@@ -107,16 +122,36 @@ impl QuadBezier {
 
     pub fn eval(&self, t: f64) -> Point {
         let u = 1.0 - t;
-        let w0 = u * u;
-        let w1 = 2.0 * t * u;
-        let w2 = t * t;
-        Point::new(
-            w0 * self.p0.x + w1 * self.p1.x + w2 * self.p2.x,
-            w0 * self.p0.y + w1 * self.p1.y + w2 * self.p2.y,
-        )
+        weighted_point_sum([(u * u, self.p0), (2.0 * t * u, self.p1), (t * t, self.p2)])
+    }
+
+    pub fn split(&self, t: f64) -> (Self, Self) {
+        assert!(t >= 0.0 && t <= 1.0);
+        let pos_split = self.eval(t);
+        let quad1 = Self {
+            p0: self.p0,
+            p1: weighted_point_sum([(1.0 - t, self.p0), (t, self.p1)]),
+            p2: pos_split,
+        };
+        let quad2 = Self {
+            p0: pos_split,
+            p1: weighted_point_sum([(1.0 - t, self.p1), (t, self.p2)]),
+            p2: self.p2,
+        };
+        (quad1, quad2)
     }
 
     pub fn flatten(&self, sqrt_tolerance: f64, f: impl Fn(FlattenedPathElement)) {}
+}
+
+#[inline(always)]
+fn weighted_point_sum<const N: usize>(point_weights: [(f64, Point); N]) -> Point {
+    point_weights
+        .iter()
+        .copied()
+        .fold(Point::ZERO, |p_acc, (w, p)| {
+            Point::new(p_acc.x + w * p.x, p_acc.y + w * p.y)
+        })
 }
 
 /// An approximation to $\int (1 + 4x^2) ^ -0.25 dx$
@@ -141,14 +176,30 @@ pub struct CubicBezier {
 impl CubicBezier {
     pub fn eval(&self, t: f64) -> Point {
         let u = 1.0 - t;
-        let w0 = u * u * u;
-        let w1 = 3.0 * t * u * u;
-        let w2 = 3.0 * t * t * u;
-        let w3 = t * t * t;
-        Point::new(
-            w0 * self.p0.x + w1 * self.p1.x + w2 * self.p2.x + w3 * self.p3.x,
-            w0 * self.p0.y + w1 * self.p1.y + w2 * self.p2.y + w3 * self.p3.y,
-        )
+        weighted_point_sum([
+            (u * u * u, self.p0),
+            (3.0 * t * u * u, self.p1),
+            (3.0 * t * t * u, self.p2),
+            (t * t * t, self.p3),
+        ])
+    }
+
+    pub fn split(&self, t: f64) -> (Self, Self) {
+        let split_pos = self.eval(t);
+        let u = 1.0 - t;
+        let cubic1 = Self {
+            p0: self.p0,
+            p1: weighted_point_sum([(u, self.p0), (t, self.p1)]),
+            p2: weighted_point_sum([(u * u, self.p0), (2.0 * t * u, self.p1), (t * t, self.p2)]),
+            p3: split_pos,
+        };
+        let cubic2 = Self {
+            p0: split_pos,
+            p1: weighted_point_sum([(u * u, self.p1), (2.0 * t * u, self.p2), (t * t, self.p3)]),
+            p2: weighted_point_sum([(1.0 - t, self.p2), (t, self.p3)]),
+            p3: self.p3,
+        };
+        (cubic1, cubic2)
     }
 }
 
