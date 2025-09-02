@@ -1,5 +1,10 @@
 const TILE_SIZE: u32 = 16;
 
+const SHAPE_TYPE_RECT: u8 = 0;
+const SHAPE_TYPE_ROUNDED_RECT: u8 = 1;
+const SHAPE_TYPE_ELLIPSE: u8 = 2;
+const SHAPE_TYPE_PATH: u8 = 3;
+
 struct Params {
 	width: u32,
 	height: u32,

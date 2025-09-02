@@ -1,6 +1,7 @@
 mod alignment;
 mod axis;
 mod border;
+mod bvh;
 mod color;
 mod color_map;
 mod constraint;
@@ -33,7 +34,7 @@ pub use ellipse::{Circle, Ellipse};
 use indexmap::{IndexMap, IndexSet};
 pub use interpolation::{Interpolate, SpringPhysics, SpringProperties};
 pub use keyboard::{Key, Modifiers};
-pub use path::{CubicBezier, Line, Path, PathElement, QuadBezier};
+pub use path::{CubicBezier, Line, Path, PathElement, PathSegment, QuadBezier};
 pub use point::{PhysicalPoint, Point};
 pub use rectangle::{PhysicalRect, Rect};
 pub use rounded_rectangle::RoundedRect;

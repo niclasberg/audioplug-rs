@@ -1,4 +1,4 @@
-use crate::core::Point;
+use crate::core::{Point, Rect};
 
 pub enum FlattenedPathElement {
     MoveTo(Point),
@@ -15,6 +15,48 @@ pub enum PathElement {
     ClosePath,
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum PathSegment {
+    Line(Line),
+    QuadBezier(QuadBezier),
+    CubicBezier(CubicBezier),
+}
+
+impl PathSegment {
+    pub fn eval(&self, t: f64) -> Point {
+        match self {
+            PathSegment::Line(line) => line.eval(t),
+            PathSegment::QuadBezier(quad_bezier) => quad_bezier.eval(t),
+            PathSegment::CubicBezier(cubic_bezier) => cubic_bezier.eval(t),
+        }
+    }
+
+    pub fn split(&self, t: f64) -> (Self, Self) {
+        match self {
+            PathSegment::Line(line) => {
+                let (left, right) = line.split(t);
+                (Self::Line(left), Self::Line(right))
+            }
+            PathSegment::QuadBezier(quad_bezier) => {
+                let (left, right) = quad_bezier.split(t);
+                (Self::QuadBezier(left), Self::QuadBezier(right))
+            }
+            PathSegment::CubicBezier(cubic_bezier) => {
+                let (left, right) = cubic_bezier.split(t);
+                (Self::CubicBezier(left), Self::CubicBezier(right))
+            }
+        }
+    }
+
+    pub fn bounds(&self) -> Rect {
+        match self {
+            PathSegment::Line(line) => line.bounds(),
+            PathSegment::QuadBezier(quad_bezier) => quad_bezier.bounds(),
+            PathSegment::CubicBezier(cubic_bezier) => cubic_bezier.bounds(),
+        }
+    }
+}
+
 pub struct Path {
     elements: Vec<PathElement>,
 }
@@ -26,12 +68,21 @@ impl Path {
         }
     }
 
-    pub fn move_to(&mut self, p: Point) {
-        self.elements.push(PathElement::MoveTo(p));
+    pub fn move_to(&mut self, to: Point) {
+        self.elements.push(PathElement::MoveTo(to));
     }
 
-    pub fn line_to(&mut self, p: Point) {
-        self.elements.push(PathElement::LineTo(p));
+    pub fn line_to(&mut self, to: Point) {
+        self.elements.push(PathElement::LineTo(to));
+    }
+
+    pub fn quad_to(&mut self, control_point: Point, to: Point) {
+        self.elements.push(PathElement::QuadTo(control_point, to));
+    }
+
+    pub fn cubic_to(&mut self, control_point1: Point, control_point2: Point, to: Point) {
+        self.elements
+            .push(PathElement::CurveTo(control_point1, control_point2, to));
     }
 
     /// Flattens the path into path elements corresponding to lines
@@ -80,22 +131,19 @@ impl<P: IntoIterator<Item = PathElement>> From<P> for Path {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct Line {
-    p0: Point,
-    p1: Point,
+    pub p0: Point,
+    pub p1: Point,
 }
 
 impl Line {
     pub fn eval(&self, t: f64) -> Point {
-        Point::new(
-            (1.0 - t) * self.p0.x + t * self.p1.x,
-            (1.0 - t) * self.p0.y + t * self.p1.y,
-        )
+        eval_line(self.p0, self.p1, t)
     }
 
     pub fn split(&self, t: f64) -> (Self, Self) {
-        assert!(t >= 0.0 && t <= 1.0);
-        let pos_split = self.eval(t);
+        let pos_split = eval_line(self.p0, self.p1, t);
         let line1 = Self {
             p0: self.p0,
             p1: pos_split,
@@ -106,13 +154,43 @@ impl Line {
         };
         (line1, line2)
     }
+
+    pub fn bounds(&self) -> Rect {
+        Rect::from_points(self.p0, self.p1)
+    }
+}
+
+#[inline(always)]
+const fn eval_line(p0: Point, p1: Point, t: f64) -> Point {
+    Point::new((1.0 - t) * p0.x + t * p1.x, (1.0 - t) * p0.y + t * p1.y)
+}
+
+#[inline(always)]
+const fn eval_quad(p0: Point, p1: Point, p2: Point, t: f64) -> Point {
+    let u = 1.0 - t;
+    Point::new(
+        u * u * p0.x + 2.0 * u * t * p1.x + t * t * p2.x,
+        u * u * p0.y + 2.0 * u * t * p1.y + t * t * p2.y,
+    )
+}
+
+#[inline(always)]
+const fn eval_cubic(p0: Point, p1: Point, p2: Point, p3: Point, t: f64) -> Point {
+    let u = 1.0 - t;
+    Point::new(
+        u * u * u * p0.x + 3.0 * t * u * u * p1.x + 3.0 * t * t * u * p2.x + t * t * t * p3.x,
+        u * u * u * p0.y + 3.0 * t * u * u * p1.y + 3.0 * t * t * u * p2.y + t * t * t * p3.y,
+    )
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct QuadBezier {
-    p0: Point,
-    p1: Point,
-    p2: Point,
+    /// Start point
+    pub p0: Point,
+    /// Control point
+    pub p1: Point,
+    /// End point
+    pub p2: Point,
 }
 
 impl QuadBezier {
@@ -121,24 +199,46 @@ impl QuadBezier {
     }
 
     pub fn eval(&self, t: f64) -> Point {
-        let u = 1.0 - t;
-        weighted_point_sum([(u * u, self.p0), (2.0 * t * u, self.p1), (t * t, self.p2)])
+        eval_quad(self.p0, self.p1, self.p2, t)
     }
 
     pub fn split(&self, t: f64) -> (Self, Self) {
-        assert!(t >= 0.0 && t <= 1.0);
-        let pos_split = self.eval(t);
+        let pos_split = eval_quad(self.p0, self.p1, self.p2, t);
         let quad1 = Self {
             p0: self.p0,
-            p1: weighted_point_sum([(1.0 - t, self.p0), (t, self.p1)]),
+            p1: eval_line(self.p0, self.p1, t),
             p2: pos_split,
         };
         let quad2 = Self {
             p0: pos_split,
-            p1: weighted_point_sum([(1.0 - t, self.p1), (t, self.p2)]),
+            p1: eval_line(self.p1, self.p2, t),
             p2: self.p2,
         };
         (quad1, quad2)
+    }
+
+    pub fn bounds(&self) -> Rect {
+        let mut min = self.p0.min(&self.p2);
+        let mut max = self.p0.max(&self.p2);
+
+        // If p1 is within the bounding box spanned by p0 and p2, then
+        // the whole curve is bounded by p0 and p1. Otherwise,
+        // we need to find the extreme point of the curve.
+        if self.p1.x < min.x || self.p1.x > max.x || self.p1.y < min.y || self.p2.y > max.y {
+            let tx = ((self.p0.x - self.p1.x) / (self.p0.x - 2.0 * self.p1.x + self.p2.x))
+                .clamp(0.0, 1.0);
+            let sx = 1.0 - tx;
+            let ty = ((self.p0.y - self.p1.y) / (self.p0.y - 2.0 * self.p1.y + self.p2.y))
+                .clamp(0.0, 1.0);
+            let sy = 1.0 - ty;
+            let px = sx * sx * self.p0.x + 2.0 * sx * tx * self.p1.x + tx * tx * self.p2.x;
+            let py = sy * sy * self.p0.y + 2.0 * sy * ty * self.p1.y + ty * ty * self.p2.y;
+            min.x = min.x.min(px);
+            min.y = min.y.min(py);
+            max.x = max.x.max(px);
+            max.y = max.y.max(py);
+        }
+        Rect::from_ltrb(min.x, min.y, max.x, max.y)
     }
 
     pub fn flatten(&self, sqrt_tolerance: f64, f: impl Fn(FlattenedPathElement)) {}
@@ -166,40 +266,39 @@ fn approx_parabola_inv_integral(x: f64) -> f64 {
     x * (1.0 - B + (B * B + 0.25 * x * x).sqrt())
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct CubicBezier {
-    p0: Point,
-    p1: Point,
-    p2: Point,
-    p3: Point,
+    /// Start point
+    pub p0: Point,
+    pub p1: Point,
+    pub p2: Point,
+    pub p3: Point,
 }
 
 impl CubicBezier {
     pub fn eval(&self, t: f64) -> Point {
-        let u = 1.0 - t;
-        weighted_point_sum([
-            (u * u * u, self.p0),
-            (3.0 * t * u * u, self.p1),
-            (3.0 * t * t * u, self.p2),
-            (t * t * t, self.p3),
-        ])
+        eval_cubic(self.p0, self.p1, self.p2, self.p3, t)
     }
 
     pub fn split(&self, t: f64) -> (Self, Self) {
-        let split_pos = self.eval(t);
-        let u = 1.0 - t;
+        let split_pos = eval_cubic(self.p0, self.p1, self.p2, self.p3, t);
         let cubic1 = Self {
             p0: self.p0,
-            p1: weighted_point_sum([(u, self.p0), (t, self.p1)]),
-            p2: weighted_point_sum([(u * u, self.p0), (2.0 * t * u, self.p1), (t * t, self.p2)]),
+            p1: eval_line(self.p0, self.p1, t),
+            p2: eval_quad(self.p0, self.p1, self.p2, t),
             p3: split_pos,
         };
         let cubic2 = Self {
             p0: split_pos,
-            p1: weighted_point_sum([(u * u, self.p1), (2.0 * t * u, self.p2), (t * t, self.p3)]),
-            p2: weighted_point_sum([(1.0 - t, self.p2), (t, self.p3)]),
+            p1: eval_quad(self.p1, self.p2, self.p3, t),
+            p2: eval_line(self.p2, self.p3, t),
             p3: self.p3,
         };
         (cubic1, cubic2)
+    }
+
+    pub fn bounds(&self) -> Rect {
+        todo!()
     }
 }
 
