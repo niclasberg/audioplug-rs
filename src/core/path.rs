@@ -158,6 +158,36 @@ impl Line {
     pub fn bounds(&self) -> Rect {
         Rect::from_points(self.p0, self.p1)
     }
+
+    pub fn clip_with_rect(&self, rect: Rect) -> Option<Self> {
+        // Clip using Cohen Sutherland algorithm
+        const INSIDE: u8 = 0b0000;
+        const LEFT: u8 = 0b0001;
+        const RIGHT: u8 = 0b0010;
+        const BOTTOM: u8 = 0b0100;
+        const TOP: u8 = 0b1000;
+
+        fn compute_out_code(p: Point, rect: Rect) -> u8 {
+            let mut out = INSIDE;
+            if p.x < rect.left() {
+                out |= LEFT;
+            } else if p.x > rect.right() {
+                out |= RIGHT;
+            }
+
+            if p.y < rect.top() {
+                out |= TOP;
+            } else if p.y > rect.bottom() {
+                out |= BOTTOM;
+            }
+            out
+        }
+
+        let mut outcode0 = compute_out_code(self.p0, rect);
+        let mut outcode1 = compute_out_code(self.p1, rect);
+
+        todo!()
+    }
 }
 
 #[inline(always)]

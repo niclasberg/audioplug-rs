@@ -1,4 +1,4 @@
-use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use bytemuck::{Pod, Zeroable};
 
@@ -43,18 +43,33 @@ impl Vec2i {
     pub const Y: Self = Self { x: 0, y: 1 };
 }
 
-macro_rules! impl_vec2 {
+impl Neg for Vec2i {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
+pub struct Vec2u {
+    pub x: u32,
+    pub y: u32,
+}
+
+impl Vec2u {
+    pub const ZERO: Self = Self { x: 0, y: 0 };
+    pub const X: Self = Self { x: 1, y: 0 };
+    pub const Y: Self = Self { x: 0, y: 1 };
+}
+
+macro_rules! impl_vec2_base {
     ($name: ident, $t: tt) => {
         impl $name {
-            pub const MIN: Self = Self {
-                x: $t::MIN,
-                y: $t::MIN,
-            };
-            pub const MAX: Self = Self {
-                x: $t::MAX,
-                y: $t::MAX,
-            };
-
             pub const fn new(x: $t, y: $t) -> Self {
                 Self { x, y }
             }
@@ -77,18 +92,6 @@ macro_rules! impl_vec2 {
                 }
             }
 
-            pub fn dot(self, other: Self) -> $t {
-                self.x * other.x + self.y * other.y
-            }
-
-            pub fn length(self) -> $t {
-                self.x.hypot(self.y)
-            }
-
-            pub fn length_squared(self) -> $t {
-                self.dot(self)
-            }
-
             pub fn min(self, other: Self) -> Self {
                 Self {
                     x: self.x.min(other.x),
@@ -100,20 +103,6 @@ macro_rules! impl_vec2 {
                 Self {
                     x: self.x.max(other.x),
                     y: self.y.max(other.y),
-                }
-            }
-
-            pub fn floor(self) -> Self {
-                Self {
-                    x: self.x.floor(),
-                    y: self.y.floor(),
-                }
-            }
-
-            pub fn ceil(self) -> Self {
-                Self {
-                    x: self.x.ceil(),
-                    y: self.y.ceil(),
                 }
             }
 
@@ -165,6 +154,17 @@ macro_rules! impl_vec2 {
             }
         }
 
+        impl Mul for $name {
+            type Output = Self;
+
+            fn mul(self, rhs: Self) -> Self::Output {
+                Self {
+                    x: rhs.x * self.x,
+                    y: rhs.y * self.y,
+                }
+            }
+        }
+
         impl Mul<$t> for $name {
             type Output = Self;
 
@@ -187,11 +187,66 @@ macro_rules! impl_vec2 {
             }
         }
 
-        impl Neg for $name {
-            type Output = $name;
+        impl Div for $name {
+            type Output = Self;
 
-            fn neg(self) -> Self::Output {
-                Self::Output {
+            fn div(self, rhs: Self) -> Self::Output {
+                Self {
+                    x: self.x / rhs.x,
+                    y: self.y / rhs.y,
+                }
+            }
+        }
+
+        unsafe impl Zeroable for $name {}
+        unsafe impl Pod for $name {}
+    };
+}
+
+macro_rules! impl_vec2_float {
+    ($name: ident, $t: tt) => {
+        impl $name {
+            pub const MIN: Self = Self {
+                x: $t::MIN,
+                y: $t::MIN,
+            };
+            pub const MAX: Self = Self {
+                x: $t::MAX,
+                y: $t::MAX,
+            };
+
+            pub fn dot(self, other: Self) -> $t {
+                self.x * other.x + self.y * other.y
+            }
+
+            pub fn length(self) -> $t {
+                self.x.hypot(self.y)
+            }
+
+            pub fn length_squared(self) -> $t {
+                self.dot(self)
+            }
+
+            pub fn floor(self) -> Self {
+                Self {
+                    x: self.x.floor(),
+                    y: self.y.floor(),
+                }
+            }
+
+            pub fn ceil(self) -> Self {
+                Self {
+                    x: self.x.ceil(),
+                    y: self.y.ceil(),
+                }
+            }
+        }
+
+        impl Neg for $name {
+            type Output = Self;
+
+            fn neg(self) -> Self {
+                Self {
                     x: -self.x,
                     y: -self.y,
                 }
@@ -206,14 +261,15 @@ macro_rules! impl_vec2 {
                 }
             }
         }
-
-        unsafe impl Zeroable for $name {}
-        unsafe impl Pod for $name {}
     };
 }
 
-impl_vec2!(Vec2, f64);
-impl_vec2!(Vec2f, f32);
+impl_vec2_base!(Vec2i, i32);
+impl_vec2_base!(Vec2u, u32);
+impl_vec2_base!(Vec2, f64);
+impl_vec2_float!(Vec2, f64);
+impl_vec2_base!(Vec2f, f32);
+impl_vec2_float!(Vec2f, f32);
 
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, PartialEq)]

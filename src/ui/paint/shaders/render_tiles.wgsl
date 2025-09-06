@@ -1,9 +1,13 @@
 const TILE_SIZE: u32 = 16;
 
-const SHAPE_TYPE_RECT: u8 = 0;
-const SHAPE_TYPE_ROUNDED_RECT: u8 = 1;
-const SHAPE_TYPE_ELLIPSE: u8 = 2;
-const SHAPE_TYPE_PATH: u8 = 3;
+const SIZE_MASK = 0xFFFF;
+const FILL_MASK = (1u << 17);
+
+
+const SHAPE_TYPE_RECT = 0u;
+const SHAPE_TYPE_ROUNDED_RECT = 1u;
+const SHAPE_TYPE_ELLIPSE = 2u;
+const SHAPE_TYPE_PATH = 3u;
 
 struct Params {
 	width: u32,
@@ -14,6 +18,17 @@ struct Segment {
 	p0: vec2f,
 	p1: vec2f,
 }
+
+struct Fill {
+	segment_offset: u32,
+	size: u32,
+	// bits 
+	// 0-16: size
+	// 17: fill rule: 0 = even odd, 1 = non-zero
+	// 
+	color: vec4f,
+}
+
 
 // Shoot ray in positive x direction
 fn winding_contribution(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> i32 {
@@ -41,6 +56,21 @@ fn cross(u: vec2<f32>, v: vec2<f32>) -> f32 {
     return u.x * v.y - u.y * v.x;
 }
 
+const segments = array(
+	Segment(vec2f(100.0, 100.0), vec2f(100.0, 800.0)),
+	Segment(vec2f(100.0, 800.0), vec2f(800.0, 800.0)),
+	Segment(vec2f(800.0, 800.0), vec2f(700.0, 400.0)),
+	Segment(vec2f(700.0, 400.0), vec2f(100.0, 100.0)),
+	Segment(vec2f(100.0, 800.0), vec2f(800.0, 800.0)),
+	Segment(vec2f(800.0, 800.0), vec2f(900.0, 500.0)),
+	Segment(vec2f(900.0, 500.0), vec2f(100.0, 800.0)),
+);
+
+const fills = array(
+	Fill(0, 4, vec4f(1.0, 0.0, 0.0, 1.0)),
+	Fill(4, 3, vec4f(0.0, 1.0, 0.0, 1.0)),
+);
+
 @group(0) @binding(0)
 var<uniform> params: Params;
 
@@ -56,29 +86,25 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 		return;
 	}
 
-	let segments = array(
-		Segment(vec2f(100.0, 100.0), vec2f(100.0, 800.0)),
-		Segment(vec2f(100.0, 800.0), vec2f(800.0, 800.0)),
-		Segment(vec2f(800.0, 800.0), vec2f(700.0, 400.0)),
-		Segment(vec2f(700.0, 400.0), vec2f(100.0, 100.0)),
-	);
-
 	let coord = vec2(tile_x, tile_y);
 	let pos = vec2f(coord);
 	let size = vec2f(f32(params.width), f32(params.height));
 	let min_dim = min(params.width, params.height);
 	let p2 = pos - 0.5 * size;
-	let radius = 0.25 * f32(min_dim);
 
-	var winding_number = 0;	
-	let segment_count = 4;
-	for (var i = 0; i < segment_count; i++) {
-		winding_number += winding_contribution(pos, segments[i].p0, segments[i].p1);
+	var color = vec4(0.1, 0.1, 0.1, 1.0);
+	for(var fill_id = 0; fill_id < 2; fill_id++) {
+		let fill = fills[fill_id];
+		var winding_number = 0;
+		let segment_end = fill.segment_offset + fill.size;	
+		for (var seg_id = fill.segment_offset; seg_id < segment_end; seg_id++) {
+			winding_number += winding_contribution(pos, segments[seg_id].p0, segments[seg_id].p1);
+		}
+
+		if winding_number != 0 {
+			color = fill.color;
+		}
 	}
 
-	if winding_number != 0 {
-		textureStore(output_texture, coord, vec4(1.0, 0.2, 1.0, 1.0));
-	} else {
-		textureStore(output_texture, coord, vec4(0.1, 0.1, 0.1, 1.0));
-	}
+	textureStore(output_texture, coord, color);
 }
