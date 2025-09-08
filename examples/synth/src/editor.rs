@@ -1,9 +1,9 @@
 use audioplug::{
-    core::{Color, ShadowOptions, Size, Vec2},
+    core::{Color, Path, ShadowOptions, Size, Vec2},
     param::{AnyParameter, FloatParameter, Parameter},
     ui::{
         style::{AlignItems, Length, UiRect},
-        Canvas, PathGeometry, ReactiveValue, Scene, View,
+        Canvas, ReactiveValue, Scene, View,
     },
     views::{Checkbox, Column, Label, ParameterKnob, ParameterSlider, Row},
     Editor,
@@ -174,14 +174,13 @@ fn envelope_graph(
         let s_end = d_end + s_width;
         let r_end = s_end + r.get(cx) * a_d_r_width;
 
-        let geometry = PathGeometry::new(|b| {
-            b.move_to(bounds.get_relative_point(0.0, 1.0))
-                .add_line_to(bounds.get_relative_point(a_end, 0.0))
-                .add_line_to(bounds.get_relative_point(d_end, 1.0 - s.get(cx)))
-                .add_line_to(bounds.get_relative_point(s_end, 1.0 - s.get(cx)))
-                .add_line_to(bounds.get_relative_point(r_end, 1.0))
-                .close()
-        });
+        let geometry = Path::new()
+            .move_to(bounds.get_relative_point(0.0, 1.0))
+            .line_to(bounds.get_relative_point(a_end, 0.0))
+            .line_to(bounds.get_relative_point(d_end, 1.0 - s.get(cx)))
+            .line_to(bounds.get_relative_point(s_end, 1.0 - s.get(cx)))
+            .line_to(bounds.get_relative_point(r_end, 1.0))
+            .close_path();
 
         let mut scene = Scene::new();
         scene.fill(&geometry, Color::BLACK);

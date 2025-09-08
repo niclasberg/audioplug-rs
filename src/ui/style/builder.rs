@@ -1,8 +1,8 @@
 use taffy::{AlignSelf, JustifySelf};
 
 use crate::{
-    core::{Color, ShadowOptions, Size},
-    ui::{Accessor, Brush, BuildContext, Widget},
+    core::{Brush, Color, ShadowOptions, Size},
+    ui::{Accessor, BuildContext, Widget},
 };
 
 use super::{ImageEffect, Length, Style, UiRect};

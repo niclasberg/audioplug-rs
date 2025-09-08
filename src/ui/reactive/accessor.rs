@@ -1,7 +1,7 @@
 use super::{Computed, Effect, ReactiveValue, ReadContext, ReadSignal};
 use crate::{
-    core::Color,
-    ui::{Brush, BuildContext, LinearGradient, Widget, WidgetMut},
+    core::{Brush, Color, LinearGradient},
+    ui::{BuildContext, Widget, WidgetMut},
 };
 
 /// Represents a value that is either varying over time (a `ReactiveValue`) or a constant

@@ -1,3 +1,5 @@
+use crate::core::UnitPoint;
+
 use super::Color;
 
 #[derive(Debug, Clone, Copy)]
@@ -54,4 +56,27 @@ impl From<(Color, Color, Color)> for ColorMap {
     fn from(value: (Color, Color, Color)) -> Self {
         Self::new_equidistant(&[value.0, value.1, value.2])
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct LinearGradient {
+    pub(crate) start: UnitPoint,
+    pub(crate) end: UnitPoint,
+    pub(crate) color_map: ColorMap,
+}
+
+impl LinearGradient {
+    pub fn new(color_map: impl Into<ColorMap>, start: UnitPoint, end: UnitPoint) -> Self {
+        Self {
+            color_map: color_map.into(),
+            start,
+            end,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct RadialGradient {
+    pub(crate) center: UnitPoint,
+    pub(crate) color_map: ColorMap,
 }

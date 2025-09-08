@@ -1,5 +1,5 @@
 use audioplug::App;
-use audioplug::core::{Align, Color, ShadowKind, ShadowOptions, Size, Vec2};
+use audioplug::core::{Align, Brush, Color, ShadowKind, ShadowOptions, Size, Vec2};
 use audioplug::ui::style::{ImageEffect, Length, UiRect};
 use audioplug::ui::*;
 use audioplug::views::*;

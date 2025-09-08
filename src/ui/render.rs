@@ -1,7 +1,4 @@
-use crate::{
-    core::{Point, Rect, ShadowKind, Transform},
-    platform,
-};
+use crate::{core::Rect, platform};
 
 mod canvas;
 mod scene;
@@ -10,8 +7,6 @@ pub use scene::Scene;
 
 use super::{AppState, WidgetId, WindowId};
 pub use platform::TextLayout;
-pub use platform::{Brush, BrushRef, LinearGradient, RadialGradient};
-pub use platform::{PathGeometry, PathGeometryBuilder, Shape, ShapeRef};
 
 pub fn render_window(app_state: &mut AppState, window_id: WindowId) {
     app_state.with_id_buffer_mut(move |app_state, widgets_to_render| {

@@ -1,7 +1,7 @@
 use crate::{
-    core::{Color, Rect, Size},
+    core::{Color, Rect, Shape, Size},
     ui::{
-        BuildContext, RenderContext, Scene, Shape, View, Widget,
+        BuildContext, RenderContext, Scene, View, Widget,
         style::{AvailableSpace, LayoutMode, Length, Measure, Style},
     },
 };

@@ -1,6 +1,5 @@
 use crate::{
     core::Rect,
-    platform,
     ui::{
         AppState, BuildContext, NodeId, Owner, ReactiveContext, ReadContext, ReadScope, Scene,
         View, Widget, WidgetId,

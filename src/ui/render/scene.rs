@@ -1,10 +1,10 @@
 use crate::{
-    core::{Point, Rect, Transform},
-    ui::{BrushRef, ShapeRef, TextLayout},
+    core::{Brush, BrushRef, Path, Point, Rect, ShapeRef, Transform},
+    ui::TextLayout,
 };
 
 pub enum Command {
-    Fill,
+    Fill { path: Path, brush: Brush },
     Stroke,
     Clip,
 }

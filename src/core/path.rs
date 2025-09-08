@@ -1,4 +1,4 @@
-use crate::core::{Point, Rect};
+use crate::core::{Point, Rect, Transform, Vec2};
 
 pub enum FlattenedPathElement {
     MoveTo(Point),
@@ -23,6 +23,7 @@ pub enum PathSegment {
 }
 
 impl PathSegment {
+    /// Evaluate the position at `t`
     pub fn eval(&self, t: f64) -> Point {
         match self {
             PathSegment::Line(line) => line.eval(t),
@@ -31,6 +32,7 @@ impl PathSegment {
         }
     }
 
+    /// Split the path segment at `t` into two separate segments.
     pub fn split(&self, t: f64) -> (Self, Self) {
         match self {
             PathSegment::Line(line) => {
@@ -57,6 +59,7 @@ impl PathSegment {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Path {
     elements: Vec<PathElement>,
 }
@@ -68,33 +71,45 @@ impl Path {
         }
     }
 
-    pub fn add_rect(&mut self, rect: Rect) {
-        self.move_to(rect.top_left());
-        self.line_to(rect.top_right());
-        self.line_to(rect.bottom_right());
-        self.line_to(rect.bottom_left());
-        self.close_path();
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            elements: Vec::with_capacity(capacity),
+        }
     }
 
-    pub fn move_to(&mut self, to: Point) {
+    pub fn add_rect(mut self, rect: Rect) -> Self {
+        self.elements.push(PathElement::MoveTo(rect.top_left()));
+        self.elements.push(PathElement::LineTo(rect.top_right()));
+        self.elements.push(PathElement::LineTo(rect.bottom_right()));
+        self.elements.push(PathElement::LineTo(rect.bottom_left()));
+        self.elements.push(PathElement::ClosePath);
+        self
+    }
+
+    pub fn move_to(mut self, to: Point) -> Self {
         self.elements.push(PathElement::MoveTo(to));
+        self
     }
 
-    pub fn line_to(&mut self, to: Point) {
+    pub fn line_to(mut self, to: Point) -> Self {
         self.elements.push(PathElement::LineTo(to));
+        self
     }
 
-    pub fn quad_to(&mut self, control_point: Point, to: Point) {
+    pub fn quad_to(mut self, control_point: Point, to: Point) -> Self {
         self.elements.push(PathElement::QuadTo(control_point, to));
+        self
     }
 
-    pub fn cubic_to(&mut self, control_point1: Point, control_point2: Point, to: Point) {
+    pub fn cubic_to(mut self, control_point1: Point, control_point2: Point, to: Point) -> Self {
         self.elements
             .push(PathElement::CurveTo(control_point1, control_point2, to));
+        self
     }
 
-    pub fn close_path(&mut self) {
+    pub fn close_path(mut self) -> Self {
         self.elements.push(PathElement::ClosePath);
+        self
     }
 
     /// Flattens the path into path elements corresponding to lines
@@ -126,6 +141,30 @@ impl Path {
                 }
             }
         }
+    }
+
+    pub fn bounds(&self) -> Rect {
+        todo!()
+    }
+
+    pub fn offset(mut self, delta: Vec2) -> Self {
+        for element in self.elements.iter_mut() {
+            match element {
+                PathElement::MoveTo(point) => *point += delta,
+                PathElement::LineTo(point) => *point += delta,
+                PathElement::QuadTo(point, point1) => {
+                    *point += delta;
+                    *point1 += delta;
+                }
+                PathElement::CurveTo(point, point1, point2) => {
+                    *point += delta;
+                    *point1 += delta;
+                    *point2 += delta;
+                }
+                PathElement::ClosePath => {}
+            }
+        }
+        self
     }
 }
 
@@ -171,7 +210,7 @@ impl Line {
         Rect::from_points(self.p0, self.p1)
     }
 
-    pub fn clip_with_rect(&self, rect: Rect) -> Option<Self> {
+    pub fn clip_with_rect(mut self, rect: Rect) -> Option<Self> {
         // Clip using Cohen Sutherland algorithm
         const INSIDE: u8 = 0b0000;
         const LEFT: u8 = 0b0001;
@@ -186,7 +225,6 @@ impl Line {
             } else if p.x > rect.right() {
                 out |= RIGHT;
             }
-
             if p.y < rect.top() {
                 out |= TOP;
             } else if p.y > rect.bottom() {
@@ -198,7 +236,17 @@ impl Line {
         let mut outcode0 = compute_out_code(self.p0, rect);
         let mut outcode1 = compute_out_code(self.p1, rect);
 
-        todo!()
+        loop {
+            if (outcode0 | outcode1) == INSIDE {
+                return Some(self);
+            } else if (outcode0 & outcode1) != 0 {
+                // Both points are in the same outside zone (for instance both to the left).
+                // i.e. both points are outside
+                return None;
+            } else {
+                todo!()
+            }
+        }
     }
 }
 

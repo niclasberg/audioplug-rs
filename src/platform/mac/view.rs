@@ -12,7 +12,7 @@ use objc2_core_image::CIContext;
 use objc2_foundation::{MainThreadMarker, NSDate, NSNotificationCenter, NSRect, NSTimer};
 use objc2_metal::MTLCreateSystemDefaultDevice;
 
-use super::{Handle, RendererRef};
+use super::Handle;
 use crate::AnimationFrame;
 use crate::core::{PhysicalCoord, PhysicalSize, Point, Rect, Vec2};
 use crate::event::{KeyEvent, MouseButton, MouseEvent};

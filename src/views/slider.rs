@@ -1,11 +1,11 @@
 use crate::{
     KeyEvent, MouseEvent,
-    core::{Circle, Color, Key, Point, Rect, RoundedRect, Size, UnitPoint},
+    core::{Circle, Color, Key, LinearGradient, Point, Rect, RoundedRect, Size, UnitPoint},
     event::MouseButton,
     param::{AnyParameter, NormalizedValue, PlainValue},
     ui::{
-        Accessor, BuildContext, CallbackContext, EventContext, EventStatus, LinearGradient,
-        MouseEventContext, ParamSetter, RenderContext, Scene, StatusChange, View, Widget,
+        Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
+        ParamSetter, RenderContext, Scene, StatusChange, View, Widget,
         style::{AvailableSpace, LayoutMode, Length, Measure, Style},
     },
 };

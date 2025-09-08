@@ -3,7 +3,6 @@ const TILE_SIZE: u32 = 16;
 const SIZE_MASK = 0xFFFF;
 const FILL_MASK = (1u << 17);
 
-
 const SHAPE_TYPE_RECT = 0u;
 const SHAPE_TYPE_ROUNDED_RECT = 1u;
 const SHAPE_TYPE_ELLIPSE = 2u;
@@ -22,10 +21,6 @@ struct Segment {
 struct Fill {
 	segment_offset: u32,
 	size: u32,
-	// bits 
-	// 0-16: size
-	// 17: fill rule: 0 = even odd, 1 = non-zero
-	// 
 	color: vec4f,
 }
 

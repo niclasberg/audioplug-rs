@@ -1,6 +1,6 @@
 use crate::{
     core::{Color, ColorMap, ColorStop, Point, Rect, RoundedRect, ShadowOptions, Transform, Vec2},
-    platform::{BrushRef, NativeTextLayout, ShapeRef},
+    platform::{BrushRef, NativeTextLayout},
     ui::LinearGradient,
 };
 use objc2_core_foundation::{CFRetained, CGAffineTransform, CGFloat, CGRect, CGSize};

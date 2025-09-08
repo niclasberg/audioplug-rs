@@ -35,9 +35,8 @@ pub use reactive::{
     WriteContext,
 };
 pub use render::{
-    Brush, BrushRef, Canvas, CanvasContext, CanvasWidget, LinearGradient, PathGeometry,
-    PathGeometryBuilder, RadialGradient, RenderContext, Scene, Shape, ShapeRef, TextLayout,
-    invalidate_window, render_window,
+    Canvas, CanvasContext, CanvasWidget, RenderContext, Scene, TextLayout, invalidate_window,
+    render_window,
 };
 
 pub use view::*;
