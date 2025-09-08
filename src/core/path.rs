@@ -68,6 +68,14 @@ impl Path {
         }
     }
 
+    pub fn add_rect(&mut self, rect: Rect) {
+        self.move_to(rect.top_left());
+        self.line_to(rect.top_right());
+        self.line_to(rect.bottom_right());
+        self.line_to(rect.bottom_left());
+        self.close_path();
+    }
+
     pub fn move_to(&mut self, to: Point) {
         self.elements.push(PathElement::MoveTo(to));
     }
@@ -83,6 +91,10 @@ impl Path {
     pub fn cubic_to(&mut self, control_point1: Point, control_point2: Point, to: Point) {
         self.elements
             .push(PathElement::CurveTo(control_point1, control_point2, to));
+    }
+
+    pub fn close_path(&mut self) {
+        self.elements.push(PathElement::ClosePath);
     }
 
     /// Flattens the path into path elements corresponding to lines
