@@ -17,15 +17,12 @@ use super::{
     util::get_scale_factor_for_window,
 };
 use crate::{
-    core::{Color, Point, Rect, ShadowOptions, Size, SpringPhysics, Transform, Vec2},
-    platform::{NativeTextLayout, filters::RoundedRectShadowEffect},
+    core::{BrushRef, ShapeRef, Vec2f, Vec4f},
+    platform::filters::{RectShadow, RectShadowEffect},
 };
 use crate::{
-    core::{Vec2f, Vec4f},
-    platform::{
-        BrushRef, ShapeRef,
-        filters::{RectShadow, RectShadowEffect},
-    },
+    core::{Color, Point, Rect, ShadowOptions, Size, SpringPhysics, Transform, Vec2},
+    platform::{NativeTextLayout, filters::RoundedRectShadowEffect},
 };
 use std::{
     cell::{Ref, RefCell},

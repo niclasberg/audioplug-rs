@@ -1,20 +1,15 @@
 use std::mem::MaybeUninit;
 use std::path::Path;
 
-use windows::core::{Result, HSTRING};
-use windows::Win32::{
-    Foundation::GENERIC_READ,
-    Graphics::{Direct2D, Imaging},
-};
+use windows::Win32::{Foundation::GENERIC_READ, Graphics::Imaging};
+use windows::core::{HSTRING, Result};
 
 use crate::core::Size;
 
 use super::com::wic_factory;
-use super::renderer::{DeviceResource, RendererGeneration};
 
 pub struct Bitmap {
     converter: Imaging::IWICFormatConverter,
-    cached_bitmap: DeviceResource<Direct2D::ID2D1Bitmap>,
 }
 
 impl Bitmap {
@@ -41,10 +36,7 @@ impl Bitmap {
             )
         }?;
 
-        Ok(Self {
-            converter,
-            cached_bitmap: DeviceResource::new(),
-        })
+        Ok(Self { converter })
     }
 
     pub fn size(&self) -> Size {
@@ -61,46 +53,5 @@ impl Bitmap {
             }
         };
         [width, height].into()
-    }
-
-    pub(super) fn draw(
-        &self,
-        render_target: &Direct2D::ID2D1RenderTarget,
-        generation: RendererGeneration,
-        rect: Direct2D::Common::D2D_RECT_F,
-    ) {
-        let bitmap = self
-            .cached_bitmap
-            .get_or_insert(generation, || unsafe {
-                render_target.CreateBitmapFromWicBitmap(&self.converter, None)
-            })
-            .unwrap();
-
-        let opacity = 1.0;
-        let interpolation_mode = Direct2D::D2D1_BITMAP_INTERPOLATION_MODE_LINEAR;
-        unsafe {
-            render_target.DrawBitmap(
-                &*bitmap,
-                Some(&rect as *const _),
-                opacity,
-                interpolation_mode,
-                None,
-            )
-        }
-    }
-}
-
-pub struct BitmapBrush {
-    cached_bitmap: DeviceResource<Direct2D::ID2D1Bitmap>,
-}
-
-impl BitmapBrush {
-    pub(super) fn use_brush(
-        &self,
-        _render_target: &Direct2D::ID2D1RenderTarget,
-        _generation: RendererGeneration,
-        _f: impl FnOnce(&Direct2D::ID2D1RenderTarget, &Direct2D::ID2D1Brush),
-    ) -> Result<()> {
-        todo!()
     }
 }

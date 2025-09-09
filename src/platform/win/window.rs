@@ -27,11 +27,11 @@ use windows::{
 use KeyboardAndMouse::{ReleaseCapture, SetCapture};
 
 use super::{
-    cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, renderer::RendererGeneration, util::{get_scale_factor_for_window, get_theme}, Handle, Renderer
+    cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, util::{get_scale_factor_for_window, get_theme}, Handle
 };
 use crate::{core::{PhysicalSize, ScaleFactor}, event::MouseButton};
 use crate::{
-    core::{Color, Key, Point, Rect, Size, Vec2, WindowTheme},
+    core::{Key, Point, Rect, Size, Vec2, WindowTheme},
     event::{AnimationFrame, KeyEvent, MouseEvent},
     platform::{WindowEvent, WindowHandler},
     MouseButtons,
@@ -53,8 +53,6 @@ struct TmpKeyEvent {
 }
 
 struct WindowState {
-    renderer: RefCell<Option<Renderer>>,
-    renderer_generation: Cell<RendererGeneration>,
     handler: RefCell<Box<dyn WindowHandler>>,
     last_mouse_pos: RefCell<Option<Point<i32>>>,
     ticks_per_second: f64,
@@ -88,7 +86,6 @@ impl WindowState {
 
             WM_DESTROY => {
                 unsafe {
-                    self.renderer.take();
                     KillTimer(Some(hwnd), ANIMATION_FRAME_TIMER).unwrap();
                     if self.quit_app_on_exit {
                         PostQuitMessage(0);
@@ -451,8 +448,6 @@ impl Window {
         }?;
 
         let window_state = Rc::new(WindowState {
-            renderer: RefCell::new(None),
-            renderer_generation: Cell::new(RendererGeneration(0)),
             handler: RefCell::new(Box::new(handler)),
             last_mouse_pos: RefCell::new(None),
             ticks_per_second,
