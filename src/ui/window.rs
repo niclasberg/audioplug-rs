@@ -4,12 +4,11 @@ use std::rc::Rc;
 use pollster::FutureExt;
 use raw_window_handle::RawWindowHandle;
 
-use super::View;
+use super::render::WGPUSurface;
+use super::{AppState, View, WindowId};
 use crate::App;
 use crate::core::{Cursor, Point, Rect};
 use crate::platform::{self, WindowEvent};
-use crate::ui::paint::{WGPUSurface, paint_window};
-use crate::ui::{AppState, WindowId, handle_window_event};
 
 struct PreInit<F>(F);
 struct Constructed(WindowId);
@@ -75,12 +74,12 @@ impl<V: View> platform::WindowHandler for MyHandler<V> {
 
     fn event(&mut self, event: WindowEvent) {
         let mut app_state = self.app_state.borrow_mut();
-        handle_window_event(&mut app_state, self.state.window_id(), event)
+        super::event_handling::handle_window_event(&mut app_state, self.state.window_id(), event)
     }
 
     fn paint(&mut self, dirty_rect: Rect) {
         let mut app_state = self.app_state.borrow_mut();
-        paint_window(&mut app_state, self.state.window_id(), dirty_rect)
+        super::render::paint_window(&mut app_state, self.state.window_id(), dirty_rect)
     }
 
     fn get_cursor(&self, pos: Point) -> Option<Cursor> {

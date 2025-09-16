@@ -14,7 +14,7 @@ use crate::{
     core::{FxIndexSet, Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
-    ui::paint::WGPUSurface,
+    ui::render::WGPUSurface,
 };
 use slotmap::{Key, SecondaryMap, SlotMap};
 use std::{

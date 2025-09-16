@@ -5,7 +5,6 @@ mod event_handling;
 mod host_handle;
 mod layout;
 mod overlay;
-mod paint;
 mod param;
 pub(super) mod reactive;
 mod render;
@@ -21,7 +20,7 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 pub use animation::AnimationContext;
 pub(crate) use app_state::AppState;
-pub use event_handling::{CallbackContext, EventContext, MouseEventContext, handle_window_event};
+pub use event_handling::{CallbackContext, EventContext, MouseEventContext};
 pub use host_handle::HostHandle;
 pub use layout::{LayoutContext, layout_window};
 pub use overlay::{OverlayAnchor, OverlayOptions};
