@@ -3,6 +3,8 @@ use crate::{
     ui::TextLayout,
 };
 
+pub struct PathId(u32);
+
 pub enum Command {
     Fill { path: Path, brush: Brush },
     Stroke,
