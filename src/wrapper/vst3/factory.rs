@@ -5,13 +5,13 @@ use super::editcontroller::EditController;
 use crate::VST3Plugin;
 use vst3_sys as vst3_com;
 use vst3_sys::base::{
-    kInvalidArgument, kResultFalse, kResultOk, tresult, ClassCardinality, FactoryFlags,
-    IPluginFactory, IPluginFactory2, PClassInfo, PClassInfo2, PFactoryInfo,
+    ClassCardinality, FactoryFlags, IPluginFactory, IPluginFactory2, PClassInfo, PClassInfo2,
+    PFactoryInfo, kInvalidArgument, kResultFalse, kResultOk, tresult,
 };
 use vst3_sys::{IID, VST3};
 
-use super::util::strcpy;
 use super::AudioProcessor;
+use super::util::strcpy;
 
 pub const VST3_SDK_VERSION: &str = "VST 3.6.14";
 
@@ -35,11 +35,9 @@ impl<P: VST3Plugin> Factory<P> {
 
 impl<P: VST3Plugin> IPluginFactory for Factory<P> {
     unsafe fn get_factory_info(&self, info: *mut PFactoryInfo) -> tresult {
-        if info.is_null() {
+        let Some(info) = (unsafe { info.as_mut() }) else {
             return kInvalidArgument;
-        }
-
-        let info = &mut *info;
+        };
         strcpy(P::URL, &mut info.url);
         strcpy(P::EMAIL, &mut info.email);
         strcpy(P::VENDOR, &mut info.vendor);
@@ -52,11 +50,9 @@ impl<P: VST3Plugin> IPluginFactory for Factory<P> {
     }
 
     unsafe fn get_class_info(&self, index: i32, info: *mut PClassInfo) -> tresult {
-        if info.is_null() {
+        let Some(info) = (unsafe { info.as_mut() }) else {
             return kInvalidArgument;
-        }
-
-        let info = &mut *info;
+        };
         match index {
             0 => {
                 strcpy(P::NAME, &mut info.name);
@@ -86,10 +82,12 @@ impl<P: VST3Plugin> IPluginFactory for Factory<P> {
         obj: *mut *mut c_void,
     ) -> tresult {
         println!("Create instance");
-        if cid.is_null() || obj.is_null() {
+        let Some(cid) = (unsafe { cid.as_ref() }) else {
             return kInvalidArgument;
-        }
-        let cid = &*cid;
+        };
+        let Some(obj) = (unsafe { obj.as_mut() }) else {
+            return kInvalidArgument;
+        };
 
         if *cid == Self::PROCESSOR_CID {
             *obj = AudioProcessor::<P>::create_instance();
@@ -105,11 +103,10 @@ impl<P: VST3Plugin> IPluginFactory for Factory<P> {
 
 impl<P: VST3Plugin> IPluginFactory2 for Factory<P> {
     unsafe fn get_class_info2(&self, index: i32, info: *mut PClassInfo2) -> tresult {
-        if info.is_null() {
+        let Some(info) = (unsafe { info.as_mut() }) else {
             return kInvalidArgument;
-        }
+        };
 
-        let info = &mut *info;
         match index {
             0 => {
                 strcpy(P::NAME, &mut info.name);
