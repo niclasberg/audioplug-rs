@@ -18,10 +18,28 @@ struct Segment {
 	p1: vec2f,
 }
 
-struct Fill {
+struct FillPath {
 	segment_offset: u32,
 	size: u32,
 	color: vec4f,
+}
+
+struct FillRect {
+	color: vec4f,
+}
+
+struct FillRoundedRect {
+	color: vec4f,
+}
+
+struct LinearGradient {
+	p0: vec2f,
+	p1: vec2f
+}
+
+struct RadialGradient {
+	center: vec2f,
+	radius: f32,
 }
 
 
@@ -62,8 +80,8 @@ const segments = array(
 );
 
 const fills = array(
-	Fill(0, 4, vec4f(1.0, 0.0, 0.0, 1.0)),
-	Fill(4, 3, vec4f(0.0, 1.0, 0.0, 1.0)),
+	FillPath(0, 4, vec4f(1.0, 0.0, 0.0, 1.0)),
+	FillPath(4, 3, vec4f(0.0, 1.0, 0.0, 1.0)),
 );
 
 @group(0) @binding(0)

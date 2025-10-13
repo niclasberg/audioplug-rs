@@ -1,6 +1,7 @@
 use crate::{core::Rect, platform};
 
 mod canvas;
+mod gpu_types;
 mod scene;
 mod tiles;
 mod wgpu_surface;
