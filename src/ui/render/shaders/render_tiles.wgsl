@@ -24,12 +24,26 @@ struct FillPath {
 	color: vec4f,
 }
 
-struct FillRect {
-	color: vec4f,
+struct Path {
+	segment_offset: u32,
+	size: u32,
 }
 
-struct FillRoundedRect {
-	color: vec4f,
+struct Rect {
+	transform: mat2x2,
+	bounds: vec4f
+}
+
+struct RoundedRect {
+	transform: mat2x2,
+	bounds: vec4f,
+	corner_radius: vec2f,
+}
+
+struct Ellipse {
+	transform: mat2x2,
+	center: vec2f,
+	radii: vec2f,
 }
 
 struct LinearGradient {
@@ -67,6 +81,20 @@ fn winding_contribution(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> i32 {
 
 fn cross(u: vec2<f32>, v: vec2<f32>) -> f32 {
     return u.x * v.y - u.y * v.x;
+}
+
+fn compute_path_alpha(path: Path, pos: vec2f) -> f32 {
+	var winding_number = 0;
+	for (var i = 0; i < path.size; i++) {
+		var seg_id = path.segment_offset + i;
+		winding_number += winding_contribution(pos, segments[seg_id].p0, segments[seg_id].p1);
+	}
+
+	if winding_number != 0 {
+		return 1.0;
+	} else {
+		return 0.0;
+	}
 }
 
 const segments = array(

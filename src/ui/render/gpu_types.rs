@@ -1,3 +1,7 @@
+use bytemuck::{Pod, Zeroable};
+
+#[derive(Clone, Copy, Pod, Zeroable)]
+#[repr(C)]
 pub struct LineSegment {
     p0: f32,
     p1: f32,

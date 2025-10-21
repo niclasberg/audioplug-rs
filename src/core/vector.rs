@@ -106,7 +106,7 @@ macro_rules! impl_vec2_base {
                 }
             }
 
-            pub fn scale(self, val: $t) -> Self {
+            pub const fn scale(self, val: $t) -> Self {
                 Self {
                     x: self.x * val,
                     y: self.y * val,
@@ -198,6 +198,17 @@ macro_rules! impl_vec2_base {
             }
         }
 
+        impl Div<$t> for $name {
+            type Output = Self;
+
+            fn div(self, rhs: $t) -> Self::Output {
+                Self {
+                    x: self.x / rhs,
+                    y: self.y / rhs,
+                }
+            }
+        }
+
         unsafe impl Zeroable for $name {}
         unsafe impl Pod for $name {}
     };
@@ -227,17 +238,24 @@ macro_rules! impl_vec2_float {
                 self.dot(self)
             }
 
-            pub fn floor(self) -> Self {
+            pub const fn floor(self) -> Self {
                 Self {
                     x: self.x.floor(),
                     y: self.y.floor(),
                 }
             }
 
-            pub fn ceil(self) -> Self {
+            pub const fn ceil(self) -> Self {
                 Self {
                     x: self.x.ceil(),
                     y: self.y.ceil(),
+                }
+            }
+
+            pub const fn round(self) -> Self {
+                Self {
+                    x: self.x.round(),
+                    y: self.y.round(),
                 }
             }
         }
@@ -264,11 +282,11 @@ macro_rules! impl_vec2_float {
     };
 }
 
+impl_vec2_base!(Vec2, f64);
+impl_vec2_base!(Vec2f, f32);
 impl_vec2_base!(Vec2i, i32);
 impl_vec2_base!(Vec2u, u32);
-impl_vec2_base!(Vec2, f64);
 impl_vec2_float!(Vec2, f64);
-impl_vec2_base!(Vec2f, f32);
 impl_vec2_float!(Vec2f, f32);
 
 #[repr(C)]
