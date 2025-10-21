@@ -18,25 +18,25 @@ struct Segment {
 	p1: vec2f,
 }
 
+struct Path {
+	segment_offset: u32,
+	size: u32,
+}
+
 struct FillPath {
 	segment_offset: u32,
 	size: u32,
 	color: vec4f,
 }
 
-struct Path {
-	segment_offset: u32,
-	size: u32,
-}
-
 struct Rect {
 	transform: mat2x2,
-	bounds: vec4f
+	bounds: vec4f, // [left, top, right, bottom]
 }
 
 struct RoundedRect {
 	transform: mat2x2,
-	bounds: vec4f,
+	bounds: vec4f, // [left, top, right, bottom]
 	corner_radius: vec2f,
 }
 
@@ -86,7 +86,7 @@ fn cross(u: vec2<f32>, v: vec2<f32>) -> f32 {
 fn compute_path_alpha(path: Path, pos: vec2f) -> f32 {
 	var winding_number = 0;
 	for (var i = 0; i < path.size; i++) {
-		var seg_id = path.segment_offset + i;
+		let seg_id = path.segment_offset + i;
 		winding_number += winding_contribution(pos, segments[seg_id].p0, segments[seg_id].p1);
 	}
 
