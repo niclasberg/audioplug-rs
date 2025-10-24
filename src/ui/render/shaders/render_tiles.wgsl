@@ -3,11 +3,6 @@ const TILE_SIZE: u32 = 16;
 const SIZE_MASK = 0xFFFF;
 const FILL_MASK = (1u << 17);
 
-const SHAPE_TYPE_RECT = 0u;
-const SHAPE_TYPE_ROUNDED_RECT = 1u;
-const SHAPE_TYPE_ELLIPSE = 2u;
-const SHAPE_TYPE_PATH = 3u;
-
 struct Params {
 	width: u32,
 	height: u32,
@@ -18,44 +13,16 @@ struct Segment {
 	p1: vec2f,
 }
 
-struct Path {
-	segment_offset: u32,
-	size: u32,
-}
-
 struct FillPath {
 	segment_offset: u32,
 	size: u32,
 	color: vec4f,
 }
 
-struct Rect {
-	transform: mat2x2,
-	bounds: vec4f, // [left, top, right, bottom]
+struct Path {
+	segment_offset: u32,
+	size: u32,
 }
-
-struct RoundedRect {
-	transform: mat2x2,
-	bounds: vec4f, // [left, top, right, bottom]
-	corner_radius: vec2f,
-}
-
-struct Ellipse {
-	transform: mat2x2,
-	center: vec2f,
-	radii: vec2f,
-}
-
-struct LinearGradient {
-	p0: vec2f,
-	p1: vec2f
-}
-
-struct RadialGradient {
-	center: vec2f,
-	radius: f32,
-}
-
 
 // Shoot ray in positive x direction
 fn winding_contribution(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> i32 {
@@ -85,7 +52,7 @@ fn cross(u: vec2<f32>, v: vec2<f32>) -> f32 {
 
 fn compute_path_alpha(path: Path, pos: vec2f) -> f32 {
 	var winding_number = 0;
-	for (var i = 0; i < path.size; i++) {
+	for (var i = 0u; i < path.size; i++) {
 		let seg_id = path.segment_offset + i;
 		winding_number += winding_contribution(pos, segments[seg_id].p0, segments[seg_id].p1);
 	}
@@ -95,6 +62,45 @@ fn compute_path_alpha(path: Path, pos: vec2f) -> f32 {
 	} else {
 		return 0.0;
 	}
+}
+
+const SHAPE_TYPE_RECT = 0u;
+const SHAPE_TYPE_ROUNDED_RECT = 1u;
+const SHAPE_TYPE_ELLIPSE = 2u;
+
+struct Shape {
+	bounds: vec4f, // [left, top, right, bottom]
+	corner_radii: vec4f, // only for rounded rect [upper-left, upper-right, bottom-]
+	shape_type: u32,
+}
+
+fn is_point_in_rect(top_left: vec2f, bottom_right: vec2f, pos: vec2f) -> f32 {
+	let s = step(top_left, pos) - step(bottom_right, pos);
+	return s.x * s.y;
+}
+
+fn compute_shape_coverage(shape: Shape, pos: vec2f) -> f32 {
+	switch shape.shape_type {
+		case SHAPE_TYPE_RECT: {
+			return is_point_in_rect(shape.bounds.xy, shape.bounds.zw, pos);
+		}
+		case SHAPE_TYPE_ROUNDED_RECT: {
+			return is_point_in_rect(shape.bounds.xy, shape.bounds.zw, pos);
+		}
+		default: {
+			return 0.0;
+		}
+	}
+}
+
+struct LinearGradient {
+	p0: vec2f,
+	p1: vec2f
+}
+
+struct RadialGradient {
+	center: vec2f,
+	radius: f32,
 }
 
 const segments = array(

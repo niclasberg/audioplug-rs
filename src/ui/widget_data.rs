@@ -91,12 +91,12 @@ impl WidgetData {
     }
 
     fn subtract_padding_and_border(&self, rect: Rect) -> Rect {
-        Rect::from_ltrb(
-            rect.left() + (self.layout.border.left + self.layout.padding.left) as f64,
-            rect.top() + (self.layout.border.top + self.layout.padding.top) as f64,
-            rect.right() - (self.layout.border.right + self.layout.padding.right) as f64,
-            rect.bottom() - (self.layout.border.bottom + self.layout.padding.bottom) as f64,
-        )
+        Rect {
+            left: rect.left + (self.layout.border.left + self.layout.padding.left) as f64,
+            top: rect.top + (self.layout.border.top + self.layout.padding.top) as f64,
+            right: rect.right - (self.layout.border.right + self.layout.padding.right) as f64,
+            bottom: rect.bottom - (self.layout.border.bottom + self.layout.padding.bottom) as f64,
+        }
     }
 
     /// Bounds of the widget, in global coords, excluding borders and padding
@@ -105,21 +105,21 @@ impl WidgetData {
     }
 
     pub fn border(&self) -> Rect {
-        Rect::from_ltrb(
-            self.layout.border.left as f64,
-            self.layout.border.top as f64,
-            self.layout.border.right as f64,
-            self.layout.border.bottom as f64,
-        )
+        Rect {
+            left: self.layout.border.left as f64,
+            top: self.layout.border.top as f64,
+            right: self.layout.border.right as f64,
+            bottom: self.layout.border.bottom as f64,
+        }
     }
 
     pub fn padding(&self) -> Rect {
-        Rect::from_ltrb(
-            self.layout.padding.left as f64,
-            self.layout.padding.top as f64,
-            self.layout.padding.right as f64,
-            self.layout.padding.bottom as f64,
-        )
+        Rect {
+            left: self.layout.padding.left as f64,
+            top: self.layout.padding.top as f64,
+            right: self.layout.padding.right as f64,
+            bottom: self.layout.padding.bottom as f64,
+        }
     }
 
     pub fn set_or_clear_flag(&mut self, flag: WidgetFlags, set: bool) {

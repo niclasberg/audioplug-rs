@@ -17,14 +17,14 @@ pub enum Align {
 impl Align {
     pub fn compute_offset(&self, rect_to_align: Rect, bounds: Rect) -> Vec2 {
         let offset_x = match self.get_h_align() {
-            HAlign::Left => bounds.left() - rect_to_align.left(),
+            HAlign::Left => bounds.left - rect_to_align.left,
             HAlign::Center => bounds.center().x - rect_to_align.center().x,
-            HAlign::Right => bounds.right() - rect_to_align.right(),
+            HAlign::Right => bounds.right - rect_to_align.right,
         };
         let offset_y = match self.get_v_align() {
-            VAlign::Top => bounds.top() - rect_to_align.top(),
+            VAlign::Top => bounds.top - rect_to_align.top,
             VAlign::Center => bounds.center().y - rect_to_align.center().y,
-            VAlign::Bottom => bounds.bottom() - rect_to_align.bottom(),
+            VAlign::Bottom => bounds.bottom - rect_to_align.bottom,
         };
         Vec2::new(offset_x, offset_y)
     }

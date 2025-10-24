@@ -197,12 +197,12 @@ impl SliderWidget {
         let slider_bounds = self.inner_bounds(bounds);
         match self.direction {
             Direction::Horizontal => Point {
-                x: slider_bounds.left() + self.position_normalized * slider_bounds.width(),
+                x: slider_bounds.left + self.position_normalized * slider_bounds.width(),
                 y: slider_bounds.center().y,
             },
             Direction::Vertical => Point {
                 x: slider_bounds.center().x,
-                y: slider_bounds.top() + self.position_normalized * slider_bounds.height(),
+                y: slider_bounds.top + self.position_normalized * slider_bounds.height(),
             },
         }
     }
@@ -225,10 +225,10 @@ impl SliderWidget {
     fn absolute_to_normalized_position(&self, position: Point, bounds: Rect) -> f64 {
         match self.direction {
             Direction::Horizontal => {
-                ((position.x - bounds.left() - 2.5) / (bounds.width() - 5.0)).clamp(0.0, 1.0)
+                ((position.x - bounds.left - 2.5) / (bounds.width() - 5.0)).clamp(0.0, 1.0)
             }
             Direction::Vertical => {
-                ((position.y - bounds.top() - 2.5) / (bounds.height() - 5.0)).clamp(0.0, 1.0)
+                ((position.y - bounds.top - 2.5) / (bounds.height() - 5.0)).clamp(0.0, 1.0)
             }
         }
     }
@@ -425,8 +425,8 @@ impl Widget for SliderWidget {
         }
 
         let indent_rect = match self.direction {
-            Direction::Horizontal => Rect::from_center(center, bounds.size.scale_y(0.3)),
-            Direction::Vertical => Rect::from_center(center, bounds.size.scale_x(0.3)),
+            Direction::Horizontal => Rect::from_center(center, bounds.size().scale_y(0.3)),
+            Direction::Vertical => Rect::from_center(center, bounds.size().scale_x(0.3)),
         };
         let corner_radius = indent_rect.height().min(indent_rect.width()) / 2.0;
         let background_rect = RoundedRect::new(indent_rect, Size::splat(corner_radius));

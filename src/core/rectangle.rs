@@ -1,76 +1,145 @@
 use std::fmt::Debug;
 use std::ops::{Add, Mul, Neg, Sub};
 
+use bytemuck::{Pod, Zeroable};
+
 use crate::core::{PhysicalCoord, RoundedRect, ScaleFactor};
 
+use super::Point;
 use super::Size;
 use super::Vec2;
-use super::{Interpolate, Point};
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Clone, Copy)]
+#[repr(C)]
 pub struct Rect<T = f64> {
-    pub pos: Point<T>,
-    pub size: Size<T>,
+    pub left: T,
+    pub top: T,
+    pub right: T,
+    pub bottom: T,
 }
 
 impl<T> Rect<T> {
-    pub const fn from_origin(point: Point<T>, size: Size<T>) -> Self {
-        Self { pos: point, size }
-    }
-
-    pub const fn from_xywh(x: T, y: T, width: T, height: T) -> Self {
-        Self {
-            pos: Point::new(x, y),
-            size: Size::new(width, height),
-        }
-    }
-
-    #[inline]
-    pub fn from_ltrb(left: T, top: T, right: T, bottom: T) -> Self
-    where
-        T: PartialOrd + Sub<Output = T> + Copy,
-    {
-        assert!(left <= right);
-        assert!(top <= bottom);
-        Self {
-            pos: Point::new(left, top),
-            size: Size::new(right - left, bottom - top),
-        }
-    }
-
     #[inline]
     pub fn from_points(x0: Point<T>, x1: Point<T>) -> Self
     where
         T: PartialOrd + Sub<Output = T> + Copy,
     {
-        let (x_min, x_max) = if x0.x < x1.x {
+        let (left, right) = if x0.x < x1.x {
             (x0.x, x1.x)
         } else {
             (x1.x, x0.x)
         };
-        let (y_min, y_max) = if x0.y < x1.y {
+        let (top, bottom) = if x0.y < x1.y {
             (x0.y, x1.y)
         } else {
             (x1.y, x0.y)
         };
         Self {
-            pos: Point::new(x_min, y_min),
-            size: Size::new(x_max - x_min, y_max - y_min),
+            left,
+            top,
+            right,
+            bottom,
         }
     }
 
-    pub fn with_origin(self, position: Point<T>) -> Self {
+    pub fn from_origin(point: Point<T>, size: Size<T>) -> Self
+    where
+        T: Copy + Add<Output = T>,
+    {
         Self {
-            pos: position,
-            size: self.size,
+            left: point.x,
+            top: point.y,
+            right: point.x + size.width,
+            bottom: point.y + size.height,
         }
     }
 
-    pub fn with_size(self, size: Size<T>) -> Self {
+    pub fn from_xywh(left: T, top: T, width: T, height: T) -> Self
+    where
+        T: Copy + Add<Output = T>,
+    {
         Self {
-            pos: self.pos,
-            size,
+            left,
+            top,
+            right: left + width,
+            bottom: top + height,
         }
+    }
+
+    #[inline]
+    pub const fn bottom_left(self) -> Point<T>
+    where
+        T: Copy,
+    {
+        Point::new(self.left, self.bottom)
+    }
+
+    #[inline]
+    pub const fn top_left(self) -> Point<T>
+    where
+        T: Copy,
+    {
+        Point::new(self.left, self.top)
+    }
+
+    #[inline]
+    pub const fn bottom_right(self) -> Point<T>
+    where
+        T: Copy,
+    {
+        Point::new(self.right, self.bottom)
+    }
+
+    #[inline]
+    pub const fn top_right(self) -> Point<T>
+    where
+        T: Copy,
+    {
+        Point::new(self.right, self.top)
+    }
+
+    pub fn size(&self) -> Size<T>
+    where
+        T: Sub<Output = T> + Copy,
+    {
+        Size {
+            width: self.width(),
+            height: self.height(),
+        }
+    }
+
+    pub fn width(self) -> T
+    where
+        T: Sub<Output = T> + Copy,
+    {
+        self.right - self.left
+    }
+
+    pub fn height(self) -> T
+    where
+        T: Sub<Output = T> + Copy,
+    {
+        self.bottom - self.top
+    }
+
+    pub fn contains(&self, point: Point<T>) -> bool
+    where
+        T: PartialOrd,
+    {
+        point.x >= self.left
+            && point.x <= self.right
+            && point.y >= self.top
+            && point.y <= self.bottom
+    }
+
+    pub fn intersects(&self, other: &Self) -> bool
+    where
+        T: PartialOrd,
+    {
+        !(self.left > other.right
+            || self.right < other.left
+            || self.top > other.bottom
+            || self.bottom < other.top)
     }
 }
 
@@ -78,88 +147,35 @@ impl<T> Rect<T>
 where
     T: Copy
         + PartialEq
-        + Debug
         + Add<Output = T>
         + Sub<Output = T>
         + Mul<Output = T>
         + Neg<Output = T>
         + PartialOrd,
 {
-    #[inline]
-    pub fn left(&self) -> T {
-        self.pos.x
+    pub fn with_origin(self, position: Point<T>) -> Self {
+        Self {
+            left: position.x,
+            top: position.y,
+            right: position.x + (self.right - self.left),
+            bottom: position.y,
+        }
     }
 
-    #[inline]
-    pub fn right(&self) -> T {
-        self.pos.x + self.size.width
-    }
-
-    #[inline]
-    pub fn top(&self) -> T {
-        self.pos.y
-    }
-
-    #[inline]
-    pub fn bottom(&self) -> T {
-        self.pos.y + self.size.height
-    }
-
-    #[inline]
-    pub fn bottom_left(&self) -> Point<T> {
-        Point::new(self.left(), self.bottom())
-    }
-
-    #[inline]
-    pub fn top_left(&self) -> Point<T> {
-        self.pos
-    }
-
-    #[inline]
-    pub fn bottom_right(&self) -> Point<T> {
-        Point::new(self.right(), self.bottom())
-    }
-
-    #[inline]
-    pub fn top_right(&self) -> Point<T> {
-        Point::new(self.right(), self.top())
+    pub fn with_size(self, size: Size<T>) -> Self {
+        Self {
+            left: todo!(),
+            top: todo!(),
+            right: todo!(),
+            bottom: todo!(),
+        }
     }
 
     pub fn get_relative_point(&self, rel_x: T, rel_y: T) -> Point<T> {
         Point::new(
-            self.pos.x + rel_x * self.size.width,
-            self.pos.y + rel_y * self.size.height,
+            self.left + rel_x * self.width(),
+            self.top + rel_y * self.height(),
         )
-    }
-
-    pub const fn origin(&self) -> Point<T> {
-        self.pos
-    }
-
-    pub const fn size(&self) -> Size<T> {
-        self.size
-    }
-
-    pub fn width(&self) -> T {
-        self.size.width
-    }
-
-    pub fn height(&self) -> T {
-        self.size.height
-    }
-
-    pub fn contains(&self, point: Point<T>) -> bool {
-        point.x >= self.pos.x
-            && (point.x - self.size.width) <= self.pos.x
-            && point.y >= self.pos.y
-            && (point.y - self.size.height) <= self.pos.y
-    }
-
-    pub fn intersects(&self, other: &Self) -> bool {
-        !(self.left() > other.right()
-            || self.right() < other.left()
-            || self.top() > other.bottom()
-            || self.bottom() < other.top())
     }
 
     /// Expand the rectangle by `amount` from each side. Retains the
@@ -182,78 +198,122 @@ where
     /// center position and reduces the size by 2 times `amount`
     pub fn shrink(&self, amount: T) -> Self {
         Self {
-            pos: self.pos.map(|x| x + amount),
-            size: self.size - Size::splat(amount + amount),
+            left: self.left + amount,
+            top: self.top + amount,
+            right: self.right - amount,
+            bottom: self.bottom - amount,
         }
     }
 
     /// Shrink the rectangle by `amount` in the x direction, keeping the same center position
     pub fn shrink_x(&self, amount: T) -> Self {
         Self {
-            pos: Point::new(self.pos.x + amount, self.pos.y),
-            size: Size::new(self.size.width - (amount + amount), self.size.height),
+            left: self.left + amount,
+            top: self.top,
+            right: self.right - amount,
+            bottom: self.bottom,
         }
     }
 
     /// Shrink the rectangle by `amount` in the y direction, keeping the same center position
     pub fn shrink_y(&self, amount: T) -> Self {
         Self {
-            pos: Point::new(self.pos.x, self.pos.y + amount),
-            size: Size::new(self.size.width, self.size.height - (amount + amount)),
+            left: self.left,
+            top: self.top + amount,
+            right: self.right,
+            bottom: self.bottom - amount,
         }
     }
 }
 
 impl Rect<f64> {
     pub const EMPTY: Self = Self {
-        pos: Point::ZERO,
-        size: Size::ZERO,
+        left: 0.0,
+        top: 0.0,
+        right: 0.0,
+        bottom: 0.0,
     };
 
     pub fn from_center(center: Point, size: Size) -> Self {
+        let half_width = size.width / 2.0;
+        let half_height = size.height / 2.0;
         Self {
-            pos: center - size / 2.0,
-            size,
+            left: center.x - half_width,
+            top: center.y - half_height,
+            right: center.x + half_width,
+            bottom: center.y + half_width,
         }
     }
 
     pub fn with_center(self, center: Point) -> Self {
-        Self::from_center(center, self.size)
+        Self::from_center(center, self.size())
     }
 
     pub fn with_size_keeping_center(self, size: Size) -> Self {
+        let size_diff = (size - self.size()) / 2.0;
         Self {
-            pos: self.pos - (size - self.size) / 2.0,
-            size,
+            left: self.left - size_diff.width,
+            top: self.top - size_diff.height,
+            right: self.right + size_diff.width,
+            bottom: self.bottom + size_diff.height,
         }
     }
 
     pub fn center(&self) -> Point {
-        self.pos + (self.size / 2.0)
+        Point::new(
+            0.5 * (self.left + self.right),
+            0.5 * (self.top + self.bottom),
+        )
     }
 
     pub fn scale(&self, scale: f64) -> Self {
-        Self::from_origin(self.origin().scale(scale), self.size().scale(scale))
+        Self {
+            left: self.left * scale,
+            top: self.top * scale,
+            right: self.right * scale,
+            bottom: self.bottom * scale,
+        }
     }
 
     pub fn scale_x(&self, scale: f64) -> Self {
-        Self::from_origin(self.origin().scale_x(scale), self.size().scale_x(scale))
+        Self {
+            left: self.left * scale,
+            top: self.top,
+            right: self.right * scale,
+            bottom: self.bottom,
+        }
     }
 
     pub fn scale_y(&self, scale: f64) -> Self {
-        Self::from_origin(self.origin().scale_y(scale), self.size().scale_y(scale))
+        Self {
+            left: self.left,
+            top: self.top * scale,
+            right: self.right,
+            bottom: self.bottom * scale,
+        }
     }
 
     pub fn offset(&self, delta: impl Into<Vec2>) -> Self {
-        Self::from_origin(self.origin() + delta.into(), self.size())
+        let delta: Vec2 = delta.into();
+        Self {
+            left: self.left + delta.x,
+            top: self.top + delta.y,
+            right: self.right + delta.x,
+            bottom: self.bottom + delta.y,
+        }
     }
 
     pub fn combine_with(&self, other: &Self) -> Self {
-        let left = self.left().min(other.left());
-        let right = self.right().max(other.right());
-        let top = self.top().min(other.top());
-        let bottom = self.bottom().max(other.bottom());
-        Self::from_ltrb(left, top, right, bottom)
+        let left = self.left.min(other.left);
+        let right = self.right.max(other.right);
+        let top = self.top.min(other.top);
+        let bottom = self.bottom.max(other.bottom);
+        Self {
+            left,
+            top,
+            right,
+            bottom,
+        }
     }
 
     pub fn into_rounded_rect(self, corner_radius: Size) -> RoundedRect {
@@ -264,36 +324,43 @@ impl Rect<f64> {
 impl From<Rect<i32>> for Rect<f64> {
     fn from(value: Rect<i32>) -> Self {
         Self {
-            pos: value.pos.into(),
-            size: value.size.into(),
+            left: value.left as _,
+            top: value.top as _,
+            right: value.right as _,
+            bottom: value.bottom as _,
         }
     }
 }
 
-impl<T: Default> Default for Rect<T> {
-    fn default() -> Self {
+impl From<Rect<f64>> for Rect<f32> {
+    fn from(value: Rect<f64>) -> Self {
         Self {
-            pos: Default::default(),
-            size: Default::default(),
+            left: value.left as _,
+            top: value.top as _,
+            right: value.right as _,
+            bottom: value.bottom as _,
         }
     }
 }
 
-impl<T: Interpolate> Interpolate for Rect<T> {
+unsafe impl Zeroable for Rect<f32> {}
+unsafe impl Pod for Rect<f32> {}
+
+/*impl<T: Interpolate> Interpolate for Rect<T> {
     fn lerp(&self, other: &Self, scalar: f64) -> Self {
         Self {
             pos: self.pos.lerp(&other.pos, scalar),
             size: self.size.lerp(&other.size, scalar),
         }
     }
-}
+}*/
 
 pub type PhysicalRect = Rect<PhysicalCoord>;
 impl PhysicalRect {
     pub fn into_logical(self, scale_factor: ScaleFactor) -> Rect {
         Rect::from_origin(
-            self.pos.into_logical(scale_factor),
-            self.size.into_logical(scale_factor),
+            self.top_left().into_logical(scale_factor),
+            self.size().into_logical(scale_factor),
         )
     }
 }
@@ -308,10 +375,10 @@ mod test {
         let p1 = Point::new(3.0, 2.0);
         let rect = Rect::from_points(p0, p1);
 
-        assert_eq!(rect.left(), 1.0);
-        assert_eq!(rect.top(), 2.0);
-        assert_eq!(rect.right(), 3.0);
-        assert_eq!(rect.bottom(), 4.0);
+        assert_eq!(rect.left, 1.0);
+        assert_eq!(rect.top, 2.0);
+        assert_eq!(rect.right, 3.0);
+        assert_eq!(rect.bottom, 4.0);
     }
 
     #[test]

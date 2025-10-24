@@ -53,7 +53,7 @@ impl From<CGSize> for Size {
 impl Into<CGRect> for Rect {
     fn into(self) -> CGRect {
         CGRect {
-            origin: self.origin().into(),
+            origin: self.top_left().into(),
             size: self.size().into(),
         }
     }

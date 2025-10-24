@@ -535,7 +535,7 @@ impl Widget for TextBoxWidget {
                 scene.fill(rect, Color::from_rgb8(68, 85, 90));
             }
 
-            scene.draw_text(&self.text_layout, text_bounds.origin());
+            scene.draw_text(&self.text_layout, text_bounds.top_left());
 
             if ctx.has_focus() && self.cursor_on {
                 let cursor_point = self

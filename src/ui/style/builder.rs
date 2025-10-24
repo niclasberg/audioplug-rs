@@ -33,6 +33,30 @@ pub struct StyleBuilder {
 }
 
 impl StyleBuilder {
+    pub const DEFAULT: Self = Self {
+        hidden: None,
+        padding: None,
+        width: None,
+        height: None,
+        min_width: None,
+        min_height: None,
+        max_width: None,
+        max_height: None,
+        aspect_ratio: None,
+        border: None,
+        margin: None,
+        inset: None,
+        background: None,
+        corner_radius: None,
+        border_color: None,
+        justify_self: None,
+        align_self: None,
+        box_shadow: None,
+        effects: None,
+        flex_grow: None,
+        flex_shrink: None,
+    };
+
     pub fn hidden(&mut self, value: impl Into<Accessor<bool>>) -> &mut Self {
         self.hidden = Some(value.into());
         self

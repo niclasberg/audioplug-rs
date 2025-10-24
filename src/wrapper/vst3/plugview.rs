@@ -1,19 +1,19 @@
 use raw_window_handle::RawWindowHandle;
 use std::cell::RefCell;
-use std::ffi::{c_void, CStr};
+use std::ffi::{CStr, c_void};
 use std::rc::Rc;
+use vst3_sys::VST3;
+use vst3_sys::VstPtr;
 use vst3_sys::base::*;
 use vst3_sys::gui::IPlugFrame;
 use vst3_sys::gui::IPlugViewContentScaleSupport;
 use vst3_sys::gui::{IPlugView, ViewRect};
 use vst3_sys::utils::SharedVstPtr;
-use vst3_sys::VstPtr;
-use vst3_sys::VST3;
 
-use crate::ui::{AppState, Window};
+use crate::Editor;
 use crate::core::Rect;
 use crate::param::ParameterMap;
-use crate::Editor;
+use crate::ui::{AppState, Window};
 
 #[cfg(target_os = "windows")]
 use {raw_window_handle::Win32WindowHandle, std::num::NonZeroIsize};
@@ -155,11 +155,8 @@ impl<E: Editor> IPlugView for PlugView<E> {
         if new_size.is_null() {
             return kInvalidArgument;
         }
-        let new_size = &*new_size;
-
+        let rect: Rect<_> = unsafe { *new_size }.into();
         if let Some(window) = self.window.borrow().as_ref() {
-            let rect =
-                Rect::from_ltrb(new_size.left, new_size.top, new_size.right, new_size.bottom);
             window.set_size(rect);
             kResultOk
         } else {
@@ -176,7 +173,7 @@ impl<E: Editor> IPlugView for PlugView<E> {
     }
 
     unsafe fn set_frame(&self, frame: *mut c_void) -> tresult {
-        let frame: SharedVstPtr<dyn IPlugFrame> = std::mem::transmute(frame);
+        let frame: SharedVstPtr<dyn IPlugFrame> = unsafe { std::mem::transmute(frame) };
         self.plugin_frame.replace(frame.upgrade());
         kResultOk
     }

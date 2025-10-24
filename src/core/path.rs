@@ -1,4 +1,4 @@
-use crate::core::{Point, Rect, Transform, Vec2};
+use crate::core::{Point, Rect, Vec2};
 
 pub enum FlattenedPathElement {
     MoveTo(Point),
@@ -220,14 +220,14 @@ impl Line {
 
         fn compute_out_code(p: Point, rect: Rect) -> u8 {
             let mut out = INSIDE;
-            if p.x < rect.left() {
+            if p.x < rect.left {
                 out |= LEFT;
-            } else if p.x > rect.right() {
+            } else if p.x > rect.right {
                 out |= RIGHT;
             }
-            if p.y < rect.top() {
+            if p.y < rect.top {
                 out |= TOP;
-            } else if p.y > rect.bottom() {
+            } else if p.y > rect.bottom {
                 out |= BOTTOM;
             }
             out
@@ -328,7 +328,13 @@ impl QuadBezier {
             max.x = max.x.max(px);
             max.y = max.y.max(py);
         }
-        Rect::from_ltrb(min.x, min.y, max.x, max.y)
+
+        Rect {
+            left: min.x,
+            top: min.y,
+            right: max.x,
+            bottom: max.y,
+        }
     }
 
     pub fn flatten(&self, sqrt_tolerance: f64, f: impl Fn(FlattenedPathElement)) {}

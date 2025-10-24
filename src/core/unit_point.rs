@@ -51,9 +51,6 @@ impl UnitPoint {
     }
 
     pub fn resolve(&self, bounds: Rect) -> Point {
-        Point::new(
-            bounds.left() + self.x * bounds.width(),
-            bounds.top() + self.y * bounds.height(),
-        )
+        bounds.get_relative_point(self.x, self.y)
     }
 }

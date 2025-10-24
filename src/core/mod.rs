@@ -23,7 +23,10 @@ mod transform;
 mod unit_point;
 mod vector;
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::{Add, Sub},
+};
 
 pub use alignment::{Align, HAlign, VAlign};
 pub use axis::Axis;
@@ -96,6 +99,22 @@ impl Default for ShadowOptions {
 pub struct PhysicalCoord(pub i32);
 impl PhysicalCoord {
     pub const ZERO: Self = Self(0);
+}
+
+impl Add for PhysicalCoord {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        Self(self.0 + rhs.0)
+    }
+}
+
+impl Sub for PhysicalCoord {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        Self(self.0 - rhs.0)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]

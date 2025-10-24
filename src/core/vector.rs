@@ -18,7 +18,7 @@ impl Vec2 {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Pod, Zeroable)]
 pub struct Vec2f {
     pub x: f32,
     pub y: f32,
@@ -208,9 +208,6 @@ macro_rules! impl_vec2_base {
                 }
             }
         }
-
-        unsafe impl Zeroable for $name {}
-        unsafe impl Pod for $name {}
     };
 }
 
@@ -290,18 +287,38 @@ impl_vec2_float!(Vec2, f64);
 impl_vec2_float!(Vec2f, f32);
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Pod, Zeroable)]
 pub struct Vec3f {
     pub x: f32,
     pub y: f32,
     pub z: f32,
 }
 
-unsafe impl Zeroable for Vec3f {}
-unsafe impl Pod for Vec3f {}
+impl Vec3f {
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub const X: Self = Self {
+        x: 1.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    pub const Y: Self = Self {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
+    pub const Z: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 1.0,
+    };
+}
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Pod, Zeroable)]
 pub struct Vec4f {
     pub x: f32,
     pub y: f32,
@@ -309,5 +326,35 @@ pub struct Vec4f {
     pub w: f32,
 }
 
-unsafe impl Zeroable for Vec4f {}
-unsafe impl Pod for Vec4f {}
+impl Vec4f {
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+        w: 0.0,
+    };
+    pub const X: Self = Self {
+        x: 1.0,
+        y: 0.0,
+        z: 0.0,
+        w: 0.0,
+    };
+    pub const Y: Self = Self {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+        w: 0.0,
+    };
+    pub const Z: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 1.0,
+        w: 0.0,
+    };
+    pub const W: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+        w: 1.0,
+    };
+}

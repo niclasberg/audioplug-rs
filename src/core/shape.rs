@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::core::{Circle, Ellipse, Path, Point, Rect, RoundedRect, Size, Transform, Vec2};
+use crate::core::{Circle, Ellipse, Path, Point, Rect, RoundedRect, Size, Vec2};
 
 /// Represents a drawable shape
 #[derive(Debug, Clone)]
@@ -12,11 +12,11 @@ pub enum Shape {
 }
 
 impl Shape {
-    pub const fn rect(point: Point, size: Size) -> Self {
+    pub fn rect(point: Point, size: Size) -> Self {
         Shape::Rect(Rect::from_origin(point, size))
     }
 
-    pub const fn rounded_rect(point: Point, size: Size, corner_radius: Size) -> Self {
+    pub fn rounded_rect(point: Point, size: Size, corner_radius: Size) -> Self {
         Self::Rounded(RoundedRect {
             rect: Rect::from_origin(point, size),
             corner_radius,
