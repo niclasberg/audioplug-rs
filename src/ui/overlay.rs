@@ -1,6 +1,6 @@
 use crate::{
-    ui::WidgetId,
     core::{Align, Vec2},
+    ui::WidgetId,
 };
 
 #[derive(Default, Debug, PartialEq, Eq, Clone, Copy)]
@@ -56,7 +56,7 @@ pub struct OverlayContainer {
 }
 
 impl OverlayContainer {
-    pub fn iter(&self) -> OverlayIter {
+    pub fn iter(&self) -> OverlayIter<'_> {
         OverlayIter {
             inner: self.overlays.iter(),
         }

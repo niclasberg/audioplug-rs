@@ -183,7 +183,7 @@ fn envelope_graph(
             .close_path();
 
         let mut scene = Scene::new();
-        scene.fill(&geometry, Color::BLACK);
+        scene.fill(geometry, Color::BLACK);
         scene
     })
     .style(|s, _| {

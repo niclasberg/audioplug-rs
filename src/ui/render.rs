@@ -1,13 +1,13 @@
 use crate::{core::Rect, platform};
 
 mod canvas;
-mod gpu_types;
+mod gpu_scene;
 mod scene;
 mod tiles;
 mod wgpu_surface;
 pub use canvas::{Canvas, CanvasContext, CanvasWidget};
 pub use scene::Scene;
-pub use wgpu_surface::{GraphicsInitError, WGPUSurface};
+pub use wgpu_surface::WGPUSurface;
 
 use super::{AppState, WidgetId, WindowId};
 pub use platform::TextLayout;
@@ -69,7 +69,8 @@ pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: R
         let dims = wgpu_surface.render_tiles_workgroup_count();
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
         compute_pass.set_pipeline(&wgpu_surface.render_tiles_pipeline);
-        compute_pass.set_bind_group(0, &wgpu_surface.render_tiles_bind_group, &[]);
+        compute_pass.set_bind_group(0, &wgpu_surface.render_tiles_bind_group0, &[]);
+        compute_pass.set_bind_group(1, &wgpu_surface.render_tiles_bind_group1, &[]);
         compute_pass.dispatch_workgroups(dims.width, dims.height, 1);
     }
 

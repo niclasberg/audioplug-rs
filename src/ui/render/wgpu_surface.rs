@@ -1,9 +1,14 @@
+use std::num::NonZero;
+
 use bytemuck::{Pod, Zeroable};
 use thiserror::Error;
 use wgpu::util::DeviceExt;
 
 use super::tiles::TILE_SIZE;
-use crate::core::{PhysicalCoord, PhysicalSize, Size};
+use crate::{
+    core::{Color, FillRule, Path, PhysicalCoord, PhysicalSize, Point, Rect, Size},
+    ui::render::gpu_scene::{FillOp, GpuScene, GpuShape},
+};
 
 #[repr(C)]
 #[derive(Clone, Copy, Zeroable, Pod)]
@@ -38,10 +43,15 @@ pub struct WGPUSurface {
     pub output_sampler: wgpu::Sampler,
     // Render tiles pipeline
     pub render_tiles_pipeline: wgpu::ComputePipeline,
-    pub render_tiles_bind_group_layout: wgpu::BindGroupLayout,
-    pub render_tiles_bind_group: wgpu::BindGroup,
+    pub render_tiles_bind_group_layout0: wgpu::BindGroupLayout,
+    pub render_tiles_bind_group_layout1: wgpu::BindGroupLayout,
+    pub render_tiles_bind_group0: wgpu::BindGroup,
+    pub render_tiles_bind_group1: wgpu::BindGroup,
     pub output_texture: wgpu::Texture,
     pub params_buffer: wgpu::Buffer,
+    pub shapes_data_buffer: wgpu::Buffer,
+    pub line_segments_buffer: wgpu::Buffer,
+    pub fill_ops_buffer: wgpu::Buffer,
 }
 
 impl WGPUSurface {
@@ -113,6 +123,45 @@ impl WGPUSurface {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
+        let mut gpu_scene = GpuScene::new();
+        {
+            let shape_ref = gpu_scene.add_rect(Rect {
+                left: 10.0,
+                top: 10.0,
+                right: 150.0,
+                bottom: 200.0,
+            });
+            gpu_scene.fill_shape(shape_ref, Color::RED);
+        }
+        {
+            let p = Path::new()
+                .move_to(Point::new(100.0, 100.0))
+                .line_to(Point::new(100.0, 800.0))
+                .line_to(Point::new(800.0, 800.0))
+                .line_to(Point::new(700.0, 400.0))
+                .close_path();
+            let shape_ref = gpu_scene.add_path(&p, FillRule::NonZero);
+            gpu_scene.fill_shape(shape_ref, Color::BLUE);
+        }
+
+        let shapes_data_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Shapes data buffer"),
+            contents: bytemuck::cast_slice(gpu_scene.shapes.as_slice()),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let line_segments_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Line segments buffer"),
+            contents: bytemuck::cast_slice(gpu_scene.line_segments.as_slice()),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let fill_ops_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("FillOps buffer"),
+            contents: bytemuck::cast_slice(gpu_scene.fill_ops.as_slice()),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
         // Output texture for compute shader
         let output_texture = create_output_texture(&device, width, height);
         let output_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -130,13 +179,23 @@ impl WGPUSurface {
         let (blit_pipeline, blit_bind_group_layout) = create_blit_pipeline(&device, format);
         let blit_bind_group =
             create_blit_bind_group(&device, &blit_bind_group_layout, &tex_view, &output_sampler);
-        let (render_tiles_pipeline, render_tiles_bind_group_layout) =
-            create_render_tiles_pipeline(&device);
-        let render_tiles_bind_group = create_render_tiles_bind_group(
+        let (
+            render_tiles_pipeline,
+            render_tiles_bind_group_layout0,
+            render_tiles_bind_group_layout1,
+        ) = create_render_tiles_pipeline(&device);
+        let render_tiles_bind_group0 = create_render_tiles_bind_group0(
             &device,
-            &render_tiles_bind_group_layout,
+            &render_tiles_bind_group_layout0,
             &tex_view,
             &params_buffer,
+        );
+        let render_tiles_bind_group1 = create_render_tiles_bind_group1(
+            &device,
+            &render_tiles_bind_group_layout1,
+            &shapes_data_buffer,
+            &line_segments_buffer,
+            &fill_ops_buffer,
         );
 
         Ok(Self {
@@ -150,11 +209,16 @@ impl WGPUSurface {
             blit_bind_group_layout,
             blit_bind_group,
             render_tiles_pipeline,
-            render_tiles_bind_group_layout,
-            render_tiles_bind_group,
+            render_tiles_bind_group_layout0,
+            render_tiles_bind_group_layout1,
+            render_tiles_bind_group0,
+            render_tiles_bind_group1,
             output_texture,
             output_sampler,
             params_buffer,
+            shapes_data_buffer,
+            line_segments_buffer,
+            fill_ops_buffer,
         })
     }
 
@@ -177,9 +241,9 @@ impl WGPUSurface {
                 &texture_view,
                 &self.output_sampler,
             );
-            self.render_tiles_bind_group = create_render_tiles_bind_group(
+            self.render_tiles_bind_group0 = create_render_tiles_bind_group0(
                 &self.device,
-                &self.render_tiles_bind_group_layout,
+                &self.render_tiles_bind_group_layout0,
                 &texture_view,
                 &self.params_buffer,
             );
@@ -194,6 +258,8 @@ impl WGPUSurface {
     pub fn render_tiles_workgroup_count(&self) -> Size<u32> {
         self.size.map(|x| (x.0 as u32 + TILE_SIZE - 1) / TILE_SIZE)
     }
+
+    pub fn update_scene(&mut self, gpu_scene: &GpuScene) {}
 }
 
 fn create_output_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
@@ -308,11 +374,16 @@ fn create_blit_bind_group(
 
 fn create_render_tiles_pipeline(
     device: &wgpu::Device,
-) -> (wgpu::ComputePipeline, wgpu::BindGroupLayout) {
+) -> (
+    wgpu::ComputePipeline,
+    wgpu::BindGroupLayout,
+    wgpu::BindGroupLayout,
+) {
     let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/render_tiles.wgsl"));
-    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("render_tiles bind group layout"),
+    let bind_group_layout0 = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("render_tiles bind group layout0"),
         entries: &[
+            // Params
             wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStages::COMPUTE,
@@ -335,9 +406,53 @@ fn create_render_tiles_pipeline(
             },
         ],
     });
+    let bind_group_layout1 = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("render_tiles bind group layout1"),
+        entries: &[
+            // Segments
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: Some(
+                        NonZero::new(std::mem::size_of::<FillOp>() as _).unwrap(),
+                    ),
+                },
+                count: None,
+            },
+            // Shapes
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: Some(
+                        NonZero::new(std::mem::size_of::<GpuShape>() as _).unwrap(),
+                    ),
+                },
+                count: None,
+            },
+            // Fills
+            wgpu::BindGroupLayoutEntry {
+                binding: 2,
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: Some(
+                        NonZero::new(std::mem::size_of::<FillOp>() as _).unwrap(),
+                    ),
+                },
+                count: None,
+            },
+        ],
+    });
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Render tiles layout"),
-        bind_group_layouts: &[&bind_group_layout],
+        bind_group_layouts: &[&bind_group_layout0, &bind_group_layout1],
         push_constant_ranges: &[],
     });
     let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -348,10 +463,10 @@ fn create_render_tiles_pipeline(
         compilation_options: wgpu::PipelineCompilationOptions::default(),
         cache: None,
     });
-    (pipeline, bind_group_layout)
+    (pipeline, bind_group_layout0, bind_group_layout1)
 }
 
-fn create_render_tiles_bind_group(
+fn create_render_tiles_bind_group0(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
     tex_view: &wgpu::TextureView,
@@ -372,6 +487,45 @@ fn create_render_tiles_bind_group(
             wgpu::BindGroupEntry {
                 binding: 1,
                 resource: wgpu::BindingResource::TextureView(tex_view),
+            },
+        ],
+    })
+}
+
+fn create_render_tiles_bind_group1(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    shapes_data_buffer: &wgpu::Buffer,
+    line_segments_buffer: &wgpu::Buffer,
+    fill_ops_buffer: &wgpu::Buffer,
+) -> wgpu::BindGroup {
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("Render tiles bind group"),
+        layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: line_segments_buffer,
+                    offset: 0,
+                    size: None,
+                }),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: shapes_data_buffer,
+                    offset: 0,
+                    size: None,
+                }),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: fill_ops_buffer,
+                    offset: 0,
+                    size: None,
+                }),
             },
         ],
     })

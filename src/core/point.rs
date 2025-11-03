@@ -144,6 +144,15 @@ impl From<Point<i32>> for Point<f64> {
     }
 }
 
+impl From<Point<f64>> for Point<f32> {
+    fn from(value: Point<f64>) -> Self {
+        Self {
+            x: value.x as _,
+            y: value.y as _,
+        }
+    }
+}
+
 impl<T, U: Into<T>> From<[U; 2]> for Point<T> {
     fn from([x, y]: [U; 2]) -> Self {
         Self {

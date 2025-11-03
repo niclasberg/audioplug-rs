@@ -1,14 +1,14 @@
 use crate::{
-    core::{Brush, BrushRef, Path, Point, Rect, ShapeRef, Transform},
-    ui::TextLayout,
+    core::{Brush, BrushRef, Path, Point, Rect, Shape, ShapeRef, Transform},
+    ui::{TextLayout, render::gpu_scene::GpuScene},
 };
 
 pub struct PathId(u32);
 
 pub enum Command {
-    Fill { path: Path, brush: Brush },
-    Stroke,
-    Clip,
+    Fill { shape: Shape, brush: Brush },
+    Stroke { shape: Shape },
+    Clip { shape: Shape },
 }
 
 pub struct Scene {
@@ -22,7 +22,7 @@ impl Scene {
         }
     }
 
-    pub fn fill<'c, 'd>(&mut self, shape: impl Into<ShapeRef<'c>>, brush: impl Into<BrushRef<'d>>) {
+    pub fn fill(&mut self, shape: impl Into<Shape>, brush: impl Into<Brush>) {
         //self.renderer.fill_shape(shape.into(), brush.into());
     }
 
@@ -74,6 +74,10 @@ impl Scene {
 
     pub fn transform(&mut self, transform: impl Into<Transform>) {
         //self.renderer.transform(transform.into());
+    }
+
+    pub(super) fn build(&self, transform: Transform, gpu_scene: &mut GpuScene) {
+        for command in self.commands.iter() {}
     }
 }
 

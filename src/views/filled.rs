@@ -58,7 +58,7 @@ impl Widget for Filled {
     fn render(&mut self, ctx: &mut RenderContext) -> Scene {
         let mut scene = Scene::new();
         scene.fill(
-            &self.shape.offset(ctx.global_bounds().top_left()),
+            self.shape.offset(ctx.global_bounds().top_left()),
             self.color,
         );
         scene

@@ -17,14 +17,16 @@ const SHAPE_TYPE_ROUNDED_RECT = 3u;
 const SHAPE_TYPE_ELLIPSE = 4u;
 const SHAPE_TYPE_MASK = 7u;
 
+const FILL_RULE_EVEN_ODD = 1u << 3;
+
 struct FillOp {
+	color: vec4f,
 	/// bits 0-2: Shape type
 	/// bit 3: Fill rule (path only): 0 -> even-odd, 1 -> non-zero
 	/// bits 4-31: Number of segments (path only)
 	shape_type: u32,
 	/// ShapeData index or offset to first line segment
 	index: u32,
-	color: vec4f,
 }
 
 struct Segment {
@@ -47,7 +49,7 @@ struct RadialGradient {
 	radius: f32,
 }
 
-const segments = array(
+/*const segments = array(
 	Segment(vec2f(100.0, 100.0), vec2f(100.0, 800.0)),
 	Segment(vec2f(100.0, 800.0), vec2f(800.0, 800.0)),
 	Segment(vec2f(800.0, 800.0), vec2f(700.0, 400.0)),
@@ -68,13 +70,22 @@ const fills = array(
 	FillOp(SHAPE_TYPE_RECT, 1, vec4f(0.3, 0.1, 0.7, 1.0)),
 	FillOp(SHAPE_TYPE_ROUNDED_RECT, 0, vec4f(0.5, 0.5, 0.0, 1.0)*0.4),
 );
-const N_FILLS = 4;
+const N_FILLS = 4;*/
 
 @group(0) @binding(0)
 var<uniform> params: Params;
 
 @group(0) @binding(1)
 var output_texture: texture_storage_2d<rgba8unorm, write>;
+
+@group(1) @binding(0)
+var<storage, read> segments: array<Segment>;
+
+@group(1) @binding(1)
+var<storage, read> shapes: array<ShapeData>;
+
+@group(1) @binding(2)
+var<storage, read> fills: array<FillOp>;
 
 @compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -89,7 +100,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 	let pos = vec2f(coord);
 
 	var color = vec4(0.1, 0.1, 0.1, 1.0);
-	for(var fill_id = 0; fill_id < N_FILLS; fill_id++) {
+	for(var fill_id = 0u; fill_id < arrayLength(&fills); fill_id++) {
 		let fill = fills[fill_id];
 		let coverage = compute_coverage(fill.shape_type, fill.index, pos);
 		let alpha = fill.color.w * coverage;
@@ -109,19 +120,18 @@ fn compute_coverage(shape_type: u32, index: u32, pos: vec2f) -> f32 {
 				let seg_id = index + i;
 				winding_number += winding_contribution(pos, segments[seg_id].p0, segments[seg_id].p1);
 			}
-
-			if winding_number != 0 {
-				return 1.0;
-			} else {
-				return 0.0;
-			}
+			
+			let even_odd_fill = select(0.0, 1.0, winding_number != 0);
+			let non_zero_fill = f32(winding_number & 1);
+			return select(non_zero_fill, even_odd_fill, (shape_type & FILL_RULE_EVEN_ODD) != 0);
 		}
 		case SHAPE_TYPE_RECT: {
 			let shape = shapes[index];
 			let top_left = shape.bounds.xy;
 			let bottom_right = shape.bounds.zw;
 
-			// Compute area of intersection between a rectangle centered at pos and the rectangle
+			// Compute area of intersection between a unit rectangle centered at pos and the shape's rectangle
+
 			let s = step(top_left, pos) - step(bottom_right, pos);
 			return s.x * s.y;
 		}

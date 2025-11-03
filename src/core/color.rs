@@ -1,18 +1,15 @@
 use bytemuck::{Pod, Zeroable};
 
-use super::{interpolation::SpringPhysics, Interpolate};
+use super::{Interpolate, interpolation::SpringPhysics};
 
 #[repr(C)]
-#[derive(Default, Debug, Copy, Clone, PartialEq)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Zeroable, Pod)]
 pub struct Color {
     pub r: f32,
     pub g: f32,
     pub b: f32,
     pub a: f32,
 }
-
-unsafe impl Zeroable for Color {}
-unsafe impl Pod for Color {}
 
 impl Color {
     pub const DEFAULT: Self = Self {

@@ -56,7 +56,7 @@ pub trait Widget: Any {
     fn animation_frame(&mut self, frame: AnimationFrame, cx: &mut AnimationContext) {}
 
     /// Returns the layout mode (or algorithm) to be used to layout the Widget and its children
-    fn layout_mode(&self) -> LayoutMode;
+    fn layout_mode(&self) -> LayoutMode<'_>;
 
     #[allow(unused_variables)]
     fn render(&mut self, cx: &mut RenderContext) -> Scene {
@@ -117,7 +117,7 @@ impl Widget for Box<dyn Widget> {
         self.deref_mut().animation_frame(frame, ctx);
     }
 
-    fn layout_mode(&self) -> LayoutMode {
+    fn layout_mode(&self) -> LayoutMode<'_> {
         self.deref().layout_mode()
     }
 
@@ -140,7 +140,7 @@ pub trait WidgetAdapter: Any {
 
     fn inner(&self) -> &Self::Inner;
     fn inner_mut(&mut self) -> &mut Self::Inner;
-    fn display_style(&self) -> LayoutMode {
+    fn display_style(&self) -> LayoutMode<'_> {
         self.inner().layout_mode()
     }
 
@@ -170,7 +170,7 @@ pub trait WidgetAdapter: Any {
 }
 
 impl<T: WidgetAdapter> Widget for T {
-    fn layout_mode(&self) -> LayoutMode {
+    fn layout_mode(&self) -> LayoutMode<'_> {
         self.display_style()
     }
 

@@ -60,6 +60,12 @@ impl Shape {
     }
 }
 
+impl From<Path> for Shape {
+    fn from(value: Path) -> Self {
+        Self::Path(value)
+    }
+}
+
 impl From<Rect> for Shape {
     fn from(value: Rect) -> Self {
         Self::Rect(value)

@@ -56,10 +56,11 @@ impl<P: AnyParameter> ParamSetter<P> {
         super::reactive::notify_parameter_subscribers(cx.app_state_mut(), self.id);
     }
 
-    pub fn set_value<T>(&self, cx: &mut dyn ParamContext, value: T)
+    pub fn set_value<T>(&self, _cx: &mut dyn ParamContext, _value: T)
     where
         P: Parameter<T>,
     {
+        todo!()
     }
 
     pub fn end_edit(&self, cx: &mut impl ParamContext) {

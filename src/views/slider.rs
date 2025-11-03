@@ -439,10 +439,10 @@ impl Widget for SliderWidget {
         scene.stroke(background_rect, &self.background_gradient, 1.0);
         scene.fill(background_rect, Color::BLACK.with_alpha(0.3));
         //ctx.fill(RoundedRectangle::new(range_indicator_rect, Size::new(1.0, 1.0)), Color::NEON_GREEN);
-        scene.fill(knob_shape, &self.knob_gradient_down);
+        scene.fill(knob_shape, self.knob_gradient_down.clone());
         scene.fill(
             knob_shape.with_radius(4.0 * knob_radius / 5.0),
-            &self.knob_gradient_up,
+            self.knob_gradient_up.clone(),
         );
         scene
     }

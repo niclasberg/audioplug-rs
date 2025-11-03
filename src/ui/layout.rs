@@ -431,9 +431,9 @@ impl LayoutPartialTree for LayoutContext<'_> {
 }
 
 fn compute_stack_layout(
-    tree: &mut LayoutContext,
-    node_id: taffy::NodeId,
-    inputs: taffy::LayoutInput,
+    _tree: &mut LayoutContext,
+    _node_id: taffy::NodeId,
+    _inputs: taffy::LayoutInput,
 ) -> taffy::LayoutOutput {
     todo!()
 }

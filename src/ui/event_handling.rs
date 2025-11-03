@@ -222,9 +222,9 @@ impl<'a> MouseEventContext<'a> {
         self.app_state
     }
 
-    pub fn as_callback_context(&mut self) -> CallbackContext {
+    pub fn as_callback_context(&mut self) -> CallbackContext<'_> {
         CallbackContext {
-            id: self.id,
+            _id: self.id,
             app_state: self.app_state,
         }
     }
@@ -262,7 +262,7 @@ impl<'a> MouseEventContext<'a> {
         self.app_state.widget_data_ref(self.id).global_bounds()
     }
 
-    pub fn clipboard(&self) -> Clipboard {
+    pub fn clipboard(&self) -> Clipboard<'_> {
         let window_id = self.app_state.get_window_id_for_widget(self.id);
         self.app_state.clipboard(window_id)
     }
@@ -323,9 +323,9 @@ impl<'a> EventContext<'a> {
         self.app_state
     }
 
-    pub fn as_callback_context(&mut self) -> CallbackContext {
+    pub fn as_callback_context(&mut self) -> CallbackContext<'_> {
         CallbackContext {
-            id: self.id,
+            _id: self.id,
             app_state: self.app_state,
         }
     }
@@ -342,7 +342,7 @@ impl<'a> EventContext<'a> {
         invalidate_widget(self.app_state, self.id);
     }
 
-    pub fn clipboard(&self) -> Clipboard {
+    pub fn clipboard(&self) -> Clipboard<'_> {
         let window_id = self.app_state.get_window_id_for_widget(self.id);
         self.app_state.clipboard(window_id)
     }
@@ -361,7 +361,7 @@ impl<'a> EventContext<'a> {
 }
 
 pub struct CallbackContext<'a> {
-    id: WidgetId,
+    _id: WidgetId,
     app_state: &'a mut AppState,
 }
 

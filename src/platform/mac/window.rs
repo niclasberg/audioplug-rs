@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
-use crate::core::Rect;
+use crate::core::{PhysicalRect, Rect};
 use crate::platform::WindowHandler;
 use objc2::rc::{Retained, Weak};
 use objc2_app_kit::{NSBackingStoreType, NSView, NSWindow, NSWindowStyleMask};
@@ -55,21 +55,23 @@ impl Window {
         let mtm = MainThreadMarker::new().unwrap();
         let parent = unsafe { &*(parent_handle.ns_view.as_ptr() as *mut NSView) };
         let view = View::new(mtm, handler, None);
-        unsafe {
-            parent.addSubview(&view);
-            view.setNeedsDisplay(true);
-        };
+        parent.addSubview(&view);
+        view.setNeedsDisplay(true);
 
         Ok(Self::AttachedToView(Weak::from_retained(&view)))
     }
 
-    pub fn set_size(&self, size: Rect<i32>) -> Result<(), Error> {
-        let size = CGSize::new(size.width() as f64, size.height() as f64);
+    pub fn set_physical_size(&self, rect: PhysicalRect) -> Result<(), Error> {
+        Ok(())
+    }
+
+    pub fn set_logical_size(&self, rect: Rect) -> Result<(), Error> {
+        let size = CGSize::new(rect.width() as f64, rect.height() as f64);
         match self {
             Window::OSWindow(_, _) => Ok(()),
             Window::AttachedToView(view) => {
                 if let Some(view) = view.load() {
-                    unsafe { view.setFrameSize(size) };
+                    view.setFrameSize(size);
                     Ok(())
                 } else {
                     Err(Error)

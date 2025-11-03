@@ -95,7 +95,7 @@ pub struct CanvasWidget {
 }
 
 impl Widget for CanvasWidget {
-    fn layout_mode(&self) -> LayoutMode {
+    fn layout_mode(&self) -> LayoutMode<'_> {
         LayoutMode::Block
     }
 

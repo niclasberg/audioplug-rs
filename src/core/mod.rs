@@ -40,7 +40,7 @@ pub use gradient::*;
 use indexmap::{IndexMap, IndexSet};
 pub use interpolation::{Interpolate, SpringPhysics, SpringProperties};
 pub use keyboard::{Key, Modifiers};
-pub use path::{CubicBezier, Line, Path, PathElement, PathSegment, QuadBezier};
+pub use path::{CubicBezier, FillRule, Line, Path, PathElement, PathSegment, QuadBezier};
 pub use point::{PhysicalPoint, Point};
 pub use rectangle::{PhysicalRect, Rect};
 pub use rounded_rectangle::RoundedRect;

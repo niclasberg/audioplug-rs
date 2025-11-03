@@ -23,7 +23,7 @@ pub use computed::Computed;
 pub(super) use effect::{BindingFn, EffectFn, EffectState};
 pub use effect::{Effect, EffectContext, WatchContext};
 pub(super) use event_channel::HandleEventFn;
-pub use event_channel::{EventChannel, EventReceiver, create_event_channel};
+pub use event_channel::{EventChannel, EventReceiver};
 pub use read_signal::ReadSignal;
 pub use readable::*;
 pub use runtime::*;

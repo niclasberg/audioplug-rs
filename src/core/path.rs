@@ -1,9 +1,10 @@
-use crate::core::{Point, Rect, Vec2};
+use crate::core::{Point, Rect, SpringPhysics, Vec2};
 
-pub enum FlattenedPathElement {
-    MoveTo(Point),
-    LineTo(Point),
-    ClosePath,
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
+pub enum FillRule {
+    #[default]
+    NonZero,
+    EvenOdd,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -115,29 +116,35 @@ impl Path {
     /// Flattens the path into path elements corresponding to lines
     ///
     /// Adapted from Kurbo and (https://raphlinus.github.io/graphics/curves/2019/12/23/flatten-quadbez.html)
-    pub fn flatten(&self, tolerance: f64, f: impl Fn(FlattenedPathElement)) {
+    pub fn flatten(&self, tolerance: f64, mut f: impl FnMut(Line)) {
         let mut last_point = None;
+        let mut first_point = Point::ZERO;
         let sqrt_tolerance = tolerance.sqrt();
         for &el in self.elements.iter() {
             match el {
                 PathElement::MoveTo(point) => {
-                    f(FlattenedPathElement::MoveTo(point));
                     last_point = Some(point);
+                    first_point = point;
                 }
                 PathElement::LineTo(point) => {
-                    f(FlattenedPathElement::LineTo(point));
+                    f(Line::new(last_point.unwrap_or(Point::ZERO), point));
                     last_point = Some(point);
                 }
                 PathElement::QuadTo(p1, p2) => {
                     if let Some(p0) = last_point {
-                        QuadBezier { p0, p1, p2 }.flatten(sqrt_tolerance, &f);
+                        QuadBezier { p0, p1, p2 }.flatten(sqrt_tolerance, &mut f);
                     }
                     last_point = Some(p2);
                 }
                 PathElement::CurveTo(point, point1, point2) => todo!(),
                 PathElement::ClosePath => {
+                    if let Some(last_point) = last_point {
+                        if last_point.distance_squared_to(&first_point) > tolerance.powi(2) {
+                            f(Line::new(last_point, first_point));
+                        }
+                    }
+                    first_point = last_point.unwrap_or(Point::ZERO);
                     last_point = None;
-                    f(FlattenedPathElement::ClosePath);
                 }
             }
         }
@@ -189,6 +196,10 @@ pub struct Line {
 }
 
 impl Line {
+    pub fn new(p0: Point, p1: Point) -> Self {
+        Self { p0, p1 }
+    }
+
     pub fn eval(&self, t: f64) -> Point {
         eval_line(self.p0, self.p1, t)
     }
@@ -337,7 +348,7 @@ impl QuadBezier {
         }
     }
 
-    pub fn flatten(&self, sqrt_tolerance: f64, f: impl Fn(FlattenedPathElement)) {}
+    pub fn flatten(&self, sqrt_tolerance: f64, f: &mut impl FnMut(Line)) {}
 }
 
 #[inline(always)]
