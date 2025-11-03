@@ -20,5 +20,10 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> @builtin(position) vec4<
 @fragment
 fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
 	let uv = pos.xy / vec2<f32>(textureDimensions(tex));
-	return textureSample(tex, tex_sampler, uv);
+	let c = textureSample(tex, tex_sampler, uv);
+	if c.w == 0.0 {
+		return c;
+	} else {
+		return vec4(c.x / c.w, c.y / c.w, c.z / c.w, c.w);
+	}
 }

@@ -15,7 +15,12 @@ use crate::core::{Rect, ScaleFactor, WindowTheme};
 pub(super) fn get_client_rect(hwnd: HWND) -> Rect<i32> {
     let mut rect: RECT = RECT::default();
     if let Ok(()) = unsafe { GetClientRect(hwnd, &mut rect) } {
-        Rect::from_ltrb(rect.left, rect.top, rect.right, rect.bottom)
+        Rect {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+        }
     } else {
         Rect::default()
     }

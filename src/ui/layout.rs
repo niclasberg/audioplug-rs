@@ -322,10 +322,10 @@ impl LayoutPartialTree for LayoutContext<'_> {
         widget_data.layout = *layout;
         let new_bounds = widget_data.global_bounds();
         if new_bounds != old_bounds {
-            let rect = new_bounds.combine_with(&old_bounds);
+            let rect = new_bounds.union(&old_bounds);
             self.region_to_invalidate = self
                 .region_to_invalidate
-                .map(|old| old.combine_with(&rect))
+                .map(|old| old.union(&rect))
                 .or(Some(rect));
 
             // Need to request layout for all overlays, their position

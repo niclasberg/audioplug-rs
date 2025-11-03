@@ -40,7 +40,7 @@ impl Handle {
     pub fn physical_size(&self) -> PhysicalSize {
         let client_rect = get_client_rect(self.hwnd);
         let scale_factor = self.scale_factor();
-        PhysicalSize::from_logical(client_rect.size.into(), scale_factor)
+        PhysicalSize::from_logical(client_rect.size().into(), scale_factor)
     }
 
     pub fn theme(&self) -> WindowTheme {
@@ -58,10 +58,10 @@ impl Handle {
     pub fn invalidate(&self, rect: Rect) {
         let rect = rect.scale(self.scale_factor().0);
         let rect = RECT {
-            left: rect.left().floor() as i32,
-            top: rect.top().floor() as i32,
-            right: rect.right().ceil() as i32,
-            bottom: rect.bottom().ceil() as i32,
+            left: rect.left.floor() as i32,
+            top: rect.top.floor() as i32,
+            right: rect.right.ceil() as i32,
+            bottom: rect.bottom.ceil() as i32,
         };
         let _ = unsafe { InvalidateRect(Some(self.hwnd), Some(&rect as _), false) };
     }

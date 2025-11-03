@@ -11,7 +11,9 @@ use vst3_sys::gui::{IPlugView, ViewRect};
 use vst3_sys::utils::SharedVstPtr;
 
 use crate::Editor;
-use crate::core::Rect;
+#[cfg(target_os = "windows")]
+use crate::core::PhysicalCoord;
+use crate::core::PhysicalRect;
 use crate::param::ParameterMap;
 use crate::ui::{AppState, Window};
 
@@ -64,7 +66,7 @@ impl<E: Editor> PlugView<E> {
 
 impl<E: Editor> IPlugView for PlugView<E> {
     unsafe fn is_platform_type_supported(&self, type_: FIDString) -> tresult {
-        let type_ = CStr::from_ptr(type_);
+        let type_ = unsafe { CStr::from_ptr(type_) };
         match type_.to_str() {
             #[cfg(target_os = "windows")]
             Ok(type_) if type_ == VST3_PLATFORM_HWND => kResultOk,
@@ -117,6 +119,12 @@ impl<E: Editor> IPlugView for PlugView<E> {
         kResultOk
     }
 
+    unsafe fn set_frame(&self, frame: *mut c_void) -> tresult {
+        let frame: SharedVstPtr<dyn IPlugFrame> = unsafe { std::mem::transmute(frame) };
+        self.plugin_frame.replace(frame.upgrade());
+        kResultOk
+    }
+
     unsafe fn on_wheel(&self, _distance: f32) -> tresult {
         // Handle in window class instead
         kResultOk
@@ -130,18 +138,30 @@ impl<E: Editor> IPlugView for PlugView<E> {
         kResultOk
     }
 
-    unsafe fn get_size(&self, size: *mut ViewRect) -> tresult {
-        if size.is_null() {
-            return kInvalidArgument;
+    unsafe fn on_focus(&self, _state: TBool) -> tresult {
+        if let Some(_window) = self.window.borrow().as_ref() {
+            kResultOk
+        } else {
+            kResultFalse
         }
+    }
+
+    // Size functions:
+    // From the VST documentation:
+    // The coordinates utilized within the ViewRect are native to the view system of the parent type. This implies that on
+    // macOS (kPlatformTypeNSView), the coordinates are expressed in logical units (independent of the screen scale factor),
+    // whereas on Windows (kPlatformTypeHWND) and Linux (kPlatformTypeX11EmbedWindowID), the coordinates are expressed in physical units (pixels).
+    unsafe fn get_size(&self, size: *mut ViewRect) -> tresult {
+        let Some(new_size) = (unsafe { size.as_mut() }) else {
+            return kInvalidArgument;
+        };
+
         if self.window.borrow().as_ref().is_some() {
-            let new_size = &mut *size;
             new_size.left = 0;
             new_size.right = 500;
             new_size.top = 0;
             new_size.bottom = 500;
         } else if let Some(pref_size) = self.editor.borrow().prefered_size() {
-            let new_size = &mut *size;
             new_size.left = 0;
             new_size.right = pref_size.width as i32;
             new_size.top = 0;
@@ -152,30 +172,23 @@ impl<E: Editor> IPlugView for PlugView<E> {
     }
 
     unsafe fn on_size(&self, new_size: *mut ViewRect) -> tresult {
-        if new_size.is_null() {
+        let Some(new_size) = (unsafe { new_size.as_ref() }) else {
             return kInvalidArgument;
-        }
-        let rect: Rect<_> = unsafe { *new_size }.into();
+        };
+
         if let Some(window) = self.window.borrow().as_ref() {
-            window.set_size(rect);
+            #[cfg(target_os = "windows")]
+            window.set_physical_size(PhysicalRect {
+                left: PhysicalCoord(new_size.left),
+                top: PhysicalCoord(new_size.top),
+                right: PhysicalCoord(new_size.right),
+                bottom: PhysicalCoord(new_size.bottom),
+            });
+
             kResultOk
         } else {
             kResultFalse
         }
-    }
-
-    unsafe fn on_focus(&self, _state: TBool) -> tresult {
-        if let Some(_window) = self.window.borrow().as_ref() {
-            kResultOk
-        } else {
-            kResultFalse
-        }
-    }
-
-    unsafe fn set_frame(&self, frame: *mut c_void) -> tresult {
-        let frame: SharedVstPtr<dyn IPlugFrame> = unsafe { std::mem::transmute(frame) };
-        self.plugin_frame.replace(frame.upgrade());
-        kResultOk
     }
 
     unsafe fn can_resize(&self) -> tresult {

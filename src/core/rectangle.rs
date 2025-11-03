@@ -303,7 +303,7 @@ impl Rect<f64> {
         }
     }
 
-    pub fn combine_with(&self, other: &Self) -> Self {
+    pub fn union(&self, other: &Self) -> Self {
         let left = self.left.min(other.left);
         let right = self.right.max(other.right);
         let top = self.top.min(other.top);
@@ -357,6 +357,15 @@ unsafe impl Pod for Rect<f32> {}
 
 pub type PhysicalRect = Rect<PhysicalCoord>;
 impl PhysicalRect {
+    pub fn from_logical(rect: Rect, scale_factor: ScaleFactor) -> Self {
+        Self {
+            left: PhysicalCoord((rect.left * scale_factor.0).floor() as i32),
+            top: PhysicalCoord((rect.top * scale_factor.0).floor() as i32),
+            right: PhysicalCoord((rect.right * scale_factor.0).ceil() as i32),
+            bottom: PhysicalCoord((rect.bottom * scale_factor.0).ceil() as i32),
+        }
+    }
+
     pub fn into_logical(self, scale_factor: ScaleFactor) -> Rect {
         Rect::from_origin(
             self.top_left().into_logical(scale_factor),

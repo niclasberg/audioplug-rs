@@ -16,22 +16,22 @@ impl From<Color> for Direct2D::Common::D2D1_COLOR_F {
 impl From<Rect> for Direct2D::Common::D2D_RECT_F {
     fn from(val: Rect) -> Self {
         Direct2D::Common::D2D_RECT_F {
-            left: val.left() as f32,
-            top: val.top() as f32,
-            right: val.right() as f32,
-            bottom: val.bottom() as f32,
+            left: val.left as f32,
+            top: val.top as f32,
+            right: val.right as f32,
+            bottom: val.bottom as f32,
         }
     }
 }
 
 impl From<Direct2D::Common::D2D_RECT_F> for Rect {
     fn from(value: Direct2D::Common::D2D_RECT_F) -> Self {
-        Self::from_ltrb(
-            value.left.into(),
-            value.top.into(),
-            value.right.into(),
-            value.bottom.into(),
-        )
+        Self {
+            left: value.left.into(),
+            top: value.top.into(),
+            right: value.right.into(),
+            bottom: value.bottom.into(),
+        }
     }
 }
 

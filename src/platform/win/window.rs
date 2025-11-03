@@ -29,7 +29,7 @@ use KeyboardAndMouse::{ReleaseCapture, SetCapture};
 use super::{
     cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, util::{get_scale_factor_for_window, get_theme}, Handle
 };
-use crate::{core::{PhysicalSize, ScaleFactor}, event::MouseButton};
+use crate::{core::{PhysicalRect, PhysicalSize, ScaleFactor}, event::MouseButton};
 use crate::{
     core::{Key, Point, Rect, Size, Vec2, WindowTheme},
     event::{AnimationFrame, KeyEvent, MouseEvent},
@@ -101,12 +101,12 @@ impl WindowState {
                 }
                 
                 let scale_factor = get_scale_factor_for_window(hwnd);
-                let dirty_rect = Rect::from_ltrb(
-                    (ps.rcPaint.left as f64 / scale_factor.0).floor(),
-                    (ps.rcPaint.top as f64 / scale_factor.0).floor(),
-                    (ps.rcPaint.right as f64 / scale_factor.0).ceil(),
-                    (ps.rcPaint.bottom as f64 / scale_factor.0).ceil(),
-                );
+                let dirty_rect = Rect {
+                    left: (ps.rcPaint.left as f64 / scale_factor.0).floor(),
+                    top: (ps.rcPaint.top as f64 / scale_factor.0).floor(),
+                    right: (ps.rcPaint.right as f64 / scale_factor.0).ceil(),
+                    bottom: (ps.rcPaint.bottom as f64 / scale_factor.0).ceil(),
+                };
 
                 self.handler.borrow_mut().paint(dirty_rect);
 
@@ -404,18 +404,23 @@ impl Window {
         println!("Scale factor changed from host to {scale_factor}");
     }
 
-    pub fn set_size(&self, size: Rect<i32>) -> Result<()> {
+    pub fn set_physical_size(&self, size: PhysicalRect) -> Result<()> {
         unsafe {
             SetWindowPos(
                 self.handle,
                 None,
-                size.left(),
-                size.top(),
-                size.width(),
-                size.height(),
+                size.left.0,
+                size.top.0,
+                size.width().0,
+                size.height().0,
                 SET_WINDOW_POS_FLAGS::default(),
             )
         }
+    }
+
+    pub fn set_logical_size(&self, rect: Rect) -> Result<()> {
+        let scale_factor = get_scale_factor_for_window(self.handle);
+        self.set_physical_size(PhysicalRect::from_logical(rect, scale_factor))
     }
 
     fn create(

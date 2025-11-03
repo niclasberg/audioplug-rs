@@ -7,7 +7,7 @@ use raw_window_handle::RawWindowHandle;
 use super::render::WGPUSurface;
 use super::{AppState, View, WindowId};
 use crate::App;
-use crate::core::{Cursor, Point, Rect};
+use crate::core::{Cursor, PhysicalRect, Point, Rect};
 use crate::platform::{self, WindowEvent};
 
 struct PreInit<F>(F);
@@ -137,8 +137,12 @@ impl Window {
         Self(window.unwrap())
     }
 
-    pub fn set_size(&self, size: Rect<i32>) {
-        self.0.set_size(size).unwrap()
+    pub fn set_physical_size(&self, size: PhysicalRect) {
+        self.0.set_physical_size(size).unwrap()
+    }
+
+    pub fn set_logical_size(&self, size: Rect) {
+        self.0.set_logical_size(size).unwrap()
     }
 
     pub fn set_scale_factor(&self, scale_factor: f32) {
