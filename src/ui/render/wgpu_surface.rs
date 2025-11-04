@@ -37,14 +37,11 @@ pub struct WGPUSurface {
     pub size: PhysicalSize,
     pub surface_format: wgpu::TextureFormat,
     // Blit pipeline
-    pub blit_pipeline: wgpu::RenderPipeline,
-    pub blit_bind_group_layout: wgpu::BindGroupLayout,
+    pub blit_program: BlitProgram,
     pub blit_bind_group: wgpu::BindGroup,
     pub output_sampler: wgpu::Sampler,
     // Render tiles pipeline
-    pub render_tiles_pipeline: wgpu::ComputePipeline,
-    pub render_tiles_bind_group_layout0: wgpu::BindGroupLayout,
-    pub render_tiles_bind_group_layout1: wgpu::BindGroupLayout,
+    pub render_tiles_program: RenderTilesProgram,
     pub render_tiles_bind_group0: wgpu::BindGroup,
     pub render_tiles_bind_group1: wgpu::BindGroup,
     pub output_texture: wgpu::Texture,
@@ -176,23 +173,14 @@ impl WGPUSurface {
         });
         let tex_view = output_texture.create_view(&Default::default());
 
-        let (blit_pipeline, blit_bind_group_layout) = create_blit_pipeline(&device, format);
-        let blit_bind_group =
-            create_blit_bind_group(&device, &blit_bind_group_layout, &tex_view, &output_sampler);
-        let (
-            render_tiles_pipeline,
-            render_tiles_bind_group_layout0,
-            render_tiles_bind_group_layout1,
-        ) = create_render_tiles_pipeline(&device);
-        let render_tiles_bind_group0 = create_render_tiles_bind_group0(
+        let blit_program = BlitProgram::new(&device, format);
+        let blit_bind_group = blit_program.create_bind_group(&device, &tex_view, &output_sampler);
+
+        let render_tiles_program = RenderTilesProgram::new(&device);
+        let render_tiles_bind_group0 =
+            render_tiles_program.create_bind_group0(&device, &tex_view, &params_buffer);
+        let render_tiles_bind_group1 = render_tiles_program.create_bind_group1(
             &device,
-            &render_tiles_bind_group_layout0,
-            &tex_view,
-            &params_buffer,
-        );
-        let render_tiles_bind_group1 = create_render_tiles_bind_group1(
-            &device,
-            &render_tiles_bind_group_layout1,
             &shapes_data_buffer,
             &line_segments_buffer,
             &fill_ops_buffer,
@@ -205,12 +193,9 @@ impl WGPUSurface {
             config,
             size,
             surface_format: format,
-            blit_pipeline,
-            blit_bind_group_layout,
+            blit_program,
             blit_bind_group,
-            render_tiles_pipeline,
-            render_tiles_bind_group_layout0,
-            render_tiles_bind_group_layout1,
+            render_tiles_program,
             render_tiles_bind_group0,
             render_tiles_bind_group1,
             output_texture,
@@ -235,15 +220,13 @@ impl WGPUSurface {
             let texture_view = self
                 .output_texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
-            self.blit_bind_group = create_blit_bind_group(
+            self.blit_bind_group = self.blit_program.create_bind_group(
                 &self.device,
-                &self.blit_bind_group_layout,
                 &texture_view,
                 &self.output_sampler,
             );
-            self.render_tiles_bind_group0 = create_render_tiles_bind_group0(
+            self.render_tiles_bind_group0 = self.render_tiles_program.create_bind_group0(
                 &self.device,
-                &self.render_tiles_bind_group_layout0,
                 &texture_view,
                 &self.params_buffer,
             );
@@ -256,10 +239,278 @@ impl WGPUSurface {
     }
 
     pub fn render_tiles_workgroup_count(&self) -> Size<u32> {
-        self.size.map(|x| (x.0 as u32 + TILE_SIZE - 1) / TILE_SIZE)
+        self.size.map(|x| (x.0 as u32).div_ceil(TILE_SIZE))
+    }
+}
+
+pub struct BlitProgram {
+    pub pipeline: wgpu::RenderPipeline,
+    pub bind_group_layout: wgpu::BindGroupLayout,
+}
+
+impl BlitProgram {
+    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
+        let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/blit.wgsl"));
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Blit bind group layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                    count: None,
+                },
+            ],
+        });
+        let render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Blit pipeline layout"),
+                bind_group_layouts: &[&bind_group_layout],
+                push_constant_ranges: &[],
+            });
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Blit pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Cw,
+                cull_mode: Some(wgpu::Face::Back),
+                unclipped_depth: false,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+            cache: None,
+        });
+
+        Self {
+            pipeline,
+            bind_group_layout,
+        }
     }
 
-    pub fn update_scene(&mut self, gpu_scene: &GpuScene) {}
+    pub fn create_bind_group(
+        &self,
+        device: &wgpu::Device,
+        tex_view: &wgpu::TextureView,
+        sampler: &wgpu::Sampler,
+    ) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Blit bind group"),
+            layout: &self.bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(tex_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(sampler),
+                },
+            ],
+        })
+    }
+}
+
+pub struct RenderTilesProgram {
+    pub pipeline: wgpu::ComputePipeline,
+    pub bind_group_layout0: wgpu::BindGroupLayout,
+    pub bind_group_layout1: wgpu::BindGroupLayout,
+}
+
+impl RenderTilesProgram {
+    pub fn new(device: &wgpu::Device) -> Self {
+        let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/render_tiles.wgsl"));
+        let bind_group_layout0 =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("render_tiles bind group layout0"),
+                entries: &[
+                    // Params
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture {
+                            access: wgpu::StorageTextureAccess::WriteOnly,
+                            format: wgpu::TextureFormat::Rgba8Unorm,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,
+                    },
+                ],
+            });
+        let bind_group_layout1 =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("render_tiles bind group layout1"),
+                entries: &[
+                    // Segments
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: Some(
+                                NonZero::new(std::mem::size_of::<FillOp>() as _).unwrap(),
+                            ),
+                        },
+                        count: None,
+                    },
+                    // Shapes
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: Some(
+                                NonZero::new(std::mem::size_of::<GpuShape>() as _).unwrap(),
+                            ),
+                        },
+                        count: None,
+                    },
+                    // Fills
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: Some(
+                                NonZero::new(std::mem::size_of::<FillOp>() as _).unwrap(),
+                            ),
+                        },
+                        count: None,
+                    },
+                ],
+            });
+        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Render tiles layout"),
+            bind_group_layouts: &[&bind_group_layout0, &bind_group_layout1],
+            push_constant_ranges: &[],
+        });
+        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("Render tiles compute pipeline"),
+            layout: Some(&layout),
+            module: &shader,
+            entry_point: Some("main"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+
+        Self {
+            pipeline,
+            bind_group_layout0,
+            bind_group_layout1,
+        }
+    }
+
+    fn create_bind_group0(
+        &self,
+        device: &wgpu::Device,
+        tex_view: &wgpu::TextureView,
+        params_buffer: &wgpu::Buffer,
+    ) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Render tiles bind group"),
+            layout: &self.bind_group_layout0,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: params_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(tex_view),
+                },
+            ],
+        })
+    }
+
+    fn create_bind_group1(
+        &self,
+        device: &wgpu::Device,
+        shapes_data_buffer: &wgpu::Buffer,
+        line_segments_buffer: &wgpu::Buffer,
+        fill_ops_buffer: &wgpu::Buffer,
+    ) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Render tiles bind group"),
+            layout: &self.bind_group_layout1,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: line_segments_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: shapes_data_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: fill_ops_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+            ],
+        })
+    }
 }
 
 fn create_output_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
@@ -276,257 +527,5 @@ fn create_output_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu
         format: wgpu::TextureFormat::Rgba8Unorm,
         usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
         view_formats: &[],
-    })
-}
-
-fn create_blit_pipeline(
-    device: &wgpu::Device,
-    format: wgpu::TextureFormat,
-) -> (wgpu::RenderPipeline, wgpu::BindGroupLayout) {
-    let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/blit.wgsl"));
-    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("Blit bind group layout"),
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    sample_type: wgpu::TextureSampleType::Float { filterable: false },
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    multisampled: false,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
-                count: None,
-            },
-        ],
-    });
-    let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("Blit pipeline layout"),
-        bind_group_layouts: &[&bind_group_layout],
-        push_constant_ranges: &[],
-    });
-    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("Blit pipeline"),
-        layout: Some(&render_pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: Some("vs_main"),
-            compilation_options: Default::default(),
-            buffers: &[],
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs_main"),
-            compilation_options: Default::default(),
-            targets: &[Some(wgpu::ColorTargetState {
-                format,
-                blend: Some(wgpu::BlendState::REPLACE),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-        }),
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            strip_index_format: None,
-            front_face: wgpu::FrontFace::Cw,
-            cull_mode: Some(wgpu::Face::Back),
-            unclipped_depth: false,
-            polygon_mode: wgpu::PolygonMode::Fill,
-            conservative: false,
-        },
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState {
-            count: 1,
-            mask: !0,
-            alpha_to_coverage_enabled: false,
-        },
-        multiview: None,
-        cache: None,
-    });
-    (pipeline, bind_group_layout)
-}
-
-fn create_blit_bind_group(
-    device: &wgpu::Device,
-    layout: &wgpu::BindGroupLayout,
-    tex_view: &wgpu::TextureView,
-    sampler: &wgpu::Sampler,
-) -> wgpu::BindGroup {
-    device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("Blit bind group"),
-        layout: &layout,
-        entries: &[
-            wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::TextureView(&tex_view),
-            },
-            wgpu::BindGroupEntry {
-                binding: 1,
-                resource: wgpu::BindingResource::Sampler(sampler),
-            },
-        ],
-    })
-}
-
-fn create_render_tiles_pipeline(
-    device: &wgpu::Device,
-) -> (
-    wgpu::ComputePipeline,
-    wgpu::BindGroupLayout,
-    wgpu::BindGroupLayout,
-) {
-    let shader = device.create_shader_module(wgpu::include_wgsl!("shaders/render_tiles.wgsl"));
-    let bind_group_layout0 = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("render_tiles bind group layout0"),
-        entries: &[
-            // Params
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::StorageTexture {
-                    access: wgpu::StorageTextureAccess::WriteOnly,
-                    format: wgpu::TextureFormat::Rgba8Unorm,
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                },
-                count: None,
-            },
-        ],
-    });
-    let bind_group_layout1 = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("render_tiles bind group layout1"),
-        entries: &[
-            // Segments
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                    has_dynamic_offset: false,
-                    min_binding_size: Some(
-                        NonZero::new(std::mem::size_of::<FillOp>() as _).unwrap(),
-                    ),
-                },
-                count: None,
-            },
-            // Shapes
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                    has_dynamic_offset: false,
-                    min_binding_size: Some(
-                        NonZero::new(std::mem::size_of::<GpuShape>() as _).unwrap(),
-                    ),
-                },
-                count: None,
-            },
-            // Fills
-            wgpu::BindGroupLayoutEntry {
-                binding: 2,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                    has_dynamic_offset: false,
-                    min_binding_size: Some(
-                        NonZero::new(std::mem::size_of::<FillOp>() as _).unwrap(),
-                    ),
-                },
-                count: None,
-            },
-        ],
-    });
-    let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("Render tiles layout"),
-        bind_group_layouts: &[&bind_group_layout0, &bind_group_layout1],
-        push_constant_ranges: &[],
-    });
-    let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-        label: Some("Render tiles compute pipeline"),
-        layout: Some(&layout),
-        module: &shader,
-        entry_point: Some("main"),
-        compilation_options: wgpu::PipelineCompilationOptions::default(),
-        cache: None,
-    });
-    (pipeline, bind_group_layout0, bind_group_layout1)
-}
-
-fn create_render_tiles_bind_group0(
-    device: &wgpu::Device,
-    layout: &wgpu::BindGroupLayout,
-    tex_view: &wgpu::TextureView,
-    params_buffer: &wgpu::Buffer,
-) -> wgpu::BindGroup {
-    device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("Render tiles bind group"),
-        layout,
-        entries: &[
-            wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                    buffer: params_buffer,
-                    offset: 0,
-                    size: None,
-                }),
-            },
-            wgpu::BindGroupEntry {
-                binding: 1,
-                resource: wgpu::BindingResource::TextureView(tex_view),
-            },
-        ],
-    })
-}
-
-fn create_render_tiles_bind_group1(
-    device: &wgpu::Device,
-    layout: &wgpu::BindGroupLayout,
-    shapes_data_buffer: &wgpu::Buffer,
-    line_segments_buffer: &wgpu::Buffer,
-    fill_ops_buffer: &wgpu::Buffer,
-) -> wgpu::BindGroup {
-    device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("Render tiles bind group"),
-        layout,
-        entries: &[
-            wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                    buffer: line_segments_buffer,
-                    offset: 0,
-                    size: None,
-                }),
-            },
-            wgpu::BindGroupEntry {
-                binding: 1,
-                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                    buffer: shapes_data_buffer,
-                    offset: 0,
-                    size: None,
-                }),
-            },
-            wgpu::BindGroupEntry {
-                binding: 2,
-                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                    buffer: fill_ops_buffer,
-                    offset: 0,
-                    size: None,
-                }),
-            },
-        ],
     })
 }

@@ -68,7 +68,7 @@ pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: R
     {
         let dims = wgpu_surface.render_tiles_workgroup_count();
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
-        compute_pass.set_pipeline(&wgpu_surface.render_tiles_pipeline);
+        compute_pass.set_pipeline(&wgpu_surface.render_tiles_program.pipeline);
         compute_pass.set_bind_group(0, &wgpu_surface.render_tiles_bind_group0, &[]);
         compute_pass.set_bind_group(1, &wgpu_surface.render_tiles_bind_group1, &[]);
         compute_pass.dispatch_workgroups(dims.width, dims.height, 1);
@@ -92,7 +92,7 @@ pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: R
         });
 
         // Blit the texture to the render target
-        render_pass.set_pipeline(&wgpu_surface.blit_pipeline);
+        render_pass.set_pipeline(&wgpu_surface.blit_program.pipeline);
         render_pass.set_bind_group(0, &wgpu_surface.blit_bind_group, &[]);
         render_pass.draw(0..3, 0..1);
     }
