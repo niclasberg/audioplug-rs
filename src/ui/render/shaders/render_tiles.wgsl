@@ -115,14 +115,14 @@ fn compute_coverage(shape_type: u32, index: u32, pos: vec2f) -> f32 {
 		case SHAPE_TYPE_PATH: {
 			let fill_rule = (shape_type >> 3) & 1u;
 			let size = (shape_type >> 4);
-			var winding_number = 0;
+			var winding_number = 0.0f;
 			for (var i = 0u; i < size; i++) {
 				let seg_id = index + i;
-				winding_number += winding_contribution(pos, segments[seg_id].p0, segments[seg_id].p1);
+				winding_number += winding_contribution(segments[seg_id].p0, segments[seg_id].p1, pos);
 			}
 			
-			let even_odd_fill = select(0.0, 1.0, winding_number != 0);
-			let non_zero_fill = f32(winding_number & 1);
+			let even_odd_fill = 1.0 - abs(1.0 - 2.0 * fract(0.5 * winding_number));
+			let non_zero_fill = clamp(abs(winding_number), 0.0, 1.0);
 			return select(non_zero_fill, even_odd_fill, (shape_type & FILL_RULE_EVEN_ODD) != 0);
 		}
 		case SHAPE_TYPE_RECT: {
@@ -154,25 +154,13 @@ fn compute_coverage(shape_type: u32, index: u32, pos: vec2f) -> f32 {
 }
 
 // Shoot ray in positive x direction, returns the number of path crossings
-fn winding_contribution(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> i32 {
-    if (a.y <= p.y) {
-        if (b.y > p.y) {
-            // Upward crossing
-            let cross = cross(b - a, p - a); // 2D cross product (b-a) × (p-a)
-            if (cross > 0.0) {
-                return 1;
-            }
-        }
-    } else {
-        if (b.y <= p.y) {
-            // Downward crossing
-            let cross = cross(b - a, p - a);
-            if (cross < 0.0) {
-                return -1;
-            }
-        }
-    }
-    return 0;
+fn winding_contribution(p0: vec2<f32>, p1: vec2<f32>, pos: vec2<f32>) -> f32 {
+	let delta = p1 - p0;
+	let cross = cross(delta, pos - p0);
+	let up_crossing = p0.y <= pos.y && p1.y > pos.y && cross > 0.0;
+	let down_crossing = p0.y > pos.y && p1.y <= pos.y && cross < 0.0;
+	let direction = select(0.0, 1.0, up_crossing) + select(0.0, -1.0, down_crossing);
+    return direction;
 }
 
 fn cross(u: vec2<f32>, v: vec2<f32>) -> f32 {
