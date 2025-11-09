@@ -9,6 +9,7 @@ mod cursor;
 pub mod diff;
 mod ellipse;
 mod gradient;
+mod image;
 mod interpolation;
 mod keyboard;
 mod path;
@@ -21,6 +22,7 @@ mod taffy_compat;
 mod text;
 mod transform;
 mod unit_point;
+mod util;
 mod vector;
 
 use std::{

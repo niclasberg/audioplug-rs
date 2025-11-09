@@ -96,6 +96,10 @@ impl NormalizedValue {
         Self(value)
     }
 
+    pub fn from_i64(value: i64) -> Self {
+        Self(value as f64)
+    }
+
     #[inline]
     fn from_bool(value: bool) -> Self {
         Self(if value { 1.0 } else { 0.0 })

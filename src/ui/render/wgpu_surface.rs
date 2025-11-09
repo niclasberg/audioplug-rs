@@ -6,8 +6,11 @@ use wgpu::util::DeviceExt;
 
 use super::tiles::TILE_SIZE;
 use crate::{
-    core::{Color, FillRule, Path, PhysicalCoord, PhysicalSize, Point, Rect, Size},
-    ui::render::gpu_scene::{FillOp, GpuScene, GpuShape},
+    core::{
+        BrushRef, Color, ColorMap, FillRule, LinearGradient, Path, PhysicalCoord, PhysicalSize,
+        Point, Rect, RoundedRect, Size,
+    },
+    ui::render::gpu_scene::{GpuScene, GpuShape, LineSegment},
 };
 
 #[repr(C)]
@@ -122,23 +125,44 @@ impl WGPUSurface {
 
         let mut gpu_scene = GpuScene::new();
         {
-            let shape_ref = gpu_scene.add_rect(Rect {
+            let rect = gpu_scene.add_rect(Rect {
                 left: 10.0,
                 top: 10.0,
                 right: 150.0,
                 bottom: 200.0,
             });
-            gpu_scene.fill_shape(shape_ref, Color::RED);
-        }
-        {
-            let p = Path::new()
-                .move_to(Point::new(100.0, 100.0))
-                .line_to(Point::new(100.0, 800.0))
-                .line_to(Point::new(800.0, 800.0))
-                .line_to(Point::new(700.0, 400.0))
-                .close_path();
-            let shape_ref = gpu_scene.add_path(&p, FillRule::NonZero);
-            gpu_scene.fill_shape(shape_ref, Color::BLUE);
+            let rounded_rect = gpu_scene.add_rounded_rect(RoundedRect::new(
+                Rect {
+                    left: 50.3,
+                    top: 100.2,
+                    right: 500.0,
+                    bottom: 400.3,
+                },
+                Size::new(40.0, 30.0),
+            ));
+            let path = gpu_scene.add_path(
+                &Path::new()
+                    .move_to(Point::new(100.0, 100.0))
+                    .line_to(Point::new(100.0, 800.0))
+                    .line_to(Point::new(800.0, 800.0))
+                    .line_to(Point::new(700.0, 400.0))
+                    .close_path(),
+                FillRule::NonZero,
+            );
+
+            gpu_scene.fill_shape(rect, BrushRef::Solid(Color::RED));
+            gpu_scene.fill_shape(
+                path,
+                BrushRef::LinearGradient(&LinearGradient {
+                    start: Point::new(100.0, 100.0),
+                    end: Point::new(800.0, 800.0),
+                    color_map: ColorMap::new([]),
+                }),
+            );
+            gpu_scene.fill_shape(
+                rounded_rect,
+                BrushRef::Solid(Color::PINE_TREE.with_alpha(0.4)),
+            );
         }
 
         let shapes_data_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -393,7 +417,7 @@ impl RenderTilesProgram {
                             ty: wgpu::BufferBindingType::Storage { read_only: true },
                             has_dynamic_offset: false,
                             min_binding_size: Some(
-                                NonZero::new(std::mem::size_of::<FillOp>() as _).unwrap(),
+                                NonZero::new(std::mem::size_of::<LineSegment>() as _).unwrap(),
                             ),
                         },
                         count: None,
@@ -418,9 +442,7 @@ impl RenderTilesProgram {
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Storage { read_only: true },
                             has_dynamic_offset: false,
-                            min_binding_size: Some(
-                                NonZero::new(std::mem::size_of::<FillOp>() as _).unwrap(),
-                            ),
+                            min_binding_size: Some(NonZero::new(8).unwrap()),
                         },
                         count: None,
                     },

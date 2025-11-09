@@ -2,6 +2,7 @@ use crate::{core::Rect, platform};
 
 mod canvas;
 mod gpu_scene;
+mod gradient_cache;
 mod scene;
 mod tiles;
 mod wgpu_surface;

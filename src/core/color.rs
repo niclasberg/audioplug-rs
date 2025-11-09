@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use bytemuck::{Pod, Zeroable};
 
 use super::{Interpolate, interpolation::SpringPhysics};
@@ -10,6 +12,17 @@ pub struct Color {
     pub b: f32,
     pub a: f32,
 }
+
+impl Hash for Color {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.r.to_bits().hash(state);
+        self.g.to_bits().hash(state);
+        self.b.to_bits().hash(state);
+        self.a.to_bits().hash(state);
+    }
+}
+
+impl Eq for Color {}
 
 impl Color {
     pub const DEFAULT: Self = Self {

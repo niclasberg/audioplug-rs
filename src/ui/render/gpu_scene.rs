@@ -1,6 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 
-use crate::core::{Color, Ellipse, FillRule, Path, Rect, RoundedRect, Vec2f, Vec4f};
+use crate::core::{BrushRef, Color, Ellipse, FillRule, Path, Rect, RoundedRect, Vec2f, Vec4f};
 
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
@@ -16,28 +16,7 @@ pub struct GpuShape {
     /// Corner radius, only for rounded rects
     radii: Vec4f,
 }
-
-pub struct Paint {}
-
-impl Paint {
-    const TYPE_SOLID: u32 = 1;
-    const TYPE_LINEAR_GRADIENT: u32 = 2;
-    const TYPE_RADIAL_GRADIENT: u32 = 3;
-}
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone, Zeroable, Pod)]
-pub struct FillOp {
-    color: Color,
-    /// bits 0-2: Shape type
-    /// bit 3: Fill rule (path only): 0 -> even-odd, 1 -> non-zero
-    /// bits 4-31: Number of segments (path only)
-    shape_type: u32,
-    /// ShapeData index or offset to first line segment
-    index: u32,
-    _padding: u64,
-}
-
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct GpuShapeRef {
     /// bits 0-2: Shape type
     /// bit 3: Fill rule (path only): 0 -> even-odd, 1 -> non-zero
@@ -50,7 +29,8 @@ pub struct GpuShapeRef {
 pub struct GpuScene {
     pub line_segments: Vec<LineSegment>,
     pub shapes: Vec<GpuShape>,
-    pub fill_ops: Vec<FillOp>,
+    pub fill_ops: Vec<u32>,
+    pub gradient_lut: Vec<f32>,
 }
 
 impl GpuScene {
@@ -61,11 +41,16 @@ impl GpuScene {
 
     const FILL_RULE_EVEN_ODD: u32 = 1 << 3;
 
+    const FILL_TYPE_SOLID: u32 = 1;
+    const FILL_TYPE_LINEAR_GRADIENT: u32 = 2;
+    const FILL_TYPE_RADIAL_GRADIENT: u32 = 3;
+
     pub fn new() -> Self {
         Self {
             line_segments: Vec::new(),
             shapes: Vec::new(),
             fill_ops: Vec::new(),
+            gradient_lut: Vec::new(),
         }
     }
 
@@ -127,13 +112,36 @@ impl GpuScene {
         GpuShapeRef { shape_type, index }
     }
 
-    pub fn fill_shape(&mut self, shape_ref: GpuShapeRef, color: Color) {
-        self.fill_ops.push(FillOp {
-            shape_type: shape_ref.shape_type,
-            index: shape_ref.index,
-            color,
-            _padding: 0,
-        });
+    pub fn fill_shape(&mut self, shape_ref: GpuShapeRef, brush: BrushRef<'_>) {
+        let fill_type = match brush {
+            BrushRef::Solid(_) => Self::FILL_TYPE_SOLID,
+            BrushRef::LinearGradient(_) => Self::FILL_TYPE_LINEAR_GRADIENT,
+        };
+
+        let fill_data = (shape_ref.shape_type) << 4 | fill_type;
+        self.fill_ops.push(fill_data);
+        self.fill_ops.push(shape_ref.index);
+
+        match brush {
+            BrushRef::Solid(color) => self.fill_ops.extend(
+                [
+                    color.r.to_bits(),
+                    color.g.to_bits(),
+                    color.b.to_bits(),
+                    color.a.to_bits(),
+                ]
+                .iter(),
+            ),
+            BrushRef::LinearGradient(gradient) => self.fill_ops.extend(
+                [
+                    (gradient.start.x as f32).to_bits(),
+                    (gradient.start.y as f32).to_bits(),
+                    (gradient.end.x as f32).to_bits(),
+                    (gradient.end.y as f32).to_bits(),
+                ]
+                .iter(),
+            ),
+        };
     }
 
     pub fn clear(&mut self) {

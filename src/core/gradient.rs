@@ -1,12 +1,23 @@
+use std::hash::Hash;
+
 use crate::core::UnitPoint;
 
 use super::Color;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ColorStop {
     pub position: f32,
     pub color: Color,
 }
+
+impl Hash for ColorStop {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.position.to_bits().hash(state);
+        self.color.hash(state);
+    }
+}
+
+impl Eq for ColorStop {}
 
 #[derive(Debug, Clone)]
 pub struct ColorMap {

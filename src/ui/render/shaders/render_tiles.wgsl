@@ -11,6 +11,7 @@ struct Params {
 	height: u32,
 }
 
+const SHAPE_TYPE_NONE = 0u;
 const SHAPE_TYPE_PATH = 1u;
 const SHAPE_TYPE_RECT = 2u;
 const SHAPE_TYPE_ROUNDED_RECT = 3u;
@@ -19,15 +20,9 @@ const SHAPE_TYPE_MASK = 7u;
 
 const FILL_RULE_EVEN_ODD = 1u << 3;
 
-struct FillOp {
-	color: vec4f,
-	/// bits 0-2: Shape type
-	/// bit 3: Fill rule (path only): 0 -> even-odd, 1 -> non-zero
-	/// bits 4-31: Number of segments (path only)
-	shape_type: u32,
-	/// ShapeData index or offset to first line segment
-	index: u32,
-}
+const FILL_TYPE_SOLID = 1u;
+const FILL_TYPE_LINEAR_GRADIENT = 2u;
+const FILL_TYPE_RADIAL_GRADIENT = 3u;
 
 struct Segment {
 	p0: vec2f,
@@ -49,29 +44,6 @@ struct RadialGradient {
 	radius: f32,
 }
 
-/*const segments = array(
-	Segment(vec2f(100.0, 100.0), vec2f(100.0, 800.0)),
-	Segment(vec2f(100.0, 800.0), vec2f(800.0, 800.0)),
-	Segment(vec2f(800.0, 800.0), vec2f(700.0, 400.0)),
-	Segment(vec2f(700.0, 400.0), vec2f(100.0, 100.0)),
-	Segment(vec2f(100.0, 800.0), vec2f(800.0, 800.0)),
-	Segment(vec2f(800.0, 800.0), vec2f(900.0, 500.0)),
-	Segment(vec2f(900.0, 500.0), vec2f(100.0, 800.0)),
-);
-
-const shapes = array(
-	ShapeData(vec4f(10.0, 10.0, 150.0, 200.0), vec4f(10.0, 20.0, 30.0, 40.0)),
-	ShapeData(vec4f(650.0, 390.0, 720.0, 800.0), vec4f(0.0))
-);
-
-const fills = array(
-	FillOp(SHAPE_TYPE_PATH | (4 << 4), 0, vec4f(1.0, 0.0, 0.0, 1.0)),
-	FillOp(SHAPE_TYPE_PATH | (3 << 4), 4, vec4f(0.0, 1.0, 0.0, 1.0)),
-	FillOp(SHAPE_TYPE_RECT, 1, vec4f(0.3, 0.1, 0.7, 1.0)),
-	FillOp(SHAPE_TYPE_ROUNDED_RECT, 0, vec4f(0.5, 0.5, 0.0, 1.0)*0.4),
-);
-const N_FILLS = 4;*/
-
 @group(0) @binding(0)
 var<uniform> params: Params;
 
@@ -85,7 +57,7 @@ var<storage, read> segments: array<Segment>;
 var<storage, read> shapes: array<ShapeData>;
 
 @group(1) @binding(2)
-var<storage, read> fills: array<FillOp>;
+var<storage, read> fills: array<u32>;
 
 @compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -99,21 +71,62 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 	let coord = vec2(tile_x, tile_y);
 	let pos = vec2f(coord);
 
-	var color = vec4(0.1, 0.1, 0.1, 1.0);
-	for(var fill_id = 0u; fill_id < arrayLength(&fills); fill_id++) {
-		let fill = fills[fill_id];
-		let coverage = compute_coverage(fill.shape_type, fill.index, pos);
-		let alpha = fill.color.w * coverage;
-		color = (1.0 - alpha) * color + alpha * fill.color;
-	}
+	var color = vec4f(0.1, 0.3, 0.1, 1.0);
+	var fill_color = vec4f(0.0);
+	
+	var i = 0u;
+	loop {
+		if i >= arrayLength(&fills) {
+			break;
+		}
+
+		let shape_type = fills[i] >> 4;
+		let fill_type = fills[i] & 0x7;
+		let index = fills[i+1];
+		i += 2;
+
+		let coverage = compute_coverage(shape_type, index, pos);
+
+		switch (fill_type) {
+			case FILL_TYPE_SOLID: {
+				fill_color = vec4f(
+					bitcast<f32>(fills[i]),
+					bitcast<f32>(fills[i+1]),
+					bitcast<f32>(fills[i+2]),
+					bitcast<f32>(fills[i+3]),
+				);
+				i += 4;
+			}
+			case FILL_TYPE_LINEAR_GRADIENT: {
+				let start = vec2f(bitcast<f32>(fills[i]), bitcast<f32>(fills[i+1]));
+				let end = vec2f(bitcast<f32>(fills[i+2]), bitcast<f32>(fills[i+3]));
+				i += 4;
+				
+				let delta = end - start;
+				let t = clamp(dot(pos - start, end - start) / dot(delta, delta), 0.0, 1.0);
+				fill_color = vec4f(t, t, t, 1.0);
+			}
+			case FILL_TYPE_RADIAL_GRADIENT: {
+				fill_color = vec4f(1.0);
+			}
+			default: {
+				fill_color = vec4f(0.0);
+			}
+		}
+
+		let alpha = fill_color.w * coverage;
+		color = (1.0 - alpha) * color + alpha * fill_color;
+	};
 
 	textureStore(output_texture, coord, color);
 }
 
 fn compute_coverage(shape_type: u32, index: u32, pos: vec2f) -> f32 {
 	switch (shape_type & SHAPE_TYPE_MASK) {
+		case SHAPE_TYPE_NONE: {
+			return 1.0;
+		}
 		case SHAPE_TYPE_PATH: {
-			let fill_rule = (shape_type >> 3) & 1u;
 			let size = (shape_type >> 4);
 			var winding_number = 0.0f;
 			for (var i = 0u; i < size; i++) {
