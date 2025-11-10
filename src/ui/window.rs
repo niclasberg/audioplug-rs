@@ -1,46 +1,36 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use pollster::FutureExt;
 use raw_window_handle::RawWindowHandle;
 
-use super::render::WGPUSurface;
 use super::{AppState, View, WindowId};
 use crate::App;
-use crate::core::{Cursor, PhysicalRect, Point, Rect};
+use crate::core::{Cursor, PhysicalRect, Point, Rect, ScaleFactor};
 use crate::platform::{self, WindowEvent};
 
-struct PreInit<F>(F);
-struct Constructed(WindowId);
-
 enum WindowState<V> {
-    PreInit(PreInit<V>),
+    PreInit { view: V },
     Initializing,
-    Initialized(Constructed),
+    Initialized { window_id: WindowId },
 }
 
 impl<V: View> WindowState<V> {
     fn window_id(&self) -> WindowId {
         match self {
-            WindowState::PreInit(_) | WindowState::Initializing => {
+            WindowState::PreInit { .. } | WindowState::Initializing => {
                 panic!("Root widget requested before window was initialized")
             }
-            WindowState::Initialized(Constructed(root_widget)) => *root_widget,
+            WindowState::Initialized { window_id } => *window_id,
         }
     }
 
     fn initialize(self, app_state: &mut AppState, handle: platform::Handle) -> Self {
         match self {
-            WindowState::PreInit(PreInit(view)) => {
-                // It would be neat to run this on the executor
-                let surface = WGPUSurface::new(&handle)
-                    .block_on()
-                    .expect("Graphics initialization failed");
-
-                let window_id = app_state.add_window(handle, surface, view);
-                Self::Initialized(Constructed(window_id))
+            WindowState::PreInit { view } => {
+                let window_id = app_state.add_window(handle, view);
+                Self::Initialized { window_id }
             }
-            WindowState::Initialized(_) | WindowState::Initializing => {
+            WindowState::Initialized { .. } | WindowState::Initializing => {
                 panic!("Multiple calls to window initialize")
             }
         }
@@ -54,7 +44,7 @@ pub(crate) struct MyHandler<F> {
 
 impl<V: View> MyHandler<V> {
     pub fn new(app_state: Rc<RefCell<AppState>>, view: V) -> Self {
-        let window_state = WindowState::PreInit(PreInit(view));
+        let window_state = WindowState::PreInit { view };
 
         Self {
             state: window_state,
@@ -100,8 +90,8 @@ impl<V: View> platform::WindowHandler for MyHandler<V> {
 impl<F> Drop for MyHandler<F> {
     fn drop(&mut self) {
         match self.state {
-            WindowState::PreInit(_) | WindowState::Initializing => {}
-            WindowState::Initialized(Constructed(window_id)) => {
+            WindowState::PreInit { .. } | WindowState::Initializing => {}
+            WindowState::Initialized { window_id } => {
                 let mut app_state = self.app_state.borrow_mut();
                 app_state.remove_window(window_id);
             }
@@ -145,7 +135,11 @@ impl Window {
         self.0.set_logical_size(size).unwrap()
     }
 
-    pub fn set_scale_factor(&self, scale_factor: f32) {
+    pub fn set_scale_factor(&self, scale_factor: ScaleFactor) {
         self.0.set_scale_factor(scale_factor);
+    }
+
+    pub fn scale_factor(&self) -> ScaleFactor {
+        self.0.scale_factor()
     }
 }

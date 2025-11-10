@@ -14,7 +14,7 @@ impl AudioHost {
 }
 
 pub struct Device {
-    device_id: AudioDeviceID,
+    _device_id: AudioDeviceID,
 }
 
 impl Device {

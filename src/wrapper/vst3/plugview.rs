@@ -11,9 +11,7 @@ use vst3_sys::gui::{IPlugView, ViewRect};
 use vst3_sys::utils::SharedVstPtr;
 
 use crate::Editor;
-#[cfg(target_os = "windows")]
-use crate::core::PhysicalCoord;
-use crate::core::PhysicalRect;
+use crate::core::ScaleFactor;
 use crate::param::ParameterMap;
 use crate::ui::{AppState, Window};
 
@@ -178,12 +176,25 @@ impl<E: Editor> IPlugView for PlugView<E> {
 
         if let Some(window) = self.window.borrow().as_ref() {
             #[cfg(target_os = "windows")]
-            window.set_physical_size(PhysicalRect {
-                left: PhysicalCoord(new_size.left),
-                top: PhysicalCoord(new_size.top),
-                right: PhysicalCoord(new_size.right),
-                bottom: PhysicalCoord(new_size.bottom),
-            });
+            {
+                use crate::core::{PhysicalCoord, PhysicalRect};
+                window.set_physical_size(PhysicalRect {
+                    left: PhysicalCoord(new_size.left),
+                    top: PhysicalCoord(new_size.top),
+                    right: PhysicalCoord(new_size.right),
+                    bottom: PhysicalCoord(new_size.bottom),
+                });
+            }
+            #[cfg(target_os = "macos")]
+            {
+                use crate::core::Rect;
+                window.set_logical_size(Rect {
+                    left: new_size.left as _,
+                    top: new_size.top as _,
+                    right: new_size.right as _,
+                    bottom: new_size.bottom as _,
+                });
+            }
 
             kResultOk
         } else {
@@ -208,7 +219,7 @@ impl<E: Editor> IPlugView for PlugView<E> {
 impl<E: Editor> IPlugViewContentScaleSupport for PlugView<E> {
     unsafe fn set_scale_factor(&self, scale_factor: f32) -> tresult {
         if let Some(window) = self.window.borrow().as_ref() {
-            window.set_scale_factor(scale_factor);
+            window.set_scale_factor(ScaleFactor(scale_factor as f64));
             kResultOk
         } else {
             kResultFalse

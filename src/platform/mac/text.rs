@@ -67,16 +67,12 @@ impl TextFrame {
         Self { frame, lines }
     }
 
-    pub fn get_visible_string_range(&self) -> CFRange {
-        unsafe { self.frame.visible_string_range() }
-    }
-
     pub fn path(&self) -> CFRetained<CGPath> {
         unsafe { self.frame.path() }
     }
 
     pub fn bounding_box(&self) -> CGRect {
-        unsafe { CGPath::bounding_box(Some(&self.path())) }
+        CGPath::bounding_box(Some(&self.path()))
     }
 }
 
@@ -253,10 +249,6 @@ impl NativeTextLayout {
             .unwrap_or(Point::ZERO)
     }
 
-    pub fn frame(&self) -> &TextFrame {
-        &self.text_frame
-    }
-
     pub fn as_str(&self) -> &str {
         &self.text
     }
@@ -352,9 +344,5 @@ impl NativeFont {
         let font =
             unsafe { CTFont::with_font_descriptor(&descriptor, options.size, std::ptr::null()) };
         Self(font)
-    }
-
-    pub fn family_name(&self) -> String {
-        unsafe { self.0.family_name() }.to_string()
     }
 }

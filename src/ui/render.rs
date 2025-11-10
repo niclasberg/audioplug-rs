@@ -7,6 +7,7 @@ mod scene;
 mod tiles;
 mod wgpu_surface;
 pub use canvas::{Canvas, CanvasContext, CanvasWidget};
+use pollster::FutureExt;
 pub use scene::Scene;
 pub use wgpu_surface::WGPUSurface;
 
@@ -45,10 +46,16 @@ pub fn invalidate_widget(app_state: &AppState, widget_id: WidgetId) {
 }
 
 pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: Rect) {
+    let window = &mut app_state.windows[window_id];
+    let wgpu_surface = window.wgpu_surface.get_or_insert_with(|| {
+        // It would be neat to run this on the executor
+        WGPUSurface::new(&window.handle)
+            .block_on()
+            .expect("Graphics initialization failed")
+    });
+
     println!("Paint window, dirty rect: {dirty_rect:?}");
 
-    let window = &mut app_state.windows[window_id];
-    let wgpu_surface = &mut window.wgpu_surface;
     let surface_texture = wgpu_surface
         .surface
         .get_current_texture()

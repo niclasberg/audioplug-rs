@@ -5,10 +5,6 @@ pub const fn four_cc(str: &[u8; 4]) -> i32 {
         | ((str[3] as u32) & 0x000000ff)) as i32
 }
 
-pub const fn range_contains(range: &CFRange, index: CFIndex) -> bool {
-    index >= range.location && ((index - range.location) < range.length)
-}
-
 macro_rules! cf_enum {
 	{
 		$( #[$attr:meta] )*

@@ -22,8 +22,7 @@ define_class!(
             let app_menu_item = NSMenuItem::new(mtm);
             main_menu.addItem(&app_menu_item);
 
-            let app_menu =
-                unsafe { NSMenu::initWithTitle(NSMenu::alloc(mtm), ns_string!("Application")) };
+            let app_menu = NSMenu::initWithTitle(NSMenu::alloc(mtm), ns_string!("Application"));
             app_menu_item.setSubmenu(Some(&app_menu));
 
             let process_name = NSProcessInfo::processInfo().processName();

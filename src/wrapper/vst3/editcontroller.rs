@@ -1,23 +1,23 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use vst3_com::vst::{kRootUnitId, ParameterFlags};
 use vst3_com::VstPtr;
+use vst3_com::vst::{ParameterFlags, kRootUnitId};
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
 use vst3_sys::vst::{
-    kNoParentUnitId, kNoProgramListId, IComponentHandler, IConnectionPoint, IEditController,
-    IMessage, IUnitInfo, ParameterInfo, ProgramListInfo, String128, UnitInfo,
+    IComponentHandler, IConnectionPoint, IEditController, IMessage, IUnitInfo, ParameterInfo,
+    ProgramListInfo, String128, UnitInfo, kNoParentUnitId, kNoProgramListId,
 };
-use vst3_sys::{c_void, VST3};
+use vst3_sys::{VST3, c_void};
 
 use vst3_sys as vst3_com;
 
-use crate::ui::{AppState, HostHandle};
 use crate::param::{
     AnyParameterMap, NormalizedValue, ParamRef, ParameterId, ParameterMap, Params, PlainValue,
 };
-use crate::{platform, Editor};
+use crate::ui::{AppState, HostHandle};
+use crate::{Editor, EditorContext, platform};
 
 use super::plugview::PlugView;
 use super::util::strcpyw;
@@ -61,8 +61,11 @@ impl<E: Editor> EditController<E> {
     pub fn new() -> Box<Self> {
         let executor = Rc::new(platform::Executor::new().unwrap());
         let parameters = ParameterMap::new(E::Parameters::new());
-        let app_state = Rc::new(RefCell::new(AppState::new(parameters.clone())));
-        let editor = Rc::new(RefCell::new(E::new()));
+        let mut app_state = AppState::new(parameters.clone());
+        let editor = Rc::new(RefCell::new(E::new(&mut EditorContext {
+            app_state: &mut app_state,
+        })));
+        let app_state = Rc::new(RefCell::new(app_state));
         let is_editing_parameters = Rc::new(Cell::new(false));
         Self::allocate(
             app_state,
@@ -101,9 +104,11 @@ impl<E: Editor> IEditController for EditController<E> {
         let Some((group_id, param_ref)) = self.parameters.get_by_index(param_index as usize) else {
             return kInvalidArgument;
         };
-        let param_ref = param_ref.as_param_ref();
+        let Some(info) = (unsafe { info.as_mut() }) else {
+            return kInvalidArgument;
+        };
 
-        let info = &mut *info;
+        let param_ref = param_ref.as_param_ref();
         let parameter_id = param_ref.id();
 
         info.id = parameter_id.into();
@@ -135,6 +140,9 @@ impl<E: Editor> IEditController for EditController<E> {
     ) -> tresult {
         // The string is actually a String128, it's mistyped in vst3-sys
         let string = string as *mut String128;
+        let Some(string) = (unsafe { string.as_mut() }) else {
+            return kInvalidArgument;
+        };
         let Some(param_ref) = self.parameters.get_by_id(ParameterId(id)) else {
             return kInvalidArgument;
         };
@@ -143,7 +151,7 @@ impl<E: Editor> IEditController for EditController<E> {
         };
         let value_str = param_ref.info().string_from_value(value);
 
-        strcpyw(&value_str, &mut *string);
+        strcpyw(&value_str, string);
         kResultOk
     }
 
@@ -154,6 +162,9 @@ impl<E: Editor> IEditController for EditController<E> {
         value_normalized: *mut f64,
     ) -> tresult {
         let Some(param_ref) = self.parameters.get_by_id(ParameterId(id)) else {
+            return kInvalidArgument;
+        };
+        let Some(value_normalized) = (unsafe { value_normalized.as_mut() }) else {
             return kInvalidArgument;
         };
 
@@ -249,7 +260,7 @@ impl<E: Editor> IPluginBase for EditController<E> {
             return kResultFalse;
         }
 
-        if let Some(context) = VstPtr::<dyn IUnknown>::owned(context as *mut _) {
+        if let Some(context) = unsafe { VstPtr::<dyn IUnknown>::owned(context as *mut _) } {
             self.host_context.set(Some(context));
             kResultOk
         } else {
@@ -290,10 +301,9 @@ impl<E: Editor> IUnitInfo for EditController<E> {
     }
 
     unsafe fn get_unit_info(&self, unit_index: i32, info: *mut UnitInfo) -> tresult {
-        if info.is_null() {
+        let Some(info) = (unsafe { info.as_mut() }) else {
             return kInvalidArgument;
-        }
-        let info = &mut *info;
+        };
 
         if unit_index == 0 {
             info.id = kRootUnitId;

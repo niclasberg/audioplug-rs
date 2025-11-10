@@ -3,8 +3,8 @@ use std::ffi::c_void;
 use std::mem::MaybeUninit;
 use std::rc::Rc;
 use vst3_com::vst::{
-    kEmpty, kMono, kStereo, BusDirections, BusFlags, BusTypes, IComponent, MediaTypes,
-    SymbolicSampleSizes,
+    BusDirections, BusFlags, BusTypes, IComponent, MediaTypes, SymbolicSampleSizes, kEmpty, kMono,
+    kStereo,
 };
 use vst3_sys::base::*;
 use vst3_sys::utils::SharedVstPtr;
@@ -65,9 +65,12 @@ impl<P: VST3Plugin> IAudioProcessor for AudioProcessor<P> {
         index: i32,
         arr: *mut SpeakerArrangement,
     ) -> tresult {
-        if arr.is_null() || index < 0 {
+        if index < 0 {
             return kInvalidArgument;
         }
+        let Some(arr) = (unsafe { arr.as_mut() }) else {
+            return kInvalidArgument;
+        };
 
         let bus_option = (index == 0)
             .then(|| {
@@ -104,7 +107,9 @@ impl<P: VST3Plugin> IAudioProcessor for AudioProcessor<P> {
     }
 
     unsafe fn setup_processing(&self, setup: *const ProcessSetup) -> tresult {
-        let setup = &*setup;
+        let Some(setup) = (unsafe { setup.as_ref() }) else {
+            return kInvalidArgument;
+        };
         self.plugin
             .borrow_mut()
             .prepare(setup.sample_rate, setup.max_samples_per_block as usize);
@@ -121,21 +126,20 @@ impl<P: VST3Plugin> IAudioProcessor for AudioProcessor<P> {
     }
 
     unsafe fn process(&self, data: *mut ProcessData) -> tresult {
-        if data.is_null() {
+        let Some(data) = (unsafe { data.as_mut() }) else {
             return kInvalidArgument;
-        }
-        let data = &mut *data;
-        if data.context.is_null() {
+        };
+        let Some(process_context) = (unsafe { data.context.as_mut() }) else {
             return kInvalidArgument;
-        }
-        let process_context = &*data.context;
+        };
 
         if let Some(input_param_changes) = data.input_param_changes.upgrade() {
-            let parameter_change_count = input_param_changes.get_parameter_count();
+            let parameter_change_count = unsafe { input_param_changes.get_parameter_count() };
             for i in 0..parameter_change_count {
-                if let Some(data) = input_param_changes.get_parameter_data(i).upgrade() {
-                    let param_id = ParameterId(data.get_parameter_id());
-                    let point_count = data.get_point_count();
+                let parameter_data = unsafe { input_param_changes.get_parameter_data(i) };
+                if let Some(data) = parameter_data.upgrade() {
+                    let param_id = ParameterId(unsafe { data.get_parameter_id() });
+                    let point_count = unsafe { data.get_point_count() };
                     if point_count <= 0 {
                         continue;
                     }
@@ -143,14 +147,17 @@ impl<P: VST3Plugin> IAudioProcessor for AudioProcessor<P> {
                     if let Some(param_ref) = self.parameters.get_by_id(param_id) {
                         let mut value = 0.0;
                         let mut sample_offset = 0;
-                        if data.get_point(
-                            point_count - 1,
-                            &mut sample_offset as *mut _,
-                            &mut value as *mut _,
-                        ) == kResultOk
+                        if unsafe {
+                            data.get_point(
+                                point_count - 1,
+                                &mut sample_offset as *mut _,
+                                &mut value as *mut _,
+                            )
+                        } == kResultOk
                         {
-                            param_ref
-                                .set_value_normalized(NormalizedValue::from_f64_unchecked(value));
+                            param_ref.set_value_normalized(unsafe {
+                                NormalizedValue::from_f64_unchecked(value)
+                            });
                         }
                     }
                 }
@@ -165,21 +172,25 @@ impl<P: VST3Plugin> IAudioProcessor for AudioProcessor<P> {
         let input = if data.inputs.is_null() {
             AudioBuffer::empty()
         } else {
-            AudioBuffer::from_ptr(
-                (*data.inputs).buffers as *mut *mut _,
-                (*data.inputs).num_channels as usize,
-                data.num_samples as usize,
-            )
+            unsafe {
+                AudioBuffer::from_ptr(
+                    (*data.inputs).buffers as *mut *mut _,
+                    (*data.inputs).num_channels as usize,
+                    data.num_samples as usize,
+                )
+            }
         };
 
         let mut output = if data.outputs.is_null() {
             AudioBuffer::empty()
         } else {
-            AudioBuffer::from_ptr(
-                (*data.outputs).buffers as *mut *mut _,
-                (*data.outputs).num_channels as usize,
-                data.num_samples as usize,
-            )
+            unsafe {
+                AudioBuffer::from_ptr(
+                    (*data.outputs).buffers as *mut *mut _,
+                    (*data.outputs).num_channels as usize,
+                    data.num_samples as usize,
+                )
+            }
         };
 
         let info = ProcessInfo {
@@ -197,17 +208,17 @@ impl<P: VST3Plugin> IAudioProcessor for AudioProcessor<P> {
         if P::ACCEPTS_MIDI {
             let mut context = MidiProcessContext { info };
             if let Some(input_events) = data.input_events.upgrade() {
-                let event_count = input_events.get_event_count();
-                let mut event = MaybeUninit::uninit();
+                let event_count = unsafe { input_events.get_event_count() };
                 for i in 0..event_count {
-                    if input_events.get_event(i, event.as_mut_ptr()) != kResultOk {
+                    let mut event = MaybeUninit::uninit();
+                    if unsafe { input_events.get_event(i, event.as_mut_ptr()) } != kResultOk {
                         continue;
                     }
-                    let event = event.assume_init();
+                    let event = unsafe { event.assume_init() };
 
                     match event.type_ {
                         NOTE_ON_EVENT => {
-                            let note_on_event = &event.event.note_on;
+                            let note_on_event = &unsafe { event.event.note_on };
                             let ev = NoteEvent::NoteOn {
                                 channel: note_on_event.channel,
                                 sample_offset: event.sample_offset,
@@ -217,7 +228,7 @@ impl<P: VST3Plugin> IAudioProcessor for AudioProcessor<P> {
                             plugin.process_midi(&mut context, self.parameters.parameters_ref(), ev);
                         }
                         NOTE_OFF_EVENT => {
-                            let note_off_event = &event.event.note_off;
+                            let note_off_event = &unsafe { event.event.note_off };
                             let ev = NoteEvent::NoteOff {
                                 channel: note_off_event.channel,
                                 sample_offset: event.sample_offset,
@@ -257,10 +268,14 @@ impl<P: VST3Plugin> IPluginBase for AudioProcessor<P> {
 
 impl<P: VST3Plugin> IComponent for AudioProcessor<P> {
     unsafe fn get_controller_class_id(&self, tuid: *mut IID) -> tresult {
-        *tuid = IID {
-            data: P::EDITOR_UUID,
-        };
-        kResultOk
+        if let Some(tuid) = unsafe { tuid.as_mut() } {
+            *tuid = IID {
+                data: P::EDITOR_UUID,
+            };
+            kResultOk
+        } else {
+            kInvalidArgument
+        }
     }
 
     unsafe fn set_io_mode(&self, _mode: IoMode) -> tresult {
@@ -300,11 +315,13 @@ impl<P: VST3Plugin> IComponent for AudioProcessor<P> {
         index: i32,
         info: *mut BusInfo,
     ) -> tresult {
-        if info.is_null() || index < 0 {
+        if index < 0 {
             return kInvalidArgument;
         }
+        let Some(info) = (unsafe { info.as_mut() }) else {
+            return kInvalidArgument;
+        };
 
-        let info = &mut *info;
         const AUDIO: MediaType = MediaTypes::kAudio as MediaType;
         const EVENT: MediaType = MediaTypes::kEvent as MediaType;
         const INPUT: BusDirection = BusDirections::kInput as BusDirection;

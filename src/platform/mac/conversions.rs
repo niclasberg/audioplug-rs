@@ -92,14 +92,12 @@ impl From<CGAffineTransform> for Transform {
 }
 
 pub fn cgcolor_from_color(color: Color) -> CFRetained<CGColor> {
-    unsafe {
-        CGColor::new_srgb(
-            color.r.into(),
-            color.g.into(),
-            color.b.into(),
-            color.a.into(),
-        )
-    }
+    CGColor::new_srgb(
+        color.r.into(),
+        color.g.into(),
+        color.b.into(),
+        color.a.into(),
+    )
 }
 
 pub fn cfstring_from_str(str: &str) -> CFRetained<CFString> {

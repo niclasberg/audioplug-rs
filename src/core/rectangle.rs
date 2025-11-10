@@ -66,6 +66,30 @@ impl<T> Rect<T> {
         }
     }
 
+    pub fn with_origin(self, position: Point<T>) -> Self
+    where
+        T: Copy + Add<Output = T> + Sub<Output = T>,
+    {
+        Self {
+            left: position.x,
+            top: position.y,
+            right: position.x + (self.right - self.left),
+            bottom: position.y,
+        }
+    }
+
+    pub fn with_size(self, size: Size<T>) -> Self
+    where
+        T: Copy + Add<Output = T>,
+    {
+        Self {
+            left: self.left,
+            top: self.top,
+            right: self.left + size.width,
+            bottom: self.top + size.height,
+        }
+    }
+
     #[inline]
     pub const fn bottom_left(self) -> Point<T>
     where
@@ -153,24 +177,6 @@ where
         + Neg<Output = T>
         + PartialOrd,
 {
-    pub fn with_origin(self, position: Point<T>) -> Self {
-        Self {
-            left: position.x,
-            top: position.y,
-            right: position.x + (self.right - self.left),
-            bottom: position.y,
-        }
-    }
-
-    pub fn with_size(self, size: Size<T>) -> Self {
-        Self {
-            left: todo!(),
-            top: todo!(),
-            right: todo!(),
-            bottom: todo!(),
-        }
-    }
-
     pub fn get_relative_point(&self, rel_x: T, rel_y: T) -> Point<T> {
         Point::new(
             self.left + rel_x * self.width(),

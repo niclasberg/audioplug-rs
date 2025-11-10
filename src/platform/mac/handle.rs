@@ -8,8 +8,7 @@ use objc2::{
 use objc2_app_kit::{NSPasteboard, NSPasteboardTypeString};
 use objc2_foundation::NSString;
 use raw_window_handle::{
-    AppKitDisplayHandle, AppKitWindowHandle, DisplayHandle, HandleError, RawDisplayHandle,
-    RawWindowHandle,
+    AppKitDisplayHandle, AppKitWindowHandle, HandleError, RawDisplayHandle, RawWindowHandle,
 };
 
 use super::{Error, view::View};
@@ -41,13 +40,13 @@ impl Handle {
 
     pub fn invalidate_window(&self) {
         if let Some(view) = self.view_ref() {
-            unsafe { view.setNeedsDisplay(true) }
+            view.setNeedsDisplay(true)
         }
     }
 
     pub fn invalidate(&self, rect: Rect) {
         if let Some(view) = self.view_ref() {
-            unsafe { view.setNeedsDisplayInRect(rect.into()) }
+            view.setNeedsDisplayInRect(rect.into())
         }
     }
 

@@ -6,7 +6,7 @@ use audioplug::{
         Canvas, ReactiveValue, Scene, View,
     },
     views::{Checkbox, Column, Label, ParameterKnob, ParameterSlider, Row},
-    Editor,
+    Editor, EditorContext,
 };
 
 use crate::params::{AmpEnvelopeParams, FilterParams, OscillatorParams, SynthParams};
@@ -24,7 +24,7 @@ pub struct SynthEditor {}
 impl Editor for SynthEditor {
     type Parameters = SynthParams;
 
-    fn new() -> Self {
+    fn new(_cx: &mut EditorContext) -> Self {
         Self {}
     }
 

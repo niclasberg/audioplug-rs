@@ -2,7 +2,6 @@ mod alignment;
 mod axis;
 mod border;
 mod brush;
-mod bvh;
 mod color;
 mod constraint;
 mod cursor;
@@ -121,6 +120,12 @@ impl Sub for PhysicalCoord {
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct ScaleFactor(pub f64);
+
+impl Default for ScaleFactor {
+    fn default() -> Self {
+        Self(1.0)
+    }
+}
 
 pub(crate) type FxHashSet<K> = HashSet<K, FxBuildHasher>;
 pub(crate) type FxHashMap<K, V> = HashMap<K, V, FxBuildHasher>;

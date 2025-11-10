@@ -4,8 +4,8 @@ use std::{cell::OnceCell, rc::Rc, sync::Arc};
 use atomic_refcell::AtomicRefCell;
 use block2::{Block, RcBlock};
 use objc2::{
-    define_class, extern_class, extern_methods, msg_send, rc::Retained, runtime::Bool,
-    AllocAnyThread, DeclaredClass,
+    AllocAnyThread, DeclaredClass, define_class, extern_class, extern_methods, msg_send,
+    rc::Retained, runtime::Bool,
 };
 use objc2_audio_toolbox::{
     AUAudioFrameCount, AUAudioUnit, AUAudioUnitBusArray, AUAudioUnitBusType, AUAudioUnitStatus,
@@ -158,15 +158,15 @@ impl<P: Plugin> AnyWrapper for Wrapper<P> {
 
             //self.input_buffer.pull_inputs(action_flags, timestamp, frame_count, input_bus_number, pull_input_block)
 
-			let info = ProcessInfo {
-				rendering_offline: self.rendering_offline,
-    			sample_rate: DEFAULT_SAMPLE_RATE,
-			};
+            let info = ProcessInfo {
+                rendering_offline: self.rendering_offline,
+                sample_rate: DEFAULT_SAMPLE_RATE,
+            };
 
             let context = ProcessContext {
                 input: &input,
                 output: &mut output,
-                info
+                info,
             };
 
             self.plugin
@@ -250,7 +250,7 @@ define_class!(
 
         #[unsafe(method_id(supportedViewConfiguations:))]
         fn supported_view_configurations(&self, available_view_configurations: &NSArray<AUAudioUnitViewConfiguration>) -> Option<Retained<NSIndexSet>> {
-            Some(unsafe { NSIndexSet::indexSetWithIndexesInRange((0..available_view_configurations.count()).into()) })
+            Some(NSIndexSet::indexSetWithIndexesInRange((0..available_view_configurations.count()).into()))
         }
 
         #[unsafe(method(internalRenderBlock))]

@@ -4,16 +4,36 @@ use crate::{
     core::Size,
     param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params},
     ui::{
-        AnyView, Var, View,
+        AnyView, AppState, CreateContext, ReactiveContext, Var, View,
         style::{Length, UiRect},
     },
     views::{Column, Container, Label, ParameterSlider, Row, Stateful},
 };
 
+pub struct EditorContext<'a> {
+    pub(crate) app_state: &'a mut AppState,
+}
+
+impl ReactiveContext for EditorContext<'_> {
+    fn app_state(&self) -> &AppState {
+        &self.app_state
+    }
+
+    fn app_state_mut(&mut self) -> &mut AppState {
+        self.app_state
+    }
+}
+
+impl CreateContext for EditorContext<'_> {
+    fn owner(&self) -> Option<crate::ui::Owner> {
+        None
+    }
+}
+
 pub trait Editor: 'static {
     type Parameters: Params;
 
-    fn new() -> Self;
+    fn new(cx: &mut EditorContext) -> Self;
     fn view(&self, parameters: &Self::Parameters) -> impl View;
     fn min_size(&self) -> Option<Size> {
         None
@@ -84,7 +104,7 @@ pub struct GenericEditor<P> {
 impl<P: Params> Editor for GenericEditor<P> {
     type Parameters = P;
 
-    fn new() -> Self {
+    fn new(_cx: &mut EditorContext) -> Self {
         Self {
             _phantom: PhantomData,
         }

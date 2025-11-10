@@ -7,8 +7,8 @@ use wgpu::util::DeviceExt;
 use super::tiles::TILE_SIZE;
 use crate::{
     core::{
-        BrushRef, Color, ColorMap, FillRule, LinearGradient, Path, PhysicalCoord, PhysicalSize,
-        Point, Rect, RoundedRect, Size, Vec2f,
+        Color, ColorMap, FillRule, Path, PhysicalCoord, PhysicalSize, Point, Rect, RoundedRect,
+        Size, Vec2f,
     },
     ui::render::gpu_scene::{GpuFill, GpuScene, GpuShape, LineSegment},
 };

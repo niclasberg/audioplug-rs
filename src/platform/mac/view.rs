@@ -5,16 +5,14 @@ use objc2::rc::{Retained, Weak};
 use objc2::runtime::{NSObject, NSObjectProtocol};
 use objc2::{AllocAnyThread, DefinedClass, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
-    NSEvent, NSGraphicsContext, NSResponder, NSTrackingArea, NSTrackingAreaOptions, NSView,
+    NSEvent, NSResponder, NSTrackingArea, NSTrackingAreaOptions, NSView,
     NSViewFrameDidChangeNotification,
 };
-use objc2_core_image::CIContext;
 use objc2_foundation::{MainThreadMarker, NSDate, NSNotificationCenter, NSRect, NSTimer};
-use objc2_metal::MTLCreateSystemDefaultDevice;
 
 use super::Handle;
 use crate::AnimationFrame;
-use crate::core::{PhysicalCoord, PhysicalSize, Point, Rect, Vec2};
+use crate::core::{PhysicalCoord, PhysicalSize, Point, ScaleFactor, Vec2};
 use crate::event::{KeyEvent, MouseButton, MouseEvent};
 use crate::platform::WindowEvent;
 use crate::platform::WindowHandler;
@@ -25,7 +23,6 @@ pub struct Ivars {
     tracking_area: RefCell<Option<Retained<NSTrackingArea>>>,
     timer: RefCell<Option<Retained<NSTimer>>>,
     animation_start: OnceCell<Retained<NSDate>>,
-    ci_context: OnceCell<Retained<CIContext>>,
 }
 
 const CLASS_NAME: &'static str = match option_env!("AUDIOPLUG_VIEW_CLASS_NAME") {
@@ -53,11 +50,10 @@ define_class!(
 
         #[unsafe(method(keyDown:))]
         fn key_down(&self, event: &NSEvent) {
-            let key = key_from_code(unsafe { event.keyCode() });
-            let modifiers = get_modifiers(unsafe { event.modifierFlags() });
-            let str = unsafe { event.characters() };
-            let str = str.map(|str| str.to_string()).filter(|str| str.len() > 0);
-            let repeat_count = if unsafe { event.isARepeat() } { 1 } else { 0 };
+            let key = key_from_code(event.keyCode());
+            let modifiers = get_modifiers(event.modifierFlags());
+            let str = event.characters().map(|str| str.to_string()).filter(|str| str.len() > 0);
+            let repeat_count = if event.isARepeat() { 1 } else { 0 };
             let key_event = KeyEvent::KeyDown { key, modifiers, str, repeat_count };
             self.dispatch_event(WindowEvent::Key(key_event));
         }
@@ -65,8 +61,8 @@ define_class!(
         #[unsafe(method(mouseDown:))]
         fn mouse_down(&self, event: &NSEvent) {
             if let (Some(button), Some(position)) = (mouse_button(event), self.mouse_position(event)) {
-                let click_count = unsafe { event.clickCount() };
-                let modifiers = get_modifiers(unsafe { event.modifierFlags() });
+                let click_count = event.clickCount();
+                let modifiers = get_modifiers(event.modifierFlags());
                 self.dispatch_event(WindowEvent::Mouse(
                     MouseEvent::Down { button, position, modifiers, is_double_click: click_count >= 2 }
                 ))
@@ -76,7 +72,7 @@ define_class!(
         #[unsafe(method(mouseUp:))]
         fn mouse_up(&self, event: &NSEvent) {
             if let (Some(button), Some(position)) = (mouse_button(event), self.mouse_position(event)) {
-                let modifiers = get_modifiers(unsafe { event.modifierFlags() });
+                let modifiers = get_modifiers(event.modifierFlags());
                 self.dispatch_event(WindowEvent::Mouse(
                     MouseEvent::Up { button, position, modifiers }
                 ))
@@ -86,7 +82,7 @@ define_class!(
         #[unsafe(method(mouseMoved:))]
         fn mouse_moved(&self, event: &NSEvent) {
             if let Some(position) = self.mouse_position(event) {
-                let modifiers = get_modifiers(unsafe { event.modifierFlags() });
+                let modifiers = get_modifiers(event.modifierFlags());
                 self.dispatch_event(WindowEvent::Mouse(
                     MouseEvent::Moved { position, modifiers }
                 ))
@@ -96,7 +92,7 @@ define_class!(
         #[unsafe(method(mouseDragged:))]
         fn mouse_dragged(&self, event: &NSEvent) {
             if let Some(position) = self.mouse_position(event) {
-                let modifiers = get_modifiers(unsafe { event.modifierFlags() });
+                let modifiers = get_modifiers(event.modifierFlags());
                 self.dispatch_event(WindowEvent::Mouse(
                     MouseEvent::Moved { position, modifiers }
                 ))
@@ -106,11 +102,11 @@ define_class!(
         #[unsafe(method(scrollWheel:))]
         fn scroll_wheel(&self, event: &NSEvent) {
             if let Some(position) = self.mouse_position(event) {
-                let modifiers = get_modifiers(unsafe { event.modifierFlags() });
+                let modifiers = get_modifiers(event.modifierFlags());
                 // These are reported in pixels. To get it consistent with Windows,
                 // convert to fractional lines (divide by 15 px). Can we do this better?
-                let delta_x = unsafe { event.scrollingDeltaX() };
-                let delta_y = unsafe { event.scrollingDeltaY() };
+                let delta_x = event.scrollingDeltaX();
+                let delta_y = event.scrollingDeltaY();
                 self.dispatch_event(WindowEvent::Mouse(
                     MouseEvent::Wheel {
                         delta: Vec2 { x: delta_x / 15.0, y: delta_y / 15.0 },
@@ -153,26 +149,17 @@ define_class!(
 
         #[unsafe(method(drawRect:))]
         fn draw_rect(&self, rect: NSRect) {
-            //let graphics_context = unsafe { NSGraphicsContext::currentContext() }.unwrap();
-            //let context = unsafe { graphics_context.CGContext() };
-            //let ci_context = self.ivars().ci_context.get_or_init(|| unsafe {
-            //    let metal_device = MTLCreateSystemDefaultDevice().unwrap();
-            //    CIContext::contextWithMTLDevice(&metal_device)
-            //});
-
-            //let renderer = RendererRef::new(&context, &ci_context, rect);
-
             self.ivars().handler.borrow_mut().paint(rect.into());
         }
 
         #[unsafe(method(onAnimationTimer:))]
         fn on_animation_timer(&self, _timer: &NSTimer) {
             let animation_start = self.ivars().animation_start.get_or_init(|| {
-                unsafe { NSDate::now() }
+                NSDate::now()
             });
 
             let animation_frame = AnimationFrame {
-                timestamp: -unsafe { animation_start.timeIntervalSinceNow() }
+                timestamp: -animation_start.timeIntervalSinceNow()
             };
             self.dispatch_event(WindowEvent::Animation(animation_frame));
         }
@@ -196,7 +183,6 @@ impl View {
             tracking_area,
             timer: RefCell::new(None),
             animation_start: OnceCell::new(),
-            ci_context: OnceCell::new(),
         });
 
         let this: Retained<Self> = if let Some(frame) = frame {
@@ -206,9 +192,8 @@ impl View {
         };
 
         this.setPostsFrameChangedNotifications(true);
-        let notification_center = unsafe { NSNotificationCenter::defaultCenter() };
         unsafe {
-            notification_center.addObserver_selector_name_object(
+            NSNotificationCenter::defaultCenter().addObserver_selector_name_object(
                 &this,
                 sel!(frameDidChange:),
                 Some(NSViewFrameDidChangeNotification),
@@ -247,7 +232,7 @@ impl View {
         // Use try-borrow here to avoid re-entrancy problems
         if let Ok(mut tracking_area_ref) = self.ivars().tracking_area.try_borrow_mut() {
             if let Some(tracking_area) = tracking_area_ref.as_ref() {
-                unsafe { self.removeTrackingArea(tracking_area) };
+                self.removeTrackingArea(tracking_area);
                 *tracking_area_ref = None;
             }
 
@@ -265,12 +250,12 @@ impl View {
             };
 
             let tracking_area = tracking_area_ref.insert(tracking_area);
-            unsafe { self.addTrackingArea(tracking_area) };
+            self.addTrackingArea(tracking_area);
         }
     }
 
     fn mouse_position(&self, event: &NSEvent) -> Option<Point> {
-        let pos = unsafe { event.locationInWindow() };
+        let pos = event.locationInWindow();
         let frame = self.frame();
         let pos = self.convertPoint_fromView(pos, None);
 
@@ -289,16 +274,24 @@ impl View {
 
     pub(super) fn physical_size(&self) -> PhysicalSize {
         let logical_rect = self.visibleRect();
-        let physical_rect = unsafe { self.convertRectToBacking(logical_rect) };
+        let physical_rect = self.convertRectToBacking(logical_rect);
         PhysicalSize::new(
             PhysicalCoord(physical_rect.size.width.ceil() as _),
             PhysicalCoord(physical_rect.size.height.ceil() as _),
         )
     }
+
+    pub fn scale_factor(&self) -> ScaleFactor {
+        let scale_factor = self
+            .window()
+            .expect("View must be installed in a window")
+            .backingScaleFactor();
+        ScaleFactor(scale_factor)
+    }
 }
 
 fn mouse_button(event: &NSEvent) -> Option<MouseButton> {
-    match unsafe { event.buttonNumber() } {
+    match event.buttonNumber() {
         0 => Some(MouseButton::LEFT),
         1 => Some(MouseButton::RIGHT),
         2 => Some(MouseButton::MIDDLE),

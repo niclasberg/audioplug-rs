@@ -2,7 +2,7 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 use super::MyAudioUnit;
 use crate::{
-    Editor, Plugin,
+    Editor, EditorContext, Plugin,
     param::{NormalizedValue, ParameterId, ParameterInfo, ParameterMap, Params, PlainValue},
     platform::{mac::dispatch::create_block_dispatching_to_main2, view::View},
     ui::{AppState, HostHandle, MyHandler},
@@ -79,8 +79,11 @@ pub struct ViewController<P: Plugin> {
 impl<P: Plugin + 'static> ViewController<P> {
     pub fn new() -> Self {
         let parameters = ParameterMap::new(P::Parameters::new());
-        let app_state = Rc::new(RefCell::new(AppState::new(parameters.clone())));
-        let editor = Rc::new(RefCell::new(P::Editor::new()));
+        let mut app_state = AppState::new(parameters.clone());
+        let editor = Rc::new(RefCell::new(P::Editor::new(&mut EditorContext {
+            app_state: &mut app_state,
+        })));
+        let app_state = Rc::new(RefCell::new(app_state));
         let parameter_observer = {
             let weak_app_state = Rc::downgrade(&app_state);
             create_block_dispatching_to_main2(

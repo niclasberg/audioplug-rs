@@ -1,4 +1,5 @@
 use bytemuck::{Pod, Zeroable};
+use wgpu::util::DeviceExt;
 
 use crate::core::{
     BrushRef, Color, ColorMap, Ellipse, FillRule, Path, Rect, RoundedRect, Vec2f, Vec4f,
@@ -160,10 +161,48 @@ impl GpuScene {
         };
     }
 
+    pub fn shapes_data_byte_size(&self) -> u64 {
+        self.shapes.len() * std::mem::size_of::<GpuShape>() as _
+    }
+
     pub fn clear(&mut self) {
         self.fill_ops.clear();
         self.line_segments.clear();
         self.shapes.clear();
+        self.gradient_lut.clear();
+    }
+
+    pub fn upload(
+        &self,
+        device: &mut wgpu::Device,
+        queue: &mut wgpu::Queue,
+        shapes_data_buffer: &mut wgpu::Buffer,
+        line_segments_buffer: &mut wgpu::Buffer,
+        fill_ops_buffer: &mut wgpu::Buffer,
+    ) {
+        update_buffer(
+            device,
+            queue,
+            shapes_data_buffer,
+            bytemuck::cast_slice(&self.shapes),
+        );
+    }
+}
+
+fn update_buffer(
+    device: &mut wgpu::Device,
+    queue: &mut wgpu::Queue,
+    buffer: &mut wgpu::Buffer,
+    data: &[u8],
+) {
+    if buffer.size() < data.len() as u64 {
+        queue.write_buffer(&buffer, 0, data);
+    } else {
+        *buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Label"),
+            contents: data,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        })
     }
 }
 

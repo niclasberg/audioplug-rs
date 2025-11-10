@@ -2,10 +2,10 @@ use rtrb::{Consumer, Producer, RingBuffer};
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    ui::{AppState, HostHandle, Window},
+    App, Editor, Plugin,
     param::{NormalizedValue, ParameterId, ParameterInfo, ParameterMap, Params},
     platform::{self, AudioHost},
-    App, Editor, Plugin,
+    ui::{AppState, HostHandle, Window},
 };
 
 const SAMPLES_PER_BLOCK: usize = 128;
@@ -24,9 +24,9 @@ struct StandaloneHostHandle {
 }
 
 impl HostHandle for StandaloneHostHandle {
-    fn begin_edit(&self, id: ParameterId) {}
+    fn begin_edit(&self, _id: ParameterId) {}
 
-    fn end_edit(&self, id: ParameterId) {}
+    fn end_edit(&self, _id: ParameterId) {}
 
     fn perform_edit(&self, info: &dyn ParameterInfo, value: crate::param::NormalizedValue) {
         let mut app_inner = RefCell::borrow_mut(&self.app_inner);
@@ -58,9 +58,13 @@ impl<P: Plugin> StandaloneApp<P> {
         let mut app_state = AppState::new(parameters);
         app_state.set_host_handle(Some(Box::new(host_handle)));
 
+        let editor = P::Editor::new(&mut crate::EditorContext {
+            app_state: &mut app_state,
+        });
+
         let state = Rc::new(RefCell::new(app_state));
         let app = App::new_with_app_state(state);
-        let editor = P::Editor::new();
+
         Self { app, editor }
     }
 

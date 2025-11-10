@@ -1,13 +1,13 @@
 use audioplug::core::{Color, Size};
 use audioplug::param::{BoolParameter, FloatParameter, Parameter, ParameterId, Params};
 use audioplug::ui::style::UiRect;
-use audioplug::ui::*;
 use audioplug::views::*;
 use audioplug::wrapper::vst3::VST3Categories;
 use audioplug::{
     audioplug_auv3_plugin, audioplug_vst3_plugin, params, AudioLayout, Bus, ChannelType, Editor,
     Plugin, ProcessContext, VST3Plugin,
 };
+use audioplug::{ui::*, EditorContext};
 
 params!(
     struct MyPluginParams {
@@ -31,7 +31,7 @@ struct MyEditor;
 impl Editor for MyEditor {
     type Parameters = MyPluginParams;
 
-    fn new() -> Self {
+    fn new(_cx: &mut EditorContext) -> Self {
         Self {}
     }
 
