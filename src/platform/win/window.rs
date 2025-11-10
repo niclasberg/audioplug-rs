@@ -142,7 +142,9 @@ impl WindowState {
                     let logical_width = loword(lparam) as u32;
                     let logical_height = hiword(lparam) as u32;
                     let logical_size: Size = [logical_width, logical_height].into();
-                    let physical_size = PhysicalSize::from_logical(logical_size, get_scale_factor_for_window(hwnd));
+                    let scale_factor = get_scale_factor_for_window(hwnd);
+                    println!("{:?}", scale_factor);
+                    let physical_size = PhysicalSize::from_logical(logical_size, scale_factor);
 
                     let window_event = WindowEvent::Resize { logical_size, physical_size };
                     self.publish_event(hwnd, window_event);

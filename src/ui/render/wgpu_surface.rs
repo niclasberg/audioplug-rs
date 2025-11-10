@@ -8,9 +8,9 @@ use super::tiles::TILE_SIZE;
 use crate::{
     core::{
         BrushRef, Color, ColorMap, FillRule, LinearGradient, Path, PhysicalCoord, PhysicalSize,
-        Point, Rect, RoundedRect, Size,
+        Point, Rect, RoundedRect, Size, Vec2f,
     },
-    ui::render::gpu_scene::{GpuScene, GpuShape, LineSegment},
+    ui::render::gpu_scene::{GpuFill, GpuScene, GpuShape, LineSegment},
 };
 
 #[repr(C)]
@@ -150,18 +150,18 @@ impl WGPUSurface {
                 FillRule::NonZero,
             );
 
-            gpu_scene.fill_shape(rect, BrushRef::Solid(Color::RED));
+            gpu_scene.fill_shape(rect, GpuFill::Solid(Color::RED));
             gpu_scene.fill_shape(
                 path,
-                BrushRef::LinearGradient(&LinearGradient {
-                    start: Point::new(100.0, 100.0),
-                    end: Point::new(800.0, 800.0),
-                    color_map: ColorMap::new([]),
-                }),
+                GpuFill::LinearGradient {
+                    start: Vec2f { x: 100.0, y: 100.0 },
+                    end: Vec2f { x: 800.0, y: 800.0 },
+                    color_stops: ColorMap::new([]),
+                },
             );
             gpu_scene.fill_shape(
                 rounded_rect,
-                BrushRef::Solid(Color::PINE_TREE.with_alpha(0.4)),
+                GpuFill::Solid(Color::CHAMOISEE.with_alpha(0.7)),
             );
         }
 

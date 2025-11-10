@@ -1,6 +1,8 @@
 use bytemuck::{Pod, Zeroable};
 
-use crate::core::{BrushRef, Color, Ellipse, FillRule, Path, Rect, RoundedRect, Vec2f, Vec4f};
+use crate::core::{
+    BrushRef, Color, ColorMap, Ellipse, FillRule, Path, Rect, RoundedRect, Vec2f, Vec4f,
+};
 
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
@@ -16,6 +18,7 @@ pub struct GpuShape {
     /// Corner radius, only for rounded rects
     radii: Vec4f,
 }
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct GpuShapeRef {
     /// bits 0-2: Shape type
@@ -24,6 +27,15 @@ pub struct GpuShapeRef {
     shape_type: u32,
     /// ShapeData index or offset to first line segment
     index: u32,
+}
+
+pub enum GpuFill {
+    Solid(Color),
+    LinearGradient {
+        start: Vec2f,
+        end: Vec2f,
+        color_stops: ColorMap,
+    },
 }
 
 pub struct GpuScene {
@@ -112,32 +124,36 @@ impl GpuScene {
         GpuShapeRef { shape_type, index }
     }
 
-    pub fn fill_shape(&mut self, shape_ref: GpuShapeRef, brush: BrushRef<'_>) {
-        let fill_type = match brush {
-            BrushRef::Solid(_) => Self::FILL_TYPE_SOLID,
-            BrushRef::LinearGradient(_) => Self::FILL_TYPE_LINEAR_GRADIENT,
+    pub fn fill_shape(&mut self, shape_ref: GpuShapeRef, fill: GpuFill) {
+        let fill_type = match fill {
+            GpuFill::Solid(_) => Self::FILL_TYPE_SOLID,
+            GpuFill::LinearGradient { .. } => Self::FILL_TYPE_LINEAR_GRADIENT,
         };
 
         let fill_data = (shape_ref.shape_type) << 4 | fill_type;
         self.fill_ops.push(fill_data);
         self.fill_ops.push(shape_ref.index);
 
-        match brush {
-            BrushRef::Solid(color) => self.fill_ops.extend(
+        match fill {
+            GpuFill::Solid(color) => self.fill_ops.extend(
                 [
-                    color.r.to_bits(),
-                    color.g.to_bits(),
-                    color.b.to_bits(),
+                    (color.a * color.r).to_bits(),
+                    (color.a * color.g).to_bits(),
+                    (color.a * color.b).to_bits(),
                     color.a.to_bits(),
                 ]
                 .iter(),
             ),
-            BrushRef::LinearGradient(gradient) => self.fill_ops.extend(
+            GpuFill::LinearGradient {
+                start,
+                end,
+                color_stops,
+            } => self.fill_ops.extend(
                 [
-                    (gradient.start.x as f32).to_bits(),
-                    (gradient.start.y as f32).to_bits(),
-                    (gradient.end.x as f32).to_bits(),
-                    (gradient.end.y as f32).to_bits(),
+                    start.x.to_bits(),
+                    start.y.to_bits(),
+                    end.x.to_bits(),
+                    end.y.to_bits(),
                 ]
                 .iter(),
             ),

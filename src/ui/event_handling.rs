@@ -109,6 +109,11 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             let signal = app_state.window(window_id).theme_signal;
             signal.set(app_state, theme);
         }
+        WindowEvent::ScaleFactorChanged(_) => {
+            let window = app_state.window_mut(window_id);
+            let physical_size = window.handle.physical_size();
+            window.wgpu_surface.resize(physical_size);
+        }
         _ => {}
     };
 }
