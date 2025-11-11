@@ -5,7 +5,6 @@ mod com;
 mod conversions;
 mod cursors;
 mod executor;
-mod geometry;
 mod handle;
 mod keyboard;
 mod text;

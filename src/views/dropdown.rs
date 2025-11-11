@@ -1,10 +1,10 @@
 use crate::{
+    KeyEvent, MouseButton, MouseEvent,
+    core::{Align, Key},
     ui::{
         Accessor, EventContext, EventStatus, MouseEventContext, OverlayAnchor, OverlayOptions,
-        ReadContext, View, Widget, WidgetId, WidgetMut, WidgetAdapter,
+        View, Widget, WidgetAdapter, WidgetId, WidgetMut,
     },
-    core::{Align, Key},
-    KeyEvent, MouseButton, MouseEvent,
 };
 
 pub struct Dropdown<VTrigger, FMenu> {

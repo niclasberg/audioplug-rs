@@ -117,10 +117,11 @@ impl Widget for CheckboxWidget {
                 position,
                 ..
             } => {
-                if ctx.release_capture() && ctx.bounds().contains(position) {
-                    if let Some(f) = self.click_fn.as_mut() {
-                        f(&mut ctx.as_callback_context());
-                    }
+                if ctx.release_capture()
+                    && ctx.bounds().contains(position)
+                    && let Some(f) = self.click_fn.as_mut()
+                {
+                    f(&mut ctx.as_callback_context());
                 }
                 EventStatus::Handled
             }
@@ -142,7 +143,7 @@ impl Widget for CheckboxWidget {
         }
     }
 
-    fn layout_mode(&self) -> LayoutMode {
+    fn layout_mode(&self) -> LayoutMode<'_> {
         LayoutMode::Leaf(self)
     }
 

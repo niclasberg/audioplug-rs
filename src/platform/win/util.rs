@@ -69,13 +69,6 @@ pub(crate) fn count_until_utf16(s: &str, utf16_text_position: usize) -> Option<u
     None
 }
 
-pub(crate) unsafe fn utf16_ptr_to_string(ptr: *const u16) -> Option<String> {
-    let len = (0..).take_while(|&i| *ptr.offset(i) != 0).count();
-    let slice = std::slice::from_raw_parts(ptr, len);
-
-    String::from_utf16(slice).ok()
-}
-
 pub fn get_theme() -> WindowTheme {
     if should_apps_use_dark_mode() && !is_high_contrast() {
         WindowTheme::Dark

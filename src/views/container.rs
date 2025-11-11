@@ -198,7 +198,7 @@ impl Widget for ContainerWidget {
         "Container"
     }
 
-    fn layout_mode(&self) -> LayoutMode {
+    fn layout_mode(&self) -> LayoutMode<'_> {
         match &self.container_style {
             ContainerStyle::Block => LayoutMode::Block,
             ContainerStyle::Stack => LayoutMode::Stack,

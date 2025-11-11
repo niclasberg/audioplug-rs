@@ -5,22 +5,22 @@ use std::{
     ops::Deref,
     rc::Rc,
     sync::{
-        mpsc::{self, Receiver, Sender},
         Once,
+        mpsc::{self, Receiver, Sender},
     },
 };
 
 use windows::{
-    core::{w, Result, PCWSTR},
     Win32::{
         Foundation::{HWND, LPARAM, LRESULT, WPARAM},
         System::LibraryLoader::GetModuleHandleW,
         UI::WindowsAndMessaging::{
-            CreateWindowExW, DefWindowProcW, GetClassInfoW, GetWindowLongPtrW, PostMessageA,
-            RegisterClassW, SetWindowLongPtrW, CREATESTRUCTW, GWLP_USERDATA, HWND_MESSAGE,
+            CREATESTRUCTW, CreateWindowExW, DefWindowProcW, GWLP_USERDATA, GetClassInfoW,
+            GetWindowLongPtrW, HWND_MESSAGE, PostMessageA, RegisterClassW, SetWindowLongPtrW,
             WINDOW_EX_STYLE, WINDOW_STYLE, WM_NCCREATE, WM_NCDESTROY, WM_USER, WNDCLASSW,
         },
     },
+    core::{PCWSTR, Result, w},
 };
 
 const WINDOW_CLASS: PCWSTR = w!("executor_window");
@@ -153,23 +153,23 @@ unsafe extern "system" fn wndproc(
     lparam: LPARAM,
 ) -> LRESULT {
     if message == WM_NCCREATE {
-        let create_struct = &*(lparam.0 as *const CREATESTRUCTW);
+        let create_struct = unsafe { &*(lparam.0 as *const CREATESTRUCTW) };
         let inner_ptr = create_struct.lpCreateParams;
-        SetWindowLongPtrW(hwnd, GWLP_USERDATA, inner_ptr as _);
+        unsafe { SetWindowLongPtrW(hwnd, GWLP_USERDATA, inner_ptr as _) };
     }
 
-    let inner_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const Inner;
-    if !inner_ptr.is_null() {
+    let inner_ptr = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const Inner };
+    if let Some(inner) = unsafe { inner_ptr.as_ref() } {
         if message == WAKER_MSG_ID {
-            (*inner_ptr).poll();
+            inner.poll();
             return LRESULT(0);
         }
 
         if message == WM_NCDESTROY {
-            SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
-            drop(Rc::from_raw(inner_ptr));
+            unsafe { SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0) };
+            drop(unsafe { Rc::from_raw(inner_ptr) });
         }
     }
 
-    DefWindowProcW(hwnd, message, wparam, lparam)
+    unsafe { DefWindowProcW(hwnd, message, wparam, lparam) }
 }

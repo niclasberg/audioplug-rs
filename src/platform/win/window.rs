@@ -248,11 +248,9 @@ impl WindowState {
             },
 
             WM_TIMER => {
-                if wparam.0 == ANIMATION_FRAME_TIMER {
-                    if let Some(timestamp) = self.current_timestamp() {
-                        self.publish_event(hwnd, WindowEvent::Animation(AnimationFrame { timestamp }));
-                    }
-                };
+                if wparam.0 == ANIMATION_FRAME_TIMER && let Some(timestamp) = self.current_timestamp() {
+                    self.publish_event(hwnd, WindowEvent::Animation(AnimationFrame { timestamp }));
+                }
 
                 Some(LRESULT(0))
             },
@@ -402,8 +400,12 @@ impl Window {
         Ok(this)
     }
 
-    pub fn set_scale_factor(&self, scale_factor: f32) {
+    pub fn set_scale_factor(&self, scale_factor: ScaleFactor) {
         println!("Scale factor changed from host to {scale_factor}");
+    }
+
+    pub fn scale_factor(&self) -> ScaleFactor {
+        get_scale_factor_for_window(self.handle)
     }
 
     pub fn set_physical_size(&self, size: PhysicalRect) -> Result<()> {

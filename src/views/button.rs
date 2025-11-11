@@ -4,8 +4,8 @@ use crate::{
     event::{KeyEvent, MouseButton},
     ui::{
         Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
-        ReactiveValue, RenderContext, StatusChange, View, Widget,
-        style::{FlexStyle, LayoutMode, Length, Style, UiRect},
+        ReactiveValue, StatusChange, View, Widget,
+        style::{FlexStyle, LayoutMode, Length, UiRect},
     },
     views::Label,
 };
@@ -98,10 +98,11 @@ impl Widget for ButtonWidget {
                 position,
                 ..
             } => {
-                if ctx.release_capture() && ctx.bounds().contains(position) {
-                    if let Some(f) = self.click_fn.as_mut() {
-                        f(&mut ctx.as_callback_context());
-                    }
+                if ctx.release_capture()
+                    && ctx.bounds().contains(position)
+                    && let Some(f) = self.click_fn.as_mut()
+                {
+                    f(&mut ctx.as_callback_context());
                 }
                 ctx.request_render();
                 EventStatus::Handled
@@ -144,7 +145,7 @@ impl Widget for ButtonWidget {
         }
     }
 
-    fn layout_mode(&self) -> LayoutMode {
+    fn layout_mode(&self) -> LayoutMode<'_> {
         LayoutMode::Flex(&FLEX_STYLE)
     }
 }

@@ -161,10 +161,6 @@ impl GpuScene {
         };
     }
 
-    pub fn shapes_data_byte_size(&self) -> u64 {
-        self.shapes.len() * std::mem::size_of::<GpuShape>() as _
-    }
-
     pub fn clear(&mut self) {
         self.fill_ops.clear();
         self.line_segments.clear();
