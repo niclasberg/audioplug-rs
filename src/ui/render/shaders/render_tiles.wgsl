@@ -6,11 +6,6 @@ const TAU = radians(360.0);
 const SIZE_MASK = 0xFFFF;
 const FILL_MASK = (1u << 17);
 
-struct Params {
-	width: u32,
-	height: u32,
-}
-
 const SHAPE_TYPE_NONE = 0u;
 const SHAPE_TYPE_PATH = 1u;
 const SHAPE_TYPE_RECT = 2u;
@@ -21,8 +16,14 @@ const SHAPE_TYPE_MASK = 7u;
 const FILL_RULE_EVEN_ODD = 1u << 3;
 
 const FILL_TYPE_SOLID = 1u;
-const FILL_TYPE_LINEAR_GRADIENT = 2u;
-const FILL_TYPE_RADIAL_GRADIENT = 3u;
+const FILL_TYPE_BLUR = 2u;
+const FILL_TYPE_LINEAR_GRADIENT = 3u;
+const FILL_TYPE_RADIAL_GRADIENT = 4u;
+
+struct Params {
+	width: u32,
+	height: u32,
+}
 
 struct Segment {
 	p0: vec2f,
@@ -72,8 +73,6 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 	let pos = vec2f(coord);
 
 	var color = vec4f(0.1, 0.3, 0.1, 1.0);
-	var fill_color = vec4f(0.0);
-	
 	var i = 0u;
 	loop {
 		if i >= arrayLength(&fills) {
@@ -85,17 +84,31 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 		let index = fills[i+1];
 		i += 2;
 
-		let coverage = compute_coverage(shape_type, index, pos);
-
 		switch (fill_type) {
 			case FILL_TYPE_SOLID: {
-				fill_color = vec4f(
+				let fill_color = vec4f(
 					bitcast<f32>(fills[i]),
 					bitcast<f32>(fills[i+1]),
 					bitcast<f32>(fills[i+2]),
 					bitcast<f32>(fills[i+3]),
 				);
 				i += 4;
+
+				let coverage = compute_coverage(shape_type, index, pos);
+				color = blend(color, fill_color, coverage);
+			}
+			case FILL_TYPE_BLUR: {
+				let blur_color = vec4f(
+					bitcast<f32>(fills[i]),
+					bitcast<f32>(fills[i+1]),
+					bitcast<f32>(fills[i+2]),
+					bitcast<f32>(fills[i+3]),
+				);
+				let blur_radius = bitcast<f32>(fills[i+4]);
+				i += 5;
+
+				let coverage = compute_blurred_coverage(shape_type, index, pos, blur_radius);
+				color = blend(color, blur_color, coverage);
 			}
 			case FILL_TYPE_LINEAR_GRADIENT: {
 				let start = vec2f(bitcast<f32>(fills[i]), bitcast<f32>(fills[i+1]));
@@ -104,21 +117,26 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 				
 				let delta = end - start;
 				let t = clamp(dot(pos - start, end - start) / dot(delta, delta), 0.0, 1.0);
-				fill_color = vec4f(t, t, t, 1.0);
+				let fill_color = vec4f(t, t, t, 1.0);
+
+				let coverage = compute_coverage(shape_type, index, pos);
+				color = blend(color, fill_color, coverage);
 			}
 			case FILL_TYPE_RADIAL_GRADIENT: {
-				fill_color = vec4f(1.0);
+				
 			}
 			default: {
-				fill_color = vec4f(0.0);
+				
 			}
 		}
-
-		let alpha = fill_color.w * coverage;
-		color = (1.0 - alpha) * color + alpha * fill_color;
 	};
 
 	textureStore(output_texture, coord, color);
+}
+
+fn blend(color: vec4f, fill_color: vec4f, coverage: f32) -> vec4f {
+	let alpha = fill_color.w * coverage;
+	return (1.0 - alpha) * color + alpha * fill_color;
 }
 
 fn compute_coverage(shape_type: u32, index: u32, pos: vec2f) -> f32 {
@@ -186,11 +204,68 @@ fn is_point_in_rect(top_left: vec2f, bottom_right: vec2f, pos: vec2f) -> f32 {
 	return s.x * s.y;
 }
 
-/// Returns the mask for a blurred rectangle. 
-fn blurred_rect_mask(top_left: vec2f, bottom_right: vec2f, sigma: f32, pos: vec2f) -> f32 {
-	let query = vec4f(top_left - pos, bottom_right - pos); 
-	let integral = 0.5 + 0.5 * erf4(query * (sqrt(0.5) / sigma));
-  	return (integral.z - integral.x) * (integral.w - integral.y);
+/// Signed distance to a rounded rect centered at the origin
+fn sd_rounded_rect(half_size: vec2f, radius: f32, pos: vec2f) -> f32 {
+	let q = abs(pos) - half_size + radius;
+    return length(max(q, vec2f(0.0))) - radius;
+}
+
+/// Pick the radius of the corner that is closest to pos
+fn select_rect_corner(c: vec4f, pos: vec2f) -> f32 {
+	return mix(mix(c.x, c.y, step(0, pos.x)), mix(c.w, c.z, step(0, pos.x)), step(0, pos.y));
+}
+
+fn compute_blurred_coverage(shape_type: u32, index: u32, pos: vec2f, blur_radius: f32) -> f32 {
+	let sigma = blur_radius / 3.0;
+	switch (shape_type & SHAPE_TYPE_MASK) {
+		case SHAPE_TYPE_NONE: {
+			return 1.0;
+		}
+		case SHAPE_TYPE_PATH: {
+			// Not supported, need to think about if it's possible to do without an 
+			// intermediate texture
+			return 0.0; 
+		}
+		// Rect and rounded rect blur functions adapted from https://madebyevan.com/shaders/fast-rounded-rectangle-shadows/
+		case SHAPE_TYPE_RECT: {
+			let shape = shapes[index];
+			let top_left = shape.bounds.xy;
+			let bottom_right = shape.bounds.zw;
+			let query = vec4f(top_left - pos, bottom_right - pos); 
+			let integral = 0.5 + 0.5 * erf4(query * (sqrt(0.5) / sigma));
+			return (integral.z - integral.x) * (integral.w - integral.y);
+		}
+		case SHAPE_TYPE_ROUNDED_RECT: {
+			let shape = shapes[index];
+			let top_left = shape.bounds.xy;
+			let bottom_right = shape.bounds.zw;
+			
+			// Center everything to make the math easier
+			let center = (top_left + bottom_right) * 0.5;
+			let half_size = (bottom_right - top_left) * 0.5;
+			let p = pos - top_left - half_size;
+
+			// The signal is only non-zero in a limited range, so don't waste samples
+			let low = p.y - half_size.y;
+			let high = p.y + half_size.y;
+			let start = clamp(-blur_radius, low, high);
+			let end = clamp(blur_radius, low, high);
+
+			// Accumulate samples (we can get away with surprisingly few samples)
+			let step = (end - start) / 4.0;
+			var y = start + step * 0.5;
+			var value = 0.0;
+			let corner_radius = select_rect_corner(shape.corner_radii, p);
+			for (var i = 0; i < 4; i++) {
+				value += rounded_box_shadow_x(p.x, p.y - y, sigma, corner_radius, half_size) * gaussian(y, sigma) * step;
+				y += step;
+			}
+			return value;
+		}
+		default: {
+			return 0.0;
+		}
+	}
 }
 
 fn erf4(x: vec4f) -> vec4f {
@@ -200,18 +275,11 @@ fn erf4(x: vec4f) -> vec4f {
 	return s - s / (y * y * y * y);
 }
 
-/// Signed distance to a rounded rect centered at the origin
-fn sd_rounded_rect(half_size: vec2f, radius: f32, pos: vec2f) -> f32 {
-	let q = abs(pos) - half_size + radius;
-    return length(max(q, vec2f(0.0))) - radius;
-}
-
-fn select_rect_corner(c: vec4f, pos: vec2f) -> f32 {
-	return mix(mix(c.x, c.y, step(0, pos.x)), mix(c.w, c.z, step(0, pos.x)), step(0, pos.y));
-}
-
-fn blurred_rounded_rect_mask(top_left: vec2f, bottom_right: vec2f, corner_radius: f32, sigma: f32, pos: vec2f) -> f32 {
-	return 0.0;
+fn rounded_box_shadow_x(x: f32, y: f32, sigma: f32, corner: f32, half_size: vec2f) -> f32{
+	let delta = min(half_size.y - corner - abs(y), 0.0);
+	let curved = half_size.x - corner + sqrt(max(0.0, corner * corner - delta * delta));
+	let integral = 0.5 + 0.5 * erf2((x + vec2(-curved, curved)) * (sqrt(0.5) / sigma));
+	return integral.y - integral.x;
 }
 
 fn erf2(x: vec2f) -> vec2f {

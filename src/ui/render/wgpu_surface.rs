@@ -150,6 +150,13 @@ impl WGPUSurface {
                 FillRule::NonZero,
             );
 
+            gpu_scene.fill_shape(
+                rect,
+                GpuFill::Blur {
+                    color: Color::BLACK.with_alpha(0.9),
+                    radius: 50.0,
+                },
+            );
             gpu_scene.fill_shape(rect, GpuFill::Solid(Color::RED));
             gpu_scene.fill_shape(
                 path,
@@ -157,6 +164,14 @@ impl WGPUSurface {
                     start: Vec2f { x: 100.0, y: 100.0 },
                     end: Vec2f { x: 800.0, y: 800.0 },
                     color_stops: ColorMap::new([]),
+                },
+            );
+
+            gpu_scene.fill_shape(
+                rounded_rect,
+                GpuFill::Blur {
+                    color: Color::BLACK.with_alpha(0.9),
+                    radius: 50.0,
                 },
             );
             gpu_scene.fill_shape(

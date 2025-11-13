@@ -32,6 +32,10 @@ pub struct GpuShapeRef {
 
 pub enum GpuFill {
     Solid(Color),
+    Blur {
+        color: Color,
+        radius: f32,
+    },
     LinearGradient {
         start: Vec2f,
         end: Vec2f,
@@ -55,8 +59,9 @@ impl GpuScene {
     const FILL_RULE_EVEN_ODD: u32 = 1 << 3;
 
     const FILL_TYPE_SOLID: u32 = 1;
-    const FILL_TYPE_LINEAR_GRADIENT: u32 = 2;
-    const FILL_TYPE_RADIAL_GRADIENT: u32 = 3;
+    const FILL_TYPE_BLUR: u32 = 2;
+    const FILL_TYPE_LINEAR_GRADIENT: u32 = 3;
+    const FILL_TYPE_RADIAL_GRADIENT: u32 = 4;
 
     pub fn new() -> Self {
         Self {
@@ -128,6 +133,7 @@ impl GpuScene {
     pub fn fill_shape(&mut self, shape_ref: GpuShapeRef, fill: GpuFill) {
         let fill_type = match fill {
             GpuFill::Solid(_) => Self::FILL_TYPE_SOLID,
+            GpuFill::Blur { .. } => Self::FILL_TYPE_BLUR,
             GpuFill::LinearGradient { .. } => Self::FILL_TYPE_LINEAR_GRADIENT,
         };
 
@@ -142,6 +148,16 @@ impl GpuScene {
                     (color.a * color.g).to_bits(),
                     (color.a * color.b).to_bits(),
                     color.a.to_bits(),
+                ]
+                .iter(),
+            ),
+            GpuFill::Blur { color, radius } => self.fill_ops.extend(
+                [
+                    (color.a * color.r).to_bits(),
+                    (color.a * color.g).to_bits(),
+                    (color.a * color.b).to_bits(),
+                    color.a.to_bits(),
+                    radius.to_bits(),
                 ]
                 .iter(),
             ),
