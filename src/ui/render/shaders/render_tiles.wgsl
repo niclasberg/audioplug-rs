@@ -116,7 +116,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 				i += 4;
 				
 				let delta = end - start;
-				let t = clamp(dot(pos - start, end - start) / dot(delta, delta), 0.0, 1.0);
+				let t = clamp(dot(pos - start, delta) / dot(delta, delta), 0.0, 1.0);
 				let fill_color = vec4f(t, t, t, 1.0);
 
 				let coverage = compute_coverage(shape_type, index, pos);
@@ -161,7 +161,7 @@ fn compute_coverage(shape_type: u32, index: u32, pos: vec2f) -> f32 {
 			let top_left = shape.bounds.xy;
 			let bottom_right = shape.bounds.zw;
 
-			// Compute area of intersection between a unit rectangle centered at pos and the shape's rectangle
+			// TODO: anti-aliasing: Compute area of intersection between a unit rectangle centered at pos and the shape's rectangle
 
 			let s = step(top_left, pos) - step(bottom_right, pos);
 			return s.x * s.y;
@@ -177,6 +177,9 @@ fn compute_coverage(shape_type: u32, index: u32, pos: vec2f) -> f32 {
 			let dist = sd_rounded_rect(half_size, corner_radius, p);
 			
 			return smoothstep(-0.5, 0.5, -dist);
+		}
+		case SHAPE_TYPE_ELLIPSE: {
+			return 0.0;
 		}
 		default: {
 			return 0.0;
