@@ -170,7 +170,7 @@ impl WGPUSurface {
             gpu_scene.fill_shape(
                 rounded_rect,
                 GpuFill::Blur {
-                    color: Color::BLACK.with_alpha(0.9),
+                    color: Color::BLACK.with_alpha(0.6),
                     radius: 50.0,
                 },
             );
