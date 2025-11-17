@@ -1,24 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
-use crate::core::{
-    BrushRef, Color, ColorMap, Ellipse, FillRule, Path, Rect, RoundedRect, Vec2f, Vec4f,
-};
-
-#[derive(Clone, Copy, Pod, Zeroable)]
-#[repr(C)]
-pub struct LineSegment {
-    p0: Vec2f,
-    p1: Vec2f,
-}
-
-#[derive(Clone, Copy, Pod, Zeroable)]
-#[repr(C)]
-pub struct GpuShape {
-    bounds: Vec4f,
-    /// Corner radius, only for rounded rects
-    radii: Vec4f,
-}
+use crate::core::{Color, ColorMap, Ellipse, FillRule, Path, Rect, RoundedRect, Vec2f, Vec4f};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct GpuShapeRef {
@@ -44,8 +27,7 @@ pub enum GpuFill {
 }
 
 pub struct GpuScene {
-    pub line_segments: Vec<LineSegment>,
-    pub shapes: Vec<GpuShape>,
+    pub shape_data: Vec<f32>,
     pub fill_ops: Vec<u32>,
     pub gradient_lut: Vec<f32>,
 }
@@ -65,56 +47,74 @@ impl GpuScene {
 
     pub fn new() -> Self {
         Self {
-            line_segments: Vec::new(),
-            shapes: Vec::new(),
+            shape_data: Vec::new(),
             fill_ops: Vec::new(),
             gradient_lut: Vec::new(),
         }
     }
 
     pub fn add_rect(&mut self, rect: Rect) -> GpuShapeRef {
-        let index = self.shapes.len() as u32;
-        self.shapes.push(GpuShape {
-            bounds: rect_to_vec4f(rect),
-            radii: Vec4f::ZERO,
-        });
-        GpuShapeRef {
-            shape_type: Self::SHAPE_TYPE_RECT,
-            index,
-        }
+        self.add_shape_with_data(
+            Self::SHAPE_TYPE_RECT,
+            [
+                rect.left as _,
+                rect.top as _,
+                rect.right as _,
+                rect.bottom as _,
+            ],
+        )
+    }
+
+    fn add_shape_with_data<const N: usize>(
+        &mut self,
+        shape_type: u32,
+        values: [f32; N],
+    ) -> GpuShapeRef {
+        let index = self.shape_data.len() as u32;
+        self.shape_data.extend(values.iter());
+        GpuShapeRef { shape_type, index }
     }
 
     pub fn add_rounded_rect(&mut self, rounded_rect: RoundedRect) -> GpuShapeRef {
-        let index = self.shapes.len() as u32;
-        let rect = rounded_rect.rect;
-        self.shapes.push(GpuShape {
-            bounds: rect_to_vec4f(rect),
-            radii: Vec4f {
-                x: rounded_rect.corner_radius.width as _,
-                y: rounded_rect.corner_radius.height as _,
-                z: rounded_rect.corner_radius.width as _,
-                w: rounded_rect.corner_radius.height as _,
-            },
-        });
-        GpuShapeRef {
-            shape_type: Self::SHAPE_TYPE_ROUNDED_RECT,
-            index,
-        }
+        self.add_shape_with_data(
+            Self::SHAPE_TYPE_ROUNDED_RECT,
+            [
+                rounded_rect.rect.left as _,
+                rounded_rect.rect.top as _,
+                rounded_rect.rect.right as _,
+                rounded_rect.rect.bottom as _,
+                rounded_rect.corner_radius.width as _,
+                rounded_rect.corner_radius.height as _,
+                rounded_rect.corner_radius.width as _,
+                rounded_rect.corner_radius.height as _,
+            ],
+        )
+    }
+
+    pub fn add_ellipse(&mut self, ellipse: Ellipse) -> GpuShapeRef {
+        self.add_shape_with_data(
+            Self::SHAPE_TYPE_ELLIPSE,
+            [
+                ellipse.center.x as _,
+                ellipse.center.y as _,
+                ellipse.radii.width as _,
+                ellipse.radii.height as _,
+            ],
+        )
     }
 
     pub fn add_path(&mut self, path: &Path, fill_rule: FillRule) -> GpuShapeRef {
-        let index = self.line_segments.len();
+        let index = self.shape_data.len();
         path.flatten(1.0e-3, |line| {
-            self.line_segments.push(LineSegment {
-                p0: Vec2f {
-                    x: line.p0.x as _,
-                    y: line.p0.y as _,
-                },
-                p1: Vec2f {
-                    x: line.p1.x as _,
-                    y: line.p1.y as _,
-                },
-            });
+            self.shape_data.extend(
+                [
+                    line.p0.x as _,
+                    line.p0.y as _,
+                    line.p1.x as _,
+                    line.p1.y as _,
+                ]
+                .iter(),
+            );
         });
 
         let mut shape_type = Self::SHAPE_TYPE_PATH;
@@ -122,7 +122,7 @@ impl GpuScene {
             shape_type |= Self::FILL_RULE_EVEN_ODD;
         }
 
-        let size = self.line_segments.len() - index;
+        let size = (self.shape_data.len() - index) / 4;
         assert!(size < u16::MAX as usize, "Path size too large");
         shape_type |= (size as u32) << 4;
 
@@ -179,8 +179,7 @@ impl GpuScene {
 
     pub fn clear(&mut self) {
         self.fill_ops.clear();
-        self.line_segments.clear();
-        self.shapes.clear();
+        self.shape_data.clear();
         self.gradient_lut.clear();
     }
 
@@ -189,14 +188,13 @@ impl GpuScene {
         device: &mut wgpu::Device,
         queue: &mut wgpu::Queue,
         shapes_data_buffer: &mut wgpu::Buffer,
-        line_segments_buffer: &mut wgpu::Buffer,
         fill_ops_buffer: &mut wgpu::Buffer,
     ) {
         update_buffer(
             device,
             queue,
             shapes_data_buffer,
-            bytemuck::cast_slice(&self.shapes),
+            bytemuck::cast_slice(&self.shape_data),
         );
     }
 }
@@ -215,14 +213,5 @@ fn update_buffer(
             contents: data,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         })
-    }
-}
-
-fn rect_to_vec4f(rect: Rect) -> Vec4f {
-    Vec4f {
-        x: rect.left as _,
-        y: rect.top as _,
-        z: rect.right as _,
-        w: rect.bottom as _,
     }
 }

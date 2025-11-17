@@ -7,10 +7,10 @@ use wgpu::util::DeviceExt;
 use super::tiles::TILE_SIZE;
 use crate::{
     core::{
-        Color, ColorMap, FillRule, Path, PhysicalCoord, PhysicalSize, Point, Rect, RoundedRect,
-        Size, Vec2f,
+        Color, ColorMap, Ellipse, FillRule, Path, PhysicalCoord, PhysicalSize, Point, Rect,
+        RoundedRect, Size, Vec2f,
     },
-    ui::render::gpu_scene::{GpuFill, GpuScene, GpuShape, LineSegment},
+    ui::render::gpu_scene::{GpuFill, GpuScene},
 };
 
 #[repr(C)]
@@ -50,7 +50,6 @@ pub struct WGPUSurface {
     pub output_texture: wgpu::Texture,
     pub params_buffer: wgpu::Buffer,
     pub shapes_data_buffer: wgpu::Buffer,
-    pub line_segments_buffer: wgpu::Buffer,
     pub fill_ops_buffer: wgpu::Buffer,
 }
 
@@ -149,6 +148,12 @@ impl WGPUSurface {
                     .close_path(),
                 FillRule::NonZero,
             );
+            let ellipse = gpu_scene.add_ellipse(Ellipse::from_rectangle(Rect {
+                left: 650.3,
+                top: 200.2,
+                right: 900.0,
+                bottom: 300.3,
+            }));
 
             gpu_scene.fill_shape(
                 rect,
@@ -164,6 +169,13 @@ impl WGPUSurface {
                     start: Vec2f { x: 100.0, y: 100.0 },
                     end: Vec2f { x: 800.0, y: 800.0 },
                     color_stops: ColorMap::new([]),
+                },
+            );
+            gpu_scene.fill_shape(
+                ellipse,
+                GpuFill::Blur {
+                    color: Color::RED,
+                    radius: 30.0,
                 },
             );
 
@@ -182,13 +194,7 @@ impl WGPUSurface {
 
         let shapes_data_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Shapes data buffer"),
-            contents: bytemuck::cast_slice(gpu_scene.shapes.as_slice()),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let line_segments_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Line segments buffer"),
-            contents: bytemuck::cast_slice(gpu_scene.line_segments.as_slice()),
+            contents: bytemuck::cast_slice(gpu_scene.shape_data.as_slice()),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -218,12 +224,8 @@ impl WGPUSurface {
         let render_tiles_program = RenderTilesProgram::new(&device);
         let render_tiles_bind_group0 =
             render_tiles_program.create_bind_group0(&device, &tex_view, &params_buffer);
-        let render_tiles_bind_group1 = render_tiles_program.create_bind_group1(
-            &device,
-            &shapes_data_buffer,
-            &line_segments_buffer,
-            &fill_ops_buffer,
-        );
+        let render_tiles_bind_group1 =
+            render_tiles_program.create_bind_group1(&device, &shapes_data_buffer, &fill_ops_buffer);
 
         Ok(Self {
             surface,
@@ -241,7 +243,6 @@ impl WGPUSurface {
             output_sampler,
             params_buffer,
             shapes_data_buffer,
-            line_segments_buffer,
             fill_ops_buffer,
         })
     }
@@ -424,7 +425,7 @@ impl RenderTilesProgram {
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("render_tiles bind group layout1"),
                 entries: &[
-                    // Segments
+                    // Shape data
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
                         visibility: wgpu::ShaderStages::COMPUTE,
@@ -432,27 +433,14 @@ impl RenderTilesProgram {
                             ty: wgpu::BufferBindingType::Storage { read_only: true },
                             has_dynamic_offset: false,
                             min_binding_size: Some(
-                                NonZero::new(std::mem::size_of::<LineSegment>() as _).unwrap(),
-                            ),
-                        },
-                        count: None,
-                    },
-                    // Shapes
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: true },
-                            has_dynamic_offset: false,
-                            min_binding_size: Some(
-                                NonZero::new(std::mem::size_of::<GpuShape>() as _).unwrap(),
+                                NonZero::new(std::mem::size_of::<f32>() as _).unwrap(),
                             ),
                         },
                         count: None,
                     },
                     // Fills
                     wgpu::BindGroupLayoutEntry {
-                        binding: 2,
+                        binding: 1,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -514,7 +502,6 @@ impl RenderTilesProgram {
         &self,
         device: &wgpu::Device,
         shapes_data_buffer: &wgpu::Buffer,
-        line_segments_buffer: &wgpu::Buffer,
         fill_ops_buffer: &wgpu::Buffer,
     ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -524,21 +511,13 @@ impl RenderTilesProgram {
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: line_segments_buffer,
-                        offset: 0,
-                        size: None,
-                    }),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: shapes_data_buffer,
                         offset: 0,
                         size: None,
                     }),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 1,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: fill_ops_buffer,
                         offset: 0,
