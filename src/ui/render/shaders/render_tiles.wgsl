@@ -16,9 +16,10 @@ const SHAPE_TYPE_MASK = 7u;
 const FILL_RULE_EVEN_ODD = 1u << 3;
 
 const FILL_TYPE_SOLID = 1u;
-const FILL_TYPE_BLUR = 2u;
-const FILL_TYPE_LINEAR_GRADIENT = 3u;
-const FILL_TYPE_RADIAL_GRADIENT = 4u;
+const FILL_TYPE_DROP_SHADOW = 2u;
+const FILL_TYPE_INNER_SHADOW = 3u;
+const FILL_TYPE_LINEAR_GRADIENT = 4u;
+const FILL_TYPE_RADIAL_GRADIENT = 5u;
 
 struct Params {
 	width: u32,
@@ -105,17 +106,25 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 				let coverage = compute_coverage(shape_type, index, pos);
 				color = blend(color, fill_color, coverage);
 			}
-			case FILL_TYPE_BLUR: {
+			case FILL_TYPE_DROP_SHADOW, FILL_TYPE_INNER_SHADOW: {
 				let blur_color = vec4f(
 					bitcast<f32>(fills[i]),
 					bitcast<f32>(fills[i+1]),
 					bitcast<f32>(fills[i+2]),
 					bitcast<f32>(fills[i+3]),
 				);
-				let blur_radius = bitcast<f32>(fills[i+4]);
-				i += 5;
+				let offset = vec2f(
+					bitcast<f32>(fills[i+4]),
+					bitcast<f32>(fills[i+5])
+				);
+				let blur_radius = bitcast<f32>(fills[i+6]);
+				i += 7;
 
-				let coverage = compute_blurred_coverage(shape_type, index, pos, blur_radius);
+				let blur_mask = compute_blurred_coverage(shape_type, index, pos - offset, blur_radius);
+				let shape_mask = compute_coverage(shape_type, index, pos);
+				let drop_shadow_coverage = blur_mask * (1.0 - shape_mask);
+				let inner_shadow_coverage = (1.0 - blur_mask) * shape_mask;
+				let coverage = select(inner_shadow_coverage, drop_shadow_coverage, fill_type == FILL_TYPE_DROP_SHADOW);
 				color = blend(color, blur_color, coverage);
 			}
 			case FILL_TYPE_LINEAR_GRADIENT: {
@@ -131,7 +140,15 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 				color = blend(color, fill_color, coverage);
 			}
 			case FILL_TYPE_RADIAL_GRADIENT: {
-				
+				let center = vec2f(bitcast<f32>(fills[i]), bitcast<f32>(fills[i+1]));
+				let radius = bitcast<f32>(fills[i+2]);
+				i += 3;
+
+				let t = clamp(length(pos - center) / radius, 0.0, 1.0);
+				let fill_color = vec4f(t, t, t, 1.0);
+
+				let coverage = compute_coverage(shape_type, index, pos);
+				color = blend(color, fill_color, coverage);
 			}
 			default: {
 				
@@ -183,7 +200,10 @@ fn compute_coverage(shape_type: u32, index: u32, pos: vec2f) -> f32 {
 			return smoothstep(-0.5, 0.5, -dist);
 		}
 		case SHAPE_TYPE_ELLIPSE: {
-			return 0.0;
+			let ellipse = read_ellipse(index);
+
+			let dist = sd_ellipse(ellipse.radii, pos - ellipse.center);
+			return smoothstep(-0.5, 0.5, -dist);
 		}
 		default: {
 			return 0.0;
@@ -243,6 +263,27 @@ fn is_point_in_rect(top_left: vec2f, bottom_right: vec2f, pos: vec2f) -> f32 {
 fn sd_rounded_rect(half_size: vec2f, radius: f32, pos: vec2f) -> f32 {
 	let q = abs(pos) - half_size + radius;
     return length(max(q, vec2f(0.0))) - radius;
+}
+
+fn sd_ellipse(radii: vec2f, pos: vec2f) -> f32 {
+    // symmetry
+	let p = abs(pos);
+
+    // find root with Newton solver
+    let q = radii*(p-radii);
+	var w = select(0.0, PI / 2.0, q.x<q.y);
+    for (var i=0; i < 5; i++ ) {
+        let cs = vec2(cos(w),sin(w));
+        let u = radii * vec2f( cs.x,cs.y);
+        let v = radii * vec2f(-cs.y,cs.x);
+        w = w + dot(p-u,v)/(dot(p-u,u)+dot(v,v));
+    }
+    
+    // compute final point and distance
+    let d = length(p - radii * vec2f(cos(w),sin(w)));
+    
+    // return signed distance
+    return select(-d, d, dot(p/radii,p/radii) > 1.0);
 }
 
 /// Pick the radius of the corner that is closest to pos

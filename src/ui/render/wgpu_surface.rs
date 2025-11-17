@@ -8,7 +8,7 @@ use super::tiles::TILE_SIZE;
 use crate::{
     core::{
         Color, ColorMap, Ellipse, FillRule, Path, PhysicalCoord, PhysicalSize, Point, Rect,
-        RoundedRect, Size, Vec2f,
+        RoundedRect, ShadowOptions, Size, Vec2, Vec2f,
     },
     ui::render::gpu_scene::{GpuFill, GpuScene},
 };
@@ -130,6 +130,12 @@ impl WGPUSurface {
                 right: 150.0,
                 bottom: 200.0,
             });
+            let rect2 = gpu_scene.add_rect(Rect {
+                left: 10.0,
+                top: 310.0,
+                right: 150.0,
+                bottom: 500.0,
+            });
             let rounded_rect = gpu_scene.add_rounded_rect(RoundedRect::new(
                 Rect {
                     left: 50.3,
@@ -154,14 +160,14 @@ impl WGPUSurface {
                 right: 900.0,
                 bottom: 300.3,
             }));
+            let drop_shadow = GpuFill::Shadow(ShadowOptions {
+                radius: 30.0,
+                offset: Vec2::ZERO,
+                color: Color::BLACK.with_alpha(0.7),
+                kind: crate::core::ShadowKind::DropShadow,
+            });
 
-            gpu_scene.fill_shape(
-                rect,
-                GpuFill::Blur {
-                    color: Color::BLACK.with_alpha(0.9),
-                    radius: 50.0,
-                },
-            );
+            //gpu_scene.fill_shape(rect, drop_shadow.clone());
             gpu_scene.fill_shape(rect, GpuFill::Solid(Color::RED));
             gpu_scene.fill_shape(
                 path,
@@ -171,25 +177,22 @@ impl WGPUSurface {
                     color_stops: ColorMap::new([]),
                 },
             );
-            gpu_scene.fill_shape(
-                ellipse,
-                GpuFill::Blur {
-                    color: Color::RED,
-                    radius: 30.0,
-                },
-            );
+            //gpu_scene.fill_shape(ellipse, drop_shadow.clone());
+            gpu_scene.fill_shape(ellipse, GpuFill::Solid(Color::RED));
 
-            gpu_scene.fill_shape(
-                rounded_rect,
-                GpuFill::Blur {
-                    color: Color::BLACK.with_alpha(0.6),
-                    radius: 50.0,
-                },
-            );
+            //gpu_scene.fill_shape(rounded_rect, drop_shadow.clone());
             gpu_scene.fill_shape(
                 rounded_rect,
                 GpuFill::Solid(Color::CHAMOISEE.with_alpha(0.7)),
             );
+            gpu_scene.fill_shape(
+                rect2,
+                GpuFill::RadialGradient {
+                    center: Vec2f { x: 75.0, y: 400.0 },
+                    radius: 80.0,
+                    color_stops: ColorMap::new([]),
+                },
+            )
         }
 
         let shapes_data_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

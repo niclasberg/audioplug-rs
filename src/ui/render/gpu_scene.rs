@@ -1,7 +1,10 @@
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
-use crate::core::{Color, ColorMap, Ellipse, FillRule, Path, Rect, RoundedRect, Vec2f, Vec4f};
+use crate::core::{
+    Color, ColorMap, Ellipse, FillRule, Path, Rect, RoundedRect, ShadowKind, ShadowOptions, Vec2f,
+    Vec4f,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct GpuShapeRef {
@@ -13,15 +16,18 @@ pub struct GpuShapeRef {
     index: u32,
 }
 
+#[derive(Debug, Clone)]
 pub enum GpuFill {
     Solid(Color),
-    Blur {
-        color: Color,
-        radius: f32,
-    },
+    Shadow(ShadowOptions),
     LinearGradient {
         start: Vec2f,
         end: Vec2f,
+        color_stops: ColorMap,
+    },
+    RadialGradient {
+        center: Vec2f,
+        radius: f32,
         color_stops: ColorMap,
     },
 }
@@ -41,9 +47,10 @@ impl GpuScene {
     const FILL_RULE_EVEN_ODD: u32 = 1 << 3;
 
     const FILL_TYPE_SOLID: u32 = 1;
-    const FILL_TYPE_BLUR: u32 = 2;
-    const FILL_TYPE_LINEAR_GRADIENT: u32 = 3;
-    const FILL_TYPE_RADIAL_GRADIENT: u32 = 4;
+    const FILL_TYPE_DROP_SHADOW: u32 = 2;
+    const FILL_TYPE_INNER_SHADOW: u32 = 3;
+    const FILL_TYPE_LINEAR_GRADIENT: u32 = 4;
+    const FILL_TYPE_RADIAL_GRADIENT: u32 = 5;
 
     pub fn new() -> Self {
         Self {
@@ -133,8 +140,12 @@ impl GpuScene {
     pub fn fill_shape(&mut self, shape_ref: GpuShapeRef, fill: GpuFill) {
         let fill_type = match fill {
             GpuFill::Solid(_) => Self::FILL_TYPE_SOLID,
-            GpuFill::Blur { .. } => Self::FILL_TYPE_BLUR,
+            GpuFill::Shadow(ShadowOptions { kind, .. }) => match kind {
+                ShadowKind::DropShadow => Self::FILL_TYPE_DROP_SHADOW,
+                ShadowKind::InnerShadow => Self::FILL_TYPE_INNER_SHADOW,
+            },
             GpuFill::LinearGradient { .. } => Self::FILL_TYPE_LINEAR_GRADIENT,
+            GpuFill::RadialGradient { .. } => Self::FILL_TYPE_RADIAL_GRADIENT,
         };
 
         let fill_data = (shape_ref.shape_type) << 4 | fill_type;
@@ -151,13 +162,20 @@ impl GpuScene {
                 ]
                 .iter(),
             ),
-            GpuFill::Blur { color, radius } => self.fill_ops.extend(
+            GpuFill::Shadow(ShadowOptions {
+                radius,
+                offset,
+                color,
+                ..
+            }) => self.fill_ops.extend(
                 [
                     (color.a * color.r).to_bits(),
                     (color.a * color.g).to_bits(),
                     (color.a * color.b).to_bits(),
                     color.a.to_bits(),
-                    radius.to_bits(),
+                    (offset.x as f32).to_bits(),
+                    (offset.y as f32).to_bits(),
+                    (radius as f32).to_bits(),
                 ]
                 .iter(),
             ),
@@ -174,6 +192,13 @@ impl GpuScene {
                 ]
                 .iter(),
             ),
+            GpuFill::RadialGradient {
+                center,
+                radius,
+                color_stops,
+            } => self
+                .fill_ops
+                .extend([center.x.to_bits(), center.y.to_bits(), radius.to_bits()].iter()),
         };
     }
 
