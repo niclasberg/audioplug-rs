@@ -161,13 +161,13 @@ impl WGPUSurface {
                 bottom: 300.3,
             }));
             let drop_shadow = GpuFill::Shadow(ShadowOptions {
-                radius: 30.0,
-                offset: Vec2::ZERO,
+                radius: 25.0,
+                offset: Vec2::splat(10.0),
                 color: Color::BLACK.with_alpha(0.7),
                 kind: crate::core::ShadowKind::DropShadow,
             });
 
-            //gpu_scene.fill_shape(rect, drop_shadow.clone());
+            gpu_scene.fill_shape(rect, drop_shadow.clone());
             gpu_scene.fill_shape(rect, GpuFill::Solid(Color::RED));
             gpu_scene.fill_shape(
                 path,
@@ -177,10 +177,10 @@ impl WGPUSurface {
                     color_stops: ColorMap::new([]),
                 },
             );
-            //gpu_scene.fill_shape(ellipse, drop_shadow.clone());
+            gpu_scene.fill_shape(ellipse, drop_shadow.clone());
             gpu_scene.fill_shape(ellipse, GpuFill::Solid(Color::RED));
 
-            //gpu_scene.fill_shape(rounded_rect, drop_shadow.clone());
+            gpu_scene.fill_shape(rounded_rect, drop_shadow.clone());
             gpu_scene.fill_shape(
                 rounded_rect,
                 GpuFill::Solid(Color::CHAMOISEE.with_alpha(0.7)),
