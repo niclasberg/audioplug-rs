@@ -206,7 +206,6 @@ fn compute_coverage(shape_type: u32, index: u32, pos: vec2f) -> f32 {
 		}
 		case SHAPE_TYPE_ELLIPSE: {
 			let ellipse = read_ellipse(index);
-
 			let dist = sd_ellipse(ellipse.radii, pos - ellipse.center);
 			return smoothstep(-0.5, 0.5, -dist);
 		}
@@ -262,6 +261,12 @@ fn cross(u: vec2<f32>, v: vec2<f32>) -> f32 {
 fn is_point_in_rect(top_left: vec2f, bottom_right: vec2f, pos: vec2f) -> f32 {
 	let s = step(top_left, pos) - step(bottom_right, pos);
 	return s.x * s.y;
+}
+
+/// Signed distance to a rect centered at the origin
+fn sd_rect(half_size: vec2f, pos: vec2f) -> f32 {
+	let d = abs(pos) - half_size;
+	return length(max(d, vec2f(0.0))) + min(max(d.x, d.y), 0.0);
 }
 
 /// Signed distance to a rounded rect centered at the origin
