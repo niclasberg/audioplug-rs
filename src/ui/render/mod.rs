@@ -51,6 +51,9 @@ pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: R
 
     println!("Paint window, dirty rect: {dirty_rect:?}");
     wgpu_surface.configure_if_needed(window.handle.physical_size());
+    if !wgpu_surface.is_configured {
+        return;
+    }
 
     let surface_texture = wgpu_surface
         .surface

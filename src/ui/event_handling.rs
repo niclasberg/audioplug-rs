@@ -21,11 +21,8 @@ use crate::{
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
-        WindowEvent::Resize { physical_size, .. } => {
-            app_state
-                .window_mut(window_id)
-                .wgpu_surface
-                .resize(physical_size);
+        WindowEvent::Resize { .. } => {
+            app_state.window_mut(window_id).wgpu_surface.is_configured = false;
             layout_window(app_state, window_id, RecomputeLayout::Force);
             invalidate_window(app_state, window_id);
         }
@@ -111,8 +108,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         }
         WindowEvent::ScaleFactorChanged(_) => {
             let window = app_state.window_mut(window_id);
-            let physical_size = window.handle.physical_size();
-            window.wgpu_surface.resize(physical_size);
+            window.wgpu_surface.is_configured = false;
         }
         _ => {}
     };

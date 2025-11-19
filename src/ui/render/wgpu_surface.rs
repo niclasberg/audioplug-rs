@@ -131,6 +131,7 @@ pub struct WGPUSurface {
     pub shapes_data_buffer: wgpu::Buffer,
     pub fill_ops_buffer: wgpu::Buffer,
     pub state: Option<SurfaceState>,
+    pub is_configured: bool,
 }
 
 impl WGPUSurface {
@@ -298,39 +299,38 @@ impl WGPUSurface {
             shapes_data_buffer,
             fill_ops_buffer,
             state: None,
+            is_configured: false,
         })
     }
 
     pub fn configure_if_needed(&mut self, new_size: PhysicalSize) {
-        let Self {
-            device,
-            queue,
-            blit_program,
-            render_tiles_program,
-            ..
-        } = self;
-
-        if let Some(state) = self.state.as_mut() {
-            state.resize_if_needed(device, queue, blit_program, render_tiles_program, new_size);
-        } else {
-            self.state = Some(SurfaceState::new(
+        if new_size.height > PhysicalCoord::ZERO && new_size.width > PhysicalCoord::ZERO {
+            let Self {
                 device,
+                queue,
                 blit_program,
                 render_tiles_program,
-                new_size,
-            ));
+                ..
+            } = self;
+
+            if !self.is_configured {
+                self.size = new_size;
+                self.config.width = new_size.width.0 as _;
+                self.config.height = new_size.height.0 as _;
+
+                self.surface.configure(device, &self.config);
+                self.is_configured = true;
+            }
+
+            let state = self.state.get_or_insert_with(|| {
+                SurfaceState::new(device, blit_program, render_tiles_program, new_size)
+            });
+            state.resize_if_needed(device, queue, blit_program, render_tiles_program, new_size);
         }
     }
 
-    pub fn resize(&mut self, new_size: PhysicalSize) {
-        if new_size.height > PhysicalCoord::ZERO && new_size.width > PhysicalCoord::ZERO {
-            self.size = new_size;
-            let width = new_size.width.0 as _;
-            let height = new_size.height.0 as _;
-            self.config.width = width;
-            self.config.height = height;
-            self.surface.configure(&self.device, &self.config);
-        }
+    pub fn resized(&mut self) {
+        self.is_configured = false;
     }
 
     pub fn render_tiles_workgroup_count(&self) -> Size<u32> {
