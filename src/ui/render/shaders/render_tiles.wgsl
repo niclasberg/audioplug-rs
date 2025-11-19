@@ -144,7 +144,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 				let radius = bitcast<f32>(fills[i+2]);
 				i += 3;
 
-				let t = clamp(length(pos - center) / radius, 0.0, 1.0);
+				let t = clamp(distance(pos, center) / radius, 0.0, 1.0);
 				let fill_color = vec4f(t, t, t, 1.0);
 
 				let coverage = compute_coverage(shape_type, index, pos);

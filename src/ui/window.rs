@@ -1,12 +1,14 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use pollster::FutureExt;
 use raw_window_handle::RawWindowHandle;
 
 use super::{AppState, View, WindowId};
 use crate::App;
 use crate::core::{Cursor, PhysicalRect, Point, Rect, ScaleFactor};
 use crate::platform::{self, WindowEvent};
+use crate::ui::render::WGPUSurface;
 
 enum WindowState<V> {
     PreInit { view: V },
@@ -27,7 +29,12 @@ impl<V: View> WindowState<V> {
     fn initialize(self, app_state: &mut AppState, handle: platform::Handle) -> Self {
         match self {
             WindowState::PreInit { view } => {
-                let window_id = app_state.add_window(handle, view);
+                // It would be neat to run this on the executor
+                let surface = WGPUSurface::new(&handle)
+                    .block_on()
+                    .expect("Graphics initialization failed");
+
+                let window_id = app_state.add_window(handle, surface, view);
                 Self::Initialized { window_id }
             }
             WindowState::Initialized { .. } | WindowState::Initializing => {

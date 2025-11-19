@@ -47,14 +47,10 @@ pub fn invalidate_widget(app_state: &AppState, widget_id: WidgetId) {
 
 pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: Rect) {
     let window = &mut app_state.windows[window_id];
-    let wgpu_surface = window.wgpu_surface.get_or_insert_with(|| {
-        // It would be neat to run this on the executor
-        WGPUSurface::new(&window.handle)
-            .block_on()
-            .expect("Graphics initialization failed")
-    });
+    let wgpu_surface = &mut window.wgpu_surface;
 
     println!("Paint window, dirty rect: {dirty_rect:?}");
+    wgpu_surface.configure_if_needed(window.handle.physical_size());
 
     let surface_texture = wgpu_surface
         .surface
@@ -73,11 +69,13 @@ pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: R
             label: Some("AudioPlug command encoder"),
         });
 
+    let dims = wgpu_surface.render_tiles_workgroup_count();
+    let state = wgpu_surface.state.as_mut().unwrap();
+
     {
-        let dims = wgpu_surface.render_tiles_workgroup_count();
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
         compute_pass.set_pipeline(&wgpu_surface.render_tiles_program.pipeline);
-        compute_pass.set_bind_group(0, &wgpu_surface.render_tiles_bind_group0, &[]);
+        compute_pass.set_bind_group(0, &state.render_tiles_bind_group0, &[]);
         compute_pass.set_bind_group(1, &wgpu_surface.render_tiles_bind_group1, &[]);
         compute_pass.dispatch_workgroups(dims.width, dims.height, 1);
     }
@@ -101,7 +99,7 @@ pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: R
 
         // Blit the texture to the render target
         render_pass.set_pipeline(&wgpu_surface.blit_program.pipeline);
-        render_pass.set_bind_group(0, &wgpu_surface.blit_bind_group, &[]);
+        render_pass.set_bind_group(0, &state.blit_bind_group, &[]);
         render_pass.draw(0..3, 0..1);
     }
 

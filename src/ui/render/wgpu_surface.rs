@@ -32,6 +32,90 @@ pub enum GraphicsInitError {
     RequestDevice(#[from] wgpu::RequestDeviceError),
 }
 
+pub struct SurfaceState {
+    pub blit_bind_group: wgpu::BindGroup,
+    pub render_tiles_bind_group0: wgpu::BindGroup,
+    pub output_texture: wgpu::Texture,
+    pub params_buffer: wgpu::Buffer,
+    pub output_sampler: wgpu::Sampler,
+    pub last_size: PhysicalSize,
+}
+
+impl SurfaceState {
+    pub fn new(
+        device: &wgpu::Device,
+        blit_program: &BlitProgram,
+        render_tiles_program: &RenderTilesProgram,
+        size: PhysicalSize,
+    ) -> Self {
+        let width = size.width.0 as _;
+        let height = size.height.0 as _;
+
+        let params = Params { width, height };
+        let params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Params buffer"),
+            contents: bytemuck::bytes_of(&params),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let output_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Output texture sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+
+        // Output texture for compute shader
+        let output_texture = create_output_texture(device, width, height);
+        let tex_view = output_texture.create_view(&Default::default());
+        let blit_bind_group = blit_program.create_bind_group(device, &tex_view, &output_sampler);
+
+        let render_tiles_bind_group0 =
+            render_tiles_program.create_bind_group0(device, &tex_view, &params_buffer);
+
+        SurfaceState {
+            blit_bind_group,
+            render_tiles_bind_group0,
+            output_texture,
+            params_buffer,
+            output_sampler,
+            last_size: size,
+        }
+    }
+
+    pub fn resize_if_needed(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        blit_program: &BlitProgram,
+        render_tiles_program: &RenderTilesProgram,
+        size: PhysicalSize,
+    ) {
+        if size != self.last_size {
+            let width = size.width.0 as _;
+            let height = size.height.0 as _;
+
+            self.output_texture = create_output_texture(device, width, height);
+            let texture_view = self
+                .output_texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            self.blit_bind_group =
+                blit_program.create_bind_group(device, &texture_view, &self.output_sampler);
+            self.render_tiles_bind_group0 =
+                render_tiles_program.create_bind_group0(device, &texture_view, &self.params_buffer);
+            queue.write_buffer(
+                &self.params_buffer,
+                0,
+                bytemuck::bytes_of(&Params { height, width }),
+            );
+        }
+    }
+}
+
 pub struct WGPUSurface {
     pub surface: wgpu::Surface<'static>,
     pub device: wgpu::Device,
@@ -41,16 +125,12 @@ pub struct WGPUSurface {
     pub surface_format: wgpu::TextureFormat,
     // Blit pipeline
     pub blit_program: BlitProgram,
-    pub blit_bind_group: wgpu::BindGroup,
-    pub output_sampler: wgpu::Sampler,
     // Render tiles pipeline
     pub render_tiles_program: RenderTilesProgram,
-    pub render_tiles_bind_group0: wgpu::BindGroup,
     pub render_tiles_bind_group1: wgpu::BindGroup,
-    pub output_texture: wgpu::Texture,
-    pub params_buffer: wgpu::Buffer,
     pub shapes_data_buffer: wgpu::Buffer,
     pub fill_ops_buffer: wgpu::Buffer,
+    pub state: Option<SurfaceState>,
 }
 
 impl WGPUSurface {
@@ -80,6 +160,7 @@ impl WGPUSurface {
                 required_limits: wgpu::Limits::defaults(),
                 memory_hints: wgpu::MemoryHints::Performance,
                 trace: wgpu::Trace::Off,
+                experimental_features: wgpu::ExperimentalFeatures::disabled(),
             })
             .await?;
 
@@ -113,14 +194,6 @@ impl WGPUSurface {
             alpha_mode: surface_capabilities.alpha_modes[0],
             view_formats: vec![],
         };
-        surface.configure(&device, &config);
-
-        let params = Params { width, height };
-        let params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Params buffer"),
-            contents: bytemuck::bytes_of(&params),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
 
         let mut gpu_scene = GpuScene::new();
         {
@@ -207,26 +280,8 @@ impl WGPUSurface {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
-        // Output texture for compute shader
-        let output_texture = create_output_texture(&device, width, height);
-        let output_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("Output texture sampler"),
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Nearest,
-            min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            ..Default::default()
-        });
-        let tex_view = output_texture.create_view(&Default::default());
-
         let blit_program = BlitProgram::new(&device, format);
-        let blit_bind_group = blit_program.create_bind_group(&device, &tex_view, &output_sampler);
-
         let render_tiles_program = RenderTilesProgram::new(&device);
-        let render_tiles_bind_group0 =
-            render_tiles_program.create_bind_group0(&device, &tex_view, &params_buffer);
         let render_tiles_bind_group1 =
             render_tiles_program.create_bind_group1(&device, &shapes_data_buffer, &fill_ops_buffer);
 
@@ -238,16 +293,33 @@ impl WGPUSurface {
             size,
             surface_format: format,
             blit_program,
-            blit_bind_group,
             render_tiles_program,
-            render_tiles_bind_group0,
             render_tiles_bind_group1,
-            output_texture,
-            output_sampler,
-            params_buffer,
             shapes_data_buffer,
             fill_ops_buffer,
+            state: None,
         })
+    }
+
+    pub fn configure_if_needed(&mut self, new_size: PhysicalSize) {
+        let Self {
+            device,
+            queue,
+            blit_program,
+            render_tiles_program,
+            ..
+        } = self;
+
+        if let Some(state) = self.state.as_mut() {
+            state.resize_if_needed(device, queue, blit_program, render_tiles_program, new_size);
+        } else {
+            self.state = Some(SurfaceState::new(
+                device,
+                blit_program,
+                render_tiles_program,
+                new_size,
+            ));
+        }
     }
 
     pub fn resize(&mut self, new_size: PhysicalSize) {
@@ -258,26 +330,6 @@ impl WGPUSurface {
             self.config.width = width;
             self.config.height = height;
             self.surface.configure(&self.device, &self.config);
-            self.output_texture = create_output_texture(&self.device, width, height);
-
-            let texture_view = self
-                .output_texture
-                .create_view(&wgpu::TextureViewDescriptor::default());
-            self.blit_bind_group = self.blit_program.create_bind_group(
-                &self.device,
-                &texture_view,
-                &self.output_sampler,
-            );
-            self.render_tiles_bind_group0 = self.render_tiles_program.create_bind_group0(
-                &self.device,
-                &texture_view,
-                &self.params_buffer,
-            );
-            self.queue.write_buffer(
-                &self.params_buffer,
-                0,
-                bytemuck::bytes_of(&Params { height, width }),
-            );
         }
     }
 
