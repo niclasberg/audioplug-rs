@@ -89,74 +89,79 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 		}
 
 		let shape_type = fills[i] >> 4;
-		let fill_type = fills[i] & 0x7;
+		let fill_type = fills[i] & 0xF;
 		let index = fills[i+1];
 		i += 2;
 
-		switch (fill_type) {
-			case FILL_TYPE_SOLID: {
-				let fill_color = vec4f(
-					bitcast<f32>(fills[i]),
-					bitcast<f32>(fills[i+1]),
-					bitcast<f32>(fills[i+2]),
-					bitcast<f32>(fills[i+3]),
-				);
-				i += 4;
-
-				let coverage = compute_coverage(shape_type, index, pos);
-				color = blend(color, fill_color, coverage);
-			}
-			case FILL_TYPE_DROP_SHADOW, FILL_TYPE_INNER_SHADOW: {
-				let blur_color = vec4f(
-					bitcast<f32>(fills[i]),
-					bitcast<f32>(fills[i+1]),
-					bitcast<f32>(fills[i+2]),
-					bitcast<f32>(fills[i+3]),
-				);
-				let offset = vec2f(
-					bitcast<f32>(fills[i+4]),
-					bitcast<f32>(fills[i+5])
-				);
-				let blur_radius = bitcast<f32>(fills[i+6]);
-				i += 7;
-
-				let blur_mask = compute_blurred_coverage(shape_type, index, pos - offset, blur_radius);
-				let shape_mask = compute_coverage(shape_type, index, pos);
-				let drop_shadow_coverage = blur_mask * (1.0 - shape_mask);
-				let inner_shadow_coverage = (1.0 - blur_mask) * shape_mask;
-				let coverage = select(inner_shadow_coverage, drop_shadow_coverage, fill_type == FILL_TYPE_DROP_SHADOW);
-				color = blend(color, blur_color, coverage);
-			}
-			case FILL_TYPE_LINEAR_GRADIENT: {
-				let start = vec2f(bitcast<f32>(fills[i]), bitcast<f32>(fills[i+1]));
-				let end = vec2f(bitcast<f32>(fills[i+2]), bitcast<f32>(fills[i+3]));
-				i += 4;
-				
-				let delta = end - start;
-				let t = clamp(dot(pos - start, delta) / dot(delta, delta), 0.0, 1.0);
-				let fill_color = vec4f(t, t, t, 1.0);
-
-				let coverage = compute_coverage(shape_type, index, pos);
-				color = blend(color, fill_color, coverage);
-			}
-			case FILL_TYPE_RADIAL_GRADIENT: {
-				let center = vec2f(bitcast<f32>(fills[i]), bitcast<f32>(fills[i+1]));
-				let radius = bitcast<f32>(fills[i+2]);
-				i += 3;
-
-				let t = clamp(distance(pos, center) / radius, 0.0, 1.0);
-				let fill_color = vec4f(t, t, t, 1.0);
-
-				let coverage = compute_coverage(shape_type, index, pos);
-				color = blend(color, fill_color, coverage);
-			}
-			default: {
-				
-			}
+		if (fill_type == FILL_TYPE_SOLID) {
+			color = fill_solid(&i, shape_type, index, color, pos);
+		} else if (fill_type == FILL_TYPE_DROP_SHADOW || fill_type == FILL_TYPE_INNER_SHADOW) {
+			color = fill_shadow(&i, shape_type, index, color, fill_type, pos);
+		} else if (fill_type == FILL_TYPE_LINEAR_GRADIENT) {
+			color = fill_linear_gradient(&i, shape_type, index, color, pos);
+		} else if (fill_type == FILL_TYPE_RADIAL_GRADIENT) {
+			color = fill_radial_gradient(&i, shape_type, index, color, pos);
 		}
 	};
 
 	textureStore(output_texture, coord, color);
+}
+
+fn fill_solid(i: ptr<function, u32>, shape_type: u32, shape_index: u32, color: vec4f, pos: vec2f) -> vec4f {
+	let fill_color = vec4f(
+		bitcast<f32>(fills[*i]),
+		bitcast<f32>(fills[*i+1]),
+		bitcast<f32>(fills[*i+2]),
+		bitcast<f32>(fills[*i+3]),
+	);
+	*i += 4;
+
+	let coverage = compute_coverage(shape_type, shape_index, pos);
+	return blend(color, fill_color, coverage);
+}
+
+fn fill_shadow(i: ptr<function, u32>, shape_type: u32, shape_index: u32, color: vec4f, shadow_type: u32, pos: vec2f) -> vec4f {
+	let blur_color = vec4f(
+		bitcast<f32>(fills[*i]),
+		bitcast<f32>(fills[*i+1]),
+		bitcast<f32>(fills[*i+2]),
+		bitcast<f32>(fills[*i+3]),
+	);
+	let offset = vec2f(bitcast<f32>(fills[*i+4]), bitcast<f32>(fills[*i+5]));
+	let blur_radius = bitcast<f32>(fills[*i+6]);
+	*i += 7;
+
+	let blur_mask = compute_blurred_coverage(shape_type, shape_index, pos - offset, blur_radius);
+	let shape_mask = compute_coverage(shape_type, shape_index, pos);
+	let drop_shadow_coverage = blur_mask * (1.0 - shape_mask);
+	let inner_shadow_coverage = (1.0 - blur_mask) * shape_mask;
+	let coverage = select(inner_shadow_coverage, drop_shadow_coverage, shadow_type == FILL_TYPE_DROP_SHADOW);
+	return blend(color, blur_color, coverage);
+}
+
+fn fill_linear_gradient(i: ptr<function, u32>, shape_type: u32, shape_index: u32, color: vec4f, pos: vec2f) -> vec4f {
+	let start = vec2f(bitcast<f32>(fills[*i]), bitcast<f32>(fills[*i+1]));
+	let end = vec2f(bitcast<f32>(fills[*i+2]), bitcast<f32>(fills[*i+3]));
+	*i += 4;
+	
+	let delta = end - start;
+	let t = clamp(dot(pos - start, delta) / dot(delta, delta), 0.0, 1.0);
+	let fill_color = vec4f(t, t, t, 1.0);
+
+	let coverage = compute_coverage(shape_type, shape_index, pos);
+	return blend(color, fill_color, coverage);
+}
+
+fn fill_radial_gradient(i: ptr<function, u32>, shape_type: u32, shape_index: u32, color: vec4f, pos: vec2f) -> vec4f {
+	let center = vec2f(bitcast<f32>(fills[*i]), bitcast<f32>(fills[*i+1]));
+	let radius = max(bitcast<f32>(fills[*i+2]), 1.0e-6);
+	*i += 3;
+
+	let t = clamp(length(pos - center) / radius, 0.0, 1.0);
+	let fill_color = vec4f(t, t, t, 1.0);
+
+	let coverage = compute_coverage(shape_type, shape_index, pos);
+	return blend(color, fill_color, coverage);
 }
 
 fn blend(color: vec4f, fill_color: vec4f, coverage: f32) -> vec4f {
