@@ -16,7 +16,7 @@ pub struct EditorContext<'a> {
 
 impl ReactiveContext for EditorContext<'_> {
     fn app_state(&self) -> &AppState {
-        &self.app_state
+        self.app_state
     }
 
     fn app_state_mut(&mut self) -> &mut AppState {

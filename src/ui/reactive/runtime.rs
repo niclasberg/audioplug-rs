@@ -228,7 +228,7 @@ impl ReactiveGraph {
         }
     }
 
-    pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
+    pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef<'_> {
         self.parameters
             .get_by_id(parameter_id)
             .expect("Invalid parameter id")

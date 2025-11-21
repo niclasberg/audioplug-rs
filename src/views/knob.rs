@@ -168,7 +168,7 @@ impl Measure for KnobWidget {
 }
 
 impl Widget for KnobWidget {
-    fn layout_mode(&self) -> LayoutMode {
+    fn layout_mode(&self) -> LayoutMode<'_> {
         LayoutMode::Leaf(self)
     }
 

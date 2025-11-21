@@ -1,5 +1,5 @@
 use crate::core::Point;
 
 pub struct XyPad {
-    position: Point,
+    _position: Point,
 }

@@ -2,7 +2,10 @@ use slotmap::Key;
 
 use crate::{
     param::ParameterId,
-    ui::{TypedWidgetId, Widget, WidgetContext, WidgetMut, WidgetRef},
+    ui::{
+        AppState, TypedWidgetId, Widget, WidgetContext, WidgetId, WidgetMut, WidgetRef,
+        reactive::WidgetStatusFlags,
+    },
 };
 
 use super::{CreateContext, NodeId, ReactiveContext, ReadContext, WriteContext};
@@ -127,6 +130,26 @@ impl Effect {
                     f(cx, value);
                     cx.app_state_mut().runtime.unlease_node(node_id, node);
                 }
+            }),
+        );
+
+        Self { id }
+    }
+
+    pub(super) fn watch_widget_status<T: 'static>(
+        cx: &mut dyn CreateContext,
+        widget: WidgetId,
+        status_mask: WidgetStatusFlags,
+        value_getter: fn(&AppState, WidgetId) -> T,
+        mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
+    ) -> Self {
+        let id = super::create_widget_binding_node(
+            cx,
+            widget,
+            status_mask,
+            BindingState::new(move |cx| {
+                let value = value_getter(cx.app_state(), widget);
+                f(cx, &value);
             }),
         );
 

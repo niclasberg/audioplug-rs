@@ -167,7 +167,7 @@ pub trait AnyParameter: Any {
     {
         ReadSignal::from_parameter(self.info().id())
     }
-    fn as_param_ref(&self) -> ParamRef;
+    fn as_param_ref(&self) -> ParamRef<'_>;
 }
 
 pub trait Parameter<T>: AnyParameter {

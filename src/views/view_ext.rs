@@ -1,9 +1,6 @@
 use crate::{
     KeyEvent,
-    ui::{
-        Accessor, BuildContext, EventStatus, OverlayOptions, ReactiveValue, View, WriteContext,
-        style::StyleBuilder,
-    },
+    ui::{Accessor, BuildContext, EventStatus, OverlayOptions, ReactiveValue, View, WriteContext},
 };
 
 use super::key_down::OnKeyEvent;

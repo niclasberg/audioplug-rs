@@ -83,7 +83,7 @@ impl Widget for TextWidget {
         "Label"
     }
 
-    fn layout_mode(&self) -> LayoutMode {
+    fn layout_mode(&self) -> LayoutMode<'_> {
         LayoutMode::Leaf(self)
     }
 

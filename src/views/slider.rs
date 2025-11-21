@@ -19,36 +19,34 @@ enum Direction {
     Vertical,
 }
 
+type OnDragCallback = dyn Fn(&mut CallbackContext);
+type OnValueChangeCallback = dyn Fn(&mut CallbackContext, f64);
+
 pub struct Slider {
     min: f64,
     max: f64,
     value: Option<Accessor<f64>>,
-    on_drag_start: Option<Box<dyn Fn(&mut CallbackContext)>>,
-    on_drag_end: Option<Box<dyn Fn(&mut CallbackContext)>>,
-    on_value_changed: Option<Box<dyn Fn(&mut CallbackContext, f64)>>,
+    on_drag_start: Option<Box<OnDragCallback>>,
+    on_drag_end: Option<Box<OnDragCallback>>,
+    on_value_changed: Box<OnValueChangeCallback>,
     direction: Direction,
 }
 
 impl Slider {
-    pub fn new() -> Self {
+    pub fn new(value_change_fn: impl Fn(&mut CallbackContext, f64) + 'static) -> Self {
         Self {
             min: 0.0,
             max: 1.0,
             value: None,
             on_drag_start: None,
             on_drag_end: None,
-            on_value_changed: None,
+            on_value_changed: Box::new(value_change_fn),
             direction: Default::default(),
         }
     }
 
     pub fn vertical(mut self) -> Self {
         self.direction = Direction::Vertical;
-        self
-    }
-
-    pub fn on_value_changed(mut self, f: impl Fn(&mut CallbackContext, f64) + 'static) -> Self {
-        self.on_value_changed = Some(Box::new(f));
         self
     }
 
@@ -100,7 +98,7 @@ impl View for Slider {
             max: self.max,
             on_drag_start: self.on_drag_start,
             on_drag_end: self.on_drag_end,
-            on_value_changed: self.on_value_changed,
+            on_value_changed: Some(self.on_value_changed),
             direction: self.direction,
             ..Default::default()
         }
@@ -176,9 +174,9 @@ pub struct SliderWidget {
     state: State,
     min: f64,
     max: f64,
-    on_drag_start: Option<Box<dyn Fn(&mut CallbackContext)>>,
-    on_drag_end: Option<Box<dyn Fn(&mut CallbackContext)>>,
-    on_value_changed: Option<Box<dyn Fn(&mut CallbackContext, f64)>>,
+    on_drag_start: Option<Box<OnDragCallback>>,
+    on_drag_end: Option<Box<OnDragCallback>>,
+    on_value_changed: Option<Box<OnValueChangeCallback>>,
     direction: Direction,
     knob_gradient_up: LinearGradient,
     knob_gradient_down: LinearGradient,
@@ -356,10 +354,10 @@ impl Widget for SliderWidget {
                 button, position, ..
             } => {
                 if button == MouseButton::LEFT {
-                    if self.state == State::Dragging {
-                        if let Some(f) = self.on_drag_end.as_ref() {
-                            f(&mut ctx.as_callback_context())
-                        }
+                    if self.state == State::Dragging
+                        && let Some(f) = self.on_drag_end.as_ref()
+                    {
+                        f(&mut ctx.as_callback_context())
                     }
                     ctx.release_capture();
                     ctx.request_render();
@@ -447,7 +445,7 @@ impl Widget for SliderWidget {
         scene
     }
 
-    fn layout_mode(&self) -> LayoutMode {
+    fn layout_mode(&self) -> LayoutMode<'_> {
         LayoutMode::Leaf(self)
     }
 }

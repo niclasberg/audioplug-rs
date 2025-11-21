@@ -8,10 +8,12 @@ use crate::{
     },
 };
 
+type OnClickFn = dyn Fn(&mut CallbackContext);
+
 pub struct Checkbox {
     checked: Option<Accessor<bool>>,
     enabled: Accessor<bool>,
-    click_fn: Option<Box<dyn Fn(&mut CallbackContext)>>,
+    click_fn: Option<Box<OnClickFn>>,
 }
 
 impl Checkbox {
@@ -86,7 +88,7 @@ impl View for Checkbox {
 pub struct CheckboxWidget {
     checked: bool,
     enabled: bool,
-    click_fn: Option<Box<dyn Fn(&mut CallbackContext)>>,
+    click_fn: Option<Box<OnClickFn>>,
 }
 
 impl Measure for CheckboxWidget {

@@ -72,7 +72,7 @@ impl Widget for ImageWidget {
         "Image"
     }
 
-    fn layout_mode(&self) -> LayoutMode {
+    fn layout_mode(&self) -> LayoutMode<'_> {
         LayoutMode::Leaf(self)
     }
 

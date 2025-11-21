@@ -1,4 +1,4 @@
-use std::{any::Any, cell::Cell};
+use std::cell::Cell;
 
 use super::{
     AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue,
@@ -37,7 +37,7 @@ impl AnyParameter for ByPassParameter {
         self.value.replace(value.into());
     }
 
-    fn as_param_ref(&self) -> ParamRef {
+    fn as_param_ref(&self) -> ParamRef<'_> {
         ParamRef::ByPass(self)
     }
 }

@@ -1,4 +1,4 @@
-use std::{any::Any, cell::Cell};
+use std::cell::Cell;
 
 use super::{
     AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue,
@@ -20,11 +20,11 @@ impl AnyParameter for StringListParameter {
         PlainValue(self.index.get() as f64)
     }
 
-    fn set_value_normalized(&self, value: NormalizedValue) {
+    fn set_value_normalized(&self, _value: NormalizedValue) {
         todo!()
     }
 
-    fn as_param_ref(&self) -> ParamRef {
+    fn as_param_ref(&self) -> ParamRef<'_> {
         ParamRef::StringList(self)
     }
 }
@@ -76,7 +76,7 @@ impl ParameterInfo for StringListParameterInfo {
     }
 
     fn name(&self) -> &str {
-        &self.name
+        self.name
     }
 
     fn default_value(&self) -> PlainValue {
@@ -101,11 +101,11 @@ impl ParameterInfo for StringListParameterInfo {
         }
     }
 
-    fn value_from_string(&self, str: &str) -> Result<NormalizedValue, super::ParseError> {
+    fn value_from_string(&self, _str: &str) -> Result<NormalizedValue, super::ParseError> {
         todo!()
     }
 
-    fn string_from_value(&self, value: NormalizedValue) -> String {
+    fn string_from_value(&self, _value: NormalizedValue) -> String {
         todo!()
     }
 

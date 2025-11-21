@@ -1,4 +1,4 @@
-use std::{any::Any, cell::Cell};
+use std::cell::Cell;
 
 use super::{
     AnyParameter, NormalizedValue, ParamRef, ParamVisitor, Parameter, ParameterId, ParameterInfo,
@@ -63,7 +63,7 @@ impl AnyParameter for FloatParameter {
         self.value.replace(self.info.denormalize(value).0);
     }
 
-    fn as_param_ref(&self) -> ParamRef {
+    fn as_param_ref(&self) -> ParamRef<'_> {
         ParamRef::Float(self)
     }
 }

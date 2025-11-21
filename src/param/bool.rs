@@ -2,7 +2,7 @@ use super::{
     AnyParameter, NormalizedValue, ParamRef, ParamVisitor, Parameter, ParameterId, ParameterInfo,
     ParseError, PlainValue, traversal::ParameterTraversal,
 };
-use std::{any::Any, cell::Cell};
+use std::cell::Cell;
 
 pub struct BoolParameter {
     info: BoolParameterInfo,
@@ -36,7 +36,7 @@ impl AnyParameter for BoolParameter {
         self.value.replace(value.into());
     }
 
-    fn as_param_ref(&self) -> ParamRef {
+    fn as_param_ref(&self) -> ParamRef<'_> {
         ParamRef::Bool(self)
     }
 }

@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::ui::ReactiveContext;
 
-use super::{CreateContext, NodeId, ReadContext, WriteContext};
+use super::{CreateContext, NodeId, ReadContext};
 
 #[derive(Clone, Copy)]
 pub struct Trigger {

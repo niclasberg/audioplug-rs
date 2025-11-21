@@ -32,7 +32,7 @@ pub trait ReactiveContext {
     /// with the runtime.
     fn app_state_mut(&mut self) -> &mut AppState;
 
-    fn as_create_context(&mut self, owner: Owner) -> LocalCreateContext {
+    fn as_create_context(&mut self, owner: Owner) -> LocalCreateContext<'_> {
         LocalCreateContext {
             app_state: self.app_state_mut(),
             owner,
@@ -119,6 +119,19 @@ pub(crate) fn create_parameter_binding_node(
     id
 }
 
+pub(crate) fn create_widget_binding_node(
+    cx: &mut dyn CreateContext,
+    widget: WidgetId,
+    status_mask: WidgetStatusFlags,
+    state: BindingState,
+) -> NodeId {
+    let owner = cx.owner();
+    let graph = &mut cx.app_state_mut().runtime;
+    let id = graph.create_node(NodeType::Binding(state), NodeState::Clean, owner);
+    graph.add_widget_status_subscription(widget, status_mask, id);
+    id
+}
+
 pub(crate) fn create_animation_node(cx: &mut dyn CreateContext, state: AnimationState) -> NodeId {
     let owner = cx.owner();
     cx.app_state_mut()
@@ -199,7 +212,7 @@ impl dyn ReadContext + '_ {
 pub trait WriteContext: ReactiveContext {}
 
 impl dyn WriteContext + '_ {
-    pub fn publish_event(&mut self, _source_id: NodeId, event: Rc<dyn Any>) {
+    pub fn publish_event(&mut self, _source_id: NodeId, _event: Rc<dyn Any>) {
         //self.app_state_mut()
         //    .push_task(Task::HandleEvent { f: , event: () });
     }
@@ -212,11 +225,11 @@ pub struct LocalCreateContext<'a> {
 
 impl ReactiveContext for LocalCreateContext<'_> {
     fn app_state(&self) -> &AppState {
-        &self.app_state
+        self.app_state
     }
 
     fn app_state_mut(&mut self) -> &mut AppState {
-        &mut self.app_state
+        self.app_state
     }
 }
 
@@ -239,7 +252,7 @@ impl<'a> LocalReadContext<'a> {
 
 impl ReactiveContext for LocalReadContext<'_> {
     fn app_state(&self) -> &AppState {
-        &self.app_state
+        self.app_state
     }
 
     fn app_state_mut(&mut self) -> &mut AppState {

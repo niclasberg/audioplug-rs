@@ -9,7 +9,7 @@ use super::Animation;
 
 type EasingFn = fn(f64) -> f64;
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default)]
 pub enum Easing {
     #[default]
     Linear,

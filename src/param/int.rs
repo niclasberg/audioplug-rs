@@ -1,5 +1,4 @@
 use std::{
-    any::Any,
     cell::Cell,
     ops::{Range, RangeInclusive},
 };
@@ -44,7 +43,7 @@ impl AnyParameter for IntParameter {
         self.value.replace(value.0.round() as _);
     }
 
-    fn as_param_ref(&self) -> ParamRef {
+    fn as_param_ref(&self) -> ParamRef<'_> {
         ParamRef::Int(self)
     }
 }

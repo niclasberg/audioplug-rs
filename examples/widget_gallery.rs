@@ -115,10 +115,9 @@ fn overview() -> impl View {
             }),
             Row::new((
                 Label::new("Slider"),
-                Slider::new()
+                Slider::new(move |cx, value| slider_value.set(cx, value))
                     .range(1.0, 500.0)
                     .value(slider_value)
-                    .on_value_changed(move |cx, value| slider_value.set(cx, value))
                     .style(|s, _| {
                         s.height(Length::Px(25.0));
                     }),
@@ -179,7 +178,6 @@ fn overview() -> impl View {
                                 offset: Vec2::splat(2.0),
                                 color: Color::BLACK.with_alpha(0.3),
                                 kind: ShadowKind::InnerShadow,
-                                ..Default::default()
                             });
                     })
                     .overlay(

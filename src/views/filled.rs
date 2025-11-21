@@ -64,7 +64,7 @@ impl Widget for Filled {
         scene
     }
 
-    fn layout_mode(&self) -> LayoutMode {
+    fn layout_mode(&self) -> LayoutMode<'_> {
         LayoutMode::Leaf(self)
     }
 }

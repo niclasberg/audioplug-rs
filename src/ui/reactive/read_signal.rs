@@ -13,7 +13,7 @@ enum ReadSignalSource<T> {
     Parameter(ParameterId),
     WidgetStatus {
         widget_id: WidgetId,
-        getter: fn(&AppState, WidgetId) -> T,
+        value_fn: fn(&AppState, WidgetId) -> T,
         status_mask: WidgetStatusFlags,
     },
 }
@@ -63,13 +63,13 @@ impl<T> ReadSignal<T> {
 
     pub(crate) fn from_widget_status(
         widget_id: WidgetId,
-        getter: fn(&AppState, WidgetId) -> T,
+        value_getter: fn(&AppState, WidgetId) -> T,
         status_mask: WidgetStatusFlags,
     ) -> Self {
         Self {
             source: ReadSignalSource::WidgetStatus {
                 widget_id,
-                getter,
+                value_fn: value_getter,
                 status_mask,
             },
             _phantom: PhantomData,
@@ -119,9 +119,11 @@ impl<T: 'static> ReactiveValue for ReadSignal<T> {
                 f(value)
             }
             ReadSignalSource::WidgetStatus {
-                widget_id, getter, ..
+                widget_id,
+                value_fn: value_getter,
+                ..
             } => {
-                let value = getter(cx.app_state(), widget_id);
+                let value = value_getter(cx.app_state(), widget_id);
                 f(&value)
             }
         }
@@ -138,9 +140,9 @@ impl<T: 'static> ReactiveValue for ReadSignal<T> {
             ReadSignalSource::Node(node_id) => Effect::watch_node(cx, node_id, f),
             ReadSignalSource::WidgetStatus {
                 widget_id,
-                getter,
+                value_fn: value_getter,
                 status_mask,
-            } => todo!(),
+            } => Effect::watch_widget_status(cx, widget_id, status_mask, value_getter, f),
         }
     }
 }

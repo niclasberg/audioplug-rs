@@ -256,17 +256,17 @@ impl AppState {
     }
 
     fn clear_mouse_capture_and_focus(&mut self, id: WidgetId) {
-        if let Some(mouse_capture_widget) = self.mouse_capture_widget {
-            if mouse_capture_widget == id || self.widget_has_parent(mouse_capture_widget, id) {
-                set_mouse_capture_widget(self, None);
-            }
+        if let Some(mouse_capture_widget) = self.mouse_capture_widget
+            && (mouse_capture_widget == id || self.widget_has_parent(mouse_capture_widget, id))
+        {
+            set_mouse_capture_widget(self, None);
         }
 
         let window_id = self.get_window_id_for_widget(id);
-        if let Some(focus_widget) = self.window(window_id).focus_widget {
-            if focus_widget == id || self.widget_has_parent(focus_widget, id) {
-                set_focus_widget(self, window_id, None);
-            }
+        if let Some(focus_widget) = self.window(window_id).focus_widget
+            && (focus_widget == id || self.widget_has_parent(focus_widget, id))
+        {
+            set_focus_widget(self, window_id, None);
         }
     }
 
@@ -384,7 +384,7 @@ impl AppState {
         }
     }
 
-    pub fn clipboard(&self, window_id: WindowId) -> Clipboard {
+    pub fn clipboard(&self, window_id: WindowId) -> Clipboard<'_> {
         Clipboard {
             handle: &self.window(window_id).handle,
         }
@@ -392,7 +392,7 @@ impl AppState {
 }
 
 impl AppState {
-    pub(crate) fn push_task(&mut self, task: Task) {
+    pub(super) fn push_task(&mut self, task: Task) {
         self.pending_tasks.push_back(task);
     }
 

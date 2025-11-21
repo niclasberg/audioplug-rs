@@ -10,9 +10,11 @@ use crate::ui::{
 use std::ops::Range;
 use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 
+type InputChangedFn = dyn Fn(&mut AppState, &str);
+
 pub struct TextBox {
     width: f64,
-    input_changed_fn: Box<dyn Fn(&mut AppState, &str)>,
+    input_changed_fn: Box<InputChangedFn>,
     value: Option<Accessor<String>>,
     placeholder: Option<Accessor<String>>,
 }
@@ -87,7 +89,7 @@ pub struct TextBoxWidget {
     selection_start: Option<usize>,
     last_cursor_timestamp: f64,
     is_mouse_selecting: bool,
-    input_changed_fn: Box<dyn Fn(&mut AppState, &str)>,
+    input_changed_fn: Box<InputChangedFn>,
 }
 
 impl TextBoxWidget {
@@ -118,7 +120,7 @@ impl TextBoxWidget {
         self.selection_start.take().is_some()
     }
 
-    fn select_word_at(&mut self, index: usize) -> bool {
+    fn select_word_at(&mut self, _index: usize) -> bool {
         true
     }
 
@@ -439,13 +441,13 @@ impl Widget for TextBoxWidget {
                 ..
             } => {
                 if is_double_click {
-                    if let Some(text_index) = self
+                    let text_index = self
                         .text_layout
-                        .text_index_at_point(position - ctx.bounds().top_left())
+                        .text_index_at_point(position - ctx.bounds().top_left());
+                    if let Some(text_index) = text_index
+                        && self.select_word_at(text_index)
                     {
-                        if self.select_word_at(text_index) {
-                            ctx.request_render();
-                        }
+                        ctx.request_render();
                     }
                 } else {
                     ctx.capture_mouse();
@@ -471,13 +473,13 @@ impl Widget for TextBoxWidget {
             }
             MouseEvent::Moved { position, .. } => {
                 if self.is_mouse_selecting {
-                    if let Some(new_cursor) = self
+                    let new_cursor = self
                         .text_layout
-                        .text_index_at_point(position - ctx.bounds().top_left())
+                        .text_index_at_point(position - ctx.bounds().top_left());
+                    if let Some(new_cursor) = new_cursor
+                        && self.set_caret_position(new_cursor, true)
                     {
-                        if self.set_caret_position(new_cursor, true) {
-                            ctx.request_render();
-                        }
+                        ctx.request_render();
                     }
                 }
                 EventStatus::Handled
@@ -550,7 +552,7 @@ impl Widget for TextBoxWidget {
         scene
     }
 
-    fn layout_mode(&self) -> LayoutMode {
+    fn layout_mode(&self) -> LayoutMode<'_> {
         LayoutMode::Leaf(self)
     }
 }
