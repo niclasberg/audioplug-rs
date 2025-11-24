@@ -200,17 +200,6 @@ impl AddAssign<Vec2> for Point {
     }
 }
 
-impl<T: Sub<Output = T>> Sub for Point<T> {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self {
-            x: self.x - rhs.x,
-            y: self.y - rhs.y,
-        }
-    }
-}
-
 impl<T: Sub<Output = T>> Sub<Size<T>> for Point<T> {
     type Output = Self;
 

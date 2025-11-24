@@ -118,7 +118,3 @@ impl<WTrigger: Widget, V: View, FMenu: Fn() -> V + 'static> WidgetAdapter
         }
     }
 }
-
-pub struct SelectDropdown<T> {
-    values: Accessor<Vec<T>>,
-}

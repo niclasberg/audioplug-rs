@@ -443,7 +443,7 @@ impl Widget for TextBoxWidget {
                 if is_double_click {
                     let text_index = self
                         .text_layout
-                        .text_index_at_point(position - ctx.bounds().top_left());
+                        .text_index_at_point(position - ctx.bounds().top_left().into_vector());
                     if let Some(text_index) = text_index
                         && self.select_word_at(text_index)
                     {
@@ -453,7 +453,7 @@ impl Widget for TextBoxWidget {
                     ctx.capture_mouse();
                     if let Some(new_cursor) = self
                         .text_layout
-                        .text_index_at_point(position - ctx.bounds().top_left())
+                        .text_index_at_point(position - ctx.bounds().top_left().into_vector())
                     {
                         self.is_mouse_selecting = true;
                         if self.set_caret_position(new_cursor, false) {
@@ -475,7 +475,7 @@ impl Widget for TextBoxWidget {
                 if self.is_mouse_selecting {
                     let new_cursor = self
                         .text_layout
-                        .text_index_at_point(position - ctx.bounds().top_left());
+                        .text_index_at_point(position - ctx.bounds().top_left().into_vector());
                     if let Some(new_cursor) = new_cursor
                         && self.set_caret_position(new_cursor, true)
                     {

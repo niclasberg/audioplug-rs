@@ -138,10 +138,10 @@ impl Path {
                 }
                 PathElement::CurveTo(point, point1, point2) => todo!(),
                 PathElement::ClosePath => {
-                    if let Some(last_point) = last_point {
-                        if last_point.distance_squared_to(&first_point) > tolerance.powi(2) {
-                            f(Line::new(last_point, first_point));
-                        }
+                    if let Some(last_point) = last_point
+                        && last_point.distance_squared_to(&first_point) > tolerance.powi(2)
+                    {
+                        f(Line::new(last_point, first_point));
                     }
                     first_point = last_point.unwrap_or(Point::ZERO);
                     last_point = None;
@@ -204,6 +204,12 @@ impl Line {
         eval_line(self.p0, self.p1, t)
     }
 
+    pub fn closest_point_t(&self, pos: Point) -> f64 {
+        let p0 = self.p0.into_vector();
+        let p1 = self.p1.into_vector();
+        (pos.into_vector() - p0).dot(p1 - p0).clamp(0.0, 1.0)
+    }
+
     pub fn split(&self, t: f64) -> (Self, Self) {
         let pos_split = eval_line(self.p0, self.p1, t);
         let line1 = Self {
@@ -219,6 +225,23 @@ impl Line {
 
     pub fn bounds(&self) -> Rect {
         Rect::from_points(self.p0, self.p1)
+    }
+
+    pub fn into_quad_bezier(self) -> QuadBezier {
+        QuadBezier {
+            p0: self.p0,
+            p1: eval_line(self.p0, self.p1, 0.5),
+            p2: self.p1,
+        }
+    }
+
+    pub fn into_cubic_bezier(self) -> CubicBezier {
+        CubicBezier {
+            p0: self.p0,
+            p1: eval_line(self.p0, self.p1, 1.0 / 3.0),
+            p2: eval_line(self.p0, self.p1, 2.0 / 3.0),
+            p3: self.p1,
+        }
     }
 
     pub fn clip_with_rect(mut self, rect: Rect) -> Option<Self> {
@@ -345,6 +368,15 @@ impl QuadBezier {
             top: min.y,
             right: max.x,
             bottom: max.y,
+        }
+    }
+
+    pub fn into_cubic_bezier(self) -> CubicBezier {
+        CubicBezier {
+            p0: self.p0,
+            p1: eval_line(self.p0, self.p1, 1.0 / 3.0),
+            p2: eval_line(self.p1, self.p2, 2.0 / 3.0),
+            p3: self.p2,
         }
     }
 

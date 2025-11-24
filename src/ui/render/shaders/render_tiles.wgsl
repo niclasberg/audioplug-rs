@@ -201,18 +201,21 @@ fn compute_coverage(shape_type: u32, index: u32, pos: vec2f) -> f32 {
 			let p = pos - rect.top_left - half_size;
 			let corner_radius = select_rect_corner(rect.corner_radii, p);
 			let dist = sd_rounded_rect(half_size, corner_radius, p);
-			
-			return smoothstep(-0.5, 0.5, -dist);
+			return distance_to_coverage(dist);
 		}
 		case SHAPE_TYPE_ELLIPSE: {
 			let ellipse = read_ellipse(index);
 			let dist = sd_ellipse(ellipse.radii, pos - ellipse.center);
-			return smoothstep(-0.5, 0.5, -dist);
+			return distance_to_coverage(dist);
 		}
 		default: {
 			return 0.0;
 		}
 	}
+}
+
+fn distance_to_coverage(dist: f32) -> f32 {
+	return clamp(0.5 - dist, 0.0, 1.0);
 }
 
 fn read_line_segment(index: u32) -> LineSegment {
