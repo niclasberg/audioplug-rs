@@ -107,7 +107,7 @@ impl Point<f64> {
     }
 
     #[inline(always)]
-    pub fn into_vector(self) -> Vec2 {
+    pub fn into_vec2(self) -> Vec2 {
         Vec2::new(self.x, self.y)
     }
 

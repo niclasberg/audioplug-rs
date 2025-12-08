@@ -142,7 +142,7 @@ fn update_node_origins(app_state: &mut AppState, root_widget: WidgetId, position
 
     while let Some((widget_id, parent_origin)) = stack.pop() {
         let data = &mut app_state.widget_data[widget_id];
-        let origin = data.offset() + parent_origin.into_vector();
+        let origin = data.offset() + parent_origin.into_vec2();
         for child in data.children.iter() {
             stack.push((*child, origin))
         }

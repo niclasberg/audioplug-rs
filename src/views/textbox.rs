@@ -443,7 +443,7 @@ impl Widget for TextBoxWidget {
                 if is_double_click {
                     let text_index = self
                         .text_layout
-                        .text_index_at_point(position - ctx.bounds().top_left().into_vector());
+                        .text_index_at_point(position - ctx.bounds().top_left().into_vec2());
                     if let Some(text_index) = text_index
                         && self.select_word_at(text_index)
                     {
@@ -453,7 +453,7 @@ impl Widget for TextBoxWidget {
                     ctx.capture_mouse();
                     if let Some(new_cursor) = self
                         .text_layout
-                        .text_index_at_point(position - ctx.bounds().top_left().into_vector())
+                        .text_index_at_point(position - ctx.bounds().top_left().into_vec2())
                     {
                         self.is_mouse_selecting = true;
                         if self.set_caret_position(new_cursor, false) {
@@ -475,7 +475,7 @@ impl Widget for TextBoxWidget {
                 if self.is_mouse_selecting {
                     let new_cursor = self
                         .text_layout
-                        .text_index_at_point(position - ctx.bounds().top_left().into_vector());
+                        .text_index_at_point(position - ctx.bounds().top_left().into_vec2());
                     if let Some(new_cursor) = new_cursor
                         && self.set_caret_position(new_cursor, true)
                     {
@@ -531,8 +531,8 @@ impl Widget for TextBoxWidget {
                 let left = self.text_layout.point_at_text_index(selection.start);
                 let right = self.text_layout.point_at_text_index(selection.end);
                 let rect = Rect::from_points(
-                    text_bounds.top_left() + left.into_vector(),
-                    text_bounds.bottom_left() + right.into_vector(),
+                    text_bounds.top_left() + left.into_vec2(),
+                    text_bounds.bottom_left() + right.into_vec2(),
                 );
                 scene.fill(rect, Color::from_rgb8(68, 85, 90));
             }
@@ -543,7 +543,7 @@ impl Widget for TextBoxWidget {
                 let cursor_point = self
                     .text_layout
                     .point_at_text_index(self.position)
-                    .into_vector();
+                    .into_vec2();
                 let p0 = text_bounds.bottom_left() + cursor_point;
                 let p1 = text_bounds.top_left() + cursor_point;
                 scene.draw_line(p0, p1, Color::BLACK, 1.0);

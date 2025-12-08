@@ -1,4 +1,4 @@
-use crate::core::{Point, Rect, SpringPhysics, Vec2};
+use crate::core::{Point, Rect, SpringPhysics, Transform, Vec2};
 
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
 pub enum FillRule {
@@ -151,7 +151,8 @@ impl Path {
     }
 
     pub fn bounds(&self) -> Rect {
-        todo!()
+        let bounds = Rect::EMPTY;
+        bounds
     }
 
     pub fn offset(mut self, delta: Vec2) -> Self {
@@ -205,9 +206,9 @@ impl Line {
     }
 
     pub fn closest_point_t(&self, pos: Point) -> f64 {
-        let p0 = self.p0.into_vector();
-        let p1 = self.p1.into_vector();
-        (pos.into_vector() - p0).dot(p1 - p0).clamp(0.0, 1.0)
+        let p0 = self.p0.into_vec2();
+        let p1 = self.p1.into_vec2();
+        (pos.into_vec2() - p0).dot(p1 - p0).clamp(0.0, 1.0)
     }
 
     pub fn split(&self, t: f64) -> (Self, Self) {
@@ -322,6 +323,14 @@ impl QuadBezier {
         Self { p0, p1, p2 }
     }
 
+    fn points_as_vec2s(self) -> (Vec2, Vec2, Vec2) {
+        (
+            self.p0.into_vec2(),
+            self.p1.into_vec2(),
+            self.p2.into_vec2(),
+        )
+    }
+
     pub fn eval(&self, t: f64) -> Point {
         eval_quad(self.p0, self.p1, self.p2, t)
     }
@@ -380,7 +389,35 @@ impl QuadBezier {
         }
     }
 
+    pub fn into_canonical_quad(self) -> CanonicalQuad {
+        let (p0, p1, p2) = self.points_as_vec2s();
+        let mid = (p0 + p2) / 2.0;
+        let c = p1 - mid;
+        todo!()
+    }
+
     pub fn flatten(&self, sqrt_tolerance: f64, f: &mut impl FnMut(Line)) {}
+}
+
+/// Represents a QuadraticBezier that has been transformed into
+/// a canonical parabola (y = x^2). Contains the transformation
+/// and the end points.
+pub struct CanonicalQuad {
+    /// Unit vector in the parabolas y-direction
+    pub y_vec: Vec2,
+    /// Origin of the parabola
+    pub origin: Vec2,
+    pub scale: f64,
+    /// Start point of the Bezier curve (in the parabolas coordinate system)
+    pub x0: f64,
+    /// End point of the Bezier curve (in the parabolas coordinate system)
+    pub x2: f64,
+}
+
+impl CanonicalQuad {
+    pub fn transform(&self) -> Transform {
+        todo!()
+    }
 }
 
 #[inline(always)]
