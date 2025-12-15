@@ -1,4 +1,7 @@
-use crate::core::{Point, Rect, SpringPhysics, Transform, Vec2};
+use crate::core::{
+    Point, Rect, SpringPhysics, Transform, Vec2,
+    root_finder::{DepressedCubic, Quartic},
+};
 
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
 pub enum FillRule {
@@ -432,15 +435,28 @@ impl CanonicalQuad {
         todo!()
     }
 
-    pub fn closest_point_x(&self, p: Point) -> f32 {
-        // Solve: x^3 + (1/2 - py) * x - px / 2 = 0
-        // Extreme points where (3x^2 + 1/2 - py = 0)
-        if p.y > 0.5 {
-            // No extreme points
-        } else {
-            let x_extreme = ((0.5 - p.y) / 3.0).sqrt();
+    pub fn closest_point_x(&self, p: Point) -> f64 {
+        // Distance given by: |(x, x^2) - p|
+        // Squaring and expanding gives:
+        //   (x - px)^2 + (x^2 - py)^2 =
+        //   x^4 + (1 - 2 * py) * x^2 + (-2 * px) * x + py^2 + px^2
+        // The derivative is the depressed cubic:
+        //   x^3 + (1/2 - py) * x - px / 2 = 0
+        let dist_squared = Quartic::new(
+            1.0,
+            0.0,
+            1.0 - 2.0 * p.y,
+            -2.0 * p.x,
+            p.distance_squared_to(&p),
+        );
+        let derivative = DepressedCubic::new(0.5 - p.y, -0.5 * p.x);
+        let extremas = derivative.solve(1.0e-8);
+
+        let min_dist_squared: f64 = 0.0;
+        for extrema in extremas {
+            let x = extrema.clamp(self.x0, self.x2);
         }
-        todo!()
+        min_dist_squared.sqrt()
     }
 }
 
