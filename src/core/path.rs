@@ -197,8 +197,11 @@ pub struct Line {
 }
 
 impl Line {
-    pub fn new(p0: Point, p1: Point) -> Self {
-        Self { p0, p1 }
+    pub fn new(p0: impl Into<Point>, p1: impl Into<Point>) -> Self {
+        Self {
+            p0: p0.into(),
+            p1: p1.into(),
+        }
     }
 
     pub fn eval(&self, t: f64) -> Point {
@@ -206,9 +209,11 @@ impl Line {
     }
 
     pub fn closest_point_t(&self, pos: Point) -> f64 {
-        let p0 = self.p0.into_vec2();
-        let p1 = self.p1.into_vec2();
-        (pos.into_vec2() - p0).dot(p1 - p0).clamp(0.0, 1.0)
+        (pos - self.p0).dot(self.p1 - self.p0).clamp(0.0, 1.0)
+    }
+
+    pub fn closest_point(&self, pos: Point) -> Point {
+        self.eval(self.closest_point_t(pos))
     }
 
     pub fn split(&self, t: f64) -> (Self, Self) {
@@ -319,8 +324,12 @@ pub struct QuadBezier {
 }
 
 impl QuadBezier {
-    pub fn new(p0: Point, p1: Point, p2: Point) -> Self {
-        Self { p0, p1, p2 }
+    pub fn new(p0: impl Into<Point>, p1: impl Into<Point>, p2: impl Into<Point>) -> Self {
+        Self {
+            p0: p0.into(),
+            p1: p1.into(),
+            p2: p2.into(),
+        }
     }
 
     fn points_as_vec2s(self) -> (Vec2, Vec2, Vec2) {
@@ -390,9 +399,12 @@ impl QuadBezier {
     }
 
     pub fn into_canonical_quad(self) -> CanonicalQuad {
+        // Based on: https://astiopin.github.io/2019/01/04/qbez-parabola.html
         let (p0, p1, p2) = self.points_as_vec2s();
+
+        // The parabola will have its y-axis tangent to p1 - (p0 + p1) / 2.0
         let mid = (p0 + p2) / 2.0;
-        let c = p1 - mid;
+        let y_vec = self.p1 - mid;
         todo!()
     }
 
@@ -407,6 +419,7 @@ pub struct CanonicalQuad {
     pub y_vec: Vec2,
     /// Origin of the parabola
     pub origin: Vec2,
+
     pub scale: f64,
     /// Start point of the Bezier curve (in the parabolas coordinate system)
     pub x0: f64,
@@ -416,6 +429,17 @@ pub struct CanonicalQuad {
 
 impl CanonicalQuad {
     pub fn transform(&self) -> Transform {
+        todo!()
+    }
+
+    pub fn closest_point_x(&self, p: Point) -> f32 {
+        // Solve: x^3 + (1/2 - py) * x - px / 2 = 0
+        // Extreme points where (3x^2 + 1/2 - py = 0)
+        if p.y > 0.5 {
+            // No extreme points
+        } else {
+            let x_extreme = ((0.5 - p.y) / 3.0).sqrt();
+        }
         todo!()
     }
 }

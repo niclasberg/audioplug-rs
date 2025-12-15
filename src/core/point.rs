@@ -1,6 +1,6 @@
 use std::{
     fmt::Display,
-    ops::{Add, AddAssign, Sub},
+    ops::{Add, AddAssign, Sub, SubAssign},
 };
 
 use crate::core::{PhysicalCoord, ScaleFactor};
@@ -219,6 +219,24 @@ impl Sub<Vec2> for Point {
             x: self.x - rhs.x,
             y: self.y - rhs.y,
         }
+    }
+}
+
+impl Sub for Point {
+    type Output = Vec2;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Vec2 {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
+    }
+}
+
+impl SubAssign<Vec2> for Point {
+    fn sub_assign(&mut self, rhs: Vec2) {
+        self.x -= rhs.x;
+        self.y -= rhs.y;
     }
 }
 

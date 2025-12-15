@@ -14,6 +14,7 @@ mod keyboard;
 mod path;
 mod point;
 mod rectangle;
+mod root_finder;
 mod rounded_rectangle;
 mod shape;
 mod size;
