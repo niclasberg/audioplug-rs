@@ -1,6 +1,6 @@
 use crate::{
     KeyEvent, MouseButton, MouseEvent,
-    core::{Color, Key, Rect, Size},
+    core::{Color, Key, Rect, Size, Zero},
     ui::{
         Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
         RenderContext, Scene, View, Widget,

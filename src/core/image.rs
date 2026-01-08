@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::core::Size;
+use crate::core::{Size, Zero};
 
 pub struct Image(Rc<ImageInner>);
 

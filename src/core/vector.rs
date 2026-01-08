@@ -2,7 +2,7 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use bytemuck::{Pod, Zeroable};
 
-use super::{Interpolate, Point, Size};
+use super::{Lerp, Point, Size};
 
 #[repr(C)]
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -223,7 +223,7 @@ macro_rules! impl_vec2_float {
                 y: $t::MAX,
             };
 
-            pub fn dot(self, other: Self) -> $t {
+            pub const fn dot(self, other: Self) -> $t {
                 self.x * other.x + self.y * other.y
             }
 
@@ -268,7 +268,7 @@ macro_rules! impl_vec2_float {
             }
         }
 
-        impl Interpolate for $name {
+        impl Lerp for $name {
             fn lerp(&self, other: &Self, scalar: f64) -> Self {
                 Self {
                     x: self.x.lerp(&other.x, scalar),

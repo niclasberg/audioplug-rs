@@ -2,7 +2,7 @@
 name = "audioplug"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.90.0"
+rust-version = "1.92.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,26 +10,27 @@ rust-version = "1.90.0"
 members = [ "examples/gain", "examples/synth", "xtask"]
 
 [dependencies]
+arrayvec = "0.7.6"
 async-task = "4.7.1"
-num = { version = "0.4.3" }
-bitflags = "2.10.0"
-vst3-sys = { git = "https://github.com/RustAudio/vst3-sys.git" }
-raw-window-handle = "0.6.2"
-unicode-segmentation = "1.12.0"
-slotmap = "1.0.7"
-taffy = "0.9.1"
-rtrb = "0.3.2"
-midi-consts = "0.1.0"
-serde = "1.0.228"
 atomic_refcell = "0.1.13"
-indexmap = "2.12.0"
+bitflags = "2.10.0"
 bytemuck = { version = "1.24.0", features = ["derive"]}
-rustc-hash = "2.1.1"
-smallvec = "1.15.1"
-wgpu = "27.0.1"
-thiserror = "2.0.17"
-pollster = "0.4.0"
 cosmic-text = "0.15.0"
+indexmap = "2.12.0"
+midi-consts = "0.1.0"
+num = { version = "0.4.3" }
+pollster = "0.4.0"
+raw-window-handle = "0.6.2"
+rtrb = "0.3.2"
+rustc-hash = "2.1.1"
+serde = "1.0.228"
+slotmap = "1.1.1"
+smallvec = "1.15.1"
+taffy = "0.9.1"
+thiserror = "2.0.17"
+unicode-segmentation = "1.12.0"
+vst3-sys = { git = "https://github.com/RustAudio/vst3-sys.git" }
+wgpu = "28.0.0"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62.2", features = [

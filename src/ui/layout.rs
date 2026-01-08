@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use super::style::{AvailableSpace, LayoutMode, ResolveInto, Style, UiRect};
 use super::{OverlayAnchor, OverlayOptions};
-use crate::core::{HAlign, Point, Rect, Size, VAlign, Vec2};
+use crate::core::{HAlign, Point, Rect, Size, VAlign, Vec2, Zero};
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree,
     TraversePartialTree, TraverseTree,

@@ -22,6 +22,10 @@ impl Ellipse {
         Self::new(self.center + delta.into(), self.radii)
     }
 
+    pub fn scale(&self, scale: f64) -> Self {
+        Self::new(self.center.scale(scale), self.radii.scale(scale))
+    }
+
     pub fn contains(&self, pos: Point) -> bool {
         if self.radii.width < f64::EPSILON || self.radii.height < f64::EPSILON {
             false

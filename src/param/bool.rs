@@ -1,76 +1,44 @@
+use crate::{param::Parameter, ui::ReadSignal};
+
 use super::{
-    AnyParameter, NormalizedValue, ParamRef, ParamVisitor, Parameter, ParameterId, ParameterInfo,
-    ParseError, PlainValue, traversal::ParameterTraversal,
+    AnyParameter, NormalizedValue, ParamVisitor, ParameterId, ParseError, PlainValue,
+    traversal::ParameterTraversal,
 };
 use std::cell::Cell;
 
 pub struct BoolParameter {
-    info: BoolParameterInfo,
+    id: ParameterId,
+    name: &'static str,
+    default: bool,
     value: Cell<bool>,
 }
 
 impl BoolParameter {
     pub fn new(id: ParameterId, name: &'static str, default: bool) -> Self {
-        let info = BoolParameterInfo::new(id, name, default);
         Self {
-            info,
+            id,
+            name,
+            default,
             value: Cell::new(default),
         }
     }
-}
 
-impl AnyParameter for BoolParameter {
-    fn info(&self) -> &dyn ParameterInfo {
-        &self.info
-    }
-
-    fn plain_value(&self) -> PlainValue {
-        PlainValue::from_bool(self.value.get())
-    }
-
-    fn normalized_value(&self) -> NormalizedValue {
-        NormalizedValue::from_bool(self.value.get())
-    }
-
-    fn set_value_normalized(&self, value: NormalizedValue) {
-        self.value.replace(value.into());
-    }
-
-    fn as_param_ref(&self) -> ParamRef<'_> {
-        ParamRef::Bool(self)
-    }
-}
-
-impl Parameter<bool> for BoolParameter {
-    fn value(&self) -> bool {
+    pub fn value(&self) -> bool {
         self.value.get()
     }
 
-    fn set_value(&self, value: bool) {
+    pub fn set_value(&self, value: bool) {
         self.value.replace(value);
     }
-}
 
-impl ParameterTraversal for BoolParameter {
-    fn visit<V: ParamVisitor>(&self, visitor: &mut V) {
-        visitor.bool_parameter(self)
+    pub fn as_signal(&self) -> ReadSignal<bool> {
+        ReadSignal::from_parameter(self.id)
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct BoolParameterInfo {
-    id: ParameterId,
-    name: &'static str,
-    default: bool,
-}
+impl super::private::Sealed for BoolParameter {}
 
-impl BoolParameterInfo {
-    pub fn new(id: ParameterId, name: &'static str, default: bool) -> Self {
-        Self { id, name, default }
-    }
-}
-
-impl ParameterInfo for BoolParameterInfo {
+impl AnyParameter for BoolParameter {
     fn id(&self) -> ParameterId {
         self.id
     }
@@ -79,9 +47,8 @@ impl ParameterInfo for BoolParameterInfo {
         self.name
     }
 
-    fn default_value(&self) -> super::PlainValue {
-        let value = if self.default { 1.0 } else { 0.0 };
-        PlainValue::new(value)
+    fn default_value_plain(&self) -> PlainValue {
+        PlainValue::from_bool(self.default)
     }
 
     fn min_value(&self) -> PlainValue {
@@ -120,5 +87,30 @@ impl ParameterInfo for BoolParameterInfo {
         } else {
             "Off".to_string()
         }
+    }
+
+    fn set_value_normalized(&self, value: NormalizedValue) {
+        self.value.replace(value.into());
+    }
+}
+
+impl Parameter for BoolParameter {
+    type Value = bool;
+    fn default_value(&self) -> bool {
+        self.default
+    }
+
+    fn plain_value(&self, value: bool) -> PlainValue {
+        PlainValue::from_bool(value)
+    }
+
+    fn normalized_value(&self, value: bool) -> NormalizedValue {
+        NormalizedValue::from_bool(value)
+    }
+}
+
+impl ParameterTraversal for BoolParameter {
+    fn visit<V: ParamVisitor>(&self, visitor: &mut V) {
+        visitor.bool_parameter(self)
     }
 }

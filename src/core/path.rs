@@ -1,6 +1,6 @@
 use crate::core::{
-    Point, Rect, SpringPhysics, Transform, Vec2,
-    root_finder::{DepressedCubic, Quartic},
+    Point, Rect, SpringPhysics, Transform, Vec2, Zero,
+    poly::{DepressedCubic, Quartic},
 };
 
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
@@ -219,6 +219,14 @@ impl Line {
         self.eval(self.closest_point_t(pos))
     }
 
+    pub fn distance_squared(&self, pos: Point) -> f64 {
+        (self.closest_point(pos) - pos).length_squared()
+    }
+
+    pub fn distance(&self, pos: Point) -> f64 {
+        (self.closest_point(pos) - pos).length()
+    }
+
     pub fn split(&self, t: f64) -> (Self, Self) {
         let pos_split = eval_line(self.p0, self.p1, t);
         let line1 = Self {
@@ -347,6 +355,23 @@ impl QuadBezier {
         eval_quad(self.p0, self.p1, self.p2, t)
     }
 
+    /// Finds the `t` value (in range 0 to 1), such that the
+    /// distance to `pos` is minimal.
+    pub fn closest_point_t(&self, pos: Point) -> f64 {
+        // Distance squared is d(t) = |p(t) - pos|^2 = dot(p(t)-pos, p(t)-pos)
+        // with derivative: d' = dot(p(t)-pos, p'(t))
+        // Now, p(t) = at^2 + bt + c, and p'(t) = 2at + b, where
+        //   a = p0 - 2*p1 + p2
+        //   b = -2*p0 + 2*p1
+        //   c = p0
+        // this gives:
+        // d' = dot(a, 2a) t^3 + (dot(a, b) + dot(b, 2a))t^2 + (dot(c-pos, 2a) + dot(b, b)) t + dot(c-pos, b)
+        //      2|a|^2 t^3 + 3dot(a, b) t^2 + (2dot(c - pos, a) + |b|^2) + dot(c-pos, b)
+        let dp1 = self.p1 - self.p0;
+
+        0.0
+    }
+
     pub fn split(&self, t: f64) -> (Self, Self) {
         let pos_split = eval_quad(self.p0, self.p1, self.p2, t);
         let quad1 = Self {
@@ -442,19 +467,22 @@ impl CanonicalQuad {
         //   x^4 + (1 - 2 * py) * x^2 + (-2 * px) * x + py^2 + px^2
         // The derivative is the depressed cubic:
         //   x^3 + (1/2 - py) * x - px / 2 = 0
-        let dist_squared = Quartic::new(
+        let dist_squared = Quartic::new([
             1.0,
             0.0,
             1.0 - 2.0 * p.y,
             -2.0 * p.x,
             p.distance_squared_to(&p),
-        );
+        ]);
         let derivative = DepressedCubic::new(0.5 - p.y, -0.5 * p.x);
-        let extremas = derivative.solve(1.0e-8);
+        let extremas = derivative.solve(self.x0..self.x2, 1.0e-8);
 
-        let min_dist_squared: f64 = 0.0;
+        let mut min_dist_squared = f64::min(
+            dist_squared.value_at(self.x0),
+            dist_squared.value_at(self.x2),
+        );
         for extrema in extremas {
-            let x = extrema.clamp(self.x0, self.x2);
+            min_dist_squared = min_dist_squared.min(dist_squared.value_at(extrema));
         }
         min_dist_squared.sqrt()
     }

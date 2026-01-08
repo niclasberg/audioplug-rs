@@ -4,8 +4,10 @@ mod border;
 mod brush;
 mod color;
 mod constraint;
+mod corner;
 mod cursor;
 pub mod diff;
+mod edge;
 mod ellipse;
 mod gradient;
 mod image;
@@ -13,8 +15,8 @@ mod interpolation;
 mod keyboard;
 mod path;
 mod point;
+mod poly;
 mod rectangle;
-mod root_finder;
 mod rounded_rectangle;
 mod shape;
 mod size;
@@ -37,14 +39,17 @@ pub use border::Border;
 pub use brush::{Brush, BrushRef};
 pub use color::Color;
 pub use constraint::*;
+pub use corner::{Corner, Corners};
 pub use cursor::Cursor;
+pub use edge::{Edge, Edges};
 pub use ellipse::{Circle, Ellipse};
 pub use gradient::*;
 use indexmap::{IndexMap, IndexSet};
-pub use interpolation::{Interpolate, SpringPhysics, SpringProperties};
+pub use interpolation::{Lerp, SpringPhysics, SpringProperties};
 pub use keyboard::{Key, Modifiers};
 pub use path::{CubicBezier, FillRule, Line, Path, PathElement, PathSegment, QuadBezier};
-pub use point::{PhysicalPoint, Point};
+pub use point::{PartialPoint, PhysicalPoint, Point};
+pub use poly::Polynomial;
 pub use rectangle::{PhysicalRect, Rect};
 pub use rounded_rectangle::RoundedRect;
 use rustc_hash::FxBuildHasher;
@@ -97,11 +102,24 @@ impl Default for ShadowOptions {
     }
 }
 
+pub trait Zero {
+    const ZERO: Self;
+}
+
+impl Zero for f32 {
+    const ZERO: Self = 0.0;
+}
+
+impl Zero for f64 {
+    const ZERO: Self = 0.0;
+}
+
 /// Strong type for logical coordinates
 #[derive(Debug, Clone, Default, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PhysicalCoord(pub i32);
-impl PhysicalCoord {
-    pub const ZERO: Self = Self(0);
+
+impl Zero for PhysicalCoord {
+    const ZERO: Self = Self(0);
 }
 
 impl Add for PhysicalCoord {

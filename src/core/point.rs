@@ -3,9 +3,9 @@ use std::{
     ops::{Add, AddAssign, Sub, SubAssign},
 };
 
-use crate::core::{PhysicalCoord, ScaleFactor};
+use crate::core::{PhysicalCoord, ScaleFactor, Zero};
 
-use super::{Interpolate, Size, SpringPhysics, Vec2};
+use super::{Lerp, Size, SpringPhysics, Vec2};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Point<T = f64> {
@@ -48,40 +48,36 @@ impl<T> Point<T> {
             y: f(self.y),
         }
     }
+}
 
-    pub fn max(&self, other: &Self) -> Self
-    where
-        T: PartialOrd + Copy,
-    {
+impl<T> Point<T>
+where
+    T: PartialOrd + Copy,
+{
+    pub fn max(&self, other: &Self) -> Self {
         Self {
             x: if self.x > other.x { self.x } else { other.x },
             y: if self.y > other.y { self.y } else { other.y },
         }
     }
 
-    pub fn min(&self, other: &Self) -> Self
-    where
-        T: PartialOrd + Copy,
-    {
+    pub fn min(&self, other: &Self) -> Self {
         Self {
             x: if self.x < other.x { self.x } else { other.x },
             y: if self.y < other.y { self.y } else { other.y },
         }
     }
-}
 
-impl<T> Point<Option<T>> {
-    pub fn unwrap_or(self, other: Point<T>) -> Point<T> {
-        Point {
-            x: self.x.unwrap_or(other.x),
-            y: self.y.unwrap_or(other.y),
-        }
+    pub fn max_element(self) -> T {
+        if self.x > self.y { self.x } else { self.y }
+    }
+
+    pub fn min_element(&self) -> T {
+        if self.x < self.y { self.x } else { self.y }
     }
 }
 
 impl Point<f64> {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0 };
-
     pub fn zero() -> Self {
         Self { x: 0f64, y: 0f64 }
     }
@@ -96,14 +92,6 @@ impl Point<f64> {
 
     pub fn scale_y(self, s: f64) -> Self {
         Self::new(self.x, self.y * s)
-    }
-
-    pub fn max_element(&self) -> f64 {
-        self.x.max(self.y)
-    }
-
-    pub fn min_element(&self) -> f64 {
-        self.x.min(self.y)
     }
 
     #[inline(always)]
@@ -127,6 +115,13 @@ impl PhysicalPoint {
             self.y.0 as f64 * scale_factor.0,
         )
     }
+}
+
+impl<T: Zero> Zero for Point<T> {
+    const ZERO: Self = Self {
+        x: T::ZERO,
+        y: T::ZERO,
+    };
 }
 
 impl<T: Display> Display for Point<T> {
@@ -249,7 +244,7 @@ impl<T: Default> Default for Point<T> {
     }
 }
 
-impl<T: Interpolate> Interpolate for Point<T> {
+impl<T: Lerp> Lerp for Point<T> {
     fn lerp(&self, other: &Self, scalar: f64) -> Self {
         Self {
             x: self.x.lerp(&other.x, scalar),
@@ -259,8 +254,6 @@ impl<T: Interpolate> Interpolate for Point<T> {
 }
 
 impl<T: SpringPhysics> SpringPhysics for Point<T> {
-    const ZERO: Self = Point::new(T::ZERO, T::ZERO);
-
     fn distance_squared_to(&self, other: &Self) -> f64 {
         self.x.distance_squared_to(&other.x) + self.y.distance_squared_to(&other.y)
     }
@@ -276,5 +269,31 @@ impl<T: SpringPhysics> SpringPhysics for Point<T> {
             .apply_spring_update(&mut velocity.x, delta_t, &target.x, properties);
         self.y
             .apply_spring_update(&mut velocity.y, delta_t, &target.y, properties);
+    }
+}
+
+#[derive(Default)]
+pub struct PartialPoint<T> {
+    pub x: Option<T>,
+    pub y: Option<T>,
+}
+
+impl<T> PartialPoint<T> {
+    pub fn empty() -> Self {
+        Self { x: None, y: None }
+    }
+
+    pub fn splat(x: Option<T>) -> Self
+    where
+        T: Clone,
+    {
+        Self { x: x.clone(), y: x }
+    }
+
+    pub fn unwrap_or(self, default: Point<T>) -> Point<T> {
+        Point {
+            x: self.x.unwrap_or(default.x),
+            y: self.y.unwrap_or(default.y),
+        }
     }
 }

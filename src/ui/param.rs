@@ -1,8 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::param::{
-    AnyParameter, NormalizedValue, Parameter, ParameterId, ParameterInfo, PlainValue,
-};
+use crate::param::{AnyParameter, NormalizedValue, Parameter, ParameterId, PlainValue};
 
 use super::{HostHandle, ReactiveContext};
 
@@ -26,12 +24,12 @@ impl<P> Copy for ParamSetter<P> {}
 impl<P: AnyParameter> ParamSetter<P> {
     pub fn new(p: &P) -> Self {
         Self {
-            id: p.info().id(),
+            id: p.id(),
             _phantom: PhantomData,
         }
     }
 
-    pub fn info<'a>(&self, cx: &'a mut dyn ParamContext) -> &'a dyn ParameterInfo {
+    pub fn info<'a>(&self, cx: &'a mut dyn ParamContext) -> &'a dyn AnyParameter {
         cx.app_state().runtime.get_parameter_ref(self.id).info()
     }
 
@@ -56,59 +54,11 @@ impl<P: AnyParameter> ParamSetter<P> {
         super::reactive::notify_parameter_subscribers(cx.app_state_mut(), self.id);
     }
 
-    pub fn set_value<T>(&self, _cx: &mut dyn ParamContext, _value: T)
-    where
-        P: Parameter<T>,
-    {
-        todo!()
-    }
-
     pub fn end_edit(&self, cx: &mut impl ParamContext) {
         cx.host_handle().end_edit(self.id);
     }
 }
 
-/*impl<T: Any> Readable for ParamSignal<T> {
-    type Value = T;
-
-    fn get_source_id(&self) -> SourceId {
-        SourceId::Parameter(self.id)
-    }
-
-    fn track(&self, cx: &mut dyn ReadContext) {
-        let scope = cx.scope();
-        cx.runtime_mut().track_parameter(self.id, scope);
-    }
-
-    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-        self.track(cx);
-        self.with_ref_untracked(cx, f)
-    }
-
-    fn with_ref_untracked<R>(
-        &self,
-        cx: &mut dyn ReactiveContext,
-        f: impl FnOnce(&Self::Value) -> R,
-    ) -> R {
-        let param_ref = cx.runtime_mut().get_parameter_ref(self.id);
-        let value = param_ref.value_as().unwrap();
-        f(&value)
-    }
-
-    fn get(&self, cx: &mut dyn ReadContext) -> Self::Value
-    where
-        Self::Value: Clone,
-    {
-        self.track(cx);
-        let param_ref = cx.runtime().get_parameter_ref(self.id);
-        param_ref.value_as().unwrap()
-    }
-
-    fn get_untracked(&self, cx: &mut dyn ReactiveContext) -> Self::Value
-    where
-        Self::Value: Clone,
-    {
-        let param_ref = cx.runtime().get_parameter_ref(self.id);
-        param_ref.value_as().unwrap()
-    }
-}*/
+impl<P: Parameter> ParamSetter<P> {
+    pub fn set_value(&self, cx: &'a mut dyn ParamContext, value: P::Value) {}
+}

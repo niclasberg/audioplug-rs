@@ -155,9 +155,8 @@ impl<P: VST3Plugin> IAudioProcessor for AudioProcessor<P> {
                             )
                         } == kResultOk
                         {
-                            param_ref.set_value_normalized(unsafe {
-                                NormalizedValue::from_f64_unchecked(value)
-                            });
+                            param_ref
+                                .set_value_normalized(NormalizedValue::from_f64_unchecked(value));
                         }
                     }
                 }

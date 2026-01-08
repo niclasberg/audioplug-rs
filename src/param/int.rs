@@ -3,90 +3,52 @@ use std::{
     ops::{Range, RangeInclusive},
 };
 
+use crate::param::Parameter;
+
 use super::{
-    AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo,
-    ParameterTraversal, ParseError, PlainValue,
+    AnyParameter, NormalizedValue, ParameterId, ParameterTraversal, ParseError, PlainValue,
 };
 
 pub struct IntParameter {
-    info: IntParameterInfo,
+    id: ParameterId,
+    name: &'static str,
+    range: IntRange,
+    default: i64,
     value: Cell<i64>,
 }
 
 impl IntParameter {
     pub fn new(id: ParameterId, name: &'static str) -> Self {
-        let info = IntParameterInfo::new(id, name);
-        let value = Cell::new(info.default);
-        Self { info, value }
-    }
-
-    pub fn with_range(mut self, range: impl Into<IntRange>) -> Self {
-        self.info.range = range.into();
-        self
-    }
-}
-
-impl AnyParameter for IntParameter {
-    fn info(&self) -> &dyn ParameterInfo {
-        &self.info
-    }
-
-    fn plain_value(&self) -> PlainValue {
-        PlainValue::new(self.value.get() as _)
-    }
-
-    fn set_value_normalized(&self, value: NormalizedValue) {
-        self.set_value_plain(self.info.denormalize(value));
-    }
-
-    fn set_value_plain(&self, value: PlainValue) {
-        self.value.replace(value.0.round() as _);
-    }
-
-    fn as_param_ref(&self) -> ParamRef<'_> {
-        ParamRef::Int(self)
-    }
-}
-
-impl Parameter<i64> for IntParameter {
-    fn value(&self) -> i64 {
-        self.value.get()
-    }
-
-    fn set_value(&self, value: i64) {
-        self.value.replace(value);
-    }
-}
-
-impl ParameterTraversal for IntParameter {
-    fn visit<V: super::ParamVisitor>(&self, visitor: &mut V) {
-        visitor.int_parameter(self);
-    }
-}
-
-pub struct IntParameterInfo {
-    id: ParameterId,
-    name: &'static str,
-    range: IntRange,
-    default: i64,
-}
-
-impl IntParameterInfo {
-    fn new(id: ParameterId, name: &'static str) -> Self {
         Self {
             id,
             name,
             range: IntRange::Linear { min: 0, max: 1 },
             default: 0,
+            value: Cell::new(0),
         }
+    }
+
+    pub fn with_range(mut self, range: impl Into<IntRange>) -> Self {
+        self.range = range.into();
+        self
     }
 
     pub fn range(&self) -> IntRange {
         self.range
     }
+
+    pub fn value(&self) -> i64 {
+        self.value.get()
+    }
+
+    pub fn set_value(&self, value: i64) {
+        self.value.replace(value);
+    }
 }
 
-impl ParameterInfo for IntParameterInfo {
+impl super::private::Sealed for IntParameter {}
+
+impl AnyParameter for IntParameter {
     fn id(&self) -> ParameterId {
         self.id
     }
@@ -95,7 +57,7 @@ impl ParameterInfo for IntParameterInfo {
         self.name
     }
 
-    fn default_value(&self) -> PlainValue {
+    fn default_value_plain(&self) -> PlainValue {
         PlainValue::new(self.default as f64)
     }
 
@@ -127,6 +89,32 @@ impl ParameterInfo for IntParameterInfo {
     fn string_from_value(&self, value: NormalizedValue) -> String {
         let plain_value = self.denormalize(value);
         plain_value.0.round().to_string()
+    }
+
+    fn set_value_normalized(&self, value: NormalizedValue) {
+        self.set_value_plain(self.denormalize(value));
+    }
+
+    fn set_value_plain(&self, value: PlainValue) {
+        self.value.replace(value.0.round() as _);
+    }
+}
+
+impl Parameter for IntParameter {
+    type Value = i64;
+
+    fn default_value(&self) -> Self::Value {
+        self.default
+    }
+
+    fn plain_value(&self, value: Self::Value) -> PlainValue {
+        PlainValue::new(value as _)
+    }
+}
+
+impl ParameterTraversal for IntParameter {
+    fn visit<V: super::ParamVisitor>(&self, visitor: &mut V) {
+        visitor.int_parameter(self);
     }
 }
 

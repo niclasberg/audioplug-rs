@@ -2,7 +2,9 @@ use std::hash::Hash;
 
 use bytemuck::{Pod, Zeroable};
 
-use super::{Interpolate, interpolation::SpringPhysics};
+use crate::core::Zero;
+
+use super::{Lerp, interpolation::SpringPhysics};
 
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone, PartialEq, Zeroable, Pod)]
@@ -23,6 +25,10 @@ impl Hash for Color {
 }
 
 impl Eq for Color {}
+
+impl Zero for Color {
+    const ZERO: Self = Self::DEFAULT;
+}
 
 impl Color {
     pub const DEFAULT: Self = Self {
@@ -73,7 +79,7 @@ impl Color {
     }
 }
 
-impl Interpolate for Color {
+impl Lerp for Color {
     fn lerp(&self, other: &Self, scalar: f64) -> Self {
         Self {
             r: self.r.lerp(&other.r, scalar).clamp(0.0, 1.0),
@@ -85,8 +91,6 @@ impl Interpolate for Color {
 }
 
 impl SpringPhysics for Color {
-    const ZERO: Self = Self::DEFAULT;
-
     fn distance_squared_to(&self, other: &Self) -> f64 {
         self.r.distance_squared_to(&other.r)
             + self.g.distance_squared_to(&other.g)

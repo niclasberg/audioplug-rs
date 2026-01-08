@@ -1,20 +1,29 @@
 use std::cell::Cell;
 
+use crate::{param::Parameter, ui::ReadSignal};
+
 use super::{
-    AnyParameter, NormalizedValue, ParamRef, ParamVisitor, Parameter, ParameterId, ParameterInfo,
-    ParameterTraversal, ParseError, PlainValue,
+    AnyParameter, NormalizedValue, ParamRef, ParamVisitor, ParameterId, ParameterTraversal,
+    ParseError, PlainValue,
 };
 
 pub struct FloatParameter {
-    info: FloatParameterInfo,
+    id: ParameterId,
+    name: &'static str,
+    range: FloatRange,
+    default: f64,
     value: Cell<f64>,
 }
 
 impl FloatParameter {
     pub fn new(id: ParameterId, name: &'static str) -> Self {
-        let info = FloatParameterInfo::new(id, name);
-        let value = info.default.into();
-        Self { info, value }
+        Self {
+            id,
+            name,
+            range: FloatRange::Linear { min: 0.0, max: 1.0 },
+            default: 0.0,
+            value: Cell::new(0.0),
+        }
     }
 
     pub fn set_value(&mut self, value: f64) {
@@ -26,87 +35,45 @@ impl FloatParameter {
     }
 
     pub fn with_range(mut self, range: impl Into<FloatRange>) -> Self {
-        self.info.range = range.into();
+        self.range = range.into();
         *self.value.get_mut() = self
             .value
             .get()
-            .clamp(self.info.min_value().0, self.info().max_value().0);
+            .clamp(self.min_value().0, self.max_value().0);
         self
     }
 
     pub fn with_linear_range(mut self, min: f64, max: f64) -> Self {
-        self.info.range = FloatRange::Linear { min, max };
+        self.range = FloatRange::Linear { min, max };
         *self.value.get_mut() = self
             .value
             .get()
-            .clamp(self.info.min_value().0, self.info().max_value().0);
+            .clamp(self.min_value().0, self.max_value().0);
         self
     }
 
     pub fn with_default(mut self, default_value: f64) -> Self {
-        self.info.default = default_value;
+        self.default = default_value;
         self.value.set(default_value);
         self
-    }
-}
-
-impl AnyParameter for FloatParameter {
-    fn info(&self) -> &dyn ParameterInfo {
-        &self.info
-    }
-
-    fn plain_value(&self) -> PlainValue {
-        PlainValue(self.value())
-    }
-
-    fn set_value_normalized(&self, value: NormalizedValue) {
-        self.value.replace(self.info.denormalize(value).0);
-    }
-
-    fn as_param_ref(&self) -> ParamRef<'_> {
-        ParamRef::Float(self)
-    }
-}
-
-impl Parameter<f64> for FloatParameter {
-    fn value(&self) -> f64 {
-        self.value.get()
-    }
-
-    fn set_value(&self, value: f64) {
-        self.value.replace(value);
-    }
-}
-
-impl ParameterTraversal for FloatParameter {
-    fn visit<V: ParamVisitor>(&self, visitor: &mut V) {
-        visitor.float_parameter(self)
-    }
-}
-
-pub struct FloatParameterInfo {
-    id: ParameterId,
-    name: &'static str,
-    range: FloatRange,
-    default: f64,
-}
-
-impl FloatParameterInfo {
-    pub fn new(id: ParameterId, name: &'static str) -> Self {
-        Self {
-            id,
-            name,
-            range: FloatRange::Linear { min: 0.0, max: 1.0 },
-            default: 0.0,
-        }
     }
 
     pub fn range(&self) -> FloatRange {
         self.range
     }
+
+    pub fn value(&self) -> f64 {
+        self.value.get()
+    }
+
+    pub fn as_signal(&self) -> ReadSignal<f64> {
+        ReadSignal::from_parameter(self.id)
+    }
 }
 
-impl ParameterInfo for FloatParameterInfo {
+impl super::private::Sealed for FloatParameter {}
+
+impl AnyParameter for FloatParameter {
     fn id(&self) -> super::ParameterId {
         self.id
     }
@@ -115,7 +82,7 @@ impl ParameterInfo for FloatParameterInfo {
         self.name
     }
 
-    fn default_value(&self) -> PlainValue {
+    fn default_value_plain(&self) -> PlainValue {
         PlainValue::new(self.default)
     }
 
@@ -146,6 +113,28 @@ impl ParameterInfo for FloatParameterInfo {
 
     fn string_from_value(&self, value: NormalizedValue) -> String {
         value.0.to_string()
+    }
+
+    fn set_value_normalized(&self, value: NormalizedValue) {
+        self.value.replace(self.denormalize(value).0);
+    }
+}
+
+impl Parameter for FloatParameter {
+    type Value = f64;
+
+    fn default_value(&self) -> Self::Value {
+        self.default
+    }
+
+    fn plain_value(&self, value: f64) -> PlainValue {
+        PlainValue(value)
+    }
+}
+
+impl ParameterTraversal for FloatParameter {
+    fn visit<V: ParamVisitor>(&self, visitor: &mut V) {
+        visitor.float_parameter(self)
     }
 }
 

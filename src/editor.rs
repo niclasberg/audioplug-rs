@@ -62,13 +62,13 @@ impl ParamVisitor for CreateParameterViewsVisitor {
     fn bypass_parameter(&mut self, _p: &crate::param::ByPassParameter) {}
 
     fn float_parameter(&mut self, p: &crate::param::FloatParameter) {
-        let view = Row::new((Label::new(p.info().name()), ParameterSlider::new(p)));
+        let view = Row::new((Label::new(p.name()), ParameterSlider::new(p)));
         self.views.push(view.into_any_view());
     }
 
     fn int_parameter(&mut self, p: &crate::param::IntParameter) {
         let view = Row::new((
-            Label::new(p.info().name()),
+            Label::new(p.name()),
             ParameterSlider::new(p).into_any_view(),
         ));
         self.views.push(view.into_any_view());

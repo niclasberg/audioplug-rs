@@ -7,7 +7,6 @@ mod scene;
 mod tiles;
 mod wgpu_surface;
 pub use canvas::{Canvas, CanvasContext, CanvasWidget};
-use pollster::FutureExt;
 pub use scene::Scene;
 pub use wgpu_surface::WGPUSurface;
 
@@ -98,6 +97,7 @@ pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: R
             depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         // Blit the texture to the render target

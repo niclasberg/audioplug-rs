@@ -1,3 +1,5 @@
+use crate::core::Zero;
+
 use super::Size;
 
 #[derive(Debug, PartialEq, Clone, Copy)]

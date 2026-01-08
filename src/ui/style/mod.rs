@@ -4,7 +4,7 @@ mod image_effect;
 mod length;
 mod ui_rect;
 
-use crate::core::{Brush, Color, Cursor, ShadowOptions, Size};
+use crate::core::{Brush, Color, Cursor, ShadowOptions, Size, Zero};
 pub use builder::StyleBuilder;
 pub use display_style::{AvailableSpace, FlexStyle, GridStyle, LayoutMode, Measure};
 pub use image_effect::ImageEffect;

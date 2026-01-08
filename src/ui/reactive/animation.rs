@@ -6,13 +6,13 @@ use std::{
 };
 
 use crate::{
-    core::{Interpolate, SpringPhysics},
+    core::{Lerp, SpringPhysics},
     ui::{AppState, WindowId, reactive::notify},
 };
 
 use super::{
     Accessor, CreateContext, Effect, LocalReadContext, NodeId, NodeType, ReactiveContext,
-    ReactiveValue, ReadContext, ReadSignal, ReadScope, ViewContext, WatchContext, WriteContext,
+    ReactiveValue, ReadContext, ReadScope, ReadSignal, ViewContext, WatchContext, WriteContext,
 };
 
 pub use super::spring::{SpringAnimation, SpringOptions};
@@ -132,7 +132,7 @@ impl<T: 'static> Animated<T> {
 
     pub fn tween(cx: &mut dyn ViewContext, initial_value: T, options: TweenOptions) -> Self
     where
-        T: Interpolate + Clone + Any,
+        T: Lerp + Clone + Any,
     {
         Self::new(cx, TweenAnimation::new(initial_value, options))
     }
@@ -269,7 +269,7 @@ impl<T: 'static> AnimatedFn<T> {
         options: TweenOptions,
     ) -> Self
     where
-        T: Interpolate + Clone + Any,
+        T: Lerp + Clone + Any,
     {
         Self::new(cx, f, move |initial_value| {
             TweenAnimation::new(initial_value, options)

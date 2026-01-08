@@ -1,10 +1,8 @@
 use std::ops::{Add, Div, Mul, Sub};
 
-use num::Zero;
+use crate::core::{PhysicalCoord, ScaleFactor, Zero};
 
-use crate::core::{PhysicalCoord, ScaleFactor};
-
-use super::Interpolate;
+use super::Lerp;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Size<T = f64> {
@@ -83,11 +81,6 @@ impl<T> Size<T> {
 }
 
 impl Size<f64> {
-    pub const ZERO: Self = Self {
-        width: 0.0,
-        height: 0.0,
-    };
-
     pub const INFINITY: Self = Self {
         width: f64::INFINITY,
         height: f64::INFINITY,
@@ -156,6 +149,13 @@ impl<T> Size<Option<T>> {
             height: self.height.unwrap_or(other.height),
         }
     }
+}
+
+impl<T: Zero> Zero for Size<T> {
+    const ZERO: Self = Self {
+        width: T::ZERO,
+        height: T::ZERO,
+    };
 }
 
 impl From<Size<i32>> for Size {
@@ -228,10 +228,6 @@ impl Div<f64> for Size {
     type Output = Self;
 
     fn div(self, rhs: f64) -> Self::Output {
-        if rhs.is_zero() {
-            panic!("Cannot divide size by zero");
-        }
-
         Size::new(self.width / rhs, self.height / rhs)
     }
 }
@@ -245,7 +241,7 @@ impl<T: Default> Default for Size<T> {
     }
 }
 
-impl<T: Interpolate> Interpolate for Size<T> {
+impl<T: Lerp> Lerp for Size<T> {
     fn lerp(&self, other: &Self, scalar: f64) -> Self {
         Self {
             width: self.width.lerp(&other.width, scalar),

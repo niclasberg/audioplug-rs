@@ -8,7 +8,7 @@ use super::tiles::TILE_SIZE;
 use crate::{
     core::{
         Color, ColorMap, Ellipse, FillRule, Path, PhysicalCoord, PhysicalSize, Point, Rect,
-        RoundedRect, ShadowOptions, Size, Vec2, Vec2f,
+        RoundedRect, ShadowOptions, Size, Vec2, Vec2f, Zero,
     },
     ui::render::gpu_scene::{GpuFill, GpuScene},
 };
@@ -65,7 +65,7 @@ impl SurfaceState {
             address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Nearest,
             min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
 
@@ -137,7 +137,7 @@ pub struct WGPUSurface {
 impl WGPUSurface {
     pub async fn new(handle: &crate::platform::Handle) -> Result<Self, GraphicsInitError> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
+            backends: wgpu::Backends::DX12 | wgpu::Backends::METAL,
             ..Default::default()
         });
         // SAFETY: This struct is owned by the WindowHandler, whose lifetime is shorter than the OS window itself.
@@ -184,6 +184,7 @@ impl WGPUSurface {
         let size = handle.physical_size();
         let width = size.width.0 as u32;
         let height = size.height.0 as u32;
+        let scale_factor = handle.scale_factor().0;
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -210,15 +211,18 @@ impl WGPUSurface {
                 right: 150.0,
                 bottom: 500.0,
             });
-            let rounded_rect = gpu_scene.add_rounded_rect(RoundedRect::new(
-                Rect {
-                    left: 50.3,
-                    top: 100.2,
-                    right: 500.0,
-                    bottom: 400.3,
-                },
-                Size::new(40.0, 30.0),
-            ));
+            let rounded_rect = gpu_scene.add_rounded_rect(
+                RoundedRect::new(
+                    Rect {
+                        left: 50.3,
+                        top: 100.2,
+                        right: 500.0,
+                        bottom: 400.3,
+                    },
+                    Size::new(40.0, 30.0),
+                )
+                .scale(scale_factor),
+            );
             let path = gpu_scene.add_path(
                 &Path::new()
                     .move_to(Point::new(100.0, 100.0))
@@ -228,12 +232,15 @@ impl WGPUSurface {
                     .close_path(),
                 FillRule::NonZero,
             );
-            let ellipse = gpu_scene.add_ellipse(Ellipse::from_rectangle(Rect {
-                left: 650.3,
-                top: 200.2,
-                right: 900.0,
-                bottom: 300.3,
-            }));
+            let ellipse = gpu_scene.add_ellipse(
+                Ellipse::from_rectangle(Rect {
+                    left: 650.3,
+                    top: 200.2,
+                    right: 900.0,
+                    bottom: 300.3,
+                })
+                .scale(scale_factor),
+            );
             let drop_shadow = GpuFill::Shadow(ShadowOptions {
                 radius: 25.0,
                 offset: Vec2::splat(10.0),
@@ -371,7 +378,7 @@ impl BlitProgram {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Blit pipeline layout"),
                 bind_group_layouts: &[&bind_group_layout],
-                push_constant_ranges: &[],
+                immediate_size: 0,
             });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Blit pipeline"),
@@ -407,8 +414,8 @@ impl BlitProgram {
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
-            multiview: None,
             cache: None,
+            multiview_mask: None,
         });
 
         Self {
@@ -509,7 +516,7 @@ impl RenderTilesProgram {
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render tiles layout"),
             bind_group_layouts: &[&bind_group_layout0, &bind_group_layout1],
-            push_constant_ranges: &[],
+            immediate_size: 0,
         });
         let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Render tiles compute pipeline"),

@@ -1,52 +1,18 @@
 use std::cell::Cell;
 
-use super::{
-    AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue,
-};
+use crate::param::Parameter;
+
+use super::{AnyParameter, NormalizedValue, ParamRef, ParameterId, PlainValue};
 
 pub struct StringListParameter {
-    index: Cell<usize>,
-    info: StringListParameterInfo,
-}
-
-impl StringListParameter {}
-
-impl AnyParameter for StringListParameter {
-    fn info(&self) -> &dyn ParameterInfo {
-        &self.info
-    }
-
-    fn plain_value(&self) -> PlainValue {
-        PlainValue(self.index.get() as f64)
-    }
-
-    fn set_value_normalized(&self, _value: NormalizedValue) {
-        todo!()
-    }
-
-    fn as_param_ref(&self) -> ParamRef<'_> {
-        ParamRef::StringList(self)
-    }
-}
-
-impl Parameter<usize> for StringListParameter {
-    fn value(&self) -> usize {
-        self.index.get()
-    }
-
-    fn set_value(&self, value: usize) {
-        self.index.replace(value);
-    }
-}
-
-pub struct StringListParameterInfo {
     id: ParameterId,
     name: &'static str,
     strings: Vec<String>,
     default_index: usize,
+    index: Cell<usize>,
 }
 
-impl StringListParameterInfo {
+impl StringListParameter {
     pub fn new(
         id: ParameterId,
         name: &'static str,
@@ -58,6 +24,7 @@ impl StringListParameterInfo {
             name,
             strings: strings.into(),
             default_index,
+            index: Cell::new(0),
         }
     }
 
@@ -68,9 +35,19 @@ impl StringListParameterInfo {
     pub fn index_of(&self, key: &str) -> Option<usize> {
         self.strings.iter().position(|x| x == key)
     }
+
+    pub fn value(&self) -> usize {
+        self.index.get()
+    }
+
+    pub fn set_value(&self, value: usize) {
+        self.index.replace(value);
+    }
 }
 
-impl ParameterInfo for StringListParameterInfo {
+impl super::private::Sealed for StringListParameter {}
+
+impl AnyParameter for StringListParameter {
     fn id(&self) -> ParameterId {
         self.id
     }
@@ -79,7 +56,7 @@ impl ParameterInfo for StringListParameterInfo {
         self.name
     }
 
-    fn default_value(&self) -> PlainValue {
+    fn default_value_plain(&self) -> PlainValue {
         PlainValue::new(self.default_index as f64)
     }
 
@@ -115,5 +92,21 @@ impl ParameterInfo for StringListParameterInfo {
 
     fn max_value(&self) -> PlainValue {
         PlainValue::new(self.step_count() as _)
+    }
+
+    fn set_value_normalized(&self, _value: NormalizedValue) {
+        todo!()
+    }
+}
+
+impl Parameter for StringListParameter {
+    type Value = usize;
+
+    fn default_value(&self) -> Self::Value {
+        self.default_index
+    }
+
+    fn plain_value(&self, index: Self::Value) -> PlainValue {
+        PlainValue(index as f64)
     }
 }

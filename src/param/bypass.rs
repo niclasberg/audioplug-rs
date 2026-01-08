@@ -1,53 +1,108 @@
 use std::cell::Cell;
 
-use super::{
-    AnyParameter, NormalizedValue, ParamRef, Parameter, ParameterId, ParameterInfo, PlainValue,
-    bool::BoolParameterInfo,
+use crate::{
+    param::{Parameter, ParseError},
+    ui::ReadSignal,
 };
 
+use super::{AnyParameter, NormalizedValue, ParameterId, PlainValue};
+
 pub struct ByPassParameter {
-    info: BoolParameterInfo,
+    id: ParameterId,
     value: Cell<bool>,
 }
 
 impl ByPassParameter {
     pub fn new(id: ParameterId) -> Self {
-        let info = BoolParameterInfo::new(id, "Bypass", false);
         Self {
-            info,
+            id,
             value: Cell::new(false),
         }
     }
+
+    pub fn value(&self) -> bool {
+        self.value.get()
+    }
+
+    pub fn set_value(&self, value: bool) {
+        self.value.replace(value);
+    }
+
+    pub fn as_signal(&self) -> ReadSignal<bool> {
+        ReadSignal::from_parameter(self.id)
+    }
 }
 
+impl super::private::Sealed for ByPassParameter {}
+
 impl AnyParameter for ByPassParameter {
-    fn info(&self) -> &dyn ParameterInfo {
-        &self.info
+    fn id(&self) -> ParameterId {
+        self.id
     }
 
-    fn plain_value(&self) -> PlainValue {
-        PlainValue::from_bool(self.value.get())
+    fn name(&self) -> &str {
+        "Bypass"
     }
 
-    fn normalized_value(&self) -> NormalizedValue {
-        NormalizedValue::from_bool(self.value.get())
+    fn default_value_plain(&self) -> super::PlainValue {
+        PlainValue::from_bool(false)
+    }
+
+    fn min_value(&self) -> PlainValue {
+        PlainValue::new(0.0)
+    }
+
+    fn max_value(&self) -> PlainValue {
+        PlainValue::new(1.0)
+    }
+
+    fn normalize(&self, value: PlainValue) -> NormalizedValue {
+        NormalizedValue(value.0)
+    }
+
+    fn denormalize(&self, value: super::NormalizedValue) -> PlainValue {
+        PlainValue(value.0)
+    }
+
+    fn step_count(&self) -> usize {
+        1
+    }
+
+    fn value_from_string(&self, str: &str) -> Result<NormalizedValue, ParseError> {
+        if str.eq_ignore_ascii_case("on") {
+            Ok(NormalizedValue::from_bool(true))
+        } else if str.eq_ignore_ascii_case("off") {
+            Ok(NormalizedValue::from_bool(false))
+        } else {
+            Err(ParseError)
+        }
+    }
+
+    fn string_from_value(&self, value: NormalizedValue) -> String {
+        if value.into() {
+            "On".to_string()
+        } else {
+            "Off".to_string()
+        }
     }
 
     fn set_value_normalized(&self, value: NormalizedValue) {
         self.value.replace(value.into());
     }
-
-    fn as_param_ref(&self) -> ParamRef<'_> {
-        ParamRef::ByPass(self)
-    }
 }
 
-impl Parameter<bool> for ByPassParameter {
-    fn value(&self) -> bool {
-        self.value.get()
+impl Parameter for ByPassParameter {
+    type Value = bool;
+
+    fn default_value(&self) -> Self::Value {
+        false
     }
 
-    fn set_value(&self, value: bool) {
-        self.value.replace(value);
+    fn plain_value(&self, value: bool) -> PlainValue {
+        PlainValue::from_bool(value)
+    }
+
+    fn normalized_value(&self, value: bool) -> NormalizedValue {
+        NormalizedValue::from_bool(value)
     }
 }

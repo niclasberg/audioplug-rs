@@ -5,18 +5,16 @@ mod bypass;
 mod float;
 mod group;
 mod int;
-mod param_ref;
 mod parameter_map;
 mod string_list;
 mod traversal;
 
-pub use bool::{BoolParameter, BoolParameterInfo};
+pub use bool::BoolParameter;
 pub use bypass::ByPassParameter;
-pub use float::{FloatParameter, FloatParameterInfo, FloatRange};
+pub use float::{FloatParameter, FloatRange};
 pub use group::{AnyParameterGroup, ParameterGroup};
-pub use int::{IntParameter, IntParameterInfo, IntRange};
-pub use param_ref::ParamRef;
-pub use parameter_map::{AnyParameterMap, ParameterMap, Params};
+pub use int::{IntParameter, IntRange};
+pub use parameter_map::{AnyParameterMap, ParamRef, ParameterMap, Params};
 pub use string_list::StringListParameter;
 pub use traversal::{ParamVisitor, ParameterTraversal};
 
@@ -89,10 +87,8 @@ impl NormalizedValue {
     }
 
     #[inline]
-    /// # Safety
-    ///
     /// Caller must ensure that the value is between 0.0 and 1.0
-    pub unsafe fn from_f64_unchecked(value: f64) -> Self {
+    pub(crate) fn from_f64_unchecked(value: f64) -> Self {
         Self(value)
     }
 
@@ -145,47 +141,14 @@ impl From<PlainValue> for f64 {
     }
 }
 
-pub trait AnyParameter: Any {
-    fn info(&self) -> &dyn ParameterInfo;
-    fn plain_value(&self) -> PlainValue;
-    fn normalized_value(&self) -> NormalizedValue {
-        self.info().normalize(self.plain_value())
-    }
-    fn set_value_normalized(&self, value: NormalizedValue);
-    fn set_value_plain(&self, value: PlainValue) {
-        self.set_value_normalized(self.info().normalize(value));
-    }
-    fn as_signal_plain(&self) -> ReadSignal<PlainValue>
-    where
-        Self: Sized,
-    {
-        ReadSignal::from_parameter(self.info().id())
-    }
-    fn as_signal_normalized(&self) -> ReadSignal<NormalizedValue>
-    where
-        Self: Sized,
-    {
-        ReadSignal::from_parameter(self.info().id())
-    }
-    fn as_param_ref(&self) -> ParamRef<'_>;
+pub(super) mod private {
+    pub trait Sealed {}
 }
 
-pub trait Parameter<T>: AnyParameter {
-    fn value(&self) -> T;
-    fn set_value(&self, value: T);
-
-    fn as_signal(&self) -> ReadSignal<T>
-    where
-        Self: Sized,
-    {
-        ReadSignal::from_parameter(self.info().id())
-    }
-}
-
-pub trait ParameterInfo {
+pub trait AnyParameter: Any + private::Sealed {
     fn id(&self) -> ParameterId;
     fn name(&self) -> &str;
-    fn default_value(&self) -> PlainValue;
+    fn default_value_plain(&self) -> PlainValue;
     fn min_value(&self) -> PlainValue;
     fn max_value(&self) -> PlainValue;
     fn normalize(&self, value: PlainValue) -> NormalizedValue;
@@ -193,4 +156,30 @@ pub trait ParameterInfo {
     fn step_count(&self) -> usize;
     fn value_from_string(&self, str: &str) -> Result<NormalizedValue, ParseError>;
     fn string_from_value(&self, value: NormalizedValue) -> String;
+
+    fn set_value_normalized(&self, value: NormalizedValue);
+    fn set_value_plain(&self, value: PlainValue) {
+        self.set_value_normalized(self.normalize(value));
+    }
+    fn as_signal_plain(&self) -> ReadSignal<PlainValue>
+    where
+        Self: Sized,
+    {
+        ReadSignal::from_parameter(self.id())
+    }
+    fn as_signal_normalized(&self) -> ReadSignal<NormalizedValue>
+    where
+        Self: Sized,
+    {
+        ReadSignal::from_parameter(self.id())
+    }
+}
+
+pub trait Parameter: AnyParameter {
+    type Value: Any;
+    fn default_value(&self) -> Self::Value;
+    fn plain_value(&self, value: Self::Value) -> PlainValue;
+    fn normalized_value(&self, value: Self::Value) -> NormalizedValue {
+        self.normalize(self.plain_value(value))
+    }
 }

@@ -1,34 +1,48 @@
-pub trait Interpolate {
+use crate::core::Zero;
+
+pub trait Lerp {
     fn lerp(&self, other: &Self, scalar: f64) -> Self;
 }
 
-impl Interpolate for f64 {
+impl Lerp for f64 {
     fn lerp(&self, other: &Self, scalar: f64) -> Self {
         (1.0 - scalar) * self + scalar * other
     }
 }
 
-impl Interpolate for f32 {
+impl Lerp for f32 {
     fn lerp(&self, other: &Self, scalar: f64) -> Self {
         self + ((other - self) * scalar as f32)
     }
 }
 
-impl Interpolate for i64 {
+impl Lerp for i64 {
     fn lerp(&self, other: &Self, scalar: f64) -> Self {
         self + ((other - self) as f64 * scalar).round() as i64
     }
 }
 
-impl Interpolate for i32 {
+impl Lerp for i32 {
     fn lerp(&self, other: &Self, scalar: f64) -> Self {
         self + ((other - self) as f64 * scalar).round() as i32
     }
 }
 
-impl<T: Interpolate, const N: usize> Interpolate for [T; N] {
+impl<T: Lerp, const N: usize> Lerp for [T; N] {
     fn lerp(&self, other: &Self, scalar: f64) -> Self {
         std::array::from_fn(|i| self[i].lerp(&other[i], scalar))
+    }
+}
+
+pub trait Interpolatable: Sized {
+    fn interpolator(&self, other: &Self) -> impl Fn(f64) -> Self + 'static;
+}
+
+impl<T: Lerp + Clone + 'static> Interpolatable for T {
+    fn interpolator(&self, other: &Self) -> impl Fn(f64) -> Self + 'static {
+        let start = self.clone();
+        let end = other.clone();
+        move |scalar| start.lerp(&end, scalar)
     }
 }
 
@@ -40,8 +54,7 @@ pub struct SpringProperties {
     pub velocity_epsilon: f64,
 }
 
-pub trait SpringPhysics: Sized + Interpolate {
-    const ZERO: Self;
+pub trait SpringPhysics: Sized + Lerp + Zero {
     fn distance_squared_to(&self, other: &Self) -> f64;
     fn apply_spring_update(
         &mut self,
@@ -53,8 +66,6 @@ pub trait SpringPhysics: Sized + Interpolate {
 }
 
 impl SpringPhysics for f64 {
-    const ZERO: Self = 0.0;
-
     fn distance_squared_to(&self, other: &Self) -> f64 {
         (*self - *other).powi(2)
     }
@@ -75,8 +86,6 @@ impl SpringPhysics for f64 {
 }
 
 impl SpringPhysics for f32 {
-    const ZERO: Self = 0.0;
-
     fn distance_squared_to(&self, other: &Self) -> f64 {
         (*self - *other).powi(2) as f64
     }

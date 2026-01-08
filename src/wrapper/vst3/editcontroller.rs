@@ -36,7 +36,7 @@ impl HostHandle for VST3HostHandle {
         unsafe { self.component_handler.end_edit(id.into()) };
     }
 
-    fn perform_edit(&self, info: &dyn crate::param::ParameterInfo, value: NormalizedValue) {
+    fn perform_edit(&self, info: &dyn crate::param::AnyParameter, value: NormalizedValue) {
         self.is_editing_parameters_from_gui.replace(true);
         unsafe {
             self.component_handler
@@ -149,7 +149,7 @@ impl<E: Editor> IEditController for EditController<E> {
         let Some(value) = NormalizedValue::from_f64(value_normalized) else {
             return kInvalidArgument;
         };
-        let value_str = param_ref.info().string_from_value(value);
+        let value_str = param_ref.string_from_value(value);
 
         strcpyw(&value_str, string);
         kResultOk
@@ -176,7 +176,7 @@ impl<E: Editor> IEditController for EditController<E> {
         let Ok(str) = String::from_utf16(slice) else {
             return kInvalidArgument;
         };
-        let Ok(value) = param_ref.info().value_from_string(&str) else {
+        let Ok(value) = param_ref.value_from_string(&str) else {
             return kInvalidArgument;
         };
         *value_normalized = value.0;
@@ -185,19 +185,17 @@ impl<E: Editor> IEditController for EditController<E> {
     }
 
     unsafe fn normalized_param_to_plain(&self, id: u32, value_normalized: f64) -> f64 {
-        let value_normalized = unsafe { NormalizedValue::from_f64_unchecked(value_normalized) };
+        let value_normalized = NormalizedValue::from_f64_unchecked(value_normalized);
         self.parameters
             .get_by_id(ParameterId(id))
-            .map_or(0.0, |param| {
-                param.info().denormalize(value_normalized).into()
-            })
+            .map_or(0.0, |param| param.denormalize(value_normalized).into())
     }
 
     unsafe fn plain_param_to_normalized(&self, id: u32, plain_value: f64) -> f64 {
         self.parameters
             .get_by_id(ParameterId(id))
             .map_or(0.0, |param| {
-                param.info().normalize(PlainValue::new(plain_value)).into()
+                param.normalize(PlainValue::new(plain_value)).into()
             })
     }
 

@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     App, Editor, Plugin,
-    param::{NormalizedValue, ParameterId, ParameterInfo, ParameterMap, Params},
+    param::{AnyParameter, NormalizedValue, ParameterId, ParameterMap, Params},
     platform::{self, AudioHost},
     ui::{AppState, HostHandle, Window},
 };
@@ -28,7 +28,7 @@ impl HostHandle for StandaloneHostHandle {
 
     fn end_edit(&self, _id: ParameterId) {}
 
-    fn perform_edit(&self, info: &dyn ParameterInfo, value: crate::param::NormalizedValue) {
+    fn perform_edit(&self, info: &dyn AnyParameter, value: crate::param::NormalizedValue) {
         let mut app_inner = RefCell::borrow_mut(&self.app_inner);
         app_inner
             .parameter_updates

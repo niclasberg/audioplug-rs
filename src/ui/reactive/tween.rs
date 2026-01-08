@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::core::Interpolate;
+use crate::core::Lerp;
 
 use super::Animation;
 
@@ -101,7 +101,7 @@ impl<T> TweenAnimation<T> {
 
 impl<T> Animation for TweenAnimation<T>
 where
-    T: Any + Clone + Interpolate,
+    T: Any + Clone + Lerp,
 {
     type Value = T;
 

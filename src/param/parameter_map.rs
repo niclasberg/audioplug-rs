@@ -1,10 +1,11 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{cell::Cell, collections::HashMap, rc::Rc};
 
-use crate::param::ParamVisitor;
+use crate::param::{NormalizedValue, PlainValue};
 
 use super::{
-    group::AnyParameterGroup, traversal::ParameterTraversal, AnyParameter, GroupId, ParamRef,
-    ParameterId,
+    AnyParameter, BoolParameter, ByPassParameter, FloatParameter, GroupId, IntParameter,
+    ParamVisitor, ParameterId, StringListParameter, group::AnyParameterGroup,
+    traversal::ParameterTraversal,
 };
 
 pub trait Params: ParameterTraversal {
@@ -15,8 +16,149 @@ impl Params for () {
     fn new() -> Self {}
 }
 
+#[derive(Clone, Copy)]
+enum ParamPtr {
+    Float(*const FloatParameter),
+    Int(*const IntParameter),
+    StringList(*const StringListParameter),
+    ByPass(*const ByPassParameter),
+    Bool(*const BoolParameter),
+}
+
+#[derive(Clone, Copy)]
+struct ParamEntry {
+    ptr: ParamPtr,
+    value_index: usize,
+}
+
+union ParamValue {
+    float: f64,
+    bool: bool,
+    int: i64,
+    string_list: usize,
+}
+
+pub enum ParamRef<'a> {
+    Float((&'a FloatParameter, &'a Cell<f64>)),
+    Int((&'a IntParameter, &'a Cell<i64>)),
+    StringList((&'a StringListParameter, &'a Cell<usize>)),
+    ByPass((&'a ByPassParameter, &'a Cell<bool>)),
+    Bool((&'a BoolParameter, &'a Cell<bool>)),
+}
+
+impl<'a> ParamRef<'a> {
+    fn new(p: ParamPtr, v: ParamValue) -> Self {
+        match p {
+            ParamPtr::Float(p) => todo!(),
+            ParamPtr::Int(_) => todo!(),
+            ParamPtr::StringList(_) => todo!(),
+            ParamPtr::ByPass(_) => todo!(),
+            ParamPtr::Bool(_) => todo!(),
+        }
+    }
+
+    pub fn info(&self) -> &'a dyn AnyParameter {
+        match self {
+            Self::ByPass((p, _)) => *p,
+            Self::Float((p, _)) => *p,
+            Self::Int((p, _)) => *p,
+            Self::StringList((p, _)) => *p,
+            Self::Bool((p, _)) => *p,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        self.info().name()
+    }
+
+    pub fn id(&self) -> ParameterId {
+        self.info().id()
+    }
+
+    pub fn default_value(&self) -> PlainValue {
+        self.info().default_value_plain()
+    }
+
+    pub fn default_normalized(&self) -> NormalizedValue {
+        self.normalize(self.default_value())
+    }
+
+    pub(crate) fn internal_set_value_normalized(&self, value: NormalizedValue) {
+        match self {
+            Self::Float(p) => p.set_value_normalized(value),
+            Self::Int(p) => p.set_value_normalized(value),
+            Self::StringList(p) => p.set_value_normalized(value),
+            Self::ByPass(p) => p.set_value_normalized(value),
+            Self::Bool(p) => p.set_value_normalized(value),
+        }
+    }
+
+    pub(crate) fn internal_set_value_plain(&self, value: PlainValue) {
+        self.internal_set_value_normalized(self.normalize(value))
+    }
+
+    pub fn plain_value(&self) -> PlainValue {
+        match self {
+            Self::Float(p) => p.plain_value(),
+            Self::Int(p) => p.plain_value(),
+            Self::StringList(p) => p.plain_value(),
+            Self::ByPass(p) => p.plain_value(),
+            Self::Bool(p) => p.plain_value(),
+        }
+    }
+
+    pub fn normalized_value(&self) -> NormalizedValue {
+        match self {
+            Self::Float(p) => p.normalized_value(),
+            Self::Int(p) => p.normalized_value(),
+            Self::StringList(p) => p.normalized_value(),
+            Self::ByPass(p) => p.normalized_value(),
+            Self::Bool(p) => p.normalized_value(),
+        }
+    }
+
+    pub fn value_as<T: Any>(&self) -> Option<T> {
+        if TypeId::of::<T>() == TypeId::of::<PlainValue>() {
+            Some(unsafe { std::mem::transmute(self.plain_value()) })
+        } else if TypeId::of::<T>() == TypeId::of::<NormalizedValue>() {
+            Some(unsafe { std::mem::transmute(self.normalized_value()) })
+        } else {
+            match self {
+                Self::Float(p) if TypeId::of::<T>() == TypeId::of::<f64>() => {
+                    Some(unsafe { std::mem::transmute(p.value()) })
+                }
+                Self::Int(p) if TypeId::of::<T>() == TypeId::of::<f64>() => {
+                    Some(unsafe { std::mem::transmute(p.value()) })
+                }
+                Self::StringList(p) if TypeId::of::<T>() == TypeId::of::<i64>() => {
+                    Some(unsafe { std::mem::transmute(p.value()) })
+                }
+                Self::ByPass(p) if TypeId::of::<T>() == TypeId::of::<bool>() => {
+                    Some(unsafe { std::mem::transmute(p.value()) })
+                }
+                Self::Bool(p) if TypeId::of::<T>() == TypeId::of::<bool>() => {
+                    Some(unsafe { std::mem::transmute(p.value()) })
+                }
+                _ => None,
+            }
+        }
+    }
+
+    pub fn normalize(&self, value: PlainValue) -> NormalizedValue {
+        self.info().normalize(value)
+    }
+
+    pub fn denormalize(&self, value: NormalizedValue) -> PlainValue {
+        self.info().denormalize(value)
+    }
+
+    pub fn step_count(&self) -> usize {
+        self.info().step_count()
+    }
+}
+
 pub struct ParamIter<'a> {
-    inner_iter: std::slice::Iter<'a, (Option<GroupId>, *const dyn AnyParameter)>,
+    inner_iter: std::slice::Iter<'a, (Option<GroupId>, ParamEntry)>,
 }
 
 impl<'a> Iterator for ParamIter<'a> {
@@ -25,7 +167,7 @@ impl<'a> Iterator for ParamIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         self.inner_iter
             .next()
-            .map(|&(_, p)| unsafe { &*p }.as_param_ref())
+            .map(|&(_, p)| unsafe { &*p.ptr }.as_param_ref())
     }
 }
 
@@ -36,29 +178,40 @@ pub trait AnyParameterMap: 'static {
     fn count(&self) -> usize;
     fn parameter_ids(&self) -> Vec<ParameterId>;
     fn get_group_by_index(&self, index: usize)
-        -> Option<(Option<GroupId>, &dyn AnyParameterGroup)>;
+    -> Option<(Option<GroupId>, &dyn AnyParameterGroup)>;
     fn groups_count(&self) -> usize;
 }
 
 struct GatherParamPtrsVisitor<'a> {
     current_group_id: Option<GroupId>,
-    params_vec: &'a mut Vec<(Option<GroupId>, *const dyn AnyParameter)>,
-    params_map: &'a mut HashMap<ParameterId, *const dyn AnyParameter>,
+    bool_values: &'a mut Vec<bool>,
+    float_values: &'a mut Vec<f64>,
+    int_values: &'a mut Vec<i64>,
+    enum_values: &'a mut Vec<usize>,
+    params_vec: &'a mut Vec<(Option<GroupId>, ParamEntry)>,
+    params_map: &'a mut HashMap<ParameterId, ParamEntry>,
     groups_vec: &'a mut Vec<(Option<GroupId>, *const dyn AnyParameterGroup)>,
 }
 
 impl GatherParamPtrsVisitor<'_> {
-    fn add_param_ptr(&mut self, p: &dyn AnyParameter) {
-        let id = p.info().id();
-        let param_ptr = p as *const dyn AnyParameter;
-        self.params_vec.push((self.current_group_id, param_ptr));
-        self.params_map.insert(id, param_ptr);
+    fn add_param_ptr(&mut self, id: ParameterId, ptr: ParamPtr, v: ParamValue) {
+        let value_index = self.values.len();
+        let entry = ParamEntry { value_index, ptr };
+        self.values.push(v);
+        self.params_vec.push((self.current_group_id, entry));
+        self.params_map.insert(id, entry);
     }
 }
 
 impl ParamVisitor for GatherParamPtrsVisitor<'_> {
     fn bool_parameter(&mut self, p: &super::BoolParameter) {
-        self.add_param_ptr(p);
+        let value_index = self.bool_values.len();
+        self.bool_values.push(p.default_value());
+        self.add_param_ptr(
+            p.id(),
+            ParamPtr::Bool(p as *const _),
+            ParamValue { bool: false },
+        );
     }
 
     fn bypass_parameter(&mut self, p: &super::ByPassParameter) {
@@ -90,8 +243,12 @@ impl ParamVisitor for GatherParamPtrsVisitor<'_> {
 
 pub struct ParameterMap<P: Params> {
     parameters: P,
-    params_vec: Vec<(Option<GroupId>, *const dyn AnyParameter)>,
-    params_map: HashMap<ParameterId, *const dyn AnyParameter>,
+    bool_values: Vec<bool>,
+    float_values: Vec<f64>,
+    int_values: Vec<i64>,
+    enum_values: Vec<usize>,
+    params_vec: Vec<(Option<GroupId>, ParamEntry)>,
+    params_map: HashMap<ParameterId, ParamEntry>,
     groups_vec: Vec<(Option<GroupId>, *const dyn AnyParameterGroup)>,
 }
 
@@ -100,6 +257,10 @@ impl<P: Params> ParameterMap<P> {
         // Construct the instance first, so that parameters is moved into the correct memory location
         let mut this = Rc::new(Self {
             parameters,
+            bool_values: Vec::new(),
+            float_values: Vec::new(),
+            int_values: Vec::new(),
+            enum_values: Vec::new(),
             params_vec: Vec::new(),
             params_map: HashMap::new(),
             groups_vec: Vec::new(),
@@ -108,6 +269,10 @@ impl<P: Params> ParameterMap<P> {
         let this_ref = Rc::get_mut(&mut this).unwrap();
         let mut visitor = GatherParamPtrsVisitor {
             current_group_id: None,
+            bool_values: &mut this_ref.bool_values,
+            float_values: &mut this_ref.float_values,
+            int_values: &mut this_ref.int_values,
+            enum_values: &mut this_ref.enum_values,
             params_vec: &mut this_ref.params_vec,
             params_map: &mut this_ref.params_map,
             groups_vec: &mut this_ref.groups_vec,
