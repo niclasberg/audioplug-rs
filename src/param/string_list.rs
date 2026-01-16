@@ -93,10 +93,6 @@ impl AnyParameter for StringListParameter {
     fn max_value(&self) -> PlainValue {
         PlainValue::new(self.step_count() as _)
     }
-
-    fn set_value_normalized(&self, _value: NormalizedValue) {
-        todo!()
-    }
 }
 
 impl Parameter for StringListParameter {
@@ -108,5 +104,20 @@ impl Parameter for StringListParameter {
 
     fn plain_value(&self, index: Self::Value) -> PlainValue {
         PlainValue(index as f64)
+    }
+
+    fn value_from_plain(&self, value: PlainValue) -> Self::Value {
+        todo!()
+    }
+
+    fn value_from_normalized(&self, value: NormalizedValue) -> Self::Value {
+        todo!()
+    }
+
+    fn downcast_param_ref<'s>(param_ref: ParamRef<'s>) -> Option<&'s Self> {
+        match param_ref {
+            ParamRef::StringList(p) => Some(p),
+            _ => None,
+        }
     }
 }

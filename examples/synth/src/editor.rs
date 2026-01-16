@@ -1,6 +1,6 @@
 use audioplug::{
     core::{Color, Path, ShadowOptions, Size, Vec2},
-    param::{AnyParameter, FloatParameter, Parameter},
+    param::{AnyParameter, FloatParameter},
     ui::{
         style::{AlignItems, Length, UiRect},
         Canvas, ReactiveValue, Scene, View,
@@ -162,8 +162,7 @@ fn envelope_graph(
     let d = decay.as_signal();
     let s = sustain.as_signal();
     let r = release.as_signal();
-    let max_env_time =
-        attack.info().max_value().0 + decay.info().max_value().0 + release.info().max_value().0;
+    let max_env_time = attack.max_value().0 + decay.max_value().0 + release.max_value().0;
 
     Canvas::new(move |cx| {
         let bounds = cx.bounds();

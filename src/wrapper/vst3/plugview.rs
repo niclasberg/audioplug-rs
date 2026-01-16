@@ -2,13 +2,14 @@ use raw_window_handle::RawWindowHandle;
 use std::cell::RefCell;
 use std::ffi::{CStr, c_void};
 use std::rc::Rc;
-use vst3_sys::VST3;
-use vst3_sys::VstPtr;
-use vst3_sys::base::*;
-use vst3_sys::gui::IPlugFrame;
-use vst3_sys::gui::IPlugViewContentScaleSupport;
-use vst3_sys::gui::{IPlugView, ViewRect};
-use vst3_sys::utils::SharedVstPtr;
+#[cfg(target_os = "macos")]
+use vst3::Steinberg::kResultOk;
+use vst3::Steinberg::{
+    FIDString, IPlugFrame, IPlugView, IPlugViewContentScaleSupport,
+    IPlugViewContentScaleSupportTrait, IPlugViewTrait, TBool, ViewRect, char16, kInvalidArgument,
+    kResultFalse, kResultTrue, tresult,
+};
+use vst3::{ComPtr, ComRef, ComWrapper};
 
 use crate::Editor;
 use crate::core::ScaleFactor;
@@ -21,20 +22,11 @@ use {raw_window_handle::Win32WindowHandle, std::num::NonZeroIsize};
 #[cfg(target_os = "macos")]
 use {raw_window_handle::AppKitWindowHandle, std::ptr::NonNull};
 
-#[allow(unused)]
-const VST3_PLATFORM_HWND: &str = "HWND";
-#[allow(unused)]
-const VST3_PLATFORM_NSVIEW: &str = "NSView";
-#[allow(unused)]
-const VST3_PLATFORM_X11_WINDOW: &str = "X11EmbedWindowID";
-
-use vst3_sys as vst3_com;
-#[VST3(implements(IPlugView, IPlugViewContentScaleSupport))]
 pub struct PlugView<E: Editor> {
     window: RefCell<Option<Window>>,
     app_state: Rc<RefCell<AppState>>,
     editor: Rc<RefCell<E>>,
-    plugin_frame: RefCell<Option<VstPtr<dyn IPlugFrame>>>,
+    plugin_frame: RefCell<Option<ComPtr<IPlugFrame>>>,
     parameters: Rc<ParameterMap<E::Parameters>>,
 }
 
@@ -43,37 +35,43 @@ impl<E: Editor> PlugView<E> {
         app_state: Rc<RefCell<AppState>>,
         editor: Rc<RefCell<E>>,
         parameters: Rc<ParameterMap<E::Parameters>>,
-    ) -> Box<Self> {
-        Self::allocate(
-            RefCell::new(None),
+    ) -> ComWrapper<Self> {
+        ComWrapper::new(Self {
+            window: RefCell::new(None),
             app_state,
             editor,
-            RefCell::new(None),
+            plugin_frame: RefCell::new(None),
             parameters,
-        )
-    }
-
-    pub fn create_instance(
-        app_state: Rc<RefCell<AppState>>,
-        editor: Rc<RefCell<E>>,
-        parameters: Rc<ParameterMap<E::Parameters>>,
-    ) -> *mut c_void {
-        Box::into_raw(Self::new(app_state, editor, parameters)) as *mut c_void
+        })
     }
 }
 
-impl<E: Editor> IPlugView for PlugView<E> {
-    unsafe fn is_platform_type_supported(&self, type_: FIDString) -> tresult {
+impl<E: Editor> vst3::Class for PlugView<E> {
+    type Interfaces = (IPlugView, IPlugViewContentScaleSupport);
+}
+
+#[cfg(target_os = "windows")]
+const PLATFORM_TYPE_HWND: &'static CStr =
+    unsafe { CStr::from_ptr(vst3::Steinberg::kPlatformTypeHWND) };
+#[cfg(target_os = "macos")]
+const PLATFORM_TYPE_NSVIEW: &'static CStr =
+    unsafe { CStr::from_ptr(vst3::Steinberg::kPlatformTypeNSView) };
+
+impl<E: Editor> IPlugViewTrait for PlugView<E> {
+    unsafe fn isPlatformTypeSupported(&self, type_: FIDString) -> tresult {
         let type_ = unsafe { CStr::from_ptr(type_) };
-        match type_.to_str() {
-            #[cfg(target_os = "windows")]
-            Ok(type_) if type_ == VST3_PLATFORM_HWND => kResultOk,
-            #[cfg(target_os = "macos")]
-            Ok(type_) if type_ == VST3_PLATFORM_NSVIEW => kResultOk,
-            #[cfg(target_os = "linux")]
-            Ok(type_) if type_ == VST3_PLATFORM_X11_WINDOW => kResultOk,
-            _ => kResultFalse,
+
+        #[cfg(target_os = "windows")]
+        if type_ == PLATFORM_TYPE_HWND {
+            return kResultOk;
         }
+
+        #[cfg(target_os = "macos")]
+        if type_ == PLATFORM_TYPE_NSVIEW {
+            return kResultOk;
+        }
+
+        kResultFalse
     }
 
     unsafe fn attached(&self, parent: *mut c_void, type_: FIDString) -> tresult {
@@ -84,18 +82,17 @@ impl<E: Editor> IPlugView for PlugView<E> {
         let mut window = self.window.borrow_mut();
         if window.is_none() {
             let type_ = unsafe { CStr::from_ptr(type_) };
-            let handle = match type_.to_str() {
+            let handle = {
                 #[cfg(target_os = "windows")]
-                Ok(type_) if type_ == VST3_PLATFORM_HWND => {
+                if type_ == PLATFORM_TYPE_HWND {
                     let h = Win32WindowHandle::new(NonZeroIsize::new(parent as isize).unwrap());
                     RawWindowHandle::Win32(h)
                 }
                 #[cfg(target_os = "macos")]
-                Ok(type_) if type_ == VST3_PLATFORM_NSVIEW => {
+                if type_ == PLATFORM_TYPE_NSVIEW {
                     let h = AppKitWindowHandle::new(NonNull::new(parent).unwrap());
                     RawWindowHandle::AppKit(h)
-                }
-                _ => {
+                } else {
                     return kInvalidArgument;
                 }
             };
@@ -117,31 +114,29 @@ impl<E: Editor> IPlugView for PlugView<E> {
         kResultOk
     }
 
-    unsafe fn set_frame(&self, frame: *mut c_void) -> tresult {
-        let frame: SharedVstPtr<dyn IPlugFrame> = unsafe { std::mem::transmute(frame) };
-        self.plugin_frame.replace(frame.upgrade());
+    unsafe fn setFrame(&self, frame: *mut IPlugFrame) -> tresult {
+        let Some(frame) = (unsafe { ComRef::from_raw(frame) }) else {
+            return kInvalidArgument;
+        };
+        self.plugin_frame.replace(Some(frame.to_com_ptr()));
         kResultOk
     }
 
-    unsafe fn on_wheel(&self, _distance: f32) -> tresult {
+    unsafe fn onWheel(&self, _distance: f32) -> tresult {
         // Handle in window class instead
         kResultOk
     }
 
-    unsafe fn on_key_down(&self, _key: char16, _key_code: i16, _modifiers: i16) -> tresult {
+    unsafe fn onKeyDown(&self, _key: char16, _key_code: i16, _modifiers: i16) -> tresult {
         kResultOk
     }
 
-    unsafe fn on_key_up(&self, _key: char16, _key_code: i16, _modifiers: i16) -> tresult {
+    unsafe fn onKeyUp(&self, _key: char16, _key_code: i16, _modifiers: i16) -> tresult {
         kResultOk
     }
 
-    unsafe fn on_focus(&self, _state: TBool) -> tresult {
-        if let Some(_window) = self.window.borrow().as_ref() {
-            kResultOk
-        } else {
-            kResultFalse
-        }
+    unsafe fn onFocus(&self, _state: TBool) -> tresult {
+        kResultOk
     }
 
     // Size functions:
@@ -149,7 +144,7 @@ impl<E: Editor> IPlugView for PlugView<E> {
     // The coordinates utilized within the ViewRect are native to the view system of the parent type. This implies that on
     // macOS (kPlatformTypeNSView), the coordinates are expressed in logical units (independent of the screen scale factor),
     // whereas on Windows (kPlatformTypeHWND) and Linux (kPlatformTypeX11EmbedWindowID), the coordinates are expressed in physical units (pixels).
-    unsafe fn get_size(&self, size: *mut ViewRect) -> tresult {
+    unsafe fn getSize(&self, size: *mut ViewRect) -> tresult {
         let Some(new_size) = (unsafe { size.as_mut() }) else {
             return kInvalidArgument;
         };
@@ -169,7 +164,7 @@ impl<E: Editor> IPlugView for PlugView<E> {
         kResultOk
     }
 
-    unsafe fn on_size(&self, new_size: *mut ViewRect) -> tresult {
+    unsafe fn onSize(&self, new_size: *mut ViewRect) -> tresult {
         let Some(new_size) = (unsafe { new_size.as_ref() }) else {
             return kInvalidArgument;
         };
@@ -202,11 +197,11 @@ impl<E: Editor> IPlugView for PlugView<E> {
         }
     }
 
-    unsafe fn can_resize(&self) -> tresult {
+    unsafe fn canResize(&self) -> tresult {
         kResultTrue
     }
 
-    unsafe fn check_size_constraint(&self, rect: *mut ViewRect) -> tresult {
+    unsafe fn checkSizeConstraint(&self, rect: *mut ViewRect) -> tresult {
         if rect.is_null() {
             return kInvalidArgument;
         }
@@ -216,8 +211,8 @@ impl<E: Editor> IPlugView for PlugView<E> {
     }
 }
 
-impl<E: Editor> IPlugViewContentScaleSupport for PlugView<E> {
-    unsafe fn set_scale_factor(&self, scale_factor: f32) -> tresult {
+impl<E: Editor> IPlugViewContentScaleSupportTrait for PlugView<E> {
+    unsafe fn setContentScaleFactor(&self, scale_factor: f32) -> tresult {
         if let Some(window) = self.window.borrow().as_ref() {
             window.set_scale_factor(ScaleFactor(scale_factor as f64));
             kResultOk

@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
 use crate::{
-    param::{Parameter, ParseError},
+    param::{ParamRef, Parameter, ParseError},
     ui::ReadSignal,
 };
 
@@ -29,7 +29,10 @@ impl ByPassParameter {
     }
 
     pub fn as_signal(&self) -> ReadSignal<bool> {
-        ReadSignal::from_parameter(self.id)
+        ReadSignal::from_parameter(self.id, |param_ref| match param_ref {
+            ParamRef::ByPass(p) => p.value(),
+            _ => unreachable!(),
+        })
     }
 }
 
@@ -85,10 +88,6 @@ impl AnyParameter for ByPassParameter {
             "Off".to_string()
         }
     }
-
-    fn set_value_normalized(&self, value: NormalizedValue) {
-        self.value.replace(value.into());
-    }
 }
 
 impl Parameter for ByPassParameter {
@@ -104,5 +103,20 @@ impl Parameter for ByPassParameter {
 
     fn normalized_value(&self, value: bool) -> NormalizedValue {
         NormalizedValue::from_bool(value)
+    }
+
+    fn value_from_plain(&self, value: PlainValue) -> Self::Value {
+        value.into()
+    }
+
+    fn value_from_normalized(&self, value: NormalizedValue) -> Self::Value {
+        value.into()
+    }
+
+    fn downcast_param_ref<'s>(param_ref: ParamRef<'s>) -> Option<&'s Self> {
+        match param_ref {
+            ParamRef::ByPass(p) => Some(p),
+            _ => None,
+        }
     }
 }

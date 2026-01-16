@@ -12,7 +12,7 @@ use raw_window_handle::{
 };
 
 use super::{Error, view::View};
-use crate::core::{PhysicalSize, Rect, WindowTheme};
+use crate::core::{PhysicalSize, Rect, ScaleFactor, WindowTheme};
 
 pub struct Handle {
     view: MainThreadBound<Weak<View>>,
@@ -98,5 +98,9 @@ impl Handle {
 
     pub fn raw_display_handle(&self) -> Result<RawDisplayHandle, HandleError> {
         Ok(RawDisplayHandle::AppKit(AppKitDisplayHandle::new()))
+    }
+
+    pub fn scale_factor(&self) -> ScaleFactor {
+        ScaleFactor(1.0)
     }
 }

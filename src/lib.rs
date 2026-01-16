@@ -8,6 +8,7 @@ pub mod midi;
 pub mod param;
 pub mod platform;
 mod plugin;
+mod processor;
 pub mod ui;
 pub mod util;
 pub mod views;

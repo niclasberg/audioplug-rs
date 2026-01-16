@@ -3,7 +3,7 @@ use std::{
     ops::{Range, RangeInclusive},
 };
 
-use crate::param::Parameter;
+use crate::param::{ParamRef, Parameter};
 
 use super::{
     AnyParameter, NormalizedValue, ParameterId, ParameterTraversal, ParseError, PlainValue,
@@ -41,7 +41,7 @@ impl IntParameter {
         self.value.get()
     }
 
-    pub fn set_value(&self, value: i64) {
+    pub(crate) fn set_value(&self, value: i64) {
         self.value.replace(value);
     }
 }
@@ -90,14 +90,6 @@ impl AnyParameter for IntParameter {
         let plain_value = self.denormalize(value);
         plain_value.0.round().to_string()
     }
-
-    fn set_value_normalized(&self, value: NormalizedValue) {
-        self.set_value_plain(self.denormalize(value));
-    }
-
-    fn set_value_plain(&self, value: PlainValue) {
-        self.value.replace(value.0.round() as _);
-    }
 }
 
 impl Parameter for IntParameter {
@@ -109,6 +101,21 @@ impl Parameter for IntParameter {
 
     fn plain_value(&self, value: Self::Value) -> PlainValue {
         PlainValue::new(value as _)
+    }
+
+    fn value_from_plain(&self, value: PlainValue) -> Self::Value {
+        value.0.round() as _
+    }
+
+    fn value_from_normalized(&self, value: NormalizedValue) -> Self::Value {
+        self.value_from_plain(self.denormalize(value))
+    }
+
+    fn downcast_param_ref<'s>(param_ref: ParamRef<'s>) -> Option<&'s Self> {
+        match param_ref {
+            ParamRef::Int(p) => Some(p),
+            _ => None,
+        }
     }
 }
 

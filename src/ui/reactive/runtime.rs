@@ -231,8 +231,7 @@ impl ReactiveGraph {
     pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef<'_> {
         self.parameters
             .get_by_id(parameter_id)
-            .expect("Invalid parameter id")
-            .as_param_ref()
+            .expect("Parameter id should be a parameter that exists")
     }
 
     /// Temporarily remove a node and return it

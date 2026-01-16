@@ -1,4 +1,7 @@
-use crate::{param::Parameter, ui::ReadSignal};
+use crate::{
+    param::{ParamRef, Parameter},
+    ui::ReadSignal,
+};
 
 use super::{
     AnyParameter, NormalizedValue, ParamVisitor, ParameterId, ParseError, PlainValue,
@@ -27,12 +30,15 @@ impl BoolParameter {
         self.value.get()
     }
 
-    pub fn set_value(&self, value: bool) {
+    pub(crate) fn set_value(&self, value: bool) {
         self.value.replace(value);
     }
 
     pub fn as_signal(&self) -> ReadSignal<bool> {
-        ReadSignal::from_parameter(self.id)
+        ReadSignal::from_parameter(self.id, |param_ref| match param_ref {
+            ParamRef::Bool(bool_parameter) => bool_parameter.value(),
+            _ => unreachable!(),
+        })
     }
 }
 
@@ -88,10 +94,6 @@ impl AnyParameter for BoolParameter {
             "Off".to_string()
         }
     }
-
-    fn set_value_normalized(&self, value: NormalizedValue) {
-        self.value.replace(value.into());
-    }
 }
 
 impl Parameter for BoolParameter {
@@ -106,6 +108,21 @@ impl Parameter for BoolParameter {
 
     fn normalized_value(&self, value: bool) -> NormalizedValue {
         NormalizedValue::from_bool(value)
+    }
+
+    fn value_from_plain(&self, value: PlainValue) -> Self::Value {
+        value.into()
+    }
+
+    fn value_from_normalized(&self, value: NormalizedValue) -> Self::Value {
+        value.into()
+    }
+
+    fn downcast_param_ref<'s>(param_ref: ParamRef<'s>) -> Option<&'s Self> {
+        match param_ref {
+            ParamRef::Bool(p) => Some(p),
+            _ => None,
+        }
     }
 }
 

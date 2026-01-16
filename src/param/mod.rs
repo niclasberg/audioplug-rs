@@ -141,13 +141,22 @@ impl From<PlainValue> for f64 {
     }
 }
 
+impl From<PlainValue> for bool {
+    fn from(val: PlainValue) -> Self {
+        val.0 > 0.5
+    }
+}
+
 pub(super) mod private {
     pub trait Sealed {}
 }
 
-pub trait AnyParameter: Any + private::Sealed {
+pub trait AnyParameter: private::Sealed + 'static {
     fn id(&self) -> ParameterId;
     fn name(&self) -> &str;
+    fn default_value_normalized(&self) -> NormalizedValue {
+        self.normalize(self.default_value_plain())
+    }
     fn default_value_plain(&self) -> PlainValue;
     fn min_value(&self) -> PlainValue;
     fn max_value(&self) -> PlainValue;
@@ -157,27 +166,26 @@ pub trait AnyParameter: Any + private::Sealed {
     fn value_from_string(&self, str: &str) -> Result<NormalizedValue, ParseError>;
     fn string_from_value(&self, value: NormalizedValue) -> String;
 
-    fn set_value_normalized(&self, value: NormalizedValue);
-    fn set_value_plain(&self, value: PlainValue) {
-        self.set_value_normalized(self.normalize(value));
-    }
     fn as_signal_plain(&self) -> ReadSignal<PlainValue>
     where
         Self: Sized,
     {
-        ReadSignal::from_parameter(self.id())
+        ReadSignal::from_parameter(self.id(), |param_ref| param_ref.plain_value())
     }
     fn as_signal_normalized(&self) -> ReadSignal<NormalizedValue>
     where
         Self: Sized,
     {
-        ReadSignal::from_parameter(self.id())
+        ReadSignal::from_parameter(self.id(), |param_ref| param_ref.normalized_value())
     }
 }
 
 pub trait Parameter: AnyParameter {
     type Value: Any;
+    fn downcast_param_ref<'s>(param_ref: ParamRef<'s>) -> Option<&'s Self>;
     fn default_value(&self) -> Self::Value;
+    fn value_from_plain(&self, value: PlainValue) -> Self::Value;
+    fn value_from_normalized(&self, value: NormalizedValue) -> Self::Value;
     fn plain_value(&self, value: Self::Value) -> PlainValue;
     fn normalized_value(&self, value: Self::Value) -> NormalizedValue {
         self.normalize(self.plain_value(value))

@@ -1,7 +1,7 @@
 use slotmap::Key;
 
 use crate::{
-    param::ParameterId,
+    param::{ParamRef, ParameterId},
     ui::{
         AppState, TypedWidgetId, Widget, WidgetContext, WidgetId, WidgetMut, WidgetRef,
         reactive::WidgetStatusFlags,
@@ -92,19 +92,15 @@ impl Effect {
 
     pub(super) fn watch_parameter<T: 'static>(
         cx: &mut dyn CreateContext,
-        parameter_id: ParameterId,
+        id: ParameterId,
+        getter: fn(ParamRef) -> T,
         mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
     ) -> Self {
         let id = super::create_parameter_binding_node(
             cx,
-            parameter_id,
+            id,
             BindingState::new(move |cx| {
-                let value = cx
-                    .app_state_mut()
-                    .runtime
-                    .get_parameter_ref(parameter_id)
-                    .value_as()
-                    .unwrap();
+                let value = getter(cx.app_state_mut().runtime.get_parameter_ref(id));
                 f(cx, &value);
             }),
         );

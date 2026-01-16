@@ -148,7 +148,7 @@ dependencies = [
  "taffy",
  "thiserror",
  "unicode-segmentation",
- "vst3-sys",
+ "vst3",
  "wgpu",
  "windows",
  "windows-core",
@@ -220,7 +220,7 @@ checksum = "f9abbd1bc6865053c427f7198e6af43bfdedc55ab791faed4fbd361d789575ff"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.103",
+ "syn",
 ]
 
 [[package]]
@@ -272,7 +272,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 2.0.103",
+ "syn",
 ]
 
 [[package]]
@@ -297,6 +297,12 @@ name = "colorchoice"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
+
+[[package]]
+name = "com-scrape-types"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ce183b975b8fc736a20919c4002717255fbd867df575c792aeefa9a56a73ad0"
 
 [[package]]
 name = "core-foundation"
@@ -453,7 +459,7 @@ checksum = "1a5c6c585bc94aaf2c7b51dd4c2ba22680844aba4c687be581871a6f518c5742"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.103",
+ "syn",
 ]
 
 [[package]]
@@ -807,7 +813,7 @@ checksum = "254a5372af8fc138e36684761d3c0cdb758a4410e938babcff1c860ce14ddbfc"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.103",
+ "syn",
 ]
 
 [[package]]
@@ -1427,7 +1433,7 @@ checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.103",
+ "syn",
 ]
 
 [[package]]
@@ -1508,17 +1514,6 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.109"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
-dependencies = [
- "proc-macro2",
- "quote",
- "unicode-ident",
-]
-
-[[package]]
-name = "syn"
 version = "2.0.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4307e30089d6fd6aff212f2da3a1f9e32f3223b1f010fb09b7c95f90f3ca1e8"
@@ -1583,7 +1578,7 @@ checksum = "3ff15c8ecd7de3849db632e14d18d2571fa09dfc5ed93479bc4485c7a517c913"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.103",
+ "syn",
 ]
 
 [[package]]
@@ -1665,40 +1660,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
-name = "vst3-com"
-version = "0.1.0"
-source = "git+https://github.com/RustAudio/vst3-sys.git#f3e8f01c3de6d5df2f503c920c9f2bf8166a771b"
+name = "vst3"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e31e3fe7a6f028ded8c5a9984cf283319e6dc63572c9b71da1d4ee9d71d3b6bf"
 dependencies = [
- "vst3-com-macros",
-]
-
-[[package]]
-name = "vst3-com-macros"
-version = "0.2.0"
-source = "git+https://github.com/RustAudio/vst3-sys.git#f3e8f01c3de6d5df2f503c920c9f2bf8166a771b"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
- "vst3-com-macros-support",
-]
-
-[[package]]
-name = "vst3-com-macros-support"
-version = "0.2.0"
-source = "git+https://github.com/RustAudio/vst3-sys.git#f3e8f01c3de6d5df2f503c920c9f2bf8166a771b"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "vst3-sys"
-version = "0.1.0"
-source = "git+https://github.com/RustAudio/vst3-sys.git#f3e8f01c3de6d5df2f503c920c9f2bf8166a771b"
-dependencies = [
- "vst3-com",
+ "com-scrape-types",
 ]
 
 [[package]]
@@ -1732,7 +1699,7 @@ dependencies = [
  "log",
  "proc-macro2",
  "quote",
- "syn 2.0.103",
+ "syn",
  "wasm-bindgen-shared",
 ]
 
@@ -1767,7 +1734,7 @@ checksum = "8ae87ea40c9f689fc23f209965b6fb8a99ad69aeeb0231408be24920604395de"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.103",
+ "syn",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]
@@ -2013,7 +1980,7 @@ checksum = "053e2e040ab57b9dc951b72c264860db7eb3b0200ba345b4e4c3b14f67855ddf"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.103",
+ "syn",
 ]
 
 [[package]]
@@ -2024,7 +1991,7 @@ checksum = "3f316c4a2570ba26bbec722032c4099d8c8bc095efccdc15688708623367e358"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.103",
+ "syn",
 ]
 
 [[package]]
@@ -2195,5 +2162,5 @@ checksum = "9ecf5b4cc5364572d7f4c329661bcc82724222973f2cab6f050a4e5c22f75181"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.103",
+ "syn",
 ]

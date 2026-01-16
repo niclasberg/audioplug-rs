@@ -3,7 +3,7 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 use super::MyAudioUnit;
 use crate::{
     Editor, EditorContext, Plugin,
-    param::{NormalizedValue, ParameterId, ParameterInfo, ParameterMap, Params, PlainValue},
+    param::{AnyParameter, NormalizedValue, ParameterId, ParameterMap, Params, PlainValue},
     platform::{mac::dispatch::create_block_dispatching_to_main2, view::View},
     ui::{AppState, HostHandle, MyHandler},
 };
@@ -51,7 +51,7 @@ impl HostHandle for AUV3HostHandle {
         }
     }
 
-    fn perform_edit(&self, info: &dyn ParameterInfo, value: NormalizedValue) {
+    fn perform_edit(&self, info: &dyn AnyParameter, value: NormalizedValue) {
         if let Some(parameter) =
             unsafe { self.parameter_tree.parameterWithAddress(info.id().into()) }
         {

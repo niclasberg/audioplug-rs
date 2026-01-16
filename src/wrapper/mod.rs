@@ -102,7 +102,7 @@ macro_rules! audioplug_vst3_plugin {
         #[unsafe(no_mangle)]
         #[allow(non_snake_case)]
         pub unsafe extern "system" fn GetPluginFactory() -> *mut std::ffi::c_void {
-            Box::into_raw($crate::wrapper::vst3::Factory::<$plugin>::new()) as *mut std::ffi::c_void
+            $crate::wrapper::vst3::Factory::<$plugin>::new_raw() as *mut std::ffi::c_void
         }
     };
 }

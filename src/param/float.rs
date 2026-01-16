@@ -26,11 +26,7 @@ impl FloatParameter {
         }
     }
 
-    pub fn set_value(&mut self, value: f64) {
-        self.internal_set_value(value);
-    }
-
-    pub(crate) fn internal_set_value(&self, value: f64) {
+    pub(crate) fn set_value(&self, value: f64) {
         self.value.replace(value);
     }
 
@@ -67,7 +63,10 @@ impl FloatParameter {
     }
 
     pub fn as_signal(&self) -> ReadSignal<f64> {
-        ReadSignal::from_parameter(self.id)
+        ReadSignal::from_parameter(self.id, |param_ref| match param_ref {
+            ParamRef::Float(p) => p.value(),
+            _ => unreachable!(),
+        })
     }
 }
 
@@ -114,10 +113,6 @@ impl AnyParameter for FloatParameter {
     fn string_from_value(&self, value: NormalizedValue) -> String {
         value.0.to_string()
     }
-
-    fn set_value_normalized(&self, value: NormalizedValue) {
-        self.value.replace(self.denormalize(value).0);
-    }
 }
 
 impl Parameter for FloatParameter {
@@ -129,6 +124,21 @@ impl Parameter for FloatParameter {
 
     fn plain_value(&self, value: f64) -> PlainValue {
         PlainValue(value)
+    }
+
+    fn value_from_plain(&self, value: PlainValue) -> Self::Value {
+        value.0
+    }
+
+    fn value_from_normalized(&self, value: NormalizedValue) -> Self::Value {
+        self.denormalize(value).0
+    }
+
+    fn downcast_param_ref<'s>(param_ref: ParamRef<'s>) -> Option<&'s Self> {
+        match param_ref {
+            ParamRef::Float(p) => Some(p),
+            _ => None,
+        }
     }
 }
 

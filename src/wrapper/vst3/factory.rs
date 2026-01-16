@@ -1,108 +1,130 @@
-use std::ffi::c_void;
+use std::ffi::{CStr, c_void};
 use std::marker::PhantomData;
+
+use vst3::ComWrapper;
+use vst3::Steinberg::PClassInfo_::ClassCardinality_;
+use vst3::Steinberg::PFactoryInfo_::FactoryFlags_;
+use vst3::Steinberg::Vst::SDKVersionString;
+use vst3::Steinberg::{
+    FIDString, FUnknown, IPluginFactory, IPluginFactory2, IPluginFactory2Trait,
+    IPluginFactoryTrait, PClassInfo, PClassInfo2, PFactoryInfo, TUID, kInvalidArgument,
+    kResultFalse, kResultOk, tresult,
+};
 
 use super::editcontroller::EditController;
 use crate::VST3Plugin;
-use vst3_sys as vst3_com;
-use vst3_sys::base::{
-    ClassCardinality, FactoryFlags, IPluginFactory, IPluginFactory2, PClassInfo, PClassInfo2,
-    PFactoryInfo, kInvalidArgument, kResultFalse, kResultOk, tresult,
-};
-use vst3_sys::{IID, VST3};
+use crate::wrapper::vst3::util::strcpy_cstr;
 
 use super::AudioProcessor;
 use super::util::strcpy;
 
-pub const VST3_SDK_VERSION: &str = "VST 3.6.14";
-
-#[VST3(implements(IPluginFactory, IPluginFactory2))]
 pub struct Factory<P: VST3Plugin> {
     _phantom: PhantomData<P>,
 }
 
-impl<P: VST3Plugin> Factory<P> {
-    const EDITOR_CID: IID = IID {
-        data: P::EDITOR_UUID,
-    };
-    const PROCESSOR_CID: IID = IID {
-        data: P::PROCESSOR_UUID,
-    };
+impl<P: VST3Plugin> vst3::Class for Factory<P> {
+    type Interfaces = (IPluginFactory, IPluginFactory2);
+}
 
-    pub fn new() -> Box<Self> {
-        Self::allocate(PhantomData)
+impl<P: VST3Plugin> Factory<P> {
+    pub fn new_raw() -> *mut IPluginFactory {
+        ComWrapper::new(Self {
+            _phantom: PhantomData,
+        })
+        .to_com_ptr()
+        .unwrap()
+        .as_ptr()
+    }
+
+    fn processor_cid_as_tuid() -> TUID {
+        std::array::from_fn(|i| P::EDITOR_UUID[i] as _)
+    }
+
+    pub(super) fn editor_cid_as_tuid() -> TUID {
+        std::array::from_fn(|i| P::EDITOR_UUID[i] as _)
     }
 }
 
-impl<P: VST3Plugin> IPluginFactory for Factory<P> {
-    unsafe fn get_factory_info(&self, info: *mut PFactoryInfo) -> tresult {
+impl<P: VST3Plugin> IPluginFactoryTrait for Factory<P> {
+    unsafe fn getFactoryInfo(&self, info: *mut PFactoryInfo) -> tresult {
         let Some(info) = (unsafe { info.as_mut() }) else {
             return kInvalidArgument;
         };
         strcpy(P::URL, &mut info.url);
         strcpy(P::EMAIL, &mut info.email);
         strcpy(P::VENDOR, &mut info.vendor);
-        info.flags = FactoryFlags::kComponentNonDiscardable as i32;
+        info.flags = FactoryFlags_::kComponentNonDiscardable as i32;
         kResultOk
     }
 
-    unsafe fn count_classes(&self) -> i32 {
+    unsafe fn countClasses(&self) -> i32 {
         2
     }
 
-    unsafe fn get_class_info(&self, index: i32, info: *mut PClassInfo) -> tresult {
+    unsafe fn getClassInfo(&self, index: i32, info: *mut PClassInfo) -> tresult {
         let Some(info) = (unsafe { info.as_mut() }) else {
             return kInvalidArgument;
         };
         match index {
             0 => {
                 strcpy(P::NAME, &mut info.name);
-                info.cid = Self::PROCESSOR_CID;
-                info.cardinality = ClassCardinality::kManyInstances as i32;
+                info.cid = Self::processor_cid_as_tuid();
+                info.cardinality = ClassCardinality_::kManyInstances as i32;
                 strcpy("Audio Module Class", &mut info.category);
                 kResultOk
             }
             1 => {
-                info.cid = Self::EDITOR_CID;
+                info.cid = Self::editor_cid_as_tuid();
                 strcpy(
                     (P::NAME.to_owned() + " edit controller").as_str(),
                     &mut info.name,
                 );
                 strcpy("Component Controller Class", &mut info.category);
-                info.cardinality = ClassCardinality::kManyInstances as i32;
+                info.cardinality = ClassCardinality_::kManyInstances as i32;
                 kResultOk
             }
             _ => kInvalidArgument,
         }
     }
 
-    unsafe fn create_instance(
+    unsafe fn createInstance(
         &self,
-        cid: *const IID,
-        _iid: *const IID,
+        cid: FIDString,
+        iid: FIDString,
         obj: *mut *mut c_void,
     ) -> tresult {
-        println!("Create instance");
-        let Some(cid) = (unsafe { cid.as_ref() }) else {
-            return kInvalidArgument;
-        };
         let Some(obj) = (unsafe { obj.as_mut() }) else {
             return kInvalidArgument;
         };
+        if cid.is_null() {
+            return kInvalidArgument;
+        }
+        let cid = unsafe { CStr::from_ptr(cid) };
+        let cid_bytes = cid.to_bytes();
 
-        if *cid == Self::PROCESSOR_CID {
-            *obj = AudioProcessor::<P>::create_instance();
-            kResultOk
-        } else if *cid == Self::EDITOR_CID {
-            *obj = EditController::<P::Editor>::create_instance();
-            kResultOk
+        let instance = if cid_bytes == P::PROCESSOR_UUID.as_slice() {
+            AudioProcessor::<P>::new().to_com_ptr::<FUnknown>()
+        } else if cid_bytes == P::EDITOR_UUID.as_slice() {
+            EditController::<P::Editor>::new().to_com_ptr::<FUnknown>()
+        } else {
+            None
+        };
+
+        if let Some(instance) = instance {
+            let ptr = instance.as_ptr();
+            // This will assign the instance to the obj out variable (and increment the ref count),
+            // if it fullfills the interface with id iid
+            unsafe { ((*(*ptr).vtbl).queryInterface)(ptr, iid as *mut TUID, obj) }
         } else {
             kResultFalse
         }
     }
 }
 
-impl<P: VST3Plugin> IPluginFactory2 for Factory<P> {
-    unsafe fn get_class_info2(&self, index: i32, info: *mut PClassInfo2) -> tresult {
+const SDK_VERSION_STRING: &'static CStr = unsafe { CStr::from_ptr(SDKVersionString) };
+
+impl<P: VST3Plugin> IPluginFactory2Trait for Factory<P> {
+    unsafe fn getClassInfo2(&self, index: i32, info: *mut PClassInfo2) -> tresult {
         let Some(info) = (unsafe { info.as_mut() }) else {
             return kInvalidArgument;
         };
@@ -110,23 +132,23 @@ impl<P: VST3Plugin> IPluginFactory2 for Factory<P> {
         match index {
             0 => {
                 strcpy(P::NAME, &mut info.name);
-                info.cid = Self::PROCESSOR_CID;
-                info.cardinality = ClassCardinality::kManyInstances as i32;
+                info.cid = Self::processor_cid_as_tuid();
+                info.cardinality = ClassCardinality_::kManyInstances as i32;
                 strcpy("Audio Module Class", &mut info.category);
-                strcpy(VST3_SDK_VERSION, &mut info.sdk_version);
-                strcpy(&P::CATEGORIES.to_string(), &mut info.subcategories);
+                strcpy_cstr(SDK_VERSION_STRING, info.sdkVersion.as_mut_slice());
+                strcpy(&P::CATEGORIES.to_string(), &mut info.subCategories);
                 kResultOk
             }
             1 => {
-                info.cid = Self::EDITOR_CID;
+                info.cid = Self::editor_cid_as_tuid();
                 strcpy(
                     (P::NAME.to_owned() + " edit controller").as_str(),
                     &mut info.name,
                 );
                 strcpy("Component Controller Class", &mut info.category);
-                info.cardinality = ClassCardinality::kManyInstances as i32;
-                strcpy(VST3_SDK_VERSION, &mut info.sdk_version);
-                strcpy(&P::CATEGORIES.to_string(), &mut info.subcategories);
+                info.cardinality = ClassCardinality_::kManyInstances as i32;
+                strcpy_cstr(SDK_VERSION_STRING, &mut info.sdkVersion);
+                strcpy(&P::CATEGORIES.to_string(), &mut info.subCategories);
                 kResultOk
             }
             _ => kInvalidArgument,

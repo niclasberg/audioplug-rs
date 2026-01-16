@@ -1,6 +1,8 @@
 use std::{ffi::c_void, mem::MaybeUninit, ops::Deref, ptr::NonNull};
 
-use crate::core::{Color, FontFamily, FontOptions, FontStyle, FontWeight, Point, Rect, Size, Vec2};
+use crate::core::{
+    Color, FontFamily, FontOptions, FontStyle, FontWeight, Point, Rect, Size, Vec2, Zero,
+};
 use objc2_app_kit::{NSFontWeightBold, NSFontWeightRegular};
 use objc2_core_foundation::{
     CFDictionary, CFIndex, CFMutableAttributedString, CFMutableDictionary, CFNumber, CFRange,

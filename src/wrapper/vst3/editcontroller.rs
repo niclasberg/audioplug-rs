@@ -1,17 +1,18 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use vst3_com::VstPtr;
-use vst3_com::vst::{ParameterFlags, kRootUnitId};
-use vst3_sys::base::*;
-use vst3_sys::utils::SharedVstPtr;
-use vst3_sys::vst::{
-    IComponentHandler, IConnectionPoint, IEditController, IMessage, IUnitInfo, ParameterInfo,
-    ProgramListInfo, String128, UnitInfo, kNoParentUnitId, kNoProgramListId,
+use vst3::Steinberg::Vst::ParameterInfo_::ParameterFlags_;
+use vst3::Steinberg::Vst::{
+    IComponentHandler, IComponentHandlerTrait, IConnectionPoint, IConnectionPointTrait,
+    IEditController, IEditControllerTrait, IHostApplication, IMessage, IUnitInfo, IUnitInfoTrait,
+    ParamValue, ParameterInfo, ProgramListInfo, String128, TChar, UnitInfo, kNoParentUnitId,
+    kNoProgramListId, kRootUnitId,
 };
-use vst3_sys::{VST3, c_void};
-
-use vst3_sys as vst3_com;
+use vst3::Steinberg::{
+    FIDString, FUnknown, IBStream, IPlugView, IPluginBaseTrait, kInvalidArgument, kNotImplemented,
+    kResultFalse, kResultOk, tresult,
+};
+use vst3::{ComPtr, ComRef, ComWrapper};
 
 use crate::param::{
     AnyParameterMap, NormalizedValue, ParamRef, ParameterId, ParameterMap, Params, PlainValue,
@@ -23,42 +24,45 @@ use super::plugview::PlugView;
 use super::util::strcpyw;
 
 struct VST3HostHandle {
-    component_handler: VstPtr<dyn IComponentHandler>,
+    component_handler: ComPtr<IComponentHandler>,
     is_editing_parameters_from_gui: Rc<Cell<bool>>,
 }
 
 impl HostHandle for VST3HostHandle {
     fn begin_edit(&self, id: ParameterId) {
-        unsafe { self.component_handler.begin_edit(id.into()) };
+        unsafe { self.component_handler.beginEdit(id.into()) };
     }
 
     fn end_edit(&self, id: ParameterId) {
-        unsafe { self.component_handler.end_edit(id.into()) };
+        unsafe { self.component_handler.endEdit(id.into()) };
     }
 
     fn perform_edit(&self, info: &dyn crate::param::AnyParameter, value: NormalizedValue) {
         self.is_editing_parameters_from_gui.replace(true);
         unsafe {
             self.component_handler
-                .perform_edit(info.id().into(), value.into())
+                .performEdit(info.id().into(), value.into())
         };
         self.is_editing_parameters_from_gui.replace(false);
     }
 }
 
-#[VST3(implements(IEditController, IConnectionPoint, IUnitInfo))]
 pub struct EditController<E: Editor> {
     app_state: Rc<RefCell<AppState>>,
     editor: Rc<RefCell<E>>,
-    host_context: Cell<Option<VstPtr<dyn IUnknown>>>,
-    peer_connection: Cell<Option<VstPtr<dyn IConnectionPoint>>>,
+    host_context: Cell<Option<ComPtr<IHostApplication>>>,
+    peer_connection: Cell<Option<ComPtr<IConnectionPoint>>>,
     executor: Rc<platform::Executor>,
     is_editing_parameters_from_gui: Rc<Cell<bool>>,
     parameters: Rc<ParameterMap<E::Parameters>>,
 }
 
+impl<E: Editor> vst3::Class for EditController<E> {
+    type Interfaces = (IEditController, IConnectionPoint, IUnitInfo);
+}
+
 impl<E: Editor> EditController<E> {
-    pub fn new() -> Box<Self> {
+    pub fn new() -> ComWrapper<Self> {
         let executor = Rc::new(platform::Executor::new().unwrap());
         let parameters = ParameterMap::new(E::Parameters::new());
         let mut app_state = AppState::new(parameters.clone());
@@ -66,41 +70,37 @@ impl<E: Editor> EditController<E> {
             app_state: &mut app_state,
         })));
         let app_state = Rc::new(RefCell::new(app_state));
-        let is_editing_parameters = Rc::new(Cell::new(false));
-        Self::allocate(
+        let is_editing_parameters_from_gui = Rc::new(Cell::new(false));
+        ComWrapper::new(Self {
             app_state,
             editor,
-            Cell::new(None),
-            Cell::new(None),
+            host_context: Cell::new(None),
+            peer_connection: Cell::new(None),
             executor,
-            is_editing_parameters,
+            is_editing_parameters_from_gui,
             parameters,
-        )
-    }
-
-    pub fn create_instance() -> *mut c_void {
-        Box::into_raw(Self::new()) as *mut c_void
+        })
     }
 }
 
-impl<E: Editor> IEditController for EditController<E> {
-    unsafe fn set_component_state(&self, _state: SharedVstPtr<dyn IBStream>) -> tresult {
+impl<E: Editor> IEditControllerTrait for EditController<E> {
+    unsafe fn setComponentState(&self, _state: *mut IBStream) -> tresult {
         kResultOk
     }
 
-    unsafe fn set_state(&self, _state: SharedVstPtr<dyn IBStream>) -> tresult {
+    unsafe fn setState(&self, _state: *mut IBStream) -> tresult {
         kResultOk
     }
 
-    unsafe fn get_state(&self, _state: SharedVstPtr<dyn IBStream>) -> tresult {
+    unsafe fn getState(&self, _state: *mut IBStream) -> tresult {
         kResultOk
     }
 
-    unsafe fn get_parameter_count(&self) -> i32 {
+    unsafe fn getParameterCount(&self) -> i32 {
         self.parameters.count() as i32
     }
 
-    unsafe fn get_parameter_info(&self, param_index: i32, info: *mut ParameterInfo) -> tresult {
+    unsafe fn getParameterInfo(&self, param_index: i32, info: *mut ParameterInfo) -> tresult {
         let Some((group_id, param_ref)) = self.parameters.get_by_index(param_index as usize) else {
             return kInvalidArgument;
         };
@@ -108,38 +108,31 @@ impl<E: Editor> IEditController for EditController<E> {
             return kInvalidArgument;
         };
 
-        let param_ref = param_ref.as_param_ref();
         let parameter_id = param_ref.id();
 
         info.id = parameter_id.into();
         info.flags = match param_ref {
-            ParamRef::ByPass(_) => {
-                ParameterFlags::kCanAutomate as i32 | ParameterFlags::kIsBypass as i32
-            }
-            ParamRef::Int(_) => ParameterFlags::kCanAutomate as i32,
-            ParamRef::Float(_) => ParameterFlags::kCanAutomate as i32,
-            ParamRef::StringList(_) => {
-                ParameterFlags::kCanAutomate as i32 | ParameterFlags::kIsList as i32
-            }
-            ParamRef::Bool(_) => ParameterFlags::kCanAutomate as i32,
+            ParamRef::ByPass(_) => ParameterFlags_::kCanAutomate | ParameterFlags_::kIsBypass,
+            ParamRef::Int(_) => ParameterFlags_::kCanAutomate,
+            ParamRef::Float(_) => ParameterFlags_::kCanAutomate,
+            ParamRef::StringList(_) => ParameterFlags_::kCanAutomate | ParameterFlags_::kIsList,
+            ParamRef::Bool(_) => ParameterFlags_::kCanAutomate,
         };
-        info.default_normalized_value = param_ref.default_normalized().into();
-        strcpyw(param_ref.name(), &mut info.short_title);
+        info.defaultNormalizedValue = param_ref.info().default_value_normalized().into();
+        strcpyw(param_ref.name(), &mut info.shortTitle);
         strcpyw(param_ref.name(), &mut info.title);
-        info.step_count = param_ref.step_count() as i32;
-        info.unit_id = group_id.map(i32::from).unwrap_or(kRootUnitId);
+        info.stepCount = param_ref.info().step_count() as i32;
+        info.unitId = group_id.map(i32::from).unwrap_or(kRootUnitId);
         strcpyw("unit", &mut info.units);
         kResultOk
     }
 
-    unsafe fn get_param_string_by_value(
+    unsafe fn getParamStringByValue(
         &self,
         id: u32,
         value_normalized: f64,
-        string: *mut tchar,
+        string: *mut String128,
     ) -> tresult {
-        // The string is actually a String128, it's mistyped in vst3-sys
-        let string = string as *mut String128;
         let Some(string) = (unsafe { string.as_mut() }) else {
             return kInvalidArgument;
         };
@@ -149,22 +142,22 @@ impl<E: Editor> IEditController for EditController<E> {
         let Some(value) = NormalizedValue::from_f64(value_normalized) else {
             return kInvalidArgument;
         };
-        let value_str = param_ref.string_from_value(value);
+        let value_str = param_ref.info().string_from_value(value);
 
         strcpyw(&value_str, string);
         kResultOk
     }
 
-    unsafe fn get_param_value_by_string(
+    unsafe fn getParamValueByString(
         &self,
         id: u32,
-        string: *const tchar,
-        value_normalized: *mut f64,
+        string: *mut TChar,
+        valueNormalized: *mut ParamValue,
     ) -> tresult {
         let Some(param_ref) = self.parameters.get_by_id(ParameterId(id)) else {
             return kInvalidArgument;
         };
-        let Some(value_normalized) = (unsafe { value_normalized.as_mut() }) else {
+        let Some(value_normalized) = (unsafe { valueNormalized.as_mut() }) else {
             return kInvalidArgument;
         };
 
@@ -176,7 +169,7 @@ impl<E: Editor> IEditController for EditController<E> {
         let Ok(str) = String::from_utf16(slice) else {
             return kInvalidArgument;
         };
-        let Ok(value) = param_ref.value_from_string(&str) else {
+        let Ok(value) = param_ref.info().value_from_string(&str) else {
             return kInvalidArgument;
         };
         *value_normalized = value.0;
@@ -184,28 +177,30 @@ impl<E: Editor> IEditController for EditController<E> {
         kResultOk
     }
 
-    unsafe fn normalized_param_to_plain(&self, id: u32, value_normalized: f64) -> f64 {
+    unsafe fn normalizedParamToPlain(&self, id: u32, value_normalized: f64) -> f64 {
         let value_normalized = NormalizedValue::from_f64_unchecked(value_normalized);
         self.parameters
             .get_by_id(ParameterId(id))
-            .map_or(0.0, |param| param.denormalize(value_normalized).into())
-    }
-
-    unsafe fn plain_param_to_normalized(&self, id: u32, plain_value: f64) -> f64 {
-        self.parameters
-            .get_by_id(ParameterId(id))
             .map_or(0.0, |param| {
-                param.normalize(PlainValue::new(plain_value)).into()
+                param.info().denormalize(value_normalized).into()
             })
     }
 
-    unsafe fn get_param_normalized(&self, id: u32) -> f64 {
+    unsafe fn plainParamToNormalized(&self, id: u32, plain_value: f64) -> f64 {
+        self.parameters
+            .get_by_id(ParameterId(id))
+            .map_or(0.0, |param| {
+                param.info().normalize(PlainValue::new(plain_value)).into()
+            })
+    }
+
+    unsafe fn getParamNormalized(&self, id: u32) -> f64 {
         self.parameters
             .get_by_id(ParameterId(id))
             .map_or(0.0, |p| p.normalized_value().into())
     }
 
-    unsafe fn set_param_normalized(&self, id: u32, value: f64) -> tresult {
+    unsafe fn setParamNormalized(&self, id: u32, value: f64) -> tresult {
         // Avoid re-entrancy issues when setting a parameter from the ui
         if self.is_editing_parameters_from_gui.get() {
             return kResultOk;
@@ -223,14 +218,11 @@ impl<E: Editor> IEditController for EditController<E> {
         }
     }
 
-    unsafe fn set_component_handler(
-        &self,
-        handler: SharedVstPtr<dyn IComponentHandler>,
-    ) -> tresult {
-        if let Some(component_handler) = handler.upgrade() {
+    unsafe fn setComponentHandler(&self, handler: *mut IComponentHandler) -> tresult {
+        if let Some(component_handler) = unsafe { ComRef::from_raw(handler) } {
             let is_editing_parameters = self.is_editing_parameters_from_gui.clone();
             let handle = Box::new(VST3HostHandle {
-                component_handler,
+                component_handler: component_handler.to_com_ptr(),
                 is_editing_parameters_from_gui: is_editing_parameters,
             });
             self.app_state.borrow_mut().set_host_handle(Some(handle));
@@ -241,24 +233,29 @@ impl<E: Editor> IEditController for EditController<E> {
         kResultOk
     }
 
-    unsafe fn create_view(&self, _name: FIDString) -> *mut c_void {
-        PlugView::create_instance(
+    unsafe fn createView(&self, _name: FIDString) -> *mut IPlugView {
+        PlugView::new(
             self.app_state.clone(),
             self.editor.clone(),
             self.parameters.clone(),
         )
+        .to_com_ptr()
+        .expect("We are casting from a ComWrapper<IPlugView> to a ComPtr<IPlugView>, this should never fail")
+        .as_ptr()
     }
 }
 
-impl<E: Editor> IPluginBase for EditController<E> {
-    unsafe fn initialize(&self, context: *mut c_void) -> tresult {
+impl<E: Editor> IPluginBaseTrait for EditController<E> {
+    unsafe fn initialize(&self, context: *mut FUnknown) -> tresult {
         let old_host_context = self.host_context.take();
         if old_host_context.is_some() {
             self.host_context.set(old_host_context);
             return kResultFalse;
         }
 
-        if let Some(context) = unsafe { VstPtr::<dyn IUnknown>::owned(context as *mut _) } {
+        let host_context =
+            unsafe { ComRef::from_raw(context) }.and_then(|cx| cx.cast::<IHostApplication>());
+        if let Some(context) = host_context {
             self.host_context.set(Some(context));
             kResultOk
         } else {
@@ -274,8 +271,8 @@ impl<E: Editor> IPluginBase for EditController<E> {
     }
 }
 
-impl<E: Editor> IConnectionPoint for EditController<E> {
-    unsafe fn connect(&self, _other: SharedVstPtr<dyn IConnectionPoint>) -> tresult {
+impl<E: Editor> IConnectionPointTrait for EditController<E> {
+    unsafe fn connect(&self, _other: *mut IConnectionPoint) -> tresult {
         //if let Some(other) = other.upgrade() {
         //self.peer_connection.set(Some(other));
         //other.notify(message)
@@ -283,30 +280,30 @@ impl<E: Editor> IConnectionPoint for EditController<E> {
         kResultOk
     }
 
-    unsafe fn disconnect(&self, _other: SharedVstPtr<dyn IConnectionPoint>) -> tresult {
+    unsafe fn disconnect(&self, _other: *mut IConnectionPoint) -> tresult {
         //self.peer_connection.take();
         kResultOk
     }
 
-    unsafe fn notify(&self, _message: SharedVstPtr<dyn IMessage>) -> tresult {
+    unsafe fn notify(&self, _message: *mut IMessage) -> tresult {
         kResultOk
     }
 }
 
-impl<E: Editor> IUnitInfo for EditController<E> {
-    unsafe fn get_unit_count(&self) -> i32 {
+impl<E: Editor> IUnitInfoTrait for EditController<E> {
+    unsafe fn getUnitCount(&self) -> i32 {
         1 + self.parameters.groups_count() as i32
     }
 
-    unsafe fn get_unit_info(&self, unit_index: i32, info: *mut UnitInfo) -> tresult {
+    unsafe fn getUnitInfo(&self, unit_index: i32, info: *mut UnitInfo) -> tresult {
         let Some(info) = (unsafe { info.as_mut() }) else {
             return kInvalidArgument;
         };
 
         if unit_index == 0 {
             info.id = kRootUnitId;
-            info.parent_unit_id = kNoParentUnitId;
-            info.program_list_id = kNoProgramListId;
+            info.parentUnitId = kNoParentUnitId;
+            info.programListId = kNoProgramListId;
             strcpyw("Root unit", &mut info.name);
 
             kResultOk
@@ -318,68 +315,64 @@ impl<E: Editor> IUnitInfo for EditController<E> {
                 return kInvalidArgument;
             };
             info.id = group.id().0 as _;
-            info.parent_unit_id = parent_group_id.map(|id| id.0 as i32).unwrap_or(kRootUnitId);
-            info.program_list_id = kNoProgramListId;
+            info.parentUnitId = parent_group_id.map(|id| id.0 as i32).unwrap_or(kRootUnitId);
+            info.programListId = kNoProgramListId;
             strcpyw(group.name(), &mut info.name);
 
             kResultOk
         }
     }
 
-    unsafe fn get_program_list_count(&self) -> i32 {
+    unsafe fn getProgramListCount(&self) -> i32 {
         0
     }
 
-    unsafe fn get_program_list_info(
-        &self,
-        _list_index: i32,
-        _info: *mut ProgramListInfo,
-    ) -> tresult {
+    unsafe fn getProgramListInfo(&self, _list_index: i32, _info: *mut ProgramListInfo) -> tresult {
         kNotImplemented
     }
 
-    unsafe fn get_program_name(
+    unsafe fn getProgramName(
         &self,
         _list_id: i32,
         _program_index: i32,
-        _name: *mut u16,
+        _name: *mut String128,
     ) -> tresult {
         kNotImplemented
     }
 
-    unsafe fn get_program_info(
+    unsafe fn getProgramInfo(
         &self,
         _list_id: i32,
         _program_index: i32,
-        _attribute_id: *const u8,
-        _attribute_value: *mut u16,
+        _attribute_id: *const i8,
+        _attribute_value: *mut String128,
     ) -> tresult {
         kNotImplemented
     }
 
-    unsafe fn has_program_pitch_names(&self, _id: i32, _index: i32) -> tresult {
+    unsafe fn hasProgramPitchNames(&self, _id: i32, _index: i32) -> tresult {
         kResultFalse
     }
 
-    unsafe fn get_program_pitch_name(
+    unsafe fn getProgramPitchName(
         &self,
         _id: i32,
         _index: i32,
         _pitch: i16,
-        _name: *mut u16,
+        _name: *mut String128,
     ) -> tresult {
         kNotImplemented
     }
 
-    unsafe fn get_selected_unit(&self) -> i32 {
+    unsafe fn getSelectedUnit(&self) -> i32 {
         0
     }
 
-    unsafe fn select_unit(&self, _id: i32) -> tresult {
+    unsafe fn selectUnit(&self, _id: i32) -> tresult {
         kResultOk
     }
 
-    unsafe fn get_unit_by_bus(
+    unsafe fn getUnitByBus(
         &self,
         _type_: i32,
         _dir: i32,
@@ -390,11 +383,11 @@ impl<E: Editor> IUnitInfo for EditController<E> {
         kNotImplemented
     }
 
-    unsafe fn set_unit_program_data(
+    unsafe fn setUnitProgramData(
         &self,
         _list_or_unit: i32,
         _program_idx: i32,
-        _data: SharedVstPtr<dyn IBStream>,
+        _data: *mut IBStream,
     ) -> tresult {
         kNotImplemented
     }

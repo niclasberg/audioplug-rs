@@ -6,7 +6,7 @@ use objc2_audio_toolbox::{
     AUParameter, AUParameterAddress, AUParameterNode, AUParameterTree, AUValue,
     AudioUnitParameterOptions, AudioUnitParameterUnit,
 };
-use objc2_foundation::{ns_string, NSArray, NSMutableArray, NSNumber, NSString};
+use objc2_foundation::{NSArray, NSMutableArray, NSNumber, NSString, ns_string};
 
 use crate::param::{
     AnyParameter, AnyParameterGroup, AnyParameterMap, ParamVisitor, ParameterId, ParameterMap,
@@ -55,11 +55,11 @@ fn create_parameter(
 impl ParamVisitor for CreateParametersVisitor {
     fn bool_parameter(&mut self, p: &crate::param::BoolParameter) {
         let au_param = create_parameter(
-            &NSString::from_str(p.info().name()),
-            &NSString::from_str(p.info().name()),
-            p.info().id().into(),
-            Into::<f64>::into(p.info().min_value()) as _,
-            Into::<f64>::into(p.info().max_value()) as _,
+            &NSString::from_str(p.name()),
+            &NSString::from_str(p.name()),
+            p.id().into(),
+            Into::<f64>::into(p.min_value()) as _,
+            Into::<f64>::into(p.max_value()) as _,
             AudioUnitParameterUnit::Boolean,
             ns_string!("-"),
             AudioUnitParameterOptions::Flag_IsReadable | AudioUnitParameterOptions::Flag_IsWritable,
@@ -71,11 +71,11 @@ impl ParamVisitor for CreateParametersVisitor {
 
     fn bypass_parameter(&mut self, p: &crate::param::ByPassParameter) {
         let au_param = create_parameter(
-            &NSString::from_str(p.info().name()),
-            &NSString::from_str(p.info().name()),
-            p.info().id().into(),
-            Into::<f64>::into(p.info().min_value()) as _,
-            Into::<f64>::into(p.info().max_value()) as _,
+            &NSString::from_str(p.name()),
+            &NSString::from_str(p.name()),
+            p.id().into(),
+            Into::<f64>::into(p.min_value()) as _,
+            Into::<f64>::into(p.max_value()) as _,
             AudioUnitParameterUnit::Boolean,
             ns_string!("-"),
             AudioUnitParameterOptions::Flag_IsReadable | AudioUnitParameterOptions::Flag_IsWritable,
@@ -87,11 +87,11 @@ impl ParamVisitor for CreateParametersVisitor {
 
     fn float_parameter(&mut self, p: &crate::param::FloatParameter) {
         let au_param = create_parameter(
-            &NSString::from_str(p.info().name()),
-            &NSString::from_str(p.info().name()),
-            p.info().id().into(),
-            Into::<f64>::into(p.info().min_value()) as _,
-            Into::<f64>::into(p.info().max_value()) as _,
+            &NSString::from_str(p.name()),
+            &NSString::from_str(p.name()),
+            p.id().into(),
+            Into::<f64>::into(p.min_value()) as _,
+            Into::<f64>::into(p.max_value()) as _,
             AudioUnitParameterUnit::CustomUnit,
             ns_string!("Unit"),
             AudioUnitParameterOptions::Flag_IsReadable | AudioUnitParameterOptions::Flag_IsWritable,
@@ -103,11 +103,11 @@ impl ParamVisitor for CreateParametersVisitor {
 
     fn int_parameter(&mut self, p: &crate::param::IntParameter) {
         let au_param = create_parameter(
-            &NSString::from_str(p.info().name()),
-            &NSString::from_str(p.info().name()),
-            p.info().id().into(),
-            Into::<f64>::into(p.info().min_value()) as _,
-            Into::<f64>::into(p.info().max_value()) as _,
+            &NSString::from_str(p.name()),
+            &NSString::from_str(p.name()),
+            p.id().into(),
+            Into::<f64>::into(p.min_value()) as _,
+            Into::<f64>::into(p.max_value()) as _,
             AudioUnitParameterUnit::CustomUnit,
             ns_string!("Unit"),
             AudioUnitParameterOptions::Flag_IsReadable | AudioUnitParameterOptions::Flag_IsWritable,

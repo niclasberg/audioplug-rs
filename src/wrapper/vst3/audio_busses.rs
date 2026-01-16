@@ -1,13 +1,9 @@
-use vst3_sys::vst::{BusDirection, BusDirections, BusType, BusTypes, MediaType, MediaTypes};
+use vst3::Steinberg::Vst::{
+    BusDirection, BusDirections, BusDirections_, BusType, BusTypes, BusTypes_, MediaType,
+    MediaTypes, MediaTypes_,
+};
 
 use crate::AudioLayout;
-
-const BUS_TYPE_MAIN: BusType = BusTypes::kMain as _;
-const BUS_TYPE_AUX: BusType = BusTypes::kAux as _;
-const MEDIA_TYPE_AUDIO: MediaType = MediaTypes::kAudio as _;
-const MEDIA_TYPE_EVENT: MediaType = MediaTypes::kEvent as _;
-const BUS_DIRECTION_INPUT: BusDirection = BusDirections::kInput as _;
-const BUS_DIRECTION_OUTPUT: BusDirection = BusDirections::kOutput as _;
 
 pub struct Vst3Busses {
     pub audio_inputs: Vec<Vst3Bus>,
@@ -23,11 +19,11 @@ impl Vst3Busses {
             event_inputs.push(Vst3Bus {
                 name: "MIDI input",
                 channel_count: 1,
-                bus_type: BUS_TYPE_MAIN,
-                media_type: MEDIA_TYPE_EVENT,
+                bus_type: BusTypes_::kMain as _,
+                media_type: MediaTypes_::kEvent as _,
                 default_active: true,
                 is_active: true,
-                bus_direction: BUS_DIRECTION_INPUT,
+                bus_direction: BusDirections_::kInput as _,
             });
         }
 
@@ -36,11 +32,11 @@ impl Vst3Busses {
             event_outputs.push(Vst3Bus {
                 name: "MIDI input",
                 channel_count: 1,
-                bus_type: BUS_TYPE_MAIN,
-                media_type: MEDIA_TYPE_EVENT,
+                bus_type: BusTypes_::kMain as _,
+                media_type: MediaTypes_::kEvent as _,
                 default_active: true,
                 is_active: true,
-                bus_direction: BUS_DIRECTION_OUTPUT,
+                bus_direction: BusDirections_::kOutput as _,
             });
         }
 

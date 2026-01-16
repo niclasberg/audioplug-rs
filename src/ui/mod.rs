@@ -5,7 +5,6 @@ mod event_handling;
 mod host_handle;
 mod layout;
 mod overlay;
-mod param;
 pub(super) mod reactive;
 mod render;
 pub mod style;
@@ -24,14 +23,13 @@ pub use event_handling::{CallbackContext, EventContext, MouseEventContext};
 pub use host_handle::HostHandle;
 pub use layout::{LayoutContext, layout_window};
 pub use overlay::{OverlayAnchor, OverlayOptions};
-pub use param::{ParamContext, ParamSetter};
 
 pub use reactive::{
     Accessor, Animated, AnimatedFn, Animation, Cached, CachedContext, Computed, CreateContext,
     Easing, Effect, EffectContext, EventChannel, EventReceiver, Mapped, Node, NodeId, Owner,
-    ReactiveContext, ReactiveGraph, ReactiveValue, ReadContext, ReadScope, ReadSignal,
-    SpringOptions, Trigger, TweenOptions, Var, ViewContext, WatchContext, WidgetContext,
-    WriteContext,
+    ParamContext, ParamSetter, ReactiveContext, ReactiveGraph, ReactiveValue, ReadContext,
+    ReadScope, ReadSignal, SpringOptions, Trigger, TweenOptions, Var, ViewContext, WatchContext,
+    WidgetContext, WriteContext,
 };
 pub use render::{
     Canvas, CanvasContext, CanvasWidget, RenderContext, Scene, TextLayout, invalidate_window,

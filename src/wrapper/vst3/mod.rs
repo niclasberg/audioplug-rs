@@ -3,6 +3,7 @@ mod audioprocessor;
 mod category;
 mod editcontroller;
 mod factory;
+mod parameters;
 mod plugview;
 mod util;
 
