@@ -7,7 +7,7 @@ use vst3::Steinberg::kResultOk;
 use vst3::Steinberg::{
     FIDString, IPlugFrame, IPlugView, IPlugViewContentScaleSupport,
     IPlugViewContentScaleSupportTrait, IPlugViewTrait, TBool, ViewRect, char16, kInvalidArgument,
-    kResultFalse, kResultTrue, tresult,
+    kResultFalse, kResultOk, kResultTrue, tresult,
 };
 use vst3::{ComPtr, ComRef, ComWrapper};
 
@@ -35,14 +35,14 @@ impl<E: Editor> PlugView<E> {
         app_state: Rc<RefCell<AppState>>,
         editor: Rc<RefCell<E>>,
         parameters: Rc<ParameterMap<E::Parameters>>,
-    ) -> ComWrapper<Self> {
-        ComWrapper::new(Self {
+    ) -> Self {
+        Self {
             window: RefCell::new(None),
             app_state,
             editor,
             plugin_frame: RefCell::new(None),
             parameters,
-        })
+        }
     }
 }
 
@@ -51,8 +51,7 @@ impl<E: Editor> vst3::Class for PlugView<E> {
 }
 
 #[cfg(target_os = "windows")]
-const PLATFORM_TYPE_HWND: &'static CStr =
-    unsafe { CStr::from_ptr(vst3::Steinberg::kPlatformTypeHWND) };
+const PLATFORM_TYPE_HWND: &CStr = unsafe { CStr::from_ptr(vst3::Steinberg::kPlatformTypeHWND) };
 #[cfg(target_os = "macos")]
 const PLATFORM_TYPE_NSVIEW: &'static CStr =
     unsafe { CStr::from_ptr(vst3::Steinberg::kPlatformTypeNSView) };
@@ -87,7 +86,10 @@ impl<E: Editor> IPlugViewTrait for PlugView<E> {
                 if type_ == PLATFORM_TYPE_HWND {
                     let h = Win32WindowHandle::new(NonZeroIsize::new(parent as isize).unwrap());
                     RawWindowHandle::Win32(h)
+                } else {
+                    return kInvalidArgument;
                 }
+
                 #[cfg(target_os = "macos")]
                 if type_ == PLATFORM_TYPE_NSVIEW {
                     let h = AppKitWindowHandle::new(NonNull::new(parent).unwrap());

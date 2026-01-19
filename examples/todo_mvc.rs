@@ -8,7 +8,6 @@ use audioplug::{
     views::*,
 };
 use rand::prelude::*;
-use taffy::AlignSelf;
 
 #[derive(Clone, Copy)]
 struct Todo {
@@ -98,7 +97,6 @@ fn todo_view<F: Fn(&mut dyn WriteContext) + 'static>(
     on_remove: F,
 ) -> impl View + use<F> {
     let completed = todo.completed;
-    let name = todo.name;
     Row::new((
         Checkbox::new()
             .checked(todo.completed)

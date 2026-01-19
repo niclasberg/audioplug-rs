@@ -3,9 +3,10 @@ use std::{
     marker::PhantomData,
     mem::MaybeUninit,
     rc::Rc,
-    sync::Once,
+    sync::{LazyLock, Once},
 };
 
+use uuid::Uuid;
 use windows::{
     core::{w, Result, BOOL, PCWSTR},
     Win32::{
@@ -25,6 +26,7 @@ use windows::{
     },
 };
 use KeyboardAndMouse::{ReleaseCapture, SetCapture};
+use windows_core::{HSTRING, h};
 
 use super::{
     cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, util::{get_scale_factor_for_window, get_theme}, Handle
@@ -37,8 +39,6 @@ use crate::{
     MouseButtons,
 };
 
-const WINDOW_CLASS: PCWSTR = w!("my_window");
-static REGISTER_WINDOW_CLASS: Once = Once::new();
 const ANIMATION_FRAME_TIMER: usize = 10;
 
 pub struct Window {
@@ -372,6 +372,37 @@ impl WindowState {
     }
 }
 
+struct WindowClass {
+    class_name: HSTRING,
+}
+
+impl Drop for WindowClass {
+    fn drop(&mut self) {
+        unsafe { UnregisterClassW(&self.class_name, None) }.expect("Window class should have been registered before unregistering")
+    }
+}
+
+static WINDOW_CLASS: LazyLock<WindowClass> = LazyLock::new(|| {
+    let instance = unsafe { GetModuleHandleW(None) }.expect("Should be able to get module");
+    let class_name = HSTRING::from(&("AUDIOPLUG_WINDOWCLS_".to_string() + &Uuid::new_v4().to_string()));
+    let class = WNDCLASSW {
+        lpszClassName: PCWSTR(class_name.as_ptr()),
+        hCursor: unsafe { LoadCursorW(None, IDC_ARROW).unwrap() },
+        hInstance: instance.into(),
+        lpfnWndProc: Some(wndproc),
+        style: CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS,
+        ..WNDCLASSW::default()
+    };
+    assert_ne!(
+        unsafe { RegisterClassW(&class) },
+        0,
+        "Unable to register window class"
+    );
+    WindowClass {
+        class_name
+    }
+});
+
 impl Window {
     pub fn open(handler: impl WindowHandler + 'static) -> Result<Self> {
         let this = Self::create(None, WS_OVERLAPPEDWINDOW, handler, true)?;
@@ -434,21 +465,7 @@ impl Window {
         quit_app_on_exit: bool,
     ) -> Result<Self> {
         let instance = unsafe { GetModuleHandleW(None)? };
-        REGISTER_WINDOW_CLASS.call_once(|| {
-            let class = WNDCLASSW {
-                lpszClassName: WINDOW_CLASS,
-                hCursor: unsafe { LoadCursorW(None, IDC_ARROW).unwrap() },
-                hInstance: instance.into(),
-                lpfnWndProc: Some(wndproc),
-                style: CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS,
-                ..WNDCLASSW::default()
-            };
-            assert_ne!(
-                unsafe { RegisterClassW(&class) },
-                0,
-                "Unable to register window class"
-            );
-        });
+        let window_class = &WINDOW_CLASS.class_name;
 
         let ticks_per_second = unsafe {
             let mut frequency: i64 = 0;
@@ -469,7 +486,7 @@ impl Window {
         let hwnd = unsafe {
             CreateWindowExW(
                 WINDOW_EX_STYLE::default(),
-                WINDOW_CLASS,
+                window_class,
                 w!("My window"),
                 style,
                 CW_USEDEFAULT,

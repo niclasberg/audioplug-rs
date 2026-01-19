@@ -30,8 +30,25 @@ pub fn strcpyw(src: &str, dst: &mut [TChar]) {
     dst[len] = 0;
 }
 
-pub fn tuid_from_uuid(uuid: &[u8; 16]) -> TUID {
-    std::array::from_fn(|i| uuid[i] as _)
+pub const fn tuid_from_uuid(uuid: &[u8; 16]) -> TUID {
+    [
+        uuid[0] as _,
+        uuid[1] as _,
+        uuid[2] as _,
+        uuid[3] as _,
+        uuid[4] as _,
+        uuid[5] as _,
+        uuid[6] as _,
+        uuid[7] as _,
+        uuid[8] as _,
+        uuid[9] as _,
+        uuid[10] as _,
+        uuid[11] as _,
+        uuid[12] as _,
+        uuid[13] as _,
+        uuid[14] as _,
+        uuid[15] as _,
+    ]
 }
 
 impl From<ViewRect> for Rect<i32> {

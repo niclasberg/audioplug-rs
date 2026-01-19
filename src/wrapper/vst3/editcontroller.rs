@@ -62,7 +62,7 @@ impl<E: Editor> vst3::Class for EditController<E> {
 }
 
 impl<E: Editor> EditController<E> {
-    pub fn new() -> ComWrapper<Self> {
+    pub fn new() -> Self {
         let executor = Rc::new(platform::Executor::new().unwrap());
         let parameters = ParameterMap::new(E::Parameters::new());
         let mut app_state = AppState::new(parameters.clone());
@@ -71,7 +71,7 @@ impl<E: Editor> EditController<E> {
         })));
         let app_state = Rc::new(RefCell::new(app_state));
         let is_editing_parameters_from_gui = Rc::new(Cell::new(false));
-        ComWrapper::new(Self {
+        Self {
             app_state,
             editor,
             host_context: Cell::new(None),
@@ -79,10 +79,11 @@ impl<E: Editor> EditController<E> {
             executor,
             is_editing_parameters_from_gui,
             parameters,
-        })
+        }
     }
 }
 
+#[allow(non_snake_case)]
 impl<E: Editor> IEditControllerTrait for EditController<E> {
     unsafe fn setComponentState(&self, _state: *mut IBStream) -> tresult {
         kResultOk
@@ -164,7 +165,7 @@ impl<E: Editor> IEditControllerTrait for EditController<E> {
         let len = (0..)
             .take_while(|&i| unsafe { *string.offset(i) } != 0)
             .count();
-        let slice = unsafe { std::slice::from_raw_parts(string as *mut u16, len) };
+        let slice = unsafe { std::slice::from_raw_parts(string as *mut _, len) };
 
         let Ok(str) = String::from_utf16(slice) else {
             return kInvalidArgument;
@@ -234,14 +235,14 @@ impl<E: Editor> IEditControllerTrait for EditController<E> {
     }
 
     unsafe fn createView(&self, _name: FIDString) -> *mut IPlugView {
-        PlugView::new(
+        ComWrapper::new(PlugView::new(
             self.app_state.clone(),
             self.editor.clone(),
             self.parameters.clone(),
-        )
+        ))
         .to_com_ptr()
         .expect("We are casting from a ComWrapper<IPlugView> to a ComPtr<IPlugView>, this should never fail")
-        .as_ptr()
+        .into_raw()
     }
 }
 
@@ -290,6 +291,7 @@ impl<E: Editor> IConnectionPointTrait for EditController<E> {
     }
 }
 
+#[allow(non_snake_case)]
 impl<E: Editor> IUnitInfoTrait for EditController<E> {
     unsafe fn getUnitCount(&self) -> i32 {
         1 + self.parameters.groups_count() as i32

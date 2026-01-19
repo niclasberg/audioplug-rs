@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VSTCategory {
     Fx,
@@ -91,12 +93,16 @@ impl VST3Categories {
     pub const fn new(categories: &'static [VSTCategory]) -> Self {
         Self(categories)
     }
+}
 
-    pub fn to_string(&self) -> String {
-        self.0
+impl Display for VST3Categories {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = self
+            .0
             .iter()
             .map(VSTCategory::as_str)
             .collect::<Vec<_>>()
-            .join("|")
+            .join("|");
+        f.write_str(&str)
     }
 }

@@ -15,12 +15,11 @@ use vst3::Steinberg::{
     FUnknown, IBStream, IPluginBase, IPluginBaseTrait, TBool, TUID, kInvalidArgument,
     kNotImplemented, kResultFalse, kResultOk, tresult,
 };
-use vst3::{ComPtr, ComRef, ComWrapper, Interface};
+use vst3::{ComPtr, ComRef, Interface};
 
 use super::util::strcpyw;
 use crate::midi::{Note, NoteEvent};
 use crate::param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap, Params};
-use crate::wrapper::vst3::Factory;
 use crate::wrapper::vst3::util::tuid_from_uuid;
 use crate::{AudioBuffer, MidiProcessContext, ProcessContext, ProcessInfo, VST3Plugin};
 
@@ -39,13 +38,14 @@ impl<P: VST3Plugin> vst3::Class for AudioProcessor<P> {
 }
 
 impl<P: VST3Plugin> AudioProcessor<P> {
-    pub fn new() -> ComWrapper<Self> {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
         let parameters = ParameterMap::new(P::Parameters::new());
-        ComWrapper::new(Self {
+        Self {
             plugin: AtomicRefCell::new(P::new()),
             parameters,
             host_context: Cell::new(None),
-        })
+        }
     }
 }
 
@@ -81,7 +81,7 @@ impl<P: VST3Plugin> IAudioProcessorTrait for AudioProcessor<P> {
 
         let bus_option = (index == 0)
             .then(|| {
-                if dir == BusDirections_::kInput as i32 {
+                if dir == BusDirections_::kInput as _ {
                     P::AUDIO_LAYOUT.main_input.as_ref()
                 } else {
                     P::AUDIO_LAYOUT.main_output.as_ref()
@@ -102,7 +102,7 @@ impl<P: VST3Plugin> IAudioProcessorTrait for AudioProcessor<P> {
     }
 
     unsafe fn canProcessSampleSize(&self, symbolic_sample_size: i32) -> tresult {
-        if symbolic_sample_size == SymbolicSampleSizes_::kSample32 as i32 {
+        if symbolic_sample_size == SymbolicSampleSizes_::kSample32 as _ {
             kResultOk
         } else {
             kResultFalse
@@ -181,7 +181,7 @@ impl<P: VST3Plugin> IAudioProcessorTrait for AudioProcessor<P> {
         } else {
             unsafe {
                 AudioBuffer::from_ptr(
-                    (*data.inputs).__field0.channelBuffers32 as *mut *mut _,
+                    (*data.inputs).__field0.channelBuffers32,
                     (*data.inputs).numChannels as usize,
                     data.numSamples as usize,
                 )
@@ -193,7 +193,7 @@ impl<P: VST3Plugin> IAudioProcessorTrait for AudioProcessor<P> {
         } else {
             unsafe {
                 AudioBuffer::from_ptr(
-                    (*data.outputs).__field0.channelBuffers32 as *mut *mut _,
+                    (*data.outputs).__field0.channelBuffers32,
                     (*data.outputs).numChannels as usize,
                     data.numSamples as usize,
                 )
@@ -201,7 +201,7 @@ impl<P: VST3Plugin> IAudioProcessorTrait for AudioProcessor<P> {
         };
 
         let info = ProcessInfo {
-            rendering_offline: data.processMode == ProcessModes_::kOffline as i32,
+            rendering_offline: data.processMode == ProcessModes_::kOffline as _,
             sample_rate: process_context.sampleRate,
         };
 
@@ -293,7 +293,7 @@ impl<P: VST3Plugin> IPluginBaseTrait for AudioProcessor<P> {
 impl<P: VST3Plugin> IComponentTrait for AudioProcessor<P> {
     unsafe fn getControllerClassId(&self, tuid: *mut TUID) -> tresult {
         if let Some(tuid) = unsafe { tuid.as_mut() } {
-            *tuid = Factory::<P>::editor_cid_as_tuid();
+            *tuid = tuid_from_uuid(&P::EDITOR_UUID);
             kResultOk
         } else {
             kInvalidArgument
@@ -365,7 +365,7 @@ impl<P: VST3Plugin> IComponentTrait for AudioProcessor<P> {
                     info.mediaType = type_;
                     strcpyw(bus.name, &mut info.name);
                     info.busType = BusTypes_::kMain as _;
-                    info.flags = BusFlags_::kDefaultActive;
+                    info.flags = BusFlags_::kDefaultActive as _;
                     kResultOk
                 } else {
                     kInvalidArgument
@@ -378,7 +378,7 @@ impl<P: VST3Plugin> IComponentTrait for AudioProcessor<P> {
                     info.mediaType = EVENT;
                     strcpyw("MIDI in", &mut info.name);
                     info.busType = BusTypes_::kMain as _;
-                    info.flags = BusFlags_::kDefaultActive;
+                    info.flags = BusFlags_::kDefaultActive as _;
                     kResultOk
                 } else if dir == OUTPUT && P::PRODUCES_MIDI {
                     info.channelCount = 16;
@@ -386,7 +386,7 @@ impl<P: VST3Plugin> IComponentTrait for AudioProcessor<P> {
                     info.mediaType = EVENT;
                     strcpyw("MIDI out", &mut info.name);
                     info.busType = BusTypes_::kMain as _;
-                    info.flags = BusFlags_::kDefaultActive;
+                    info.flags = BusFlags_::kDefaultActive as _;
 
                     kResultOk
                 } else {
@@ -454,10 +454,15 @@ impl<P: VST3Plugin> IConnectionPointTrait for AudioProcessor<P> {
         // object to the editor (and vice versa) using the IConnectionPoint API and then implement our own system.
 
         let mut message_tuid = tuid_from_uuid(&IMessage::IID);
-        let mut message = std::ptr::null_mut();
+        let message = std::ptr::null_mut();
         if unsafe {
-            host_context.createInstance(&mut message_tuid, &mut message_tuid, &mut message)
+            host_context.createInstance(
+                &mut message_tuid,
+                &mut message_tuid,
+                &mut (message as *mut _),
+            )
         } == kResultOk
+            && let Some(message) = unsafe { ComPtr::from_raw(message as *mut IMessage) }
         {}
         //;
 
