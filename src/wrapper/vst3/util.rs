@@ -12,14 +12,6 @@ pub fn strcpy(src: &str, dst: &mut [c_char]) {
     dst[len] = 0;
 }
 
-pub fn strcpy_cstr(src: &CStr, dst: &mut [c_char]) {
-    let src = src.to_bytes();
-    let src = unsafe { &*(src as *const [u8] as *const [c_char]) };
-    let len = std::cmp::min(dst.len() - 1, src.len());
-    dst[..len].copy_from_slice(&src[..len]);
-    dst[len] = 0;
-}
-
 pub fn strcpyw(src: &str, dst: &mut [TChar]) {
     let mut src: Vec<u16> = src.encode_utf16().collect();
     src.push(0);

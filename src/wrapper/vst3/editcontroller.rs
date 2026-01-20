@@ -1,12 +1,14 @@
 use std::cell::{Cell, RefCell};
+use std::ffi::CStr;
+use std::ptr::NonNull;
 use std::rc::Rc;
 
 use vst3::Steinberg::Vst::ParameterInfo_::ParameterFlags_;
 use vst3::Steinberg::Vst::{
-    IComponentHandler, IComponentHandlerTrait, IConnectionPoint, IConnectionPointTrait,
-    IEditController, IEditControllerTrait, IHostApplication, IMessage, IUnitInfo, IUnitInfoTrait,
-    ParamValue, ParameterInfo, ProgramListInfo, String128, TChar, UnitInfo, kNoParentUnitId,
-    kNoProgramListId, kRootUnitId,
+    IAttributeListTrait, IComponentHandler, IComponentHandlerTrait, IConnectionPoint,
+    IConnectionPointTrait, IEditController, IEditControllerTrait, IHostApplication, IMessage,
+    IMessageTrait, IUnitInfo, IUnitInfoTrait, ParamValue, ParameterInfo, ProgramListInfo,
+    String128, TChar, UnitInfo, kNoParentUnitId, kNoProgramListId, kRootUnitId,
 };
 use vst3::Steinberg::{
     FIDString, FUnknown, IBStream, IPlugView, IPluginBaseTrait, kInvalidArgument, kNotImplemented,
@@ -18,6 +20,7 @@ use crate::param::{
     AnyParameterMap, NormalizedValue, ParamRef, ParameterId, ParameterMap, Params, PlainValue,
 };
 use crate::ui::{AppState, HostHandle};
+use crate::wrapper::vst3::shared_state::{SHARED_STATE_ATTR_ID, SHARED_STATE_MSG_ID, SharedState};
 use crate::{Editor, EditorContext, platform};
 
 use super::plugview::PlugView;
@@ -51,10 +54,10 @@ pub struct EditController<E: Editor> {
     app_state: Rc<RefCell<AppState>>,
     editor: Rc<RefCell<E>>,
     host_context: Cell<Option<ComPtr<IHostApplication>>>,
-    peer_connection: Cell<Option<ComPtr<IConnectionPoint>>>,
     executor: Rc<platform::Executor>,
     is_editing_parameters_from_gui: Rc<Cell<bool>>,
     parameters: Rc<ParameterMap<E::Parameters>>,
+    shared_state: Cell<Option<NonNull<SharedState>>>,
 }
 
 impl<E: Editor> vst3::Class for EditController<E> {
@@ -75,10 +78,10 @@ impl<E: Editor> EditController<E> {
             app_state,
             editor,
             host_context: Cell::new(None),
-            peer_connection: Cell::new(None),
             executor,
             is_editing_parameters_from_gui,
             parameters,
+            shared_state: Cell::new(None),
         }
     }
 }
@@ -266,27 +269,47 @@ impl<E: Editor> IPluginBaseTrait for EditController<E> {
 
     unsafe fn terminate(&self) -> tresult {
         self.host_context.replace(None);
-        // Clear in case the host did not call disconnect
-        //self.peer_connection.take();
         kResultOk
     }
 }
 
 impl<E: Editor> IConnectionPointTrait for EditController<E> {
     unsafe fn connect(&self, _other: *mut IConnectionPoint) -> tresult {
-        //if let Some(other) = other.upgrade() {
-        //self.peer_connection.set(Some(other));
-        //other.notify(message)
-        //}
         kResultOk
     }
 
     unsafe fn disconnect(&self, _other: *mut IConnectionPoint) -> tresult {
-        //self.peer_connection.take();
         kResultOk
     }
 
-    unsafe fn notify(&self, _message: *mut IMessage) -> tresult {
+    unsafe fn notify(&self, message: *mut IMessage) -> tresult {
+        let Some(message) = (unsafe { ComRef::from_raw(message) }) else {
+            return kInvalidArgument;
+        };
+
+        let message_id = unsafe { CStr::from_ptr(message.getMessageID()) };
+        if message_id == SHARED_STATE_MSG_ID {
+            let Some(attrs) = (unsafe { ComRef::from_raw(message.getAttributes()) }) else {
+                return kInvalidArgument;
+            };
+            let mut shared_state_addr = 0;
+            if unsafe { attrs.getInt(SHARED_STATE_ATTR_ID.as_ptr(), &mut shared_state_addr) }
+                != kResultOk
+            {
+                return kInvalidArgument;
+            }
+            let shared_state_ptr =
+                std::ptr::with_exposed_provenance_mut::<SharedState>(shared_state_addr as usize);
+
+            let Some(shared_state) = NonNull::new(shared_state_ptr) else {
+                return kInvalidArgument;
+            };
+
+            self.shared_state.set(Some(shared_state));
+        } else {
+            return kInvalidArgument;
+        }
+
         kResultOk
     }
 }

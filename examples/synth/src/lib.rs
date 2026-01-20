@@ -1,11 +1,8 @@
 use core::f32;
 
 use audioplug::{
-    audioplug_auv3_plugin, audioplug_vst3_plugin,
-    midi::{Note, NoteEvent},
-    param::Parameter,
-    wrapper::vst3::VST3Categories,
-    AudioLayout, Bus, ChannelType, Plugin, VST3Plugin,
+    audioplug_auv3_plugin, audioplug_vst3_plugin, midi::NoteEvent, wrapper::vst3::VST3Categories,
+    AudioLayout, Bus, ChannelType, Plugin, Uuid, VST3Plugin,
 };
 use editor::SynthEditor;
 use params::SynthParams;
@@ -17,7 +14,7 @@ mod views;
 mod voice;
 
 struct SynthPlugin {
-    active_voice: Option<Voice>,
+    active_voice: Voice,
     dt: f32,
 }
 
@@ -40,7 +37,7 @@ impl Plugin for SynthPlugin {
 
     fn new() -> Self {
         Self {
-            active_voice: None,
+            active_voice: Voice::new(48000.0, Default::default()),
             dt: 0.0,
         }
     }
@@ -50,45 +47,33 @@ impl Plugin for SynthPlugin {
     }
 
     fn process(&mut self, context: audioplug::ProcessContext, parameters: &Self::Parameters) {
-        if let Some(voice) = &mut self.active_voice {
-            for sample in context.output.channel_mut(0).iter_mut() {
-                *sample = parameters.amplitude.value() as f32 * f32::sin(voice.ang_freq * voice.t);
-                voice.t += self.dt;
-            }
-        } else {
-            for sample in context.output.channel_mut(0).iter_mut() {
-                *sample = 0.0;
-            }
+        for sample in context.output.channel_mut(0).iter_mut() {
+            *sample = parameters.amplitude.value() as f32
+                * f32::sin(self.active_voice.ang_freq * self.active_voice.t);
+            self.active_voice.t += self.dt;
         }
     }
 
     fn process_midi(
         &mut self,
-        context: &mut audioplug::MidiProcessContext,
+        _context: &mut audioplug::MidiProcessContext,
         _parameters: &Self::Parameters,
         event: audioplug::midi::NoteEvent,
     ) {
         match event {
             NoteEvent::NoteOn { note, .. } => {
-                self.active_voice.replace(Voice::new(
-                    context.info.sample_rate as _,
-                    Default::default(),
-                ));
+                self.active_voice.note_on(note);
             }
             NoteEvent::NoteOff { note, .. } => {
-                if self
-                    .active_voice
-                    .as_ref()
-                    .is_some_and(|voice| voice.note == note)
-                {
-                    self.active_voice.take();
+                if self.active_voice.note == note {
+                    self.active_voice.note_off();
                 }
             }
         }
     }
 
     fn reset(&mut self) {
-        self.active_voice = None;
+        self.active_voice.reset();
     }
 
     fn tail_time(&self) -> std::time::Duration {
@@ -101,8 +86,8 @@ impl Plugin for SynthPlugin {
 }
 
 impl VST3Plugin for SynthPlugin {
-    const PROCESSOR_UUID: [u8; 16] = *b"audioplugsynthpc";
-    const EDITOR_UUID: [u8; 16] = *b"audioplugsynthed";
+    const PROCESSOR_UUID: Uuid = Uuid::from_bytes(*b"audioplugsynthpc");
+    const EDITOR_UUID: Uuid = Uuid::from_bytes(*b"audioplugsynthed");
     const CATEGORIES: VST3Categories = VST3Categories::INSTRUMENT_SYNTH;
 }
 

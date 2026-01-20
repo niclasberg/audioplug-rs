@@ -225,12 +225,20 @@ define_class!(
     impl MyAudioUnit {
         #[unsafe(method_id(inputBusses))]
         fn input_busses(&self) -> Retained<AUAudioUnitBusArray> {
-            self.ivars().inputs.get().unwrap().clone()
+            self.ivars()
+                .inputs
+                .get()
+                .expect("Inputs should have been initialized in constructor")
+                .clone()
         }
 
         #[unsafe(method_id(outputBusses))]
         fn output_busses(&self) -> Retained<AUAudioUnitBusArray> {
-            self.ivars().outputs.get().unwrap().clone()
+            self.ivars()
+                .outputs
+                .get()
+                .expect("Outputs should have been initialized in constructor")
+                .clone()
         }
 
         #[unsafe(method_id(channelCapabilities))]
@@ -286,7 +294,7 @@ define_class!(
 );
 
 impl MyAudioUnit {
-    pub fn new_with_component_descriptor_error<P: Plugin + 'static>(
+    pub fn new_with_component_descriptor_error<P: Plugin>(
         plugin: P,
         desc: AudioComponentDescription,
         out_error: *mut *mut NSError,

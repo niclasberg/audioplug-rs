@@ -5,6 +5,7 @@ mod editcontroller;
 mod factory;
 mod parameters;
 mod plugview;
+mod shared_state;
 mod util;
 
 pub use audioprocessor::AudioProcessor;

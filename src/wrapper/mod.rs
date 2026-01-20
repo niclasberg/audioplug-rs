@@ -33,8 +33,8 @@ macro_rules! audioplug_auv3_plugin {
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn AUV3_create_audio_unit(
             view_controller: *mut std::ffi::c_void,
-            desc: $crate::wrapper::au::AudioComponentDescription,
-            error: *mut *mut $crate::wrapper::au::NSError,
+            desc: $crate::wrapper::auv3::AudioComponentDescription,
+            error: *mut *mut $crate::wrapper::auv3::NSError,
         ) -> *mut std::ffi::c_void {
             $crate::wrapper::auv3::ViewController::<$plugin>::create_audio_unit(
                 &mut *(view_controller as *mut _),
@@ -55,7 +55,7 @@ macro_rules! audioplug_auv3_plugin {
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn AUV3_preferred_content_size(
             view_controller: *mut std::ffi::c_void,
-        ) -> $crate::wrapper::au::CGSize {
+        ) -> $crate::wrapper::auv3::CGSize {
             $crate::wrapper::auv3::ViewController::<$plugin>::preferred_size(
                 &mut *(view_controller as *mut _),
             )

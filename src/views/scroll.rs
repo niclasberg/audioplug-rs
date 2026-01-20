@@ -1,6 +1,6 @@
 use taffy::Overflow;
 
-use crate::ui::{Accessor, BuildContext, RenderContext, View, Widget, style::LayoutMode};
+use crate::ui::{Accessor, BuildContext, View, Widget, style::LayoutMode};
 
 enum Direction {
     Horizontal,
@@ -50,7 +50,7 @@ impl<W: Widget> Widget for ScrollWidget<W> {
         "Scroll"
     }
 
-    fn layout_mode(&self) -> LayoutMode {
+    fn layout_mode(&self) -> LayoutMode<'_> {
         todo!()
     }
 }

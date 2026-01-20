@@ -2,14 +2,12 @@ use raw_window_handle::RawWindowHandle;
 use std::cell::RefCell;
 use std::ffi::{CStr, c_void};
 use std::rc::Rc;
-#[cfg(target_os = "macos")]
-use vst3::Steinberg::kResultOk;
 use vst3::Steinberg::{
     FIDString, IPlugFrame, IPlugView, IPlugViewContentScaleSupport,
     IPlugViewContentScaleSupportTrait, IPlugViewTrait, TBool, ViewRect, char16, kInvalidArgument,
     kResultFalse, kResultOk, kResultTrue, tresult,
 };
-use vst3::{ComPtr, ComRef, ComWrapper};
+use vst3::{ComPtr, ComRef};
 
 use crate::Editor;
 use crate::core::ScaleFactor;

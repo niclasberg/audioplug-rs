@@ -20,11 +20,19 @@ impl Voice {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.envelope.reset();
+    }
+
     pub fn note_on(&mut self, note: Note) {
         use std::f32::consts::TAU;
         self.ang_freq = note.frequency_hz() * TAU;
         self.note = note;
         self.envelope.note_on();
         self.t = 0.0;
+    }
+
+    pub fn note_off(&mut self) {
+        self.envelope.note_off();
     }
 }

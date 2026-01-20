@@ -53,12 +53,32 @@ _bundle_vst name target_dir: (_build name)
 [macos]
 _bundle_au name target_dir: (_build name)
     mkdir -p {{target_dir}}/tmp
-    mkdir -p "./target/debug/rusttest.app/Contents/PlugIns/{{name}}.appex/Contents/MacOS"
+    mkdir -p "./target/debug/{{name}}.app/Contents/PlugIns/{{name}}.appex/Contents/MacOS"
+    mkdir -p "./target/debug/{{name}}.app/Contents/MacOS"
+    clang -framework Cocoa -o ./target/debug/{{name}}.app/Contents/MacOS/{{name}} ./objc/dummy_app.mm
+    @echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?> \
+        <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"> \
+        <plist version="1.0"> \
+        <dict> \
+            <key>CFBundleExecutable</key> \
+            <string>{{name}}</string> \
+            <key>CFBundleIdentifier</key> \
+            <string>com.github.niclasberg.{{name}}.hostapp</string> \
+            <key>CFBundleName</key> \
+            <string>{{name}}</string> \
+            <key>CFBundlePackageType</key> \
+            <string>APPL</string> \
+            <key>CFBundleVersion</key> \
+            <string>1</string> \
+            <key>CFBundleShortVersionString</key> \
+            <string>1.0</string> \
+        </dict> \
+        </plist>" > "./target/debug/{{name}}.app/Contents/Info.plist"
     cp target/debug/lib{{name}}.a {{target_dir}}/tmp/libaudioplug.a
-    clang++ -o "./target/debug/rusttest.app/Contents/PlugIns/{{name}}.appex/Contents/MacOS/{{name}}" -Wl,-no_adhoc_codesign -fobjc-arc -fobjc-link-runtime -fapplication-extension -e _NSExtensionMain -fmodules -framework Foundation -framework AudioToolbox -framework AppKit -framework CoreGraphics -framework Metal -framework CoreText -framework CoreAudioKit -L{{target_dir}}/tmp objc/view_controller.mm -laudioplug
-    cp examples/{{name}}/AU/Info.plist {{target_dir}}/rusttest.app/Contents/PlugIns/{{name}}.appex/Contents/
-    codesign --force --sign - -o runtime --entitlements ./examples/{{name}}/AU/entitlements.plist --timestamp=none "./target/debug/rusttest.app/Contents/PlugIns/{{name}}.appex"
-    codesign --force --sign - --timestamp=none "./target/debug/rusttest.app"
+    clang++ -o "./target/debug/{{name}}.app/Contents/PlugIns/{{name}}.appex/Contents/MacOS/{{name}}" -Wl,-no_adhoc_codesign -fobjc-arc -fobjc-link-runtime -fapplication-extension -e _NSExtensionMain -fmodules -framework Foundation -framework AudioToolbox -framework AppKit -framework CoreGraphics -framework Metal -framework CoreText -framework CoreAudioKit -L{{target_dir}}/tmp objc/view_controller.mm -laudioplug
+    cp examples/{{name}}/AU/Info.plist {{target_dir}}/{{name}}.app/Contents/PlugIns/{{name}}.appex/Contents/
+    codesign --force --sign - -o runtime --entitlements ./examples/{{name}}/AU/entitlements.plist --timestamp=none "./target/debug/{{name}}.app/Contents/PlugIns/{{name}}.appex"
+    codesign --force --sign - --timestamp=none "./target/debug/{{name}}.app"
 
 [windows]
 _bundle_au name target_dir:

@@ -1,15 +1,18 @@
 use atomic_refcell::AtomicRefCell;
 use std::cell::Cell;
+use std::ffi::c_void;
 use std::mem::MaybeUninit;
+use std::ptr::addr_of_mut;
 use std::rc::Rc;
 use vst3::Steinberg::Vst::BusInfo_::BusFlags_;
 use vst3::Steinberg::Vst::Event_::EventTypes_;
 use vst3::Steinberg::Vst::{
-    BusDirection, BusDirections_, BusInfo, BusTypes_, IAudioProcessor, IAudioProcessorTrait,
-    IComponent, IComponentTrait, IConnectionPoint, IConnectionPointTrait, IEventListTrait,
-    IHostApplication, IHostApplicationTrait, IMessage, IParamValueQueueTrait as _,
-    IParameterChangesTrait, IoMode, MediaType, MediaTypes_, ProcessData, ProcessModes_,
-    ProcessSetup, RoutingInfo, SpeakerArr, SpeakerArrangement, SymbolicSampleSizes_,
+    BusDirection, BusDirections_, BusInfo, BusTypes_, IAttributeListTrait, IAudioProcessor,
+    IAudioProcessorTrait, IComponent, IComponentTrait, IConnectionPoint, IConnectionPointTrait,
+    IEventListTrait, IHostApplication, IHostApplicationTrait, IMessage, IMessageTrait,
+    IParamValueQueueTrait as _, IParameterChangesTrait, IoMode, MediaType, MediaTypes_,
+    ProcessData, ProcessModes_, ProcessSetup, RoutingInfo, SpeakerArr, SpeakerArrangement,
+    SymbolicSampleSizes_,
 };
 use vst3::Steinberg::{
     FUnknown, IBStream, IPluginBase, IPluginBaseTrait, TBool, TUID, kInvalidArgument,
@@ -20,17 +23,15 @@ use vst3::{ComPtr, ComRef, Interface};
 use super::util::strcpyw;
 use crate::midi::{Note, NoteEvent};
 use crate::param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap, Params};
+use crate::wrapper::vst3::shared_state::{SHARED_STATE_MSG_ID, SharedState};
 use crate::wrapper::vst3::util::tuid_from_uuid;
 use crate::{AudioBuffer, MidiProcessContext, ProcessContext, ProcessInfo, VST3Plugin};
-
-struct SharedState {
-    value: u32,
-}
 
 pub struct AudioProcessor<P: VST3Plugin> {
     plugin: AtomicRefCell<P>,
     parameters: Rc<ParameterMap<P::Parameters>>,
     host_context: Cell<Option<ComPtr<IHostApplication>>>,
+    shared_state: SharedState,
 }
 
 impl<P: VST3Plugin> vst3::Class for AudioProcessor<P> {
@@ -45,6 +46,7 @@ impl<P: VST3Plugin> AudioProcessor<P> {
             plugin: AtomicRefCell::new(P::new()),
             parameters,
             host_context: Cell::new(None),
+            shared_state: SharedState {},
         }
     }
 }
@@ -293,7 +295,7 @@ impl<P: VST3Plugin> IPluginBaseTrait for AudioProcessor<P> {
 impl<P: VST3Plugin> IComponentTrait for AudioProcessor<P> {
     unsafe fn getControllerClassId(&self, tuid: *mut TUID) -> tresult {
         if let Some(tuid) = unsafe { tuid.as_mut() } {
-            *tuid = tuid_from_uuid(&P::EDITOR_UUID);
+            *tuid = tuid_from_uuid(P::EDITOR_UUID.as_bytes());
             kResultOk
         } else {
             kInvalidArgument
@@ -454,17 +456,24 @@ impl<P: VST3Plugin> IConnectionPointTrait for AudioProcessor<P> {
         // object to the editor (and vice versa) using the IConnectionPoint API and then implement our own system.
 
         let mut message_tuid = tuid_from_uuid(&IMessage::IID);
-        let message = std::ptr::null_mut();
-        if unsafe {
-            host_context.createInstance(
-                &mut message_tuid,
-                &mut message_tuid,
-                &mut (message as *mut _),
-            )
-        } == kResultOk
-            && let Some(message) = unsafe { ComPtr::from_raw(message as *mut IMessage) }
-        {}
-        //;
+        let mut message = std::ptr::null_mut();
+        let result = unsafe {
+            host_context.createInstance(&mut message_tuid, &mut message_tuid, &mut message)
+        };
+        if let Some(message) = unsafe { ComPtr::from_raw(message as *mut IMessage) }
+            && result == kResultOk
+        {
+            message.setMessageID(SHARED_STATE_MSG_ID.as_ptr());
+            let attrs = unsafe { ComRef::from_raw(message.getAttributes()) }.unwrap();
+            let shared_state_ptr = std::ptr::addr_of!(self.shared_state);
+            unsafe {
+                attrs.setInt(
+                    SHARED_STATE_MSG_ID.as_ptr(),
+                    shared_state_ptr.expose_provenance() as i64,
+                )
+            };
+            unsafe { other.notify(message.as_ptr()) };
+        }
 
         self.host_context.set(Some(host_context));
         kResultOk

@@ -1,19 +1,19 @@
-use std::ffi::{CStr, c_void};
+use std::ffi::c_void;
 use std::marker::PhantomData;
 
 use vst3::ComWrapper;
 use vst3::Steinberg::PClassInfo_::ClassCardinality_;
 use vst3::Steinberg::PFactoryInfo_::FactoryFlags_;
-use vst3::Steinberg::Vst::SDKVersionString;
 use vst3::Steinberg::{
     FIDString, FUnknown, IPluginFactory, IPluginFactory2, IPluginFactory2Trait,
-    IPluginFactoryTrait, PClassInfo, PClassInfo2, PFactoryInfo, TUID, kInvalidArgument,
-    kResultFalse, kResultOk, tresult,
+    IPluginFactory3Trait, IPluginFactoryTrait, PClassInfo, PClassInfo2, PClassInfoW, PFactoryInfo,
+    TUID, kInvalidArgument, kResultOk, tresult,
 };
 
 use super::editcontroller::EditController;
 use crate::VST3Plugin;
-use crate::wrapper::vst3::util::{strcpy_cstr, tuid_from_uuid};
+use crate::wrapper::vst3::VST3Categories;
+use crate::wrapper::vst3::util::{strcpyw, tuid_from_uuid};
 
 use super::AudioProcessor;
 use super::util::strcpy;
@@ -36,9 +36,14 @@ impl<P: VST3Plugin> Factory<P> {
         .into_raw()
     }
 
-    const EDITOR_CID: TUID = tuid_from_uuid(&P::EDITOR_UUID);
-    const PROCESSOR_CID: TUID = tuid_from_uuid(&P::PROCESSOR_UUID);
+    const EDITOR_CID: TUID = tuid_from_uuid(P::EDITOR_UUID.as_bytes());
+    const PROCESSOR_CID: TUID = tuid_from_uuid(P::PROCESSOR_UUID.as_bytes());
 }
+
+const SDK_VERSION_STRING: &'static str = "VST 3.8.0";
+const CLASS_FLAGS: u32 = 0;
+const EDITOR_CATEGORY: &'static str = "Component Controller Class";
+const PROCESSOR_CATEGORY: &'static str = "Audio Module Class";
 
 impl<P: VST3Plugin> IPluginFactoryTrait for Factory<P> {
     unsafe fn getFactoryInfo(&self, info: *mut PFactoryInfo) -> tresult {
@@ -60,22 +65,14 @@ impl<P: VST3Plugin> IPluginFactoryTrait for Factory<P> {
         let Some(info) = (unsafe { info.as_mut() }) else {
             return kInvalidArgument;
         };
+
         match index {
             0 => {
-                strcpy(P::NAME, &mut info.name);
-                info.cid = tuid_from_uuid(&P::PROCESSOR_UUID);
-                info.cardinality = ClassCardinality_::kManyInstances as _;
-                strcpy("Audio Module Class", &mut info.category);
+                copy_class_info(info, Self::PROCESSOR_CID, P::NAME, PROCESSOR_CATEGORY);
                 kResultOk
             }
             1 => {
-                info.cid = tuid_from_uuid(&P::EDITOR_UUID);
-                strcpy(
-                    (P::NAME.to_owned() + " edit controller").as_str(),
-                    &mut info.name,
-                );
-                strcpy("Component Controller Class", &mut info.category);
-                info.cardinality = ClassCardinality_::kManyInstances as _;
+                copy_class_info(info, Self::EDITOR_CID, P::NAME, EDITOR_CATEGORY);
                 kResultOk
             }
             _ => kInvalidArgument,
@@ -120,7 +117,12 @@ impl<P: VST3Plugin> IPluginFactoryTrait for Factory<P> {
     }
 }
 
-const SDK_VERSION_STRING: &CStr = unsafe { CStr::from_ptr(SDKVersionString) };
+fn copy_class_info(info: &mut PClassInfo, cid: TUID, name: &str, category: &str) {
+    info.cid = cid;
+    info.cardinality = ClassCardinality_::kManyInstances as _;
+    strcpy(category, &mut info.category);
+    strcpy(name, &mut info.name);
+}
 
 impl<P: VST3Plugin> IPluginFactory2Trait for Factory<P> {
     unsafe fn getClassInfo2(&self, index: i32, info: *mut PClassInfo2) -> tresult {
@@ -130,27 +132,108 @@ impl<P: VST3Plugin> IPluginFactory2Trait for Factory<P> {
 
         match index {
             0 => {
-                strcpy(P::NAME, &mut info.name);
-                info.cid = tuid_from_uuid(&P::PROCESSOR_UUID);
-                info.cardinality = ClassCardinality_::kManyInstances as _;
-                strcpy("Audio Module Class", &mut info.category);
-                strcpy_cstr(SDK_VERSION_STRING, info.sdkVersion.as_mut_slice());
-                strcpy(&P::CATEGORIES.to_string(), &mut info.subCategories);
+                copy_class_info2(
+                    info,
+                    Self::PROCESSOR_CID,
+                    P::NAME,
+                    PROCESSOR_CATEGORY,
+                    &P::CATEGORIES,
+                    P::VENDOR,
+                );
                 kResultOk
             }
             1 => {
-                info.cid = tuid_from_uuid(&P::EDITOR_UUID);
-                strcpy(
-                    (P::NAME.to_owned() + " edit controller").as_str(),
-                    &mut info.name,
+                copy_class_info2(
+                    info,
+                    Self::EDITOR_CID,
+                    P::NAME,
+                    EDITOR_CATEGORY,
+                    &P::CATEGORIES,
+                    P::VENDOR,
                 );
-                strcpy("Component Controller Class", &mut info.category);
-                info.cardinality = ClassCardinality_::kManyInstances as _;
-                strcpy_cstr(SDK_VERSION_STRING, &mut info.sdkVersion);
-                strcpy(&P::CATEGORIES.to_string(), &mut info.subCategories);
+                kResultOk
+            }
+            _ => return kInvalidArgument,
+        }
+    }
+}
+
+fn copy_class_info2(
+    info: &mut PClassInfo2,
+    cid: TUID,
+    name: &str,
+    category: &str,
+    sub_categories: &VST3Categories,
+    vendor: &str,
+) {
+    info.cid = cid;
+    info.cardinality = ClassCardinality_::kManyInstances as _;
+    strcpy(category, &mut info.category);
+    strcpy(name, &mut info.name);
+    info.classFlags = CLASS_FLAGS;
+    strcpy(&sub_categories.to_string(), &mut info.subCategories);
+    strcpy(vendor, &mut info.vendor);
+    //info.version: [char8; 64],
+    strcpy(SDK_VERSION_STRING, info.sdkVersion.as_mut_slice());
+}
+
+impl<P: VST3Plugin> IPluginFactory3Trait for Factory<P> {
+    unsafe fn getClassInfoUnicode(
+        &self,
+        index: vst3::Steinberg::int32,
+        info: *mut PClassInfoW,
+    ) -> tresult {
+        let Some(info) = (unsafe { info.as_mut() }) else {
+            return kInvalidArgument;
+        };
+
+        match index {
+            0 => {
+                copy_class_infow(
+                    info,
+                    Self::PROCESSOR_CID,
+                    P::NAME,
+                    PROCESSOR_CATEGORY,
+                    &P::CATEGORIES,
+                    P::VENDOR,
+                );
+                kResultOk
+            }
+            1 => {
+                copy_class_infow(
+                    info,
+                    Self::EDITOR_CID,
+                    P::NAME,
+                    EDITOR_CATEGORY,
+                    &P::CATEGORIES,
+                    P::VENDOR,
+                );
                 kResultOk
             }
             _ => kInvalidArgument,
         }
     }
+
+    unsafe fn setHostContext(&self, _context: *mut FUnknown) -> tresult {
+        kResultOk
+    }
+}
+
+fn copy_class_infow(
+    info: &mut PClassInfoW,
+    cid: TUID,
+    name: &str,
+    category: &str,
+    sub_categories: &VST3Categories,
+    vendor: &str,
+) {
+    info.cid = cid;
+    info.cardinality = ClassCardinality_::kManyInstances as _;
+    strcpy(category, &mut info.category);
+    strcpyw(name, &mut info.name);
+    info.classFlags = CLASS_FLAGS;
+    strcpy(&sub_categories.to_string(), &mut info.subCategories);
+    strcpyw(vendor, &mut info.vendor);
+    //info.version: [char8; 64],
+    strcpyw(SDK_VERSION_STRING, info.sdkVersion.as_mut_slice());
 }

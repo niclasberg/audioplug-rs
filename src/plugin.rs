@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use uuid::Uuid;
+
 use crate::editor::Editor;
 use crate::midi::NoteEvent;
 use crate::param::Params;
@@ -102,7 +104,7 @@ pub trait Plugin: Send + 'static {
 }
 
 pub trait VST3Plugin: Plugin {
-    const PROCESSOR_UUID: [u8; 16];
-    const EDITOR_UUID: [u8; 16];
+    const PROCESSOR_UUID: Uuid;
+    const EDITOR_UUID: Uuid;
     const CATEGORIES: VST3Categories;
 }

@@ -25,7 +25,7 @@ impl Plugin for TestPlugin {
 
 #[cfg(target_os = "macos")]
 fn main() {
-    use audioplug::wrapper::au::MyAudioUnit;
+    use audioplug::wrapper::auv3::MyAudioUnit;
     use block2::StackBlock;
     use objc2::msg_send;
     use objc2_audio_toolbox::{
