@@ -3,7 +3,7 @@ use std::{
     marker::PhantomData,
     mem::MaybeUninit,
     rc::Rc,
-    sync::{LazyLock, Once},
+    sync::LazyLock,
 };
 
 use uuid::Uuid;
@@ -15,7 +15,7 @@ use windows::{
             Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE},
             Gdi::{self, InvalidateRect, ScreenToClient},
         },
-        System::{LibraryLoader::GetModuleHandleW, Performance},
+        System::Performance,
         UI::{
             Input::{
                 KeyboardAndMouse::{TrackMouseEvent, VIRTUAL_KEY},
@@ -383,12 +383,13 @@ impl Drop for WindowClass {
 }
 
 static WINDOW_CLASS: LazyLock<WindowClass> = LazyLock::new(|| {
-    let instance = unsafe { GetModuleHandleW(None) }.expect("Should be able to get module");
+    // Append a random string here to avoid window class name collisions when having multiple (different) plugins
+    // using this crate. 
     let class_name = HSTRING::from(&("AUDIOPLUG_WINDOWCLS_".to_string() + &Uuid::new_v4().to_string()));
     let class = WNDCLASSW {
         lpszClassName: PCWSTR(class_name.as_ptr()),
         hCursor: unsafe { LoadCursorW(None, IDC_ARROW).unwrap() },
-        hInstance: instance.into(),
+        hInstance: super::com::get_plugin_instance(),
         lpfnWndProc: Some(wndproc),
         style: CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS,
         ..WNDCLASSW::default()
@@ -464,7 +465,6 @@ impl Window {
         handler: impl WindowHandler + 'static,
         quit_app_on_exit: bool,
     ) -> Result<Self> {
-        let instance = unsafe { GetModuleHandleW(None)? };
         let window_class = &WINDOW_CLASS.class_name;
 
         let ticks_per_second = unsafe {
@@ -495,7 +495,7 @@ impl Window {
                 CW_USEDEFAULT,
                 parent,
                 None,
-                Some(instance.into()),
+                Some(super::com::get_plugin_instance()),
                 Some(Rc::into_raw(window_state) as _),
             )?
         };

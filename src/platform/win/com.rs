@@ -1,8 +1,18 @@
+use std::ffi::c_void;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
+use windows::Win32::Foundation::HINSTANCE;
 use windows::Win32::Graphics::{DirectWrite, Imaging};
 use windows::Win32::System::Com::{self, CLSCTX_INPROC_SERVER, CoCreateInstance};
 use windows_core::Result;
+
+unsafe extern "C" {
+    static __ImageBase: *mut c_void;
+}
+
+pub fn get_plugin_instance() -> HINSTANCE {
+    unsafe { HINSTANCE(__ImageBase) }
+}
 
 struct ComInitialized;
 
