@@ -64,10 +64,6 @@ impl HostHandle for AUV3HostHandle {
     }
 }
 
-// In order for the compiled app extension to have the correct binary format, we have to compile it with
-// clang (it needs the _NSExtensionMain instead of a regular main function).
-// We therefore implement the actual viewcontroller class in objective C and expose a small c api
-// that the view controller interacts with.
 pub struct ViewController<P: Plugin> {
     app_state: Rc<RefCell<AppState>>,
     editor: Rc<RefCell<P::Editor>>,

@@ -23,7 +23,11 @@ pub struct Node {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Owner {
+    /// The reactive node is owned by a widget, and will be removed
+    /// when the widget is removed.
     Widget(WidgetId),
+    /// The reactive node is owned by another node (such as a Var being created within a memo)
+    /// The node is removed when its parent is removed.
     Node(NodeId),
 }
 
