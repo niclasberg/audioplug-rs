@@ -1,7 +1,8 @@
-use std::cell::{Cell, RefCell};
+use std::cell::{Cell, OnceCell, RefCell};
 use std::ffi::CStr;
 use std::ptr::NonNull;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use vst3::Steinberg::Vst::ParameterInfo_::ParameterFlags_;
 use vst3::Steinberg::Vst::{
@@ -57,7 +58,7 @@ pub struct EditController<E: Editor> {
     executor: Rc<platform::Executor>,
     is_editing_parameters_from_gui: Rc<Cell<bool>>,
     parameters: Rc<ParameterMap<E::Parameters>>,
-    shared_state: Cell<Option<NonNull<SharedState>>>,
+    shared_state: OnceCell<Arc<SharedState>>,
 }
 
 impl<E: Editor> vst3::Class for EditController<E> {
@@ -81,7 +82,7 @@ impl<E: Editor> EditController<E> {
             executor,
             is_editing_parameters_from_gui,
             parameters,
-            shared_state: Cell::new(None),
+            shared_state: OnceCell::new(),
         }
     }
 }
@@ -288,28 +289,25 @@ impl<E: Editor> IConnectionPointTrait for EditController<E> {
         };
 
         let message_id = unsafe { CStr::from_ptr(message.getMessageID()) };
-        if message_id == SHARED_STATE_MSG_ID {
-            let Some(attrs) = (unsafe { ComRef::from_raw(message.getAttributes()) }) else {
-                return kInvalidArgument;
-            };
-            let mut shared_state_addr = 0;
-            if unsafe { attrs.getInt(SHARED_STATE_ATTR_ID.as_ptr(), &mut shared_state_addr) }
-                != kResultOk
-            {
-                return kInvalidArgument;
-            }
-            let shared_state_ptr =
-                std::ptr::with_exposed_provenance_mut::<SharedState>(shared_state_addr as usize);
+        assert!(message_id == SHARED_STATE_MSG_ID);
+        let attrs = (unsafe { ComRef::from_raw(message.getAttributes()) })
+            .expect("The AudioProcessor should have verified that the attribute list was non-null");
+        let mut shared_state_addr = 0;
+        assert_eq!(
+            unsafe { attrs.getInt(SHARED_STATE_ATTR_ID.as_ptr(), &mut shared_state_addr) },
+            kResultOk
+        );
 
-            let Some(shared_state) = NonNull::new(shared_state_ptr) else {
-                return kInvalidArgument;
-            };
+        // Safety: The passed pointer is created with Arc::into_raw in the AudioProcessor
+        let shared_state = unsafe {
+            Arc::from_raw(std::ptr::with_exposed_provenance::<SharedState>(
+                shared_state_addr as usize,
+            ))
+        };
 
-            self.shared_state.set(Some(shared_state));
-        } else {
-            return kInvalidArgument;
-        }
-
+        self.shared_state
+            .set(shared_state)
+            .expect("The AudioProcessor should only send the shared state once");
         kResultOk
     }
 }

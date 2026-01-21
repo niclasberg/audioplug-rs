@@ -1,9 +1,8 @@
 use atomic_refcell::AtomicRefCell;
 use std::cell::Cell;
-use std::ffi::c_void;
 use std::mem::MaybeUninit;
-use std::ptr::addr_of_mut;
 use std::rc::Rc;
+use std::sync::Arc;
 use vst3::Steinberg::Vst::BusInfo_::BusFlags_;
 use vst3::Steinberg::Vst::Event_::EventTypes_;
 use vst3::Steinberg::Vst::{
@@ -31,7 +30,7 @@ pub struct AudioProcessor<P: VST3Plugin> {
     plugin: AtomicRefCell<P>,
     parameters: Rc<ParameterMap<P::Parameters>>,
     host_context: Cell<Option<ComPtr<IHostApplication>>>,
-    shared_state: SharedState,
+    shared_state: Arc<SharedState>,
 }
 
 impl<P: VST3Plugin> vst3::Class for AudioProcessor<P> {
@@ -46,7 +45,7 @@ impl<P: VST3Plugin> AudioProcessor<P> {
             plugin: AtomicRefCell::new(P::new()),
             parameters,
             host_context: Cell::new(None),
-            shared_state: SharedState {},
+            shared_state: Arc::new(SharedState {}),
         }
     }
 }
@@ -463,9 +462,9 @@ impl<P: VST3Plugin> IConnectionPointTrait for AudioProcessor<P> {
         if let Some(message) = unsafe { ComPtr::from_raw(message as *mut IMessage) }
             && result == kResultOk
         {
-            message.setMessageID(SHARED_STATE_MSG_ID.as_ptr());
+            unsafe { message.setMessageID(SHARED_STATE_MSG_ID.as_ptr()) };
             let attrs = unsafe { ComRef::from_raw(message.getAttributes()) }.unwrap();
-            let shared_state_ptr = std::ptr::addr_of!(self.shared_state);
+            let shared_state_ptr = Arc::into_raw(self.shared_state.clone());
             unsafe {
                 attrs.setInt(
                     SHARED_STATE_MSG_ID.as_ptr(),
