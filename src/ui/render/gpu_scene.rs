@@ -1,9 +1,7 @@
-use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
 use crate::core::{
     Color, ColorMap, Ellipse, FillRule, Path, Rect, RoundedRect, ShadowKind, ShadowOptions, Vec2f,
-    Vec4f,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -39,6 +37,8 @@ pub struct GpuScene {
 }
 
 impl GpuScene {
+    pub const NOOP_FILL: [u32; 2] = [0, 0];
+
     const SHAPE_TYPE_PATH: u32 = 1;
     const SHAPE_TYPE_RECT: u32 = 2;
     const SHAPE_TYPE_ROUNDED_RECT: u32 = 3;
@@ -206,37 +206,5 @@ impl GpuScene {
         self.fill_ops.clear();
         self.shape_data.clear();
         self.gradient_lut.clear();
-    }
-
-    pub fn upload(
-        &self,
-        device: &mut wgpu::Device,
-        queue: &mut wgpu::Queue,
-        shapes_data_buffer: &mut wgpu::Buffer,
-        fill_ops_buffer: &mut wgpu::Buffer,
-    ) {
-        update_buffer(
-            device,
-            queue,
-            shapes_data_buffer,
-            bytemuck::cast_slice(&self.shape_data),
-        );
-    }
-}
-
-fn update_buffer(
-    device: &mut wgpu::Device,
-    queue: &mut wgpu::Queue,
-    buffer: &mut wgpu::Buffer,
-    data: &[u8],
-) {
-    if buffer.size() < data.len() as u64 {
-        queue.write_buffer(&buffer, 0, data);
-    } else {
-        *buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Label"),
-            contents: data,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        })
     }
 }

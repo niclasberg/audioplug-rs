@@ -6,11 +6,8 @@ use wgpu::util::DeviceExt;
 
 use super::tiles::TILE_SIZE;
 use crate::{
-    core::{
-        Color, ColorMap, Ellipse, FillRule, Path, PhysicalCoord, PhysicalSize, Point, Rect,
-        RoundedRect, ShadowOptions, Size, Vec2, Vec2f, Zero,
-    },
-    ui::render::gpu_scene::{GpuFill, GpuScene},
+    core::{PhysicalCoord, PhysicalSize, Size, Zero},
+    ui::render::gpu_scene::GpuScene,
 };
 
 #[repr(C)]
@@ -184,7 +181,6 @@ impl WGPUSurface {
         let size = handle.physical_size();
         let width = size.width.0 as u32;
         let height = size.height.0 as u32;
-        let scale_factor = handle.scale_factor().0;
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -197,94 +193,15 @@ impl WGPUSurface {
             view_formats: vec![],
         };
 
-        let mut gpu_scene = GpuScene::new();
-        {
-            let rect = gpu_scene.add_rect(Rect {
-                left: 10.0,
-                top: 10.0,
-                right: 150.0,
-                bottom: 200.0,
-            });
-            let rect2 = gpu_scene.add_rect(Rect {
-                left: 10.0,
-                top: 310.0,
-                right: 150.0,
-                bottom: 500.0,
-            });
-            let rounded_rect = gpu_scene.add_rounded_rect(
-                RoundedRect::new(
-                    Rect {
-                        left: 50.3,
-                        top: 100.2,
-                        right: 500.0,
-                        bottom: 400.3,
-                    },
-                    Size::new(40.0, 30.0),
-                )
-                .scale(scale_factor),
-            );
-            let path = gpu_scene.add_path(
-                &Path::new()
-                    .move_to(Point::new(100.0, 100.0))
-                    .line_to(Point::new(100.0, 800.0))
-                    .line_to(Point::new(800.0, 800.0))
-                    .line_to(Point::new(700.0, 400.0))
-                    .close_path(),
-                FillRule::NonZero,
-            );
-            let ellipse = gpu_scene.add_ellipse(
-                Ellipse::from_rectangle(Rect {
-                    left: 650.3,
-                    top: 200.2,
-                    right: 900.0,
-                    bottom: 300.3,
-                })
-                .scale(scale_factor),
-            );
-            let drop_shadow = GpuFill::Shadow(ShadowOptions {
-                radius: 25.0,
-                offset: Vec2::splat(10.0),
-                color: Color::BLACK.with_alpha(0.7),
-                kind: crate::core::ShadowKind::DropShadow,
-            });
-
-            gpu_scene.fill_shape(rect, drop_shadow.clone());
-            gpu_scene.fill_shape(rect, GpuFill::Solid(Color::RED));
-            gpu_scene.fill_shape(
-                path,
-                GpuFill::LinearGradient {
-                    start: Vec2f { x: 100.0, y: 100.0 },
-                    end: Vec2f { x: 800.0, y: 800.0 },
-                    color_stops: ColorMap::new([]),
-                },
-            );
-            gpu_scene.fill_shape(ellipse, drop_shadow.clone());
-            gpu_scene.fill_shape(ellipse, GpuFill::Solid(Color::RED));
-
-            gpu_scene.fill_shape(rounded_rect, drop_shadow.clone());
-            gpu_scene.fill_shape(
-                rounded_rect,
-                GpuFill::Solid(Color::CHAMOISEE.with_alpha(0.7)),
-            );
-            gpu_scene.fill_shape(
-                rect2,
-                GpuFill::RadialGradient {
-                    center: Vec2f { x: 75.0, y: 400.0 },
-                    radius: 80.0,
-                    color_stops: ColorMap::new([]),
-                },
-            )
-        }
-
         let shapes_data_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Shapes data buffer"),
-            contents: bytemuck::cast_slice(gpu_scene.shape_data.as_slice()),
+            contents: bytemuck::cast_slice(&[0]),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
         let fill_ops_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("FillOps buffer"),
-            contents: bytemuck::cast_slice(gpu_scene.fill_ops.as_slice()),
+            contents: bytemuck::cast_slice(&GpuScene::NOOP_FILL),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -336,12 +253,40 @@ impl WGPUSurface {
         }
     }
 
+    pub fn upload_scene(&mut self, scene: &GpuScene) {
+        if self.fill_ops_buffer.size() < scene.fill_ops.len() as u64 {
+            self.queue.write_buffer(
+                &self.fill_ops_buffer,
+                0,
+                bytemuck::cast_slice(scene.fill_ops.as_slice()),
+            );
+        } else {
+        }
+    }
+
     pub fn resized(&mut self) {
         self.is_configured = false;
     }
 
     pub fn render_tiles_workgroup_count(&self) -> Size<u32> {
         self.size.map(|x| (x.0 as u32).div_ceil(TILE_SIZE))
+    }
+}
+
+fn update_buffer(
+    device: &mut wgpu::Device,
+    queue: &mut wgpu::Queue,
+    buffer: &mut wgpu::Buffer,
+    data: &[u8],
+) {
+    if buffer.size() < data.len() as u64 {
+        queue.write_buffer(&buffer, 0, data);
+    } else {
+        *buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Label"),
+            contents: data,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        })
     }
 }
 

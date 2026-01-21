@@ -1,6 +1,5 @@
 use std::cell::{Cell, OnceCell, RefCell};
 use std::ffi::CStr;
-use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -245,7 +244,7 @@ impl<E: Editor> IEditControllerTrait for EditController<E> {
             self.parameters.clone(),
         ))
         .to_com_ptr()
-        .expect("We are casting from a ComWrapper<IPlugView> to a ComPtr<IPlugView>, this should never fail")
+        .expect("Casting from a ComWrapper<IPlugView> to a ComPtr<IPlugView>, this should never fail...")
         .into_raw()
     }
 }

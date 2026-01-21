@@ -3,25 +3,25 @@ use std::cell::Cell;
 use std::mem::MaybeUninit;
 use std::rc::Rc;
 use std::sync::Arc;
+use vst3::ComRef;
 use vst3::Steinberg::Vst::BusInfo_::BusFlags_;
 use vst3::Steinberg::Vst::Event_::EventTypes_;
 use vst3::Steinberg::Vst::{
     BusDirection, BusDirections_, BusInfo, BusTypes_, IAttributeListTrait, IAudioProcessor,
     IAudioProcessorTrait, IComponent, IComponentTrait, IConnectionPoint, IConnectionPointTrait,
-    IEventListTrait, IHostApplication, IHostApplicationTrait, IMessage, IMessageTrait,
-    IParamValueQueueTrait as _, IParameterChangesTrait, IoMode, MediaType, MediaTypes_,
-    ProcessData, ProcessModes_, ProcessSetup, RoutingInfo, SpeakerArr, SpeakerArrangement,
-    SymbolicSampleSizes_,
+    IEventListTrait, IMessage, IMessageTrait, IParamValueQueueTrait as _, IParameterChangesTrait,
+    IoMode, MediaType, MediaTypes_, ProcessData, ProcessModes_, ProcessSetup, RoutingInfo,
+    SpeakerArr, SpeakerArrangement, SymbolicSampleSizes_,
 };
 use vst3::Steinberg::{
     FUnknown, IBStream, IPluginBase, IPluginBaseTrait, TBool, TUID, kInvalidArgument,
-    kNotImplemented, kResultFalse, kResultOk, tresult,
+    kNotImplemented, kNotInitialized, kResultFalse, kResultOk, tresult,
 };
-use vst3::{ComPtr, ComRef, Interface};
 
 use super::util::strcpyw;
 use crate::midi::{Note, NoteEvent};
 use crate::param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap, Params};
+use crate::wrapper::vst3::host_application::HostApplication;
 use crate::wrapper::vst3::shared_state::{SHARED_STATE_MSG_ID, SharedState};
 use crate::wrapper::vst3::util::tuid_from_uuid;
 use crate::{AudioBuffer, MidiProcessContext, ProcessContext, ProcessInfo, VST3Plugin};
@@ -29,7 +29,7 @@ use crate::{AudioBuffer, MidiProcessContext, ProcessContext, ProcessInfo, VST3Pl
 pub struct AudioProcessor<P: VST3Plugin> {
     plugin: AtomicRefCell<P>,
     parameters: Rc<ParameterMap<P::Parameters>>,
-    host_context: Cell<Option<ComPtr<IHostApplication>>>,
+    host_context: Cell<Option<HostApplication>>,
     shared_state: Arc<SharedState>,
 }
 
@@ -275,9 +275,7 @@ impl<P: VST3Plugin> IPluginBaseTrait for AudioProcessor<P> {
             return kResultFalse;
         }
 
-        let host_context =
-            unsafe { ComRef::from_raw(context) }.and_then(|cx| cx.cast::<IHostApplication>());
-        if let Some(context) = host_context {
+        if let Some(context) = unsafe { HostApplication::from_raw(context) } {
             self.host_context.set(Some(context));
             kResultOk
         } else {
@@ -445,24 +443,14 @@ impl<P: VST3Plugin> IConnectionPointTrait for AudioProcessor<P> {
             return kResultFalse;
         };
 
+        // The VST3 spec dictates that this method *should* be called after initialize,
+        // so the host_context should have a value at this point
         let Some(host_context) = self.host_context.take() else {
-            return kResultFalse;
+            return kNotInitialized;
         };
 
-        // TODO: We will need some way to share messages between the plugin and the editor.
-        // For instance, FFT data. Says in the VST3 docs that this API should not be called from the
-        // process function (think it allocates). We could do like JUCE, and send a pointer to this
-        // object to the editor (and vice versa) using the IConnectionPoint API and then implement our own system.
-
-        let mut message_tuid = tuid_from_uuid(&IMessage::IID);
-        let mut message = std::ptr::null_mut();
-        let result = unsafe {
-            host_context.createInstance(&mut message_tuid, &mut message_tuid, &mut message)
-        };
-        if let Some(message) = unsafe { ComPtr::from_raw(message as *mut IMessage) }
-            && result == kResultOk
-        {
-            unsafe { message.setMessageID(SHARED_STATE_MSG_ID.as_ptr()) };
+        let mut result = kResultFalse;
+        if let Some(message) = unsafe { host_context.allocate_message(SHARED_STATE_MSG_ID) } {
             let attrs = unsafe { ComRef::from_raw(message.getAttributes()) }.unwrap();
             let shared_state_ptr = Arc::into_raw(self.shared_state.clone());
             unsafe {
@@ -471,11 +459,11 @@ impl<P: VST3Plugin> IConnectionPointTrait for AudioProcessor<P> {
                     shared_state_ptr.expose_provenance() as i64,
                 )
             };
-            unsafe { other.notify(message.as_ptr()) };
+            result = unsafe { other.notify(message.as_ptr()) };
         }
 
         self.host_context.set(Some(host_context));
-        kResultOk
+        result
     }
 
     unsafe fn disconnect(&self, _other: *mut IConnectionPoint) -> tresult {

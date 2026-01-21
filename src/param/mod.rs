@@ -29,6 +29,7 @@ impl Display for ParseError {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Unit {
     None,
     Decibels,
@@ -145,6 +146,12 @@ impl From<PlainValue> for bool {
     fn from(val: PlainValue) -> Self {
         val.0 > 0.5
     }
+}
+
+pub struct ParameterInfo {
+    pub name: String,
+    pub short_name: String,
+    pub unit: Unit,
 }
 
 pub(super) mod private {

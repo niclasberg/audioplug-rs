@@ -1,6 +1,6 @@
-use std::ffi::{CStr, c_char};
+use std::ffi::c_char;
 
-use vst3::Steinberg::{FIDString, TUID, ViewRect, Vst::TChar};
+use vst3::Steinberg::{TUID, ViewRect, Vst::TChar};
 
 use crate::core::Rect;
 
@@ -41,26 +41,4 @@ pub const fn tuid_from_uuid(uuid: &[u8; 16]) -> TUID {
         uuid[14] as _,
         uuid[15] as _,
     ]
-}
-
-impl From<ViewRect> for Rect<i32> {
-    fn from(value: ViewRect) -> Self {
-        Self {
-            left: value.left,
-            top: value.top,
-            right: value.right,
-            bottom: value.bottom,
-        }
-    }
-}
-
-impl From<Rect<i32>> for ViewRect {
-    fn from(val: Rect<i32>) -> Self {
-        ViewRect {
-            left: val.left,
-            top: val.top,
-            right: val.right,
-            bottom: val.bottom,
-        }
-    }
 }

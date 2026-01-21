@@ -14,7 +14,7 @@ use crate::{
     core::{FxIndexSet, Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
-    ui::render::WGPUSurface,
+    ui::render::{GpuScene, WGPUSurface},
 };
 use slotmap::{Key, SecondaryMap, SlotMap};
 use std::{
@@ -27,6 +27,7 @@ use std::{
 pub(super) struct WindowState {
     pub(super) handle: platform::Handle,
     pub(super) wgpu_surface: WGPUSurface,
+    pub(super) gpu_scene: GpuScene,
     pub(super) root_widget: WidgetId,
     pub(super) focus_widget: Option<WidgetId>,
     pub(super) pending_widget_animations: FxIndexSet<WidgetId>,
@@ -124,6 +125,7 @@ impl AppState {
             theme_signal,
             overlays: Default::default(),
             widgets_needing_render: FxIndexSet::default(),
+            gpu_scene: GpuScene::new(),
         });
 
         let widget_id = self

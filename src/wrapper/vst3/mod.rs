@@ -3,6 +3,7 @@ mod audioprocessor;
 mod category;
 mod editcontroller;
 mod factory;
+mod host_application;
 mod parameters;
 mod plugview;
 mod shared_state;
