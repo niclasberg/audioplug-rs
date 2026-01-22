@@ -40,10 +40,10 @@ impl<P: VST3Plugin> Factory<P> {
     const PROCESSOR_CID: TUID = tuid_from_uuid(P::PROCESSOR_UUID.as_bytes());
 }
 
-const SDK_VERSION_STRING: &'static str = "VST 3.8.0";
+const SDK_VERSION_STRING: &str = "VST 3.8.0";
 const CLASS_FLAGS: u32 = 0;
-const EDITOR_CATEGORY: &'static str = "Component Controller Class";
-const PROCESSOR_CATEGORY: &'static str = "Audio Module Class";
+const EDITOR_CATEGORY: &str = "Component Controller Class";
+const PROCESSOR_CATEGORY: &str = "Audio Module Class";
 
 impl<P: VST3Plugin> IPluginFactoryTrait for Factory<P> {
     unsafe fn getFactoryInfo(&self, info: *mut PFactoryInfo) -> tresult {
@@ -153,7 +153,7 @@ impl<P: VST3Plugin> IPluginFactory2Trait for Factory<P> {
                 );
                 kResultOk
             }
-            _ => return kInvalidArgument,
+            _ => kInvalidArgument,
         }
     }
 }
