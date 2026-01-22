@@ -1,8 +1,6 @@
 use std::ffi::c_char;
 
-use vst3::Steinberg::{TUID, ViewRect, Vst::TChar};
-
-use crate::core::Rect;
+use vst3::Steinberg::{TUID, Vst::TChar};
 
 pub fn strcpy(src: &str, dst: &mut [c_char]) {
     let src = src.as_bytes();
