@@ -14,12 +14,6 @@ use crate::core::ScaleFactor;
 use crate::param::ParameterMap;
 use crate::ui::{AppState, Window};
 
-#[cfg(target_os = "windows")]
-use {raw_window_handle::Win32WindowHandle, std::num::NonZeroIsize};
-
-#[cfg(target_os = "macos")]
-use {raw_window_handle::AppKitWindowHandle, std::ptr::NonNull};
-
 pub struct PlugView<E: Editor> {
     window: RefCell<Option<Window>>,
     app_state: Rc<RefCell<AppState>>,
@@ -53,6 +47,12 @@ const PLATFORM_TYPE_HWND: &CStr = unsafe { CStr::from_ptr(vst3::Steinberg::kPlat
 #[cfg(target_os = "macos")]
 const PLATFORM_TYPE_NSVIEW: &'static CStr =
     unsafe { CStr::from_ptr(vst3::Steinberg::kPlatformTypeNSView) };
+#[cfg(target_os = "linux")]
+const PLATFORM_TYPE_WAYLAND: &'static CStr =
+    unsafe { CStr::from_ptr(vst3::Steinberg::kPlatformTypeWaylandSurfaceID) };
+#[cfg(target_os = "linux")]
+const PLATFORM_TYPE_X11: &'static CStr =
+    unsafe { CStr::from_ptr(vst3::Steinberg::kPlatformTypeX11EmbedWindowID) };
 
 impl<E: Editor> IPlugViewTrait for PlugView<E> {
     unsafe fn isPlatformTypeSupported(&self, type_: FIDString) -> tresult {
@@ -68,12 +68,17 @@ impl<E: Editor> IPlugViewTrait for PlugView<E> {
             return kResultOk;
         }
 
+        #[cfg(target_os = "linux")]
+        if type_ == PLATFORM_TYPE_WAYLAND || type_ == PLATFORM_TYPE_X11 {
+            return kResultOk;
+        }
+
         kResultFalse
     }
 
     unsafe fn attached(&self, parent: *mut c_void, type_: FIDString) -> tresult {
-        if parent.is_null() || type_.is_null() {
-            return kResultFalse;
+        if type_.is_null() {
+            return kInvalidArgument;
         }
 
         let mut window = self.window.borrow_mut();
@@ -82,16 +87,39 @@ impl<E: Editor> IPlugViewTrait for PlugView<E> {
             let handle = {
                 #[cfg(target_os = "windows")]
                 if type_ == PLATFORM_TYPE_HWND {
-                    let h = Win32WindowHandle::new(NonZeroIsize::new(parent as isize).unwrap());
-                    RawWindowHandle::Win32(h)
+                    use {raw_window_handle::Win32WindowHandle, std::num::NonZeroIsize};
+                    let Some(window) = NonZeroIsize::new(parent as isize) else { 
+                        return kInvalidArgument;
+                    };
+                    RawWindowHandle::Win32(Win32WindowHandle::new(window))
                 } else {
                     return kInvalidArgument;
                 }
 
                 #[cfg(target_os = "macos")]
                 if type_ == PLATFORM_TYPE_NSVIEW {
-                    let h = AppKitWindowHandle::new(NonNull::new(parent).unwrap());
-                    RawWindowHandle::AppKit(h)
+                    use {raw_window_handle::AppKitWindowHandle, std::ptr::NonNull};
+                    let Some(parent) = NonNull::new(parent) else {
+                        return kInvalidArgument;
+                    };
+                    RawWindowHandle::AppKit(AppKitWindowHandle::new(parent))
+                } else {
+                    return kInvalidArgument;
+                }
+
+                #[cfg(target_os = "linux")]
+                if type_ == PLATFORM_TYPE_WAYLAND {
+                    use {raw_window_handle::WaylandWindowHandle, std::ptr::NonNull};
+                    let Some(parent) = NonNull::new(parent) else {
+                        return kInvalidArgument;
+                    };
+                    RawWindowHandle::Wayland(WaylandWindowHandle::new(parent))
+                } else if type_ == PLATFORM_TYPE_X11 {
+                    use {raw_window_handle::XcbWindowHandle, std::num::NonZero};
+                    let Some(window) = NonZero::new(parent as usize as u32) else {
+                        return kInvalidArgument;
+                    };
+                    RawWindowHandle::Xcb(XcbWindowHandle::new(window))
                 } else {
                     return kInvalidArgument;
                 }
