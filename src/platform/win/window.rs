@@ -426,7 +426,7 @@ impl Window {
         Ok(this)
     }
 
-    pub fn attach(parent: HWND, handler: impl WindowHandler + 'static) -> Result<Self> {
+    pub fn attach(parent: HWND, handler: Box<dyn WindowHandler>) -> Result<Self> {
         let this = Self::create(Some(parent), WS_CHILD, handler, false)?;
         let _ = unsafe { ShowWindow(this.handle, SW_SHOW) };
         Ok(this)
@@ -462,7 +462,7 @@ impl Window {
     fn create(
         parent: Option<HWND>,
         style: WINDOW_STYLE,
-        handler: impl WindowHandler + 'static,
+        handler: Box<dyn WindowHandler>,
         quit_app_on_exit: bool,
     ) -> Result<Self> {
         let window_class = &WINDOW_CLASS.class_name;
@@ -474,7 +474,7 @@ impl Window {
         }?;
 
         let window_state = Rc::new(WindowState {
-            handler: RefCell::new(Box::new(handler)),
+            handler: RefCell::new(handler),
             last_mouse_pos: RefCell::new(None),
             ticks_per_second,
             current_key_event: RefCell::new(None),

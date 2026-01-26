@@ -6,7 +6,7 @@ use std::sync::Arc;
 use vst3::Steinberg::Vst::ParameterInfo_::ParameterFlags_;
 use vst3::Steinberg::Vst::{
     IAttributeListTrait, IComponentHandler, IComponentHandlerTrait, IConnectionPoint,
-    IConnectionPointTrait, IEditController, IEditControllerTrait, IHostApplication, IMessage,
+    IConnectionPointTrait, IEditController, IEditControllerTrait, IMessage,
     IMessageTrait, IUnitInfo, IUnitInfoTrait, ParamValue, ParameterInfo, ProgramListInfo,
     String128, TChar, UnitInfo, kNoParentUnitId, kNoProgramListId, kRootUnitId,
 };
@@ -20,6 +20,7 @@ use crate::param::{
     AnyParameterMap, NormalizedValue, ParamRef, ParameterId, ParameterMap, Params, PlainValue,
 };
 use crate::ui::{AppState, HostHandle};
+use crate::wrapper::vst3::host_application::HostApplication;
 use crate::wrapper::vst3::shared_state::{SHARED_STATE_ATTR_ID, SHARED_STATE_MSG_ID, SharedState};
 use crate::{Editor, EditorContext, platform};
 
@@ -53,7 +54,7 @@ impl HostHandle for VST3HostHandle {
 pub struct EditController<E: Editor> {
     app_state: Rc<RefCell<AppState>>,
     editor: Rc<RefCell<E>>,
-    host_context: Cell<Option<ComPtr<IHostApplication>>>,
+    host_context: Cell<Option<HostApplication>>,
     executor: Rc<platform::Executor>,
     is_editing_parameters_from_gui: Rc<Cell<bool>>,
     parameters: Rc<ParameterMap<E::Parameters>>,
@@ -257,9 +258,7 @@ impl<E: Editor> IPluginBaseTrait for EditController<E> {
             return kResultFalse;
         }
 
-        let host_context =
-            unsafe { ComRef::from_raw(context) }.and_then(|cx| cx.cast::<IHostApplication>());
-        if let Some(context) = host_context {
+        if let Some(context) = unsafe { HostApplication::from_raw(context) } {
             self.host_context.set(Some(context));
             kResultOk
         } else {

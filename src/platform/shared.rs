@@ -5,7 +5,7 @@ use crate::{
     platform::Handle,
 };
 
-pub trait WindowHandler {
+pub trait WindowHandler: 'static {
     fn init(&mut self, handle: Handle);
     fn event(&mut self, event: WindowEvent);
     fn paint(&mut self, dirty_rect: Rect);

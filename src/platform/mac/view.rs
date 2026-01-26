@@ -171,10 +171,10 @@ define_class!(
 impl View {
     pub(crate) fn new(
         mtm: MainThreadMarker,
-        handler: impl WindowHandler + 'static,
+        handler: Box<dyn WindowHandler>,
         frame: Option<NSRect>,
     ) -> Retained<Self> {
-        let handler = RefCell::new(Box::new(handler));
+        let handler = RefCell::new(handler);
         let tracking_area = RefCell::new(None);
 
         let this = mtm.alloc();

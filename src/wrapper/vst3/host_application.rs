@@ -17,9 +17,12 @@ pub struct HostApplication {
 
 impl HostApplication {
     pub unsafe fn from_raw(ptr: *mut FUnknown) -> Option<Self> {
-        unsafe { ComRef::from_raw(ptr) }
-            .and_then(|cx| cx.cast::<IHostApplication>())
-            .map(|inner| Self { inner })
+        let inner = unsafe { ComRef::from_raw(ptr) }
+            .and_then(|cx| cx.cast::<IHostApplication>())?;
+
+        Some(Self {
+            inner
+        })
     }
 
     pub unsafe fn allocate_message(&self, id: &CStr) -> Option<ComPtr<IMessage>> {

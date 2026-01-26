@@ -1,4 +1,6 @@
 use raw_window_handle::RawWindowHandle;
+#[cfg(target_os = "linux")]
+use vst3::Steinberg::IWaylandFrame;
 use std::cell::RefCell;
 use std::ffi::{CStr, c_void};
 use std::rc::Rc;
@@ -14,11 +16,27 @@ use crate::core::ScaleFactor;
 use crate::param::ParameterMap;
 use crate::ui::{AppState, Window};
 
+struct PlugFrame {
+    plugin: ComPtr<IPlugFrame>,
+    #[cfg(target_os = "linux")]
+    wayland: Option<ComPtr<IWaylandFrame>>
+}
+
+impl PlugFrame {
+    fn new(plug_frame: ComRef<'_, IPlugFrame>) -> Self {
+        Self {
+            plugin: plug_frame.to_com_ptr(),
+            #[cfg(target_os = "linux")]
+            wayland: plug_frame.cast()
+        }
+    }
+}
+
 pub struct PlugView<E: Editor> {
     window: RefCell<Option<Window>>,
     app_state: Rc<RefCell<AppState>>,
     editor: Rc<RefCell<E>>,
-    plugin_frame: RefCell<Option<ComPtr<IPlugFrame>>>,
+    plugin_frame: RefCell<Option<PlugFrame>>,
     parameters: Rc<ParameterMap<E::Parameters>>,
 }
 
@@ -146,7 +164,7 @@ impl<E: Editor> IPlugViewTrait for PlugView<E> {
         let Some(frame) = (unsafe { ComRef::from_raw(frame) }) else {
             return kInvalidArgument;
         };
-        self.plugin_frame.replace(Some(frame.to_com_ptr()));
+        self.plugin_frame.replace(Some(PlugFrame::new(frame)));
         kResultOk
     }
 
@@ -156,14 +174,17 @@ impl<E: Editor> IPlugViewTrait for PlugView<E> {
     }
 
     unsafe fn onKeyDown(&self, _key: char16, _key_code: i16, _modifiers: i16) -> tresult {
+        // Handle in window class instead
         kResultOk
     }
 
     unsafe fn onKeyUp(&self, _key: char16, _key_code: i16, _modifiers: i16) -> tresult {
+        // Handle in window class instead
         kResultOk
     }
 
     unsafe fn onFocus(&self, _state: TBool) -> tresult {
+        // Handle in window class instead
         kResultOk
     }
 

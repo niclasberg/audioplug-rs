@@ -94,13 +94,13 @@ impl<P: VST3Plugin> IPluginFactoryTrait for Factory<P> {
             Some(
                 ComWrapper::new(AudioProcessor::<P>::new())
                     .to_com_ptr::<FUnknown>()
-                    .unwrap(),
+                    .expect("The AudioProcessor should implement FUnknown"),
             )
         } else if cid == Self::EDITOR_CID {
             Some(
                 ComWrapper::new(EditController::<P::Editor>::new())
                     .to_com_ptr::<FUnknown>()
-                    .unwrap(),
+                    .expect("The EditController should implement FUnknown"),
             )
         } else {
             None

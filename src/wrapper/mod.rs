@@ -5,7 +5,7 @@ pub mod vst3;
 pub mod auv3;
 
 #[macro_export]
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "linux"))]
 macro_rules! audioplug_auv3_plugin {
     ($plugin: ty) => {};
 }
@@ -99,6 +99,18 @@ macro_rules! audioplug_vst3_plugin {
         pub extern "system" fn bundleExit() -> bool {
             true
         }
+
+        #[cfg(target_os="linux")]
+        #[unsafe(no_mangle)]
+        pub extern "system" fn ModuleEntry(_library_handle: *mut std::ffi::c_void) -> bool {
+            true
+        }
+        
+        #[cfg(target_os="linux")]
+        #[unsafe(no_mangle)]
+        pub extern "system" fn ModuleExit() -> bool {
+            true
+        }   
 
         #[unsafe(no_mangle)]
         #[allow(non_snake_case)]

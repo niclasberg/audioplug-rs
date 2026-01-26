@@ -18,7 +18,7 @@ pub enum Window {
 }
 
 impl Window {
-    pub(crate) fn open(widget: impl WindowHandler + 'static) -> Result<Self, Error> {
+    pub(crate) fn open(widget: Box<dyn WindowHandler>) -> Result<Self, Error> {
         let mtm = MainThreadMarker::new().unwrap();
         let content_rect = NSRect::new(NSPoint::new(0., 0.), NSSize::new(1024., 768.));
         let window = {
@@ -50,7 +50,7 @@ impl Window {
 
     pub fn attach(
         parent_handle: AppKitWindowHandle,
-        handler: impl WindowHandler + 'static,
+        handler: Box<dyn WindowHandler>,
     ) -> Result<Self, Error> {
         let mtm = MainThreadMarker::new().unwrap();
         let parent = unsafe { &*(parent_handle.ns_view.as_ptr() as *mut NSView) };

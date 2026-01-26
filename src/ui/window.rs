@@ -110,7 +110,7 @@ pub struct Window(platform::Window);
 
 impl Window {
     pub fn open<V: View + 'static>(app: &mut App, view: V) -> Self {
-        let handler = MyHandler::new(app.state.clone(), view);
+        let handler = Box::new(MyHandler::new(app.state.clone(), view));
         Self(platform::Window::open(handler).unwrap())
     }
 
@@ -119,7 +119,7 @@ impl Window {
         parent_handle: RawWindowHandle,
         view: V,
     ) -> Self {
-        let handler = MyHandler::new(app_state, view);
+        let handler = Box::new(MyHandler::new(app_state, view));
         let window: Result<platform::Window, platform::Error> = match parent_handle {
             #[cfg(target_os = "windows")]
             RawWindowHandle::Win32(handle) => {
@@ -128,6 +128,10 @@ impl Window {
             }
             #[cfg(target_os = "macos")]
             RawWindowHandle::AppKit(handle) => platform::Window::attach(handle, handler),
+            #[cfg(target_os = "linux")]
+            RawWindowHandle::Wayland(handle) => platform::Window::attach_wayland(handle, handler),
+            #[cfg(target_os = "linux")]
+            RawWindowHandle::Xcb(handle) => platform::Window::attach_xcb(handle, handler),
             _ => panic!("Unsupported window type"),
         };
 
