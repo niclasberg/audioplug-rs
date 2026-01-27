@@ -111,7 +111,7 @@ pub struct Window(platform::Window);
 impl Window {
     pub fn open<V: View + 'static>(app: &mut App, view: V) -> Self {
         let handler = Box::new(MyHandler::new(app.state.clone(), view));
-        Self(platform::Window::open(handler).unwrap())
+        Self(platform::Window::open(&mut app.native, handler).unwrap())
     }
 
     pub fn attach<V: View + 'static>(
