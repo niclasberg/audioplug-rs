@@ -2,7 +2,7 @@ use std::ffi::c_void;
 use std::ptr::NonNull;
 
 use crate::core::{PhysicalRect, Rect, ScaleFactor};
-use crate::platform::WindowHandler;
+use crate::platform::{Application, WindowHandler};
 use objc2::rc::{Retained, Weak};
 use objc2_app_kit::{NSBackingStoreType, NSView, NSWindow, NSWindowStyleMask};
 use objc2_core_foundation::CGSize;
@@ -18,7 +18,10 @@ pub enum Window {
 }
 
 impl Window {
-    pub(crate) fn open(widget: Box<dyn WindowHandler>) -> Result<Self, Error> {
+    pub(crate) fn open(
+        _app: &mut Application,
+        handler: Box<dyn WindowHandler>,
+    ) -> Result<Self, Error> {
         let mtm = MainThreadMarker::new().unwrap();
         let content_rect = NSRect::new(NSPoint::new(0., 0.), NSSize::new(1024., 768.));
         let window = {
@@ -40,7 +43,7 @@ impl Window {
             }
         };
 
-        let view = View::new(mtm, widget, Some(content_rect));
+        let view = View::new(mtm, handler, Some(content_rect));
 
         window.makeKeyAndOrderFront(None);
         window.setContentView(Some(&*view));

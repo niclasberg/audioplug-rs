@@ -142,7 +142,7 @@ impl<P: Plugin + 'static> ViewController<P> {
             let editor = RefCell::borrow_mut(&self.editor);
             editor.view(self.parameters.parameters_ref())
         };
-        let handler = MyHandler::new(app_state, view);
+        let handler = Box::new(MyHandler::new(app_state, view));
         let view = View::new(mtm, handler, None);
 
         Retained::into_raw(Retained::into_super(view))

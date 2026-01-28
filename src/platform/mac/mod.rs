@@ -13,7 +13,6 @@ mod text;
 mod util;
 pub(crate) mod view;
 mod window;
-mod window_state;
 
 pub(crate) use application::Application;
 pub(crate) use audio::AudioHost;
