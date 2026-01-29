@@ -2,7 +2,7 @@ use crate::platform::linux::{wayland::application::WaylandApplication, x11::X11A
 
 pub enum Application {
     Wayland(WaylandApplication),
-    X11(X11Application)
+    X11(X11Application),
 }
 
 impl Application {
@@ -10,18 +10,16 @@ impl Application {
         if let Ok(connection) = wayland_client::Connection::connect_to_env() {
             Self::Wayland(WaylandApplication::new(connection))
         } else {
-            let (connection, _screen) = x11rb::xcb_ffi::XCBConnection::connect(None).unwrap();
+            let (connection, screen) = x11rb::xcb_ffi::XCBConnection::connect(None).unwrap();
             // Default to X11
-            Self::X11(X11Application::new(connection))
+            Self::X11(X11Application::new(connection, screen))
         }
     }
 
     pub fn run(&mut self) {
         match self {
-            Application::Wayland(app) =>  {
-                app.run()
-            },
-            Application::X11(_) => {},
+            Application::Wayland(app) => app.run(),
+            Application::X11(app) => app.run(),
         }
     }
 }
