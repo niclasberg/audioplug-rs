@@ -10,7 +10,7 @@ impl Window {
     pub fn open(app: &mut Application, handler: Box<dyn WindowHandler>) -> Result<Self, super::Error> {
         match app {
             Application::Wayland(app) => WaylandWindow::open(app, handler).map(Self::Wayland),
-            Application::X11 {  } => todo!(),
+            Application::X11(_) => todo!(),
         }
     }
 

@@ -1,8 +1,8 @@
-use crate::platform::linux::wayland::application::WaylandApplication;
+use crate::platform::linux::{wayland::application::WaylandApplication, x11::X11Application};
 
 pub enum Application {
     Wayland(WaylandApplication),
-    X11
+    X11(X11Application)
 }
 
 impl Application {
@@ -10,8 +10,9 @@ impl Application {
         if let Ok(connection) = wayland_client::Connection::connect_to_env() {
             Self::Wayland(WaylandApplication::new(connection))
         } else {
+            let (connection, _screen) = x11rb::xcb_ffi::XCBConnection::connect(None).unwrap();
             // Default to X11
-            Self::X11 {  }
+            Self::X11(X11Application::new(connection))
         }
     }
 
@@ -20,7 +21,7 @@ impl Application {
             Application::Wayland(app) =>  {
                 app.run()
             },
-            Application::X11 {  } => {},
+            Application::X11(_) => {},
         }
     }
 }

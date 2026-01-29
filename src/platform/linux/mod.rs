@@ -2,6 +2,7 @@ mod application;
 mod audio;
 mod executor;
 mod text;
+mod x11;
 mod window;
 mod wayland;
 
