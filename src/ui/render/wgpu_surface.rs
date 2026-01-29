@@ -254,13 +254,43 @@ impl WGPUSurface {
     }
 
     pub fn upload_scene(&mut self, scene: &GpuScene) {
-        if self.fill_ops_buffer.size() < scene.fill_ops.len() as u64 {
-            self.queue.write_buffer(
+        let fill_ops_recreated = {
+            let fill_ops = if scene.fill_ops.is_empty() {
+                &[0]
+            } else {
+                bytemuck::cast_slice(scene.fill_ops.as_slice())
+            };
+
+            update_buffer(
+                &mut self.device,
+                &mut self.queue,
+                &mut self.fill_ops_buffer,
+                fill_ops,
+                "FillOps buffer",
+            )
+        };
+
+        let shape_data_recreated = {
+            let shape_data = if scene.shape_data.is_empty() {
+                bytemuck::cast_slice(&GpuScene::NOOP_FILL)
+            } else {
+                bytemuck::cast_slice(scene.shape_data.as_slice())
+            };
+            update_buffer(
+                &mut self.device,
+                &mut self.queue,
+                &mut self.shapes_data_buffer,
+                shape_data,
+                "ShapeData buffer",
+            )
+        };
+
+        if shape_data_recreated || fill_ops_recreated {
+            self.render_tiles_bind_group1 = self.render_tiles_program.create_bind_group1(
+                &self.device,
+                &self.shapes_data_buffer,
                 &self.fill_ops_buffer,
-                0,
-                bytemuck::cast_slice(scene.fill_ops.as_slice()),
             );
-        } else {
         }
     }
 
@@ -273,20 +303,25 @@ impl WGPUSurface {
     }
 }
 
+/// Update or reallocate a buffer and fill with the provided data
+/// Returns true if a new buffer was created
 fn update_buffer(
     device: &mut wgpu::Device,
     queue: &mut wgpu::Queue,
     buffer: &mut wgpu::Buffer,
     data: &[u8],
-) {
-    if buffer.size() < data.len() as u64 {
-        queue.write_buffer(&buffer, 0, data);
+    label: &str,
+) -> bool {
+    if data.len() < buffer.size() as usize {
+        queue.write_buffer(buffer, 0, data);
+        false
     } else {
         *buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Label"),
+            label: Some(label),
             contents: data,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        })
+        });
+        true
     }
 }
 

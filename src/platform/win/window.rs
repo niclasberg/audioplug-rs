@@ -31,7 +31,7 @@ use windows_core::{HSTRING, h};
 use super::{
     cursors::get_cursor, keyboard::{get_modifiers, vk_to_key, KeyFlags}, util::{get_scale_factor_for_window, get_theme}, Handle
 };
-use crate::{core::{PhysicalRect, PhysicalSize, ScaleFactor}, event::MouseButton};
+use crate::{core::{PhysicalRect, PhysicalSize, ScaleFactor}, event::MouseButton, platform::Application};
 use crate::{
     core::{Key, Point, Rect, Size, Vec2, WindowTheme},
     event::{AnimationFrame, KeyEvent, MouseEvent},
@@ -405,7 +405,7 @@ static WINDOW_CLASS: LazyLock<WindowClass> = LazyLock::new(|| {
 });
 
 impl Window {
-    pub fn open(handler: impl WindowHandler + 'static) -> Result<Self> {
+    pub fn open(_app: &mut Application, handler: Box<dyn WindowHandler>) -> Result<Self> {
         let this = Self::create(None, WS_OVERLAPPEDWINDOW, handler, true)?;
 
         unsafe {
