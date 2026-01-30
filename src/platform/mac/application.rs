@@ -56,7 +56,8 @@ pub(crate) struct Application {
 
 impl Application {
     pub fn new() -> Self {
-        let mtm = MainThreadMarker::new().unwrap();
+        let mtm = MainThreadMarker::new()
+            .expect("The application must be initialized on the main thread");
         let app = NSApplication::sharedApplication(mtm);
         app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
 

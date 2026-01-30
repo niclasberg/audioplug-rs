@@ -30,6 +30,7 @@
             pkgs.pkg-config
             pkgs.wayland
             pkgs.libxkbcommon
+            pkgs.xorg.libxcb
             pkgs.wayland-protocols
           ];
 
