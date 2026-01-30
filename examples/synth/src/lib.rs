@@ -1,8 +1,8 @@
 use core::f32;
 
 use audioplug::{
-    audioplug_auv3_plugin, audioplug_vst3_plugin, midi::NoteEvent, wrapper::vst3::VST3Categories,
-    AudioLayout, Bus, ChannelType, Plugin, Uuid, VST3Plugin,
+    audioplug_auv3_plugin, audioplug_clap_plugin, audioplug_vst3_plugin, midi::NoteEvent,
+    wrapper::vst3::VST3Categories, AudioLayout, Bus, ChannelType, Plugin, Uuid, VST3Plugin,
 };
 use editor::SynthEditor;
 use params::SynthParams;
@@ -93,3 +93,4 @@ impl VST3Plugin for SynthPlugin {
 
 audioplug_vst3_plugin!(SynthPlugin);
 audioplug_auv3_plugin!(SynthPlugin);
+audioplug_clap_plugin!(SynthPlugin);
