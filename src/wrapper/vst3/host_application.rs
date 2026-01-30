@@ -3,9 +3,7 @@ use std::ffi::CStr;
 use vst3::{
     ComPtr, ComRef, Interface,
     Steinberg::{
-        FUnknown,
-        Vst::{IHostApplication, IHostApplicationTrait, IMessage, IMessageTrait},
-        kResultOk,
+        FUnknown, Linux::IRunLoop, Vst::{IHostApplication, IHostApplicationTrait, IMessage, IMessageTrait}, kResultOk
     },
 };
 
@@ -40,5 +38,9 @@ impl HostApplication {
         } else {
             None
         }
+    }
+
+    pub unsafe fn get_runloop(&self) -> Option<ComPtr<IRunLoop>> {
+        self.inner.cast()
     }
 }

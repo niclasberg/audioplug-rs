@@ -1,35 +1,37 @@
 use std::ffi::c_void;
 use std::marker::PhantomData;
+use std::sync::{Mutex, OnceLock};
 
-use vst3::ComWrapper;
+use vst3::{ComPtr, ComWrapper};
 use vst3::Steinberg::PClassInfo_::ClassCardinality_;
 use vst3::Steinberg::PFactoryInfo_::FactoryFlags_;
 use vst3::Steinberg::{
-    FIDString, FUnknown, IPluginFactory, IPluginFactory2, IPluginFactory2Trait,
-    IPluginFactory3Trait, IPluginFactoryTrait, PClassInfo, PClassInfo2, PClassInfoW, PFactoryInfo,
-    TUID, kInvalidArgument, kResultOk, tresult,
+    FIDString, FUnknown, IPluginFactory, IPluginFactory2, IPluginFactory2Trait, IPluginFactory3, IPluginFactory3Trait, IPluginFactoryTrait, PClassInfo, PClassInfo2, PClassInfoW, PFactoryInfo, TUID, kInvalidArgument, kResultOk, tresult
 };
 
 use super::editcontroller::EditController;
 use crate::VST3Plugin;
 use crate::wrapper::vst3::VST3Categories;
+use crate::wrapper::vst3::host_application::HostApplication;
 use crate::wrapper::vst3::util::{strcpyw, tuid_from_uuid};
 
 use super::AudioProcessor;
 use super::util::strcpy;
 
 pub struct Factory<P: VST3Plugin> {
+    host_context: OnceLock<HostApplication>,
     _phantom: PhantomData<P>,
 }
 
 impl<P: VST3Plugin> vst3::Class for Factory<P> {
-    type Interfaces = (IPluginFactory, IPluginFactory2);
+    type Interfaces = (IPluginFactory, IPluginFactory2, IPluginFactory3);
 }
 
 impl<P: VST3Plugin> Factory<P> {
     pub fn new_raw() -> *mut IPluginFactory {
         ComWrapper::new(Self {
             _phantom: PhantomData,
+            host_context: OnceLock::new()
         })
         .to_com_ptr()
         .unwrap()
@@ -214,8 +216,13 @@ impl<P: VST3Plugin> IPluginFactory3Trait for Factory<P> {
         }
     }
 
-    unsafe fn setHostContext(&self, _context: *mut FUnknown) -> tresult {
-        kResultOk
+    unsafe fn setHostContext(&self, context: *mut FUnknown) -> tresult {
+        if let Some(host_application) = unsafe { HostApplication::from_raw(context) } {
+            self.host_context.set(host_application).ok();
+            kResultOk
+        } else {
+            kInvalidArgument
+        }
     }
 }
 

@@ -1,16 +1,17 @@
 use raw_window_handle::{WaylandWindowHandle, XcbWindowHandle};
 
-use crate::{core::{PhysicalRect, Rect, ScaleFactor}, platform::{Application, WindowHandler, linux::wayland::window::WaylandWindow}};
+use crate::{core::{PhysicalRect, Rect, ScaleFactor}, platform::{Application, WindowHandler, linux::{wayland::window::WaylandWindow, x11::{X11Application, X11Window}}}};
 
 pub enum Window {
-    Wayland(WaylandWindow)
+    Wayland(WaylandWindow),
+    X11(X11Window)
 }
 
 impl Window {
     pub fn open(app: &mut Application, handler: Box<dyn WindowHandler>) -> Result<Self, super::Error> {
         match app {
             Application::Wayland(app) => WaylandWindow::open(app, handler).map(Self::Wayland),
-            Application::X11(_) => todo!(),
+            Application::X11(app) => X11Window::open(app, handler).map(Self::X11),
         }
     }
 
@@ -24,7 +25,8 @@ impl Window {
 
     pub fn set_scale_factor(&self, scale_factor: ScaleFactor) {
         match self {
-            Window::Wayland(wayland_window) => wayland_window.set_scale_factor(scale_factor),
+            Self::Wayland(wayland_window) => wayland_window.set_scale_factor(scale_factor),
+            Self::X11(_) => todo!()
         }
     }
 
@@ -35,12 +37,14 @@ impl Window {
     pub fn set_physical_size(&self, size: PhysicalRect) -> Result<(), super::Error> {
         match self {
             Window::Wayland(wayland_window) => wayland_window.set_physical_size(size),
+            Self::X11(_) => todo!()
         }
     }
 
     pub fn set_logical_size(&self, rect: Rect) -> Result<(), super::Error> {
         match self {
             Window::Wayland(wayland_window) => wayland_window.set_logical_size(rect),
+            Self::X11(_) => todo!()
         }
     }
 }

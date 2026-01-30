@@ -1,19 +1,24 @@
-use x11rb::xcb_ffi::XCBConnection;
+use std::rc::Rc;
+
+use x11rb::{connection::Connection, protocol::xproto::Screen, xcb_ffi::XCBConnection};
+
+use crate::core::FxHashMap;
+use super::window::WindowInner;
 
 pub struct X11Application {
-    connection: XCBConnection,
-    screen: u32,
+    pub(super) connection: XCBConnection,
+    screen_id: usize,
     windows: FxHashMap<u32, Rc<WindowInner>>,
 }
 
 impl X11Application {
-    pub fn new(connection: XCBConnection, screen: u32) -> Self {
-        Self { connection, screen }
+    pub fn new(connection: XCBConnection, screen_id: usize) -> Self {
+        Self { connection, screen_id, windows: Default::default() }
     }
 
     pub fn run(&mut self) {
         loop {
-            self.connection.wait_for_event().unwrap()
+            self.connection.wait_for_event().unwrap();
         }
     }
 
@@ -22,6 +27,10 @@ impl X11Application {
     }
 
     pub(super) fn unregister_window(&mut self, id: u32) {
-        self.windows.erase(id);
+        self.windows.remove(&id);
+    }
+
+    pub(super) fn screen(&self) -> &Screen {
+        &self.connection.setup().roots[self.screen_id]
     }
 }

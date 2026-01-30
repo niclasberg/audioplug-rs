@@ -1,4 +1,4 @@
-use raw_window_handle::{WaylandWindowHandle, XcbWindowHandle};
+use raw_window_handle::{WaylandWindowHandle};
 
 use crate::{core::{PhysicalRect, Rect, ScaleFactor}, platform::{Error, WindowHandler, linux::wayland::application::WaylandApplication}};
 
