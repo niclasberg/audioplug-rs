@@ -1,0 +1,96 @@
+use std::ffi::CStr;
+
+#[derive(Debug, Copy, Clone)]
+pub enum ClapFeature {
+    // One of these is required
+    Analyzer,
+    AudioEffect,
+    Instrument,
+    NoteDetector,
+    NoteEffect,
+
+    // Optional
+    Ambisonic,
+    Chorus,
+    Compressor,
+    Deesser,
+    Delay,
+    Distortion,
+    Drum,
+    DrumMachine,
+    Equalizer,
+    Expander,
+    Filter,
+    Flanger,
+    FrequencyShifter,
+    Gate,
+    Glitch,
+    Granular,
+    Limiter,
+    Mastering,
+    Mixing,
+    Mono,
+    MultiEffects,
+    Phaser,
+    PhaseVocoder,
+    PitchCorrection,
+    PitchShifter,
+    Restoration,
+    Reverb,
+    Sampler,
+    Stereo,
+    Surround,
+    Synthesizer,
+    TransientShaper,
+    Tremolo,
+    Utility,
+}
+
+impl ClapFeature {
+    pub fn as_cstr(&self) -> &'static CStr {
+        use clap_sys::plugin_features::*;
+
+        match self {
+            Self::Analyzer => CLAP_PLUGIN_FEATURE_ANALYZER,
+            Self::AudioEffect => CLAP_PLUGIN_FEATURE_AUDIO_EFFECT,
+            Self::Instrument => CLAP_PLUGIN_FEATURE_INSTRUMENT,
+            Self::NoteDetector => CLAP_PLUGIN_FEATURE_AUDIO_EFFECT,
+            Self::NoteEffect => CLAP_PLUGIN_FEATURE_AUDIO_EFFECT,
+
+            Self::Synthesizer => CLAP_PLUGIN_FEATURE_SYNTHESIZER,
+            Self::Sampler => CLAP_PLUGIN_FEATURE_SAMPLER,
+            Self::Drum => CLAP_PLUGIN_FEATURE_DRUM,
+            Self::DrumMachine => CLAP_PLUGIN_FEATURE_DRUM_MACHINE,
+            Self::Filter => CLAP_PLUGIN_FEATURE_FILTER,
+            Self::Phaser => CLAP_PLUGIN_FEATURE_PHASER,
+            Self::Equalizer => CLAP_PLUGIN_FEATURE_EQUALIZER,
+            Self::Deesser => CLAP_PLUGIN_FEATURE_DEESSER,
+            Self::PhaseVocoder => CLAP_PLUGIN_FEATURE_PHASE_VOCODER,
+            Self::Granular => CLAP_PLUGIN_FEATURE_GRANULAR,
+            Self::FrequencyShifter => CLAP_PLUGIN_FEATURE_FREQUENCY_SHIFTER,
+            Self::PitchShifter => CLAP_PLUGIN_FEATURE_PITCH_SHIFTER,
+            Self::Distortion => CLAP_PLUGIN_FEATURE_DISTORTION,
+            Self::TransientShaper => CLAP_PLUGIN_FEATURE_TRANSIENT_SHAPER,
+            Self::Compressor => CLAP_PLUGIN_FEATURE_COMPRESSOR,
+            Self::Expander => CLAP_PLUGIN_FEATURE_EXPANDER,
+            Self::Gate => CLAP_PLUGIN_FEATURE_GATE,
+            Self::Limiter => CLAP_PLUGIN_FEATURE_LIMITER,
+            Self::Flanger => CLAP_PLUGIN_FEATURE_FLANGER,
+            Self::Chorus => CLAP_PLUGIN_FEATURE_CHORUS,
+            Self::Delay => CLAP_PLUGIN_FEATURE_DELAY,
+            Self::Reverb => CLAP_PLUGIN_FEATURE_REVERB,
+            Self::Tremolo => CLAP_PLUGIN_FEATURE_TREMOLO,
+            Self::Glitch => CLAP_PLUGIN_FEATURE_GLITCH,
+            Self::Utility => CLAP_PLUGIN_FEATURE_UTILITY,
+            Self::PitchCorrection => CLAP_PLUGIN_FEATURE_PITCH_CORRECTION,
+            Self::Restoration => CLAP_PLUGIN_FEATURE_RESTORATION,
+            Self::MultiEffects => CLAP_PLUGIN_FEATURE_MULTI_EFFECTS,
+            Self::Mixing => CLAP_PLUGIN_FEATURE_MIXING,
+            Self::Mastering => CLAP_PLUGIN_FEATURE_MASTERING,
+            Self::Mono => CLAP_PLUGIN_FEATURE_MONO,
+            Self::Stereo => CLAP_PLUGIN_FEATURE_STEREO,
+            Self::Surround => CLAP_PLUGIN_FEATURE_SURROUND,
+            Self::Ambisonic => CLAP_PLUGIN_FEATURE_AMBISONIC,
+        }
+    }
+}

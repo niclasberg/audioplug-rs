@@ -70,7 +70,7 @@ pub struct VST3Categories(&'static [VSTCategory]);
 impl VST3Categories {
     pub const FX: Self = Self(&[VSTCategory::Fx]);
     /// Scope, FFT-Display, Loudness Processing...
-    pub const FX_ANALYZER: Self = Self(&[VSTCategory::Fx]);
+    pub const FX_ANALYZER: Self = Self(&[VSTCategory::Fx, VSTCategory::Analyzer]);
     /// Tools dedicated to Bass Guitar.
     pub const FX_BASS: Self = Self(&[VSTCategory::Fx, VSTCategory::Bass]);
     /// Tools dedicated to Channel Strip.

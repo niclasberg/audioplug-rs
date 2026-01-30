@@ -5,6 +5,7 @@ use uuid::Uuid;
 use crate::editor::Editor;
 use crate::midi::NoteEvent;
 use crate::param::Params;
+use crate::wrapper::clap::ClapFeature;
 use crate::wrapper::vst3::VST3Categories;
 use crate::{AudioBuffer, AudioLayout};
 
@@ -107,4 +108,8 @@ pub trait VST3Plugin: Plugin {
     const PROCESSOR_UUID: Uuid;
     const EDITOR_UUID: Uuid;
     const CATEGORIES: VST3Categories;
+}
+
+pub trait ClapPlugin: Plugin {
+    const CLAP_FEATURES: &'static [ClapFeature];
 }

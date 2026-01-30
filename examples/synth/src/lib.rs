@@ -1,8 +1,10 @@
 use core::f32;
 
 use audioplug::{
-    audioplug_auv3_plugin, audioplug_clap_plugin, audioplug_vst3_plugin, midi::NoteEvent,
-    wrapper::vst3::VST3Categories, AudioLayout, Bus, ChannelType, Plugin, Uuid, VST3Plugin,
+    audioplug_auv3_plugin, audioplug_clap_plugin, audioplug_vst3_plugin,
+    midi::NoteEvent,
+    wrapper::{clap::ClapFeature, vst3::VST3Categories},
+    AudioLayout, Bus, ChannelType, ClapPlugin, Plugin, Uuid, VST3Plugin,
 };
 use editor::SynthEditor;
 use params::SynthParams;
@@ -89,6 +91,11 @@ impl VST3Plugin for SynthPlugin {
     const PROCESSOR_UUID: Uuid = Uuid::from_bytes(*b"audioplugsynthpc");
     const EDITOR_UUID: Uuid = Uuid::from_bytes(*b"audioplugsynthed");
     const CATEGORIES: VST3Categories = VST3Categories::INSTRUMENT_SYNTH;
+}
+
+impl ClapPlugin for SynthPlugin {
+    const CLAP_FEATURES: &'static [ClapFeature] =
+        &[ClapFeature::Instrument, ClapFeature::Synthesizer];
 }
 
 audioplug_vst3_plugin!(SynthPlugin);
