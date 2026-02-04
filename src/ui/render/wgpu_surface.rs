@@ -237,7 +237,7 @@ impl WGPUSurface {
                 ..
             } = self;
 
-            if !self.is_configured {
+            if !self.is_configured || self.size != new_size {
                 self.size = new_size;
                 self.config.width = new_size.width.0 as _;
                 self.config.height = new_size.height.0 as _;
