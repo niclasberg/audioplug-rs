@@ -32,11 +32,16 @@
             pkgs.libxkbcommon
             pkgs.xorg.libxcb
             pkgs.wayland-protocols
+            pkgs.just
+            pkgs.vulkan-loader
+            pkgs.mesa
+            pkgs.vulkan-tools
           ];
 
           shellHook = ''
             echo "🦀 Rust + Wayland dev shell"
             export RUST_SRC_PATH=${rustToolchain}/lib/rustlib/src/rust/library
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.vulkan-loader pkgs.mesa ]}:$LD_LIBRARY_PATH"
           '';
         };
       });

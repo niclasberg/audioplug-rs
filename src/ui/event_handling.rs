@@ -22,7 +22,6 @@ use crate::{
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
         WindowEvent::Resize { .. } => {
-            app_state.window_mut(window_id).wgpu_surface.is_configured = false;
             layout_window(app_state, window_id, RecomputeLayout::Force);
             invalidate_window(app_state, window_id);
         }

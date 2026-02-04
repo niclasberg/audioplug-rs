@@ -13,11 +13,14 @@ enum Tab {
 }
 
 fn main() {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .init();
     //let device = Device::new()?;
     //println!("name: {}, id: {}", device.name()?, device.id()?);
 
     let mut app = App::new();
-    let _ = Window::open(
+    let _window = Window::open(
         &mut app,
         Stateful::new(|cx| {
             let tab = Var::new(cx, Tab::Overview);

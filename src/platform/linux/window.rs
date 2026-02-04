@@ -20,7 +20,7 @@ impl Window {
     ) -> Result<Self, super::Error> {
         match app {
             Application::Wayland(app) => WaylandWindow::open(app, handler).map(Self::Wayland),
-            Application::X11(app) => X11Window::open(app, handler).map(Self::X11),
+            Application::X11(app) => X11Window::open(app.runloop(), handler).map(Self::X11),
         }
     }
 

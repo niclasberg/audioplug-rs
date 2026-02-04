@@ -1,5 +1,6 @@
 mod factory;
 mod features;
+mod host;
 mod plugin;
 
 pub use clap_sys::{entry::clap_plugin_entry, version::CLAP_VERSION};

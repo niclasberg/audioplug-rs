@@ -1,4 +1,9 @@
-use crate::platform::linux::{wayland::application::WaylandApplication, x11::X11Application};
+use std::sync::Arc;
+
+use crate::platform::linux::{
+    wayland::application::WaylandApplication,
+    x11::{X11Application, X11Runloop},
+};
 
 pub enum Application {
     Wayland(WaylandApplication),
@@ -10,10 +15,9 @@ impl Application {
         if false && let Ok(connection) = wayland_client::Connection::connect_to_env() {
             Self::Wayland(WaylandApplication::new(connection))
         } else {
-            x11rb::xcb_ffi::load_libxcb().unwrap();
-            let (connection, screen) = x11rb::xcb_ffi::XCBConnection::connect(None).unwrap();
+            let runloop = Arc::new(X11Runloop::new().unwrap());
             // Default to X11
-            Self::X11(X11Application::new(connection, screen))
+            Self::X11(X11Application::new(runloop))
         }
     }
 

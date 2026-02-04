@@ -6,11 +6,15 @@ use clap_sys::{
     plugin::{clap_plugin, clap_plugin_descriptor},
 };
 
-use crate::ClapPlugin;
+use crate::{
+    ClapPlugin,
+    wrapper::clap::{host::ClapHost, plugin::PluginInstance},
+};
 
 #[repr(C)]
 pub struct Factory<P: ClapPlugin> {
     raw: clap_plugin_factory,
+    //description: &'static clap_plugin_descriptor,
     _phantom: PhantomData<P>,
 }
 
@@ -43,9 +47,13 @@ impl<P: ClapPlugin> Factory<P> {
 
     unsafe extern "C" fn create_plugin(
         _fac: *const clap_plugin_factory,
-        _host: *const clap_host,
+        host: *const clap_host,
         _id: *const c_char,
     ) -> *const clap_plugin {
+        let Some(host) = (unsafe { ClapHost::from_ptr(host) }) else {
+            return std::ptr::null();
+        };
         todo!()
+        //PluginInstance::<P>::new_raw(&self.description, host)
     }
 }

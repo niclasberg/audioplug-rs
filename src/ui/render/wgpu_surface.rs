@@ -134,7 +134,7 @@ pub struct WGPUSurface {
 impl WGPUSurface {
     pub async fn new(handle: &crate::platform::Handle) -> Result<Self, GraphicsInitError> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::DX12 | wgpu::Backends::METAL,
+            backends: wgpu::Backends::PRIMARY,
             ..Default::default()
         });
         // SAFETY: This struct is owned by the WindowHandler, whose lifetime is shorter than the OS window itself.

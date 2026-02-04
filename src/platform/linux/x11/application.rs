@@ -1,36 +1,36 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
-use x11rb::{connection::Connection, protocol::xproto::Screen, xcb_ffi::XCBConnection};
+use x11rb::connection::Connection;
 
-use crate::core::FxHashMap;
-use super::window::WindowInner;
+use crate::platform::linux::x11::runloop::X11Runloop;
 
 pub struct X11Application {
-    pub(super) connection: XCBConnection,
-    screen_id: usize,
-    windows: FxHashMap<u32, Rc<WindowInner>>,
+    runloop: Arc<X11Runloop>,
 }
 
 impl X11Application {
-    pub fn new(connection: XCBConnection, screen_id: usize) -> Self {
-        Self { connection, screen_id, windows: Default::default() }
+    pub fn new(runloop: Arc<X11Runloop>) -> Self {
+        Self { runloop }
+    }
+
+    pub fn runloop(&self) -> Arc<X11Runloop> {
+        self.runloop.clone()
     }
 
     pub fn run(&mut self) {
+        use x11rb::protocol::Event;
         loop {
-            self.connection.wait_for_event().unwrap();
+            let event = self.runloop.connection.wait_for_event().unwrap();
+            match &event {
+                Event::ClientMessage(event) => {
+                    let data = event.data.as_data32();
+                    if event.format == 32 && data[0] == self.runloop.atoms.WM_DELETE_WINDOW {
+                        break;
+                    }
+                }
+                _ => {}
+            };
+            self.runloop.handle_event(event);
         }
-    }
-
-    pub(super) fn register_window(&mut self, id: u32, inner: Rc<WindowInner>) {
-        self.windows.insert(id, inner);
-    }
-
-    pub(super) fn unregister_window(&mut self, id: u32) {
-        self.windows.remove(&id);
-    }
-
-    pub(super) fn screen(&self) -> &Screen {
-        &self.connection.setup().roots[self.screen_id]
     }
 }

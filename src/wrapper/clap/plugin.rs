@@ -1,93 +1,114 @@
-use std::{
-    ffi::{c_char, c_void},
-    ptr::NonNull,
-};
+use std::ffi::{c_char, c_void};
 
 use clap_sys::{
+    host::clap_host,
     plugin::{clap_plugin, clap_plugin_descriptor},
     process::{clap_process, clap_process_status},
 };
 
-use crate::{ClapPlugin, Plugin};
+use crate::{ClapPlugin, Plugin, wrapper::clap::host::ClapHost};
 
 #[repr(C)]
 pub struct PluginInstance<P: ClapPlugin> {
+    // This needs to be the first member in order for casts from *mut clap_plugin to *mut Self to work!
+    // This struct has C representation, so the members will not be reordered.
     raw: clap_plugin,
+    host: ClapHost,
     plugin: P,
 }
 
 impl<P: ClapPlugin> PluginInstance<P> {
-    pub unsafe fn new_raw(description: &'static clap_plugin_descriptor) -> *mut Self {
+    pub fn new_raw(
+        description: &'static clap_plugin_descriptor,
+        host: ClapHost,
+    ) -> *mut clap_plugin {
         let plugin_vtbl = clap_plugin {
             desc: description,
+            // Will be set to &Self
             plugin_data: std::ptr::null_mut(),
-            init: Some(init::<P>),
-            destroy: Some(destroy::<P>),
-            activate: todo!(),
-            deactivate: todo!(),
-            start_processing: todo!(),
-            stop_processing: todo!(),
-            reset: todo!(),
-            process: todo!(),
-            get_extension: todo!(),
-            on_main_thread: todo!(),
+            init: Some(Self::init),
+            destroy: Some(Self::destroy),
+            activate: Some(Self::clap_activate),
+            deactivate: Some(Self::clap_deactivate),
+            start_processing: Some(Self::clap_start_processing),
+            stop_processing: Some(Self::clap_stop_processing),
+            reset: Some(Self::clap_reset),
+            process: Some(Self::clap_process),
+            get_extension: Some(Self::clap_get_extension),
+            on_main_thread: Some(Self::clap_on_main_thread),
         };
         let plugin = Plugin::new();
-        let mut this = Box::new(Self {
+        let this = Box::new(Self {
             raw: plugin_vtbl,
             plugin,
+            host,
         });
-
-        this.raw.plugin_data = this.as_mut() as *mut _ as *mut _;
-
-        Box::into_raw(this)
+        let this_ptr = Box::into_raw(this);
+        let clap_plugin = &mut unsafe { &mut *this_ptr }.raw;
+        clap_plugin.plugin_data = this_ptr.cast();
+        clap_plugin
     }
 
-    pub fn init(&self) -> bool {}
-}
+    unsafe extern "C" fn destroy(plugin: *const clap_plugin) {
+        drop(unsafe { Box::from_raw((*plugin).plugin_data) })
+    }
 
-unsafe extern "C" fn init<P: ClapPlugin>(plugin: *const clap_plugin) -> bool {
-    todo!()
-}
+    unsafe fn use_self<'a>(plugin: *const clap_plugin) -> Option<&'a Self> {
+        if plugin.is_null() || unsafe { (*plugin).plugin_data }.is_null() {
+            return None;
+        }
 
-unsafe extern "C" fn destroy<P: ClapPlugin>(plugin: *const clap_plugin) {
-    let plugin = unsafe { (*plugin).plugin_data as *mut _ as *mut PluginInstance<P> };
-}
+        Some(unsafe { &*((*plugin).plugin_data.cast::<Self>()) })
+    }
 
-unsafe extern "C" fn activate(
-    plugin: *const clap_plugin,
-    sample_rate: f64,
-    min_frames_count: u32,
-    max_frames_count: u32,
-) -> bool {
-    todo!()
-}
+    // clap_plugin methods
 
-unsafe extern "C" fn deactivate(plugin: *const clap_plugin) {
-    todo!()
-}
+    unsafe extern "C" fn init(plugin: *const clap_plugin) -> bool {
+        let Some(this) = (unsafe { Self::use_self(plugin) }) else {
+            return false;
+        };
 
-unsafe extern "C" fn start_processing(plugin: *const clap_plugin) -> bool {
-    todo!()
-}
+        true
+    }
 
-unsafe extern "C" fn stop_processing(plugin: *const clap_plugin) {
-    todo!()
-}
+    unsafe extern "C" fn clap_activate(
+        plugin: *const clap_plugin,
+        sample_rate: f64,
+        min_frames_count: u32,
+        max_frames_count: u32,
+    ) -> bool {
+        todo!()
+    }
 
-unsafe extern "C" fn reset(plugin: *const clap_plugin) {
-    todo!()
-}
+    unsafe extern "C" fn clap_deactivate(plugin: *const clap_plugin) {
+        todo!()
+    }
 
-unsafe extern "C" fn process(
-    plugin: *const clap_plugin,
-    process: *const clap_process,
-) -> clap_process_status {
-    todo!()
-}
+    unsafe extern "C" fn clap_start_processing(plugin: *const clap_plugin) -> bool {
+        todo!()
+    }
 
-unsafe extern "C" fn get_extension(plugin: *const clap_plugin, id: *const c_char) -> *const c_void {
-    todo!()
-}
+    unsafe extern "C" fn clap_stop_processing(plugin: *const clap_plugin) {
+        todo!()
+    }
 
-unsafe extern "C" fn on_main_thread(plugin: *const clap_plugin) {}
+    unsafe extern "C" fn clap_reset(plugin: *const clap_plugin) {
+        todo!()
+    }
+
+    unsafe extern "C" fn clap_process(
+        plugin: *const clap_plugin,
+        process: *const clap_process,
+    ) -> clap_process_status {
+        todo!()
+    }
+
+    unsafe extern "C" fn clap_get_extension(
+        plugin: *const clap_plugin,
+        id: *const c_char,
+    ) -> *const c_void {
+        todo!()
+    }
+
+    unsafe extern "C" fn clap_on_main_thread(plugin: *const clap_plugin) {}
+}

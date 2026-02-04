@@ -17,6 +17,13 @@ _bundle_vst name target_dir: (_build name)
     cp target/debug/{{name}}.dll {{target_dir}}/{{name}}.vst3/Contents/x86_64-win/{{name}}.vst3
     cp target/debug/{{name}}.pdb {{target_dir}}/{{name}}.vst3/Contents/x86_64-win/{{name}}.pdb
 
+[linux]
+_bundle_vst name target_dir: (_build name)
+    mkdir -p {{target_dir}}/{{name}}.vst3/Contents/Resources
+    mkdir -p {{target_dir}}/{{name}}.vst3/Contents/x86_64-linux
+    cp target/debug/lib{{name}}.so {{target_dir}}/{{name}}.vst3/Contents/x86_64-linux/{{name}}.so
+    #cp target/debug/{{name}}.pdb {{target_dir}}/{{name}}.vst3/Contents/x86_64-win/{{name}}.pdb
+
 [macos]
 _bundle_vst name target_dir: (_build name)
     mkdir -p {{target_dir}}/{{name}}.vst3/Contents/Resources
@@ -80,5 +87,5 @@ _bundle_au name target_dir: (_build name)
     codesign --force --sign - -o runtime --entitlements ./examples/{{name}}/AU/entitlements.plist --timestamp=none "./target/debug/{{name}}.app/Contents/PlugIns/{{name}}.appex"
     codesign --force --sign - --timestamp=none "./target/debug/{{name}}.app"
 
-[windows]
+[windows, linux]
 _bundle_au name target_dir:

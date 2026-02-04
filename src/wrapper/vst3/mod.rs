@@ -4,6 +4,8 @@ mod category;
 mod editcontroller;
 mod factory;
 mod host_application;
+#[cfg(target_os = "linux")]
+mod linux_runloop;
 mod parameters;
 mod plugview;
 mod shared_state;
