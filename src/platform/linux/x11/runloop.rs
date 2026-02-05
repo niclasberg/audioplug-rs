@@ -114,8 +114,10 @@ impl X11Runloop {
             }
             _ => {}
         }
+    }
 
-        for window in windows.values() {
+    pub fn repaint_if_requested(&self) {
+        for window in self.windows.borrow().values() {
             window.repaint_if_requested();
         }
     }
