@@ -1,9 +1,9 @@
 use std::ffi::{c_char, c_void};
 
+use atomic_refcell::AtomicRefCell;
 use clap_sys::{
-    host::clap_host,
     plugin::{clap_plugin, clap_plugin_descriptor},
-    process::{clap_process, clap_process_status},
+    process::{CLAP_PROCESS_CONTINUE, CLAP_PROCESS_ERROR, clap_process, clap_process_status},
 };
 
 use crate::{ClapPlugin, Plugin, wrapper::clap::host::ClapHost};
@@ -14,7 +14,7 @@ pub struct PluginInstance<P: ClapPlugin> {
     // This struct has C representation, so the members will not be reordered.
     raw: clap_plugin,
     host: ClapHost,
-    plugin: P,
+    plugin: AtomicRefCell<P>,
 }
 
 impl<P: ClapPlugin> PluginInstance<P> {
@@ -37,7 +37,9 @@ impl<P: ClapPlugin> PluginInstance<P> {
             get_extension: Some(Self::clap_get_extension),
             on_main_thread: Some(Self::clap_on_main_thread),
         };
-        let plugin = Plugin::new();
+        let plugin = AtomicRefCell::new(Plugin::new(crate::HostInfo {
+            name: host.name().to_str().unwrap().to_string(),
+        }));
         let this = Box::new(Self {
             raw: plugin_vtbl,
             plugin,
@@ -62,9 +64,8 @@ impl<P: ClapPlugin> PluginInstance<P> {
     }
 
     // clap_plugin methods
-
     unsafe extern "C" fn init(plugin: *const clap_plugin) -> bool {
-        let Some(this) = (unsafe { Self::use_self(plugin) }) else {
+        let Some(_this) = (unsafe { Self::use_self(plugin) }) else {
             return false;
         };
 
@@ -74,33 +75,52 @@ impl<P: ClapPlugin> PluginInstance<P> {
     unsafe extern "C" fn clap_activate(
         plugin: *const clap_plugin,
         sample_rate: f64,
-        min_frames_count: u32,
+        _min_frames_count: u32,
         max_frames_count: u32,
     ) -> bool {
-        todo!()
+        let Some(this) = (unsafe { Self::use_self(plugin) }) else {
+            return false;
+        };
+        this.plugin
+            .borrow_mut()
+            .prepare(sample_rate, max_frames_count as _);
+        true
     }
 
     unsafe extern "C" fn clap_deactivate(plugin: *const clap_plugin) {
-        todo!()
+        let Some(_this) = (unsafe { Self::use_self(plugin) }) else {
+            return;
+        };
     }
 
     unsafe extern "C" fn clap_start_processing(plugin: *const clap_plugin) -> bool {
-        todo!()
+        let Some(_this) = (unsafe { Self::use_self(plugin) }) else {
+            return false;
+        };
+        true
     }
 
     unsafe extern "C" fn clap_stop_processing(plugin: *const clap_plugin) {
-        todo!()
+        let Some(_this) = (unsafe { Self::use_self(plugin) }) else {
+            return;
+        };
     }
 
     unsafe extern "C" fn clap_reset(plugin: *const clap_plugin) {
-        todo!()
+        let Some(_this) = (unsafe { Self::use_self(plugin) }) else {
+            return;
+        };
     }
 
     unsafe extern "C" fn clap_process(
         plugin: *const clap_plugin,
         process: *const clap_process,
     ) -> clap_process_status {
-        todo!()
+        let Some(_this) = (unsafe { Self::use_self(plugin) }) else {
+            return CLAP_PROCESS_ERROR;
+        };
+
+        CLAP_PROCESS_CONTINUE
     }
 
     unsafe extern "C" fn clap_get_extension(

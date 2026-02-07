@@ -48,14 +48,14 @@
 					<key>version</key>
 					<integer>67072</integer>
 					<key>factoryFunction</key>
-					<string>MyViewController</string>			
+					<string>AudioPlug_gain_ViewController</string>			
 				</dict>
 			</array>
 		</dict>
 		<key>NSExtensionPointIdentifier</key>
 		<string>com.apple.AudioUnit-UI</string>
 		<key>NSExtensionPrincipalClass</key>
-		<string>MyViewController</string>
+		<string>AudioPlug_gain_ViewController</string>
 	</dict>
 </dict>
 </plist>

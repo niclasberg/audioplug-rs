@@ -110,9 +110,7 @@ impl<P: Plugin + 'static> ViewController<P> {
         desc: AudioComponentDescription,
         error: *mut *mut NSError,
     ) -> *mut AUAudioUnit {
-        let plugin = P::new();
-        let Some(audio_unit) =
-            MyAudioUnit::new_with_component_descriptor_error(plugin, desc, error)
+        let Some(audio_unit) = MyAudioUnit::<P>::new_with_component_descriptor_error(desc, error)
         else {
             return std::ptr::null_mut();
         };
@@ -131,7 +129,7 @@ impl<P: Plugin + 'static> ViewController<P> {
             app_state.set_host_handle(Some(Box::new(handle)));
         }
 
-        Retained::into_raw(Retained::into_super(audio_unit))
+        Retained::into_raw(audio_unit)
     }
 
     pub fn create_view(&mut self) -> *mut NSView {

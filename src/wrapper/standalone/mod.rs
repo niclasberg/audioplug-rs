@@ -86,7 +86,9 @@ pub struct AudioProcessor<P> {
 impl<P: Plugin> AudioProcessor<P> {
     pub fn new(parameter_updates: Consumer<ParameterUpdate>) -> Self {
         Self {
-            plugin: P::new(),
+            plugin: P::new(crate::HostInfo {
+                name: "Standalone".to_string(),
+            }),
             parameter_updates,
         }
     }

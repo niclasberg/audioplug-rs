@@ -1,5 +1,4 @@
 use atomic_refcell::AtomicRefCell;
-use std::cell::Cell;
 use std::mem::MaybeUninit;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -24,12 +23,16 @@ use crate::param::{AnyParameterMap, NormalizedValue, ParameterId, ParameterMap, 
 use crate::wrapper::vst3::host_application::HostApplication;
 use crate::wrapper::vst3::shared_state::{SHARED_STATE_MSG_ID, SharedState};
 use crate::wrapper::vst3::util::tuid_from_uuid;
-use crate::{AudioBuffer, MidiProcessContext, ProcessContext, ProcessInfo, VST3Plugin};
+use crate::{AudioBuffer, HostInfo, MidiProcessContext, ProcessContext, ProcessInfo, VST3Plugin};
+
+struct Inner<P> {
+    plugin: P,
+    host_context: HostApplication,
+}
 
 pub struct AudioProcessor<P: VST3Plugin> {
-    plugin: AtomicRefCell<P>,
+    inner: AtomicRefCell<Option<Inner<P>>>,
     parameters: Rc<ParameterMap<P::Parameters>>,
-    host_context: Cell<Option<HostApplication>>,
     shared_state: Arc<SharedState>,
 }
 
@@ -42,9 +45,8 @@ impl<P: VST3Plugin> AudioProcessor<P> {
     pub fn new() -> Self {
         let parameters = ParameterMap::new(P::Parameters::new());
         Self {
-            plugin: AtomicRefCell::new(P::new()),
+            inner: AtomicRefCell::new(None),
             parameters,
-            host_context: Cell::new(None),
             shared_state: Arc::new(SharedState {}),
         }
     }
@@ -111,26 +113,41 @@ impl<P: VST3Plugin> IAudioProcessorTrait for AudioProcessor<P> {
     }
 
     unsafe fn getLatencySamples(&self) -> u32 {
-        self.plugin.borrow().latency_samples() as u32
+        let inner = self.inner.borrow();
+        if let Some(inner) = inner.as_ref() {
+            inner.plugin.latency_samples() as u32
+        } else {
+            0
+        }
     }
 
     unsafe fn setupProcessing(&self, setup: *mut ProcessSetup) -> tresult {
         let Some(setup) = (unsafe { setup.as_ref() }) else {
             return kInvalidArgument;
         };
-        self.plugin
-            .borrow_mut()
-            .prepare(setup.sampleRate, setup.maxSamplesPerBlock as usize);
-        kResultOk
+        let mut inner = self.inner.borrow_mut();
+        if let Some(inner) = inner.as_mut() {
+            inner
+                .plugin
+                .prepare(setup.sampleRate, setup.maxSamplesPerBlock as usize);
+            kResultOk
+        } else {
+            kNotInitialized
+        }
     }
 
     // Called with true before processing starts, and false after. Can be called from both UI and
     // realtime thread
     unsafe fn setProcessing(&self, state: TBool) -> tresult {
-        if state == 0 {
-            self.plugin.borrow_mut().reset();
+        let mut inner = self.inner.borrow_mut();
+        if let Some(inner) = inner.as_mut() {
+            if state == 0 {
+                inner.plugin.reset();
+            }
+            kResultOk
+        } else {
+            kNotInitialized
         }
-        kResultOk
     }
 
     // This method is only called from the audio thread
@@ -212,7 +229,10 @@ impl<P: VST3Plugin> IAudioProcessorTrait for AudioProcessor<P> {
             info,
         };
 
-        let mut plugin = self.plugin.borrow_mut();
+        let mut plugin = self.inner.borrow_mut();
+        let Some(plugin) = plugin.as_mut().map(|inner| &mut inner.plugin) else {
+            return kNotInitialized;
+        };
         if P::ACCEPTS_MIDI {
             const NOTE_ON_EVENT: u16 = EventTypes_::kNoteOnEvent as _;
             const NOTE_OFF_EVENT: u16 = EventTypes_::kNoteOffEvent as _;
@@ -269,22 +289,30 @@ impl<P: VST3Plugin> IAudioProcessorTrait for AudioProcessor<P> {
 
 impl<P: VST3Plugin> IPluginBaseTrait for AudioProcessor<P> {
     unsafe fn initialize(&self, context: *mut FUnknown) -> tresult {
-        let old_host_context = self.host_context.take();
-        if old_host_context.is_some() {
-            self.host_context.set(old_host_context);
-            return kResultFalse;
-        }
+        let mut inner = self.inner.borrow_mut();
 
-        if let Some(context) = unsafe { HostApplication::from_raw(context) } {
-            self.host_context.set(Some(context));
+        let Some(host_context) = (unsafe { HostApplication::from_raw(context) }) else {
+            return kInvalidArgument;
+        };
+
+        // We should not get multiple initialize calls without having terminate being called,
+        // but better safe than sorry.
+        if let Some(inner) = inner.as_mut() {
+            inner.host_context = host_context;
             kResultOk
         } else {
-            kInvalidArgument
+            let name = unsafe { host_context.get_name() }.unwrap_or_default();
+            *inner = Some(Inner {
+                plugin: P::new(HostInfo { name }),
+                host_context,
+            });
+            kResultOk
         }
     }
 
     unsafe fn terminate(&self) -> tresult {
-        self.host_context.replace(None);
+        let mut inner = self.inner.borrow_mut();
+        drop(inner.take());
         kResultOk
     }
 }
@@ -444,26 +472,26 @@ impl<P: VST3Plugin> IConnectionPointTrait for AudioProcessor<P> {
         };
 
         // The VST3 spec dictates that this method *should* be called after initialize,
-        // so the host_context should have a value at this point
-        let Some(host_context) = self.host_context.take() else {
+        // so the inner should have a value at this point.
+        let inner = self.inner.borrow();
+        let Some(inner) = inner.as_ref() else {
             return kNotInitialized;
         };
 
-        let mut result = kResultFalse;
-        if let Some(message) = unsafe { host_context.allocate_message(SHARED_STATE_MSG_ID) } {
-            let attrs = unsafe { ComRef::from_raw(message.getAttributes()) }.unwrap();
-            let shared_state_ptr = Arc::into_raw(self.shared_state.clone());
-            unsafe {
-                attrs.setInt(
-                    SHARED_STATE_MSG_ID.as_ptr(),
-                    shared_state_ptr.expose_provenance() as i64,
-                )
-            };
-            result = unsafe { other.notify(message.as_ptr()) };
-        }
+        let Some(message) = (unsafe { inner.host_context.allocate_message(SHARED_STATE_MSG_ID) })
+        else {
+            return kResultFalse;
+        };
 
-        self.host_context.set(Some(host_context));
-        result
+        let attrs = unsafe { ComRef::from_raw(message.getAttributes()) }.unwrap();
+        let shared_state_ptr = Arc::into_raw(self.shared_state.clone());
+        unsafe {
+            attrs.setInt(
+                SHARED_STATE_MSG_ID.as_ptr(),
+                shared_state_ptr.expose_provenance() as i64,
+            )
+        };
+        unsafe { other.notify(message.as_ptr()) }
     }
 
     unsafe fn disconnect(&self, _other: *mut IConnectionPoint) -> tresult {

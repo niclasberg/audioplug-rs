@@ -1,7 +1,8 @@
 mod application;
 mod audio;
-// Leave these as public for now while we're testing. Revert later
+mod class_names;
 mod conversions;
+// Leave these as public for now while we're testing. Revert later
 pub(crate) mod core_midi;
 pub(crate) mod dispatch;
 mod error;

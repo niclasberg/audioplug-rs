@@ -1,9 +1,12 @@
-use std::ffi::CStr;
+use std::{ffi::CStr, mem::MaybeUninit};
 
 use vst3::{
     ComPtr, ComRef, Interface,
     Steinberg::{
-        FUnknown, Linux::IRunLoop, Vst::{IHostApplication, IHostApplicationTrait, IMessage, IMessageTrait}, kResultOk
+        FUnknown,
+        Linux::IRunLoop,
+        Vst::{IHostApplication, IHostApplicationTrait, IMessage, IMessageTrait},
+        kResultOk,
     },
 };
 
@@ -15,12 +18,10 @@ pub struct HostApplication {
 
 impl HostApplication {
     pub unsafe fn from_raw(ptr: *mut FUnknown) -> Option<Self> {
-        let inner = unsafe { ComRef::from_raw(ptr) }
-            .and_then(|cx| cx.cast::<IHostApplication>())?;
+        let inner =
+            unsafe { ComRef::from_raw(ptr) }.and_then(|cx| cx.cast::<IHostApplication>())?;
 
-        Some(Self {
-            inner
-        })
+        Some(Self { inner })
     }
 
     pub unsafe fn allocate_message(&self, id: &CStr) -> Option<ComPtr<IMessage>> {
@@ -42,5 +43,16 @@ impl HostApplication {
 
     pub unsafe fn get_runloop(&self) -> Option<ComPtr<IRunLoop>> {
         self.inner.cast()
+    }
+
+    pub unsafe fn get_name(&self) -> Option<String> {
+        let mut name = MaybeUninit::uninit();
+        if unsafe { self.inner.getName(name.as_mut_ptr()) } == kResultOk {
+            let name = unsafe { name.assume_init() };
+
+            Some(String::from_utf16_lossy(&name))
+        } else {
+            None
+        }
     }
 }

@@ -7,6 +7,11 @@ build_all: (build "gain") (build "synth")
 
 build target="gain" target_dir="target/debug": (_bundle_vst target target_dir) (_bundle_au target target_dir) 
 
+[macos]
+_build target="gain":
+    AUDIOPLUG_OBJC_NAMESPACE="AudioPlug_{{target}}" cargo build --package {{target}}
+
+[windows, linux]
 _build target="gain":
     cargo build --package {{target}}
 
@@ -82,8 +87,12 @@ _bundle_au name target_dir: (_build name)
         </dict> \
         </plist>" > "./target/debug/{{name}}.app/Contents/Info.plist"
     cp target/debug/lib{{name}}.a {{target_dir}}/tmp/libaudioplug.a
-    clang++ -o "./target/debug/{{name}}.app/Contents/PlugIns/{{name}}.appex/Contents/MacOS/{{name}}" -Wl,-no_adhoc_codesign -fobjc-arc -fobjc-link-runtime -fapplication-extension -e _NSExtensionMain -fmodules -framework Foundation -framework AudioToolbox -framework AppKit -framework CoreGraphics -framework Metal -framework CoreText -framework CoreAudioKit -L{{target_dir}}/tmp objc/view_controller.mm -laudioplug
+    clang++ -o "./target/debug/{{name}}.app/Contents/PlugIns/{{name}}.appex/Contents/MacOS/{{name}}" \
+        -Wl,-no_adhoc_codesign -fobjc-arc -fobjc-link-runtime -fapplication-extension -e _NSExtensionMain -fmodules \
+        -framework Foundation -framework AudioToolbox -framework AppKit -framework CoreGraphics -framework Metal -framework CoreText -framework CoreAudioKit \
+        -L{{target_dir}}/tmp objc/view_controller.mm -laudioplug -DAUDIOPLUG_VIEW_CONTROLLER_NAME="AudioPlug_{{name}}_ViewController"
     cp examples/{{name}}/AU/Info.plist {{target_dir}}/{{name}}.app/Contents/PlugIns/{{name}}.appex/Contents/
+
     codesign --force --sign - -o runtime --entitlements ./examples/{{name}}/AU/entitlements.plist --timestamp=none "./target/debug/{{name}}.app/Contents/PlugIns/{{name}}.appex"
     codesign --force --sign - --timestamp=none "./target/debug/{{name}}.app"
 

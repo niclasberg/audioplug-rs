@@ -48,6 +48,11 @@ pub struct MidiProcessContext {
     pub info: ProcessInfo,
 }
 
+#[derive(Debug, Default)]
+pub struct HostInfo {
+    pub name: String,
+}
+
 pub trait Plugin: Send + 'static {
     /// Name of the plugin
     const NAME: &'static str;
@@ -66,7 +71,7 @@ pub trait Plugin: Send + 'static {
     /// True if the plugin produces output midi messages
     const PRODUCES_MIDI: bool = false;
 
-    fn new() -> Self;
+    fn new(info: HostInfo) -> Self;
 
     /// Called before processing starts. If you need to allocate memory for internal buffers,
     /// this is where to do it. [`max_buffer_size`] is the maximal number of samples that

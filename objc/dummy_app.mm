@@ -16,7 +16,7 @@ int main(int argc, const char *argv[]) {
     [appMenu addItem:quitMenuItem];
     [appMenuItem setSubmenu:appMenu];
     id window = [[[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 200, 200)
-        styleMask:NSTitledWindowMask backing:NSBackingStoreBuffered defer:NO]
+        styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO]
             autorelease];
     [window cascadeTopLeftFromPoint:NSMakePoint(20,20)];
     [window setTitle:appName];

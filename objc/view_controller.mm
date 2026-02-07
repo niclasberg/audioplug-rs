@@ -18,27 +18,26 @@ struct Deleter {
 	}
 };
 
-@interface MyViewController : AUViewController<AUAudioUnitFactory>
+@interface AUDIOPLUG_VIEW_CONTROLLER_NAME : AUViewController<AUAudioUnitFactory>
 @end
-
-@implementation MyViewController
+@implementation AUDIOPLUG_VIEW_CONTROLLER_NAME
 {
     std::unique_ptr<view_controller_t, Deleter> viewController;
 }
 
 - (instancetype) initWithNibName: (nullable NSString*) nib bundle: (nullable NSBundle*) bndl { 
-	NSLog(@"Init");
+	NSLog(@"[MyAU] Loading view controller");
 	self = [super initWithNibName: nib bundle: bndl]; 
 	view_controller_t* vc = AUV3_create_view_controller();
 	viewController.reset(vc); 
 	return self; 
 }
 - (void) loadView { 
-	NSLog(@"Load view");
+	NSLog(@"[MyAU] Loading view");
 	self.view = AUV3_create_view(viewController.get());
 }
 - (AUAudioUnit *) createAudioUnitWithComponentDescription: (AudioComponentDescription) desc error: (NSError **) error { 
-	NSLog(@"Creating audio unit");
+	NSLog(@"[MyAU] Creating audio unit");
 	return AUV3_create_audio_unit(viewController.get(), desc, error); 
 }
 - (CGSize) preferredContentSize  { 

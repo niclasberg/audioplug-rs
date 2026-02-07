@@ -4,7 +4,7 @@ use audioplug::{
     audioplug_auv3_plugin, audioplug_clap_plugin, audioplug_vst3_plugin,
     midi::NoteEvent,
     wrapper::{clap::ClapFeature, vst3::VST3Categories},
-    AudioLayout, Bus, ChannelType, ClapPlugin, Plugin, Uuid, VST3Plugin,
+    AudioLayout, Bus, ChannelType, ClapPlugin, HostInfo, Plugin, Uuid, VST3Plugin,
 };
 use editor::SynthEditor;
 use params::SynthParams;
@@ -37,7 +37,7 @@ impl Plugin for SynthPlugin {
     type Editor = SynthEditor;
     type Parameters = SynthParams;
 
-    fn new() -> Self {
+    fn new(_: HostInfo) -> Self {
         Self {
             active_voice: Voice::new(48000.0, Default::default()),
             dt: 0.0,

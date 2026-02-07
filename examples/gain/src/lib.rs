@@ -4,7 +4,7 @@ use audioplug::ui::style::UiRect;
 use audioplug::wrapper::vst3::VST3Categories;
 use audioplug::{
     audioplug_auv3_plugin, audioplug_vst3_plugin, params, AudioLayout, Bus, ChannelType, Editor,
-    Plugin, ProcessContext, VST3Plugin,
+    HostInfo, Plugin, ProcessContext, VST3Plugin,
 };
 use audioplug::{ui::*, EditorContext};
 use audioplug::{views::*, Uuid};
@@ -76,7 +76,7 @@ impl Plugin for MyPlugin {
     type Editor = MyEditor;
     type Parameters = MyPluginParams;
 
-    fn new() -> Self {
+    fn new(_: HostInfo) -> Self {
         Self {}
     }
 

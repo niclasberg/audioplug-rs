@@ -1,4 +1,4 @@
-use audioplug::{AudioLayout, GenericEditor, Plugin};
+use audioplug::{AudioLayout, GenericEditor, HostInfo, Plugin};
 use std::sync::atomic::AtomicBool;
 
 static IS_DONE: AtomicBool = AtomicBool::new(false);
@@ -14,7 +14,7 @@ impl Plugin for TestPlugin {
     type Editor = GenericEditor<()>;
     type Parameters = ();
 
-    fn new() -> Self {
+    fn new(_: HostInfo) -> Self {
         Self {}
     }
 
@@ -27,7 +27,7 @@ impl Plugin for TestPlugin {
 fn main() {
     use audioplug::wrapper::auv3::MyAudioUnit;
     use block2::StackBlock;
-    use objc2::msg_send;
+    use objc2::{msg_send, rc::Retained};
     use objc2_audio_toolbox::{
         AUAudioUnit, AudioComponentDescription, AudioComponentInstantiationOptions,
     };
@@ -52,23 +52,25 @@ fn main() {
     // let view_controller: ViewController<TestPlugin> = ViewController::new();
     // view_controller.create_audio_unit(desc, error)
 
-    let audio_unit = MyAudioUnit::new_with_component_descriptor_error(
-        TestPlugin::new(),
-        desc,
-        std::ptr::null_mut(),
-    )
-    .unwrap();
+    let audio_unit: Retained<AUAudioUnit> =
+        MyAudioUnit::<TestPlugin>::new_with_component_descriptor_error(desc, std::ptr::null_mut())
+            .unwrap();
     let input_busses = unsafe { audio_unit.inputBusses() };
     let output_busses = unsafe { audio_unit.outputBusses() };
 
     let aa = unsafe { input_busses.count() };
     let bb = unsafe { audio_unit.allocateRenderResourcesAndReturnError() }.unwrap();
 
-    //AUAudioUnit::registerSubclass(MyAudioUnit::<TestPlugin>::class(), desc, ns_string!("RUST: TEST"), 0);
+    AUAudioUnit::registerSubclass(
+        MyAudioUnit::<TestPlugin>::class(),
+        desc,
+        ns_string!("RUST: TEST"),
+        0,
+    );
 
-    /*let view_controller_block = StackBlock::new(|view_controller| {
+    let view_controller_block = StackBlock::new(|view_controller| {
         IS_DONE.store(true, std::sync::atomic::Ordering::Release);
-    });*/
+    });
 
     let block = StackBlock::new(move |unit, error: *mut NSError| {
         if let Some(error) = unsafe { error.as_mut() } {
@@ -79,9 +81,11 @@ fn main() {
             let audio_unit: Option<&AUAudioUnit> = unsafe { msg_send![unit, AUAudioUnit] };
             let provides_user_interface = unsafe { audio_unit.unwrap().providesUserInterface() };
 
-            /*unsafe {
-                audio_unit.unwrap().requestViewControllerWithCompletionHandler(&view_controller_block)
-            };*/
+            unsafe {
+                audio_unit
+                    .unwrap()
+                    .requestViewControllerWithCompletionHandler(&view_controller_block)
+            };
         }
     });
     unsafe {

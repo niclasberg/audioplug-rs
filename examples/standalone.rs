@@ -1,5 +1,5 @@
 use audioplug::wrapper::standalone::standalone_main;
-use audioplug::{AudioLayout, GenericEditor, Plugin};
+use audioplug::{AudioLayout, GenericEditor, HostInfo, Plugin};
 
 struct TestPlugin {}
 
@@ -12,7 +12,7 @@ impl Plugin for TestPlugin {
     type Editor = GenericEditor<()>;
     type Parameters = ();
 
-    fn new() -> Self {
+    fn new(_: HostInfo) -> Self {
         Self {}
     }
 

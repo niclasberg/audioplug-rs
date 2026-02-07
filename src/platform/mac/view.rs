@@ -25,11 +25,6 @@ pub struct Ivars {
     animation_start: OnceCell<Retained<NSDate>>,
 }
 
-const CLASS_NAME: &'static str = match option_env!("AUDIOPLUG_VIEW_CLASS_NAME") {
-    Some(name) => name,
-    None => "AudioPlug_View",
-};
-
 // There is a problem in objc2 that we need to address. If we have two different plugins
 // in different dylibs and we try to instantiate a view for both, then they will both
 // try to register the class with the objc runtime. This will panic. We could version mark
@@ -38,7 +33,7 @@ const CLASS_NAME: &'static str = match option_env!("AUDIOPLUG_VIEW_CLASS_NAME") 
 define_class!(
     #[unsafe(super(NSView, NSResponder, NSObject))]
     #[thread_kind = MainThreadOnly]
-    #[name = CLASS_NAME]
+    #[name = super::class_names::VIEW_CLASS_NAME]
     #[ivars = Ivars]
     pub struct View;
 
