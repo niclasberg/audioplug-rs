@@ -38,6 +38,7 @@ pub(super) struct WindowState {
 }
 
 pub struct AppState {
+    pub(super) wgpu_instance: wgpu::Instance,
     pub(super) windows: SlotMap<WindowId, WindowState>,
     pub(super) widget_data: SlotMap<WidgetId, WidgetData>,
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
@@ -58,6 +59,10 @@ pub enum WidgetInsertPos {
 impl AppState {
     pub fn new(parameters: Rc<dyn AnyParameterMap>) -> Self {
         Self {
+            wgpu_instance: wgpu::Instance::new(&wgpu::InstanceDescriptor {
+                backends: wgpu::Backends::PRIMARY,
+                ..Default::default()
+            }),
             widget_data: Default::default(),
             widgets: Default::default(),
             windows: Default::default(),

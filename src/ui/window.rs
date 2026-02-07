@@ -30,7 +30,7 @@ impl<V: View> WindowState<V> {
         match self {
             WindowState::PreInit { view } => {
                 // It would be neat to run this on the executor
-                let surface = WGPUSurface::new(&handle)
+                let surface = WGPUSurface::new(&app_state.wgpu_instance, &handle)
                     .block_on()
                     .expect("Graphics initialization failed");
 

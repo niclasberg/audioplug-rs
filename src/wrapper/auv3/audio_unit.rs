@@ -222,6 +222,7 @@ impl<P: Plugin> MyAudioUnit<P> {
 					Self::provides_user_interface as unsafe extern "C-unwind" fn(_, _) -> _,
 				);
 
+                // Instance methods
 				builder.add_method(
 					sel!(initWithComponentDescription:options:error:),
 					Self::init_with_component_description_options_error
