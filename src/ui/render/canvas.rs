@@ -68,7 +68,7 @@ pub struct CanvasContext<'a> {
 impl CanvasContext<'_> {
     pub fn bounds(&self) -> Rect {
         self.app_state
-            .widget_data_ref(self.widget_id)
+            .widgets.get(self.widget_id)
             .content_bounds()
     }
 }

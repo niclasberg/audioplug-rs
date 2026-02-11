@@ -96,11 +96,6 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId, mode: Recomp
     //invalidate_window(app_state, window_id);
 }
 
-pub(super) fn request_layout(widgets: &mut Widgets, widget_id: WidgetId) {
-    widgets.data[widget_id].set_flag(WidgetFlags::NEEDS_LAYOUT);
-    widgets.merge_flags(widget_id);
-}
-
 fn compute_overlay_offset(
     widgets: &Widgets,
     window_rect: Rect,
@@ -135,17 +130,16 @@ fn compute_overlay_offset(
 fn update_node_origins(widgets: &mut Widgets, root_widget: WidgetId, position: Point) {
     let mut stack = vec![];
     widgets.data[root_widget].origin = position;
-    for child in widgets.children[root_widget].iter() {
-        stack.push((*child, position));
+    for child in widgets.child_id_iter(root_widget) {
+        stack.push((child, position));
     }
 
     while let Some((widget_id, parent_origin)) = stack.pop() {
-        let data = &mut widgets.data[widget_id];
-        let origin = data.offset() + parent_origin.into_vec2();
-        for child in widgets.children[widget_id].iter() {
-            stack.push((*child, origin))
+        let origin = widgets.data[widget_id].offset() + parent_origin.into_vec2();
+        for child in widgets.child_id_iter(widget_id) {
+            stack.push((child, origin))
         }
-        data.origin = origin;
+        widgets.data[widget_id].origin = origin;
     }
 }
 
@@ -185,16 +179,16 @@ impl taffy::TraversePartialTree for LayoutContext<'_> {
         Self: 'b;
 
     fn child_ids(&self, parent_node_id: taffy::NodeId) -> Self::ChildIter<'_> {
-        let inner = self.widgets.children[parent_node_id.into()].iter();
+        let inner = self.widgets.children_as_vec(parent_node_id.into()).iter();
         LayoutChildIter { inner }
     }
 
     fn child_count(&self, parent_node_id: taffy::NodeId) -> usize {
-        self.widgets.children[parent_node_id.into()].len()
+        self.widgets.children_as_vec(parent_node_id.into()).len()
     }
 
     fn get_child_id(&self, parent_node_id: taffy::NodeId, child_index: usize) -> taffy::NodeId {
-        self.widgets.children[parent_node_id.into()][child_index].into()
+        self.widgets.children_as_vec(parent_node_id.into())[child_index].into()
     }
 }
 
@@ -323,8 +317,8 @@ impl LayoutPartialTree for LayoutContext<'_> {
 
             // Need to request layout for all overlays, their position
             // might depend on the bounding box of its parent
-            for &overlay_id in self.widgets.overlays[node_id.into()].iter() {
-                self.widgets.data[overlay_id].set_flag(WidgetFlags::NEEDS_LAYOUT);
+            for overlay_id in self.widgets.overlay_id_iter(node_id.into()) {
+                self.widgets.request_layout(overlay_id);
             }
         }
     }

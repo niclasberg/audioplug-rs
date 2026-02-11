@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use bitflags::bitflags;
 use slotmap::{Key, KeyData, new_key_type};
 
@@ -40,6 +42,7 @@ bitflags!(
         // Status flags
         const UNDER_MOUSE_CURSOR = 1 << 8;
         const HAS_FOCUS = 1 << 9;
+        const HAS_MOUSE_CAPTURE = 1 << 10;
     }
 );
 
@@ -50,10 +53,11 @@ pub struct WidgetData {
     pub(super) first_child_id: WidgetId,
     pub(super) next_sibling_id: WidgetId,
     pub(super) prev_sibling_id: WidgetId,
+    pub(super) first_overlay_id: WidgetId,
     pub(super) style: Style,
     pub(super) cache: taffy::Cache,
     pub(super) layout: taffy::Layout,
-    pub(super) flags: WidgetFlags,
+    flags: Cell<WidgetFlags>,
     pub(super) origin: Point,
     pub(super) scene: Scene,
 }
@@ -65,12 +69,13 @@ impl WidgetData {
             window_id,
             parent_id: WidgetId::null(),
             first_child_id: WidgetId::null(),
+            first_overlay_id: WidgetId::null(),
             next_sibling_id: id,
             prev_sibling_id: id,
             style: Default::default(),
             cache: Default::default(),
             layout: Default::default(),
-            flags: WidgetFlags::EMPTY,
+            flags: Cell::new(WidgetFlags::EMPTY),
             origin: Point::ZERO,
             scene: Scene::default(),
         }
@@ -127,25 +132,31 @@ impl WidgetData {
         }
     }
 
-    pub fn set_or_clear_flag(&mut self, flag: WidgetFlags, set: bool) {
+    pub fn set_or_clear_flag(&self, flag: WidgetFlags, set: bool) {
+        let mut flags = self.flags.get();
         if set {
-            self.flags |= flag;
+            flags |= flag;
         } else {
-            self.flags &= !flag;
+            flags &= !flag;
         }
+        self.flags.set(flags);
     }
 
-    pub fn set_flag(&mut self, flag: WidgetFlags) {
-        self.flags |= flag;
+    pub fn set_flag(&self, flag: WidgetFlags) {
+        let mut flags = self.flags.get();
+        flags |= flag;
+        self.flags.set(flags);
     }
 
-    pub fn clear_flag(&mut self, flag: WidgetFlags) {
-        self.flags &= !flag;
+    pub fn clear_flag(&self, flag: WidgetFlags) {
+        let mut flags = self.flags.get();
+        flags &= !flag;
+        self.flags.set(flags);
     }
 
     #[inline(always)]
     pub fn flag_is_set(&self, flag: WidgetFlags) -> bool {
-        self.flags.contains(flag)
+        self.flags.get().contains(flag)
     }
 
     pub fn size(&self) -> Size {

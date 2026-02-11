@@ -13,7 +13,7 @@ use crate::ui::{
 };
 
 #[derive(Default)]
-pub struct TaskQueue(VecDeque<Task>);
+pub struct TaskQueue(pub(super) VecDeque<Task>);
 
 impl TaskQueue {
     pub(crate) fn push(&mut self, task: Task) {

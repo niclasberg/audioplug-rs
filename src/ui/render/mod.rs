@@ -4,7 +4,7 @@ use crate::{
         Vec2, Vec2f,
     },
     platform,
-    ui::render::gpu_scene::GpuFill,
+    ui::{Widgets, render::gpu_scene::GpuFill},
 };
 
 mod canvas;
@@ -23,12 +23,12 @@ pub use platform::TextLayout;
 
 pub fn render_window(app_state: &mut AppState, window_id: WindowId) {
     app_state.with_id_buffer_mut(move |app_state, widgets_to_render| {
-        widgets_to_render.extend(
+        /*widgets_to_render.extend(
             app_state
                 .window_mut(window_id)
                 .widgets_needing_render
                 .drain(..),
-        );
+        );*/
 
         for widget_id in widgets_to_render {
             let mut cx = RenderContext {
@@ -224,30 +224,30 @@ pub struct RenderContext<'a> {
 
 impl RenderContext<'_> {
     pub fn local_bounds(&self) -> Rect {
-        self.app_state.widget_data_ref(self.id).local_bounds()
+        self.app_state.widgets.get(self.id).local_bounds()
     }
 
     pub fn global_bounds(&self) -> Rect {
-        self.app_state.widget_data_ref(self.id).global_bounds()
+        self.app_state.widgets.get(self.id).global_bounds()
     }
 
     pub fn content_bounds(&self) -> Rect {
-        self.app_state.widget_data_ref(self.id).content_bounds()
+        self.app_state.widgets.get(self.id).content_bounds()
     }
 
     pub fn has_focus(&self) -> bool {
-        self.app_state.widget_has_focus(self.id)
+        self.app_state.widgets.get(self.id).has_focus()
     }
 
     pub fn has_mouse_capture(&self) -> bool {
-        self.app_state.widget_has_captured_mouse(self.id)
+        self.app_state.widgets.get(self.id).has_mouse_capture()
     }
 
     fn render_current_widget(&mut self) {
-        let mut widget = self.app_state.widgets.remove(self.id).unwrap();
+        let mut widget = self.app_state.widgets.lease_widget(self.id);
         let scene = widget.render(self);
-        self.app_state.widgets.insert(self.id, widget);
-        self.app_state.widget_data_mut(self.id).scene = scene;
+        self.app_state.widgets.unlease_widget(self.id, widget);
+        self.app_state.widgets.data[self.id].scene = scene;
         invalidate_widget(self.app_state, self.id);
     }
 }

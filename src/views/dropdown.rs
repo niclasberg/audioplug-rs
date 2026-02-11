@@ -2,8 +2,7 @@ use crate::{
     KeyEvent, MouseButton, MouseEvent,
     core::{Align, Key},
     ui::{
-        Accessor, EventContext, EventStatus, MouseEventContext, OverlayAnchor, OverlayOptions,
-        View, Widget, WidgetAdapter, WidgetId, WidgetMut,
+        AnyWidgetId, EventContext, EventStatus, MouseEventContext, OverlayAnchor, OverlayOptions, View, Widget, WidgetAdapter, WidgetMut
     },
 };
 
@@ -41,7 +40,7 @@ impl<VTrigger: View, VMenu: View, FMenu: Fn() -> VMenu + 'static> View
 pub struct DropdownWidget<WTrigger, FMenu> {
     trigger_widget: WTrigger,
     menu_fn: FMenu,
-    overlay_id: Option<WidgetId>,
+    overlay_id: Option<AnyWidgetId>,
 }
 
 impl<WTrigger: Widget, V: View, FMenu: Fn() -> V + 'static> DropdownWidget<WTrigger, FMenu> {
@@ -51,7 +50,7 @@ impl<WTrigger: Widget, V: View, FMenu: Fn() -> V + 'static> DropdownWidget<WTrig
 
     fn close(mut widget: WidgetMut<Self>) {
         if let Some(overlay_id) = widget.overlay_id.take() {
-            widget.remove_child_by_id(overlay_id);
+            widget.find_child(overlay_id).unwrap().remove();
         }
     }
 }
@@ -89,7 +88,7 @@ impl<WTrigger: Widget, V: View, FMenu: Fn() -> V + 'static> WidgetAdapter
                                     ..Default::default()
                                 },
                             );
-                            widget.overlay_id = Some(id);
+                            widget.overlay_id = Some(id.into_any_widget_id());
                         }
                     });
                 } else {

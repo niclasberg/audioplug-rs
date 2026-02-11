@@ -1,4 +1,4 @@
-use crate::ui::{AppState, ReadSignal, WidgetId, Widgets};
+use crate::ui::{ReadSignal, WidgetFlags, WidgetId, Widgets};
 use bitflags::bitflags;
 
 bitflags! {
@@ -24,10 +24,10 @@ impl<T> WidgetStatus<T> {
 
 pub const FOCUS_STATUS: WidgetStatus<bool> = WidgetStatus {
     mask: WidgetStatusFlags::FOCUSED,
-    getter: |app_state, widget_id| app_state.widget_has_focus(widget_id),
+    getter: |widgets, widget_id| widgets.get(widget_id).has_focus(),
 };
 
 pub const CLICKED_STATUS: WidgetStatus<bool> = WidgetStatus {
     mask: WidgetStatusFlags::CLICKED,
-    getter: |app_state, widget_id| app_state.widget_has_captured_mouse(widget_id),
+    getter: |widgets, widget_id| widgets.get(widget_id).has_mouse_capture(),
 };

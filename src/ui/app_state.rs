@@ -1,6 +1,6 @@
 use super::{
     AnyView, BuildContext, CreateContext, HostHandle, ParamContext, ReactiveContext, ReadContext,
-    ReadSignal, Var, View, Widget, WidgetContext, WidgetData, WidgetFlags, WidgetId, WidgetMut,
+    ReadSignal, Var, View, Widget, WidgetContext, WidgetData, WidgetId, WidgetMut,
     WidgetRef, WindowId, WriteContext,
     clipboard::Clipboard,
     event_handling::{set_focus_widget, set_mouse_capture_widget},
@@ -11,7 +11,7 @@ use super::{
     style::StyleBuilder,
 };
 use crate::{
-    core::{FxIndexSet, Point, WindowTheme},
+    core::{Point, WindowTheme},
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
     ui::{
@@ -21,7 +21,7 @@ use crate::{
     },
 };
 use slotmap::{Key, SlotMap};
-use std::{cell::Cell, collections::VecDeque, rc::Rc};
+use std::{cell::Cell, rc::Rc};
 
 pub(super) struct WindowState {
     pub(super) handle: platform::Handle,
@@ -44,10 +44,13 @@ pub struct AppState {
     pub(super) task_queue: TaskQueue,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WidgetInsertPos {
-    Index(usize),
-    End,
-    Overlay(OverlayOptions),
+    Before(WidgetId),
+    After(WidgetId),
+    BeforeFirstChildOf(WidgetId),
+    AfterLastChildOf(WidgetId),
+    Overlay(WidgetId, OverlayOptions),
 }
 
 impl AppState {
@@ -149,10 +152,17 @@ impl AppState {
     /// Add a new widget
     pub fn add_widget<V: View>(
         &mut self,
-        parent_id: WidgetId,
         view: V,
         position: WidgetInsertPos,
     ) -> WidgetId {
+        let parent_id = match position {
+            WidgetInsertPos::Before(widget_id) => self.widgets.get_parent(widget_id),
+            WidgetInsertPos::After(widget_id) => self.widgets.get_parent(widget_id),
+            WidgetInsertPos::BeforeFirstChildOf(widget_id) => widget_id,
+            WidgetInsertPos::AfterLastChildOf(widget_id) => widget_id,
+            WidgetInsertPos::Overlay(widget_id, _) => widget_id,
+        };
+
         let window_id = self
             .widgets
             .data
@@ -165,18 +175,16 @@ impl AppState {
             .insert_with_key(|id| WidgetData::new(window_id, id).with_parent(parent_id));
 
         self.build_and_insert_widget(id, view);
-
-        match position {
-            WidgetInsertPos::Index(index) => self.widgets.children[parent_id].insert(index, id),
-            WidgetInsertPos::End => self.widgets.children[parent_id].push(id),
-            WidgetInsertPos::Overlay(options) => {
-                self.widgets.overlays[parent_id].push(id);
-                self.widgets.data[id].set_flag(WidgetFlags::OVERLAY);
-                self.window_mut(window_id)
-                    .overlays
-                    .insert_or_update(id, options);
-            }
-        }
+        
+        /*WidgetInsertPos::Index(index) => self.widgets.children[parent_id].insert(index, id),
+        WidgetInsertPos::End => self.widgets.children[parent_id].push(id),
+        WidgetInsertPos::Overlay(options) => {
+            self.widgets.overlays[parent_id].push(id);
+            self.widgets.data[id].set_flag(WidgetFlags::OVERLAY);
+            self.window_mut(window_id)
+                .overlays
+                .insert_or_update(id, options);
+        }*/
 
         id
     }
@@ -270,11 +278,9 @@ impl AppState {
         id: WidgetId,
         f: impl FnOnce(&mut Self, &mut dyn Widget) -> R,
     ) -> R {
-        let Some(mut widget) = self.widgets.remove(id) else {
-            panic!("Widget does not exist")
-        };
+        let mut widget = self.widgets.lease_widget(id);
         let value = f(self, widget.as_mut());
-        self.widgets.insert(id, widget);
+        self.widgets.unlease_widget(id, widget);
         value
     }
 
@@ -404,12 +410,20 @@ impl AppState {
         self.window_for_widget(id).theme_signal.as_read_signal()
     }
 
+    pub fn focus_widget(&self, window_id: WindowId) -> Option<WidgetRef<'_, dyn Widget>> {
+        self.window(window_id).focus_widget.map(|id| WidgetRef::new(&self.widgets, id))
+    }
+
+    pub fn focus_widget_mut(&mut self, window_id: WindowId) -> Option<WidgetMut<'_, dyn Widget>> {
+        self.window(window_id).focus_widget.map(|id| WidgetMut::new(self, id))
+    }
+
     pub fn get_window_id_for_widget(&self, widget_id: WidgetId) -> WindowId {
         self.widgets.data[widget_id].window_id
     }
 
     pub fn run_effects(&mut self) {
-        let mut tasks = std::mem::take(&mut self.task_queue);
+        let mut tasks = std::mem::take(&mut self.task_queue.0);
 
         if tasks.is_empty() {
             return;
@@ -417,7 +431,7 @@ impl AppState {
 
         while let Some(task) = tasks.pop_front() {
             task.run(self);
-            tasks.extend(self.task_queue.drain(..));
+            tasks.extend(self.task_queue.0.drain(..));
         }
 
         // Layout if needed

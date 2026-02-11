@@ -4,8 +4,9 @@ use slotmap::{Key, SecondaryMap, SlotMap};
 
 use crate::{
     core::{FxIndexSet, Point},
-    ui::{Widget, WidgetData, WidgetFlags, WidgetId},
+    ui::{Widget, WidgetData, WidgetFlags, WidgetId, WidgetRef},
 };
+
 
 #[derive(Default)]
 pub struct Widgets {
@@ -14,8 +15,7 @@ pub struct Widgets {
     /// Widget implementation. Should exist for each widget data.
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
     /// (Lazy) cache of child ids. Taffy requires random access during layout.
-    pub(super) children: SlotMap<WidgetId, Vec<WidgetId>>,
-    pub(super) overlays: SlotMap<WidgetId, Vec<WidgetId>>,
+    children: SecondaryMap<WidgetId, Vec<WidgetId>>,
     /// Ids of all widgets that have requested animation. Cleared during each call to [drive_animations]
     pub(super) pending_animations: FxIndexSet<WidgetId>,
     /// Ids of all widgets that have requested render.
@@ -25,20 +25,37 @@ pub struct Widgets {
 }
 
 impl Widgets {
-    pub fn child_count(&self, widget_id: WidgetId) -> usize {
-        self.children.get(widget_id).map(|c| c.len()).unwrap_or(0)
+    pub fn get(&self, widget_id: WidgetId) -> WidgetRef<'_, dyn Widget> {
+        WidgetRef::new(self, widget_id)
     }
 
     pub fn contains(&self, widget_id: WidgetId) -> bool {
         self.data.contains_key(widget_id)
     }
 
-    pub fn children(&self, widget_id: WidgetId) -> &Vec<WidgetId> {
-        todo!()
+    pub(crate) fn children_as_vec(&self, widget_id: WidgetId) -> &Vec<WidgetId> {
+        let widget_data = &self.data[widget_id];
+        if widget_data.flag_is_set(WidgetFlags::CHILDREN_CHANGED) {
+
+            widget_data.clear_flag(WidgetFlags::CHILDREN_CHANGED);
+        }
+        &self.children[widget_id]
     }
 
-    pub fn overlay_count(&self, widget_id: WidgetId) -> usize {
-        self.overlays.get(widget_id).map(|c| c.len()).unwrap_or(0)
+    pub fn sibling_id_iter(&self, widget_id: WidgetId) -> ChildIdIter<'_> {
+        ChildIdIter { inner: WidgetIdIter::all_siblings(&self, widget_id), widgets: &self }
+    }
+
+    pub fn child_id_iter(&self, widget_id: WidgetId) -> ChildIdIter<'_> {
+        ChildIdIter { inner: WidgetIdIter::all_children(&self, widget_id), widgets: &self }
+    }
+
+    pub fn overlay_id_iter(&self, widget_id: WidgetId) -> ChildIdIter<'_> {
+        ChildIdIter { inner: WidgetIdIter::all_children(&self, widget_id), widgets: &self }
+    }
+
+    pub(super) fn remove(&mut self, widget_id: WidgetId) {
+        
     }
 
     #[inline(always)]
@@ -46,7 +63,7 @@ impl Widgets {
         self.data[widget_id].parent_id
     }
 
-    pub fn widget_has_parent(&self, child_id: WidgetId, parent_id: WidgetId) -> bool {
+    pub fn has_parent(&self, child_id: WidgetId, parent_id: WidgetId) -> bool {
         let mut id = child_id;
         while !id.is_null() {
             id = self.data[id].parent_id;
@@ -61,14 +78,20 @@ impl Widgets {
         self.pending_animations.insert(widget_id);
     }
 
-    pub(super) fn merge_flags(&mut self, source: WidgetId) {
-        let mut current = source;
-        let mut flags_to_apply = WidgetFlags::empty();
-        // Merge until we hit the root, or an overlay
-        while !current.is_null() && !self.data[current].is_overlay() {
+    pub(crate) fn request_layout(&mut self, widget_id: WidgetId) {
+        let mut current = widget_id;
+        // Merge until we hit the root, an overlay or another node that
+        // already have marked as needing layout
+        loop {
+            if current.is_null() {
+                break;
+            }
             let data = &mut self.data[current];
-            data.flags |= flags_to_apply;
-            flags_to_apply = data.flags & (WidgetFlags::NEEDS_LAYOUT);
+            if data.is_overlay() || data.flag_is_set(WidgetFlags::NEEDS_LAYOUT) {
+                break;
+            }
+
+            data.set_flag(WidgetFlags::NEEDS_LAYOUT);
             current = data.parent_id;
         }
     }
@@ -102,5 +125,87 @@ impl Widgets {
         }
         self.id_buffer.set(stack);
         widgets
+    }
+}
+
+pub struct ChildIdIter<'a> {
+    inner: WidgetIdIter,
+    widgets: &'a Widgets
+}
+
+impl<'a> Iterator for ChildIdIter<'a> {
+    type Item = WidgetId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next_id(self.widgets)
+    }
+}
+
+impl<'a> DoubleEndedIterator for ChildIdIter<'a> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.inner.next_back_id(self.widgets)
+    }
+}
+
+// Keeps track of the current iterable range. The Widgets have to be passed on each
+// call to next_id in order to avoid borrowing problems.
+pub(super) struct WidgetIdIter {
+    first: WidgetId,
+    last: WidgetId,
+    done: bool,
+}
+
+impl WidgetIdIter {
+    pub(super) fn all_siblings(widgets: &Widgets, first: WidgetId) -> Self {
+        if first.is_null() {
+            Self {
+                first: WidgetId::null(),
+                last: WidgetId::null(),
+                done: true,
+            }
+        } else {
+            let last = widgets.data[first].prev_sibling_id;
+            Self {
+                first,
+                last,
+                done: false,
+            }
+        }
+    }
+
+    pub(super) fn all_children(widgets: &Widgets, parent_id: WidgetId) -> Self {
+        let first = widgets.data[parent_id].first_child_id;
+        Self::all_siblings(widgets, first)
+    }
+
+    pub(super) fn all_overlays(widgets: &Widgets, parent_id: WidgetId) -> Self {
+        let first = widgets.data[parent_id].first_overlay_id;
+        Self::all_siblings(widgets, first)
+    }
+
+    pub(super) fn next_id(&mut self, widgets: &Widgets) -> Option<WidgetId> {
+        if self.done {
+            None
+        } else {
+            let first = self.first;
+            self.first = widgets.data[first].next_sibling_id;
+            if self.first == self.last {
+                self.done = true;
+            }
+            Some(first)
+        }
+    }
+
+    pub(super) fn next_back_id(&mut self, widgets: &Widgets) -> Option<WidgetId> {
+        if self.done {
+            None
+        } else {
+            let last = self.last;
+            self.last = widgets.data[last].prev_sibling_id;
+            if self.first == self.last {
+                self.done = true;
+            }
+            Some(last)
+        }
     }
 }

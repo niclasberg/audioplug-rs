@@ -181,7 +181,7 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
 
     pub fn add_child(&mut self, view: impl View) -> WidgetId {
         self.app_state
-            .add_widget(self.id, view, WidgetInsertPos::End)
+            .add_widget(view, WidgetInsertPos::AfterLastChildOf(self.id))
     }
 
     pub fn add_children(&mut self, view_sequence: impl ViewSequence) {
@@ -195,7 +195,7 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
 
     pub fn add_overlay(&mut self, view: impl View, options: OverlayOptions) -> WidgetId {
         self.app_state
-            .add_widget(self.id, view, WidgetInsertPos::Overlay(options))
+            .add_widget(view, WidgetInsertPos::Overlay(self.id, options))
     }
 
     pub(crate) fn build_inner<V: View>(&mut self, view: V) -> V::Element {

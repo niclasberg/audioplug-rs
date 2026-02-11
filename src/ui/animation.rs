@@ -1,6 +1,6 @@
 use crate::{
     AnimationFrame,
-    ui::{AppState, WidgetId, layout::request_layout, render::invalidate_widget},
+    ui::{AppState, WidgetId, render::invalidate_widget},
 };
 
 /// Should be called when the animation timer for a window ticks.
@@ -48,6 +48,6 @@ impl AnimationContext<'_> {
     }
 
     pub fn request_layout(&mut self) {
-        request_layout(&mut self.app_state.widgets, self.id);
+        self.app_state.widgets.request_layout(self.id);
     }
 }

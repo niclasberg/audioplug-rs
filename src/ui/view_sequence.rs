@@ -95,9 +95,14 @@ impl<V: View, F: Fn(usize) -> V + 'static> ViewSequence for IndexedViewSeq<F> {
                     }
                 }
                 std::cmp::Ordering::Greater => {
-                    for i in value..widget.child_count() {
-                        widget.remove_child(i);
-                    }
+                    let mut i = 0; 
+                    let child_count = widget.child_count();
+                    widget.for_each_child_mut(|child| {
+                        if i >= child_count {
+                            child.remove();
+                        }
+                        i += 1;
+                    });
                 }
             }
         });

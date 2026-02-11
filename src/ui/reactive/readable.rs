@@ -205,23 +205,21 @@ pub trait ReadContext: ReactiveContext {
 impl dyn ReadContext + '_ {
     pub fn track(&mut self, source_id: NodeId) {
         if let ReadScope::Node(node_id) = self.scope() {
-            self.app_state_mut()
-                .runtime
+            self.reactive_graph_mut()
                 .add_node_subscription(source_id, node_id);
         }
     }
 
     pub fn track_parameter(&mut self, source_id: ParameterId) {
         if let ReadScope::Node(node_id) = self.scope() {
-            self.app_state_mut()
-                .runtime
+            self.reactive_graph_mut()
                 .add_parameter_subscription(source_id, node_id);
         }
     }
 
     pub fn track_widget_status(&mut self, widget_id: WidgetId, status_mask: WidgetStatusFlags) {
         if let ReadScope::Node(node_id) = self.scope() {
-            self.app_state_mut().runtime.add_widget_status_subscription(
+            self.reactive_graph_mut().add_widget_status_subscription(
                 widget_id,
                 status_mask,
                 node_id,
