@@ -3,7 +3,7 @@ use slotmap::Key;
 use crate::{
     param::{ParamRef, ParameterId},
     ui::{
-        AppState, TypedWidgetId, Widget, WidgetContext, WidgetId, WidgetMut, WidgetRef,
+        TypedWidgetId, Widget, WidgetContext, WidgetId, WidgetMut, WidgetRef, Widgets,
         reactive::WidgetStatusFlags,
     },
 };
@@ -100,7 +100,7 @@ impl Effect {
             cx,
             id,
             BindingState::new(move |cx| {
-                let value = getter(cx.app_state_mut().runtime.get_parameter_ref(id));
+                let value = getter(cx.reactive_graph_mut().get_parameter_ref(id));
                 f(cx, &value);
             }),
         );
@@ -117,14 +117,14 @@ impl Effect {
             cx,
             node_id,
             BindingState::new(move |cx| {
-                super::update_if_necessary(cx.app_state_mut(), node_id);
-                if let Some(node) = cx.app_state_mut().runtime.lease_node(node_id) {
+                super::update_if_necessary(cx, node_id);
+                if let Some(node) = cx.reactive_graph_mut().lease_node(node_id) {
                     let value = node
                         .get_value_ref()
                         .downcast_ref()
                         .expect("Node should have the correct value type");
                     f(cx, value);
-                    cx.app_state_mut().runtime.unlease_node(node_id, node);
+                    cx.reactive_graph_mut().unlease_node(node_id, node);
                 }
             }),
         );
@@ -136,7 +136,7 @@ impl Effect {
         cx: &mut dyn CreateContext,
         widget: WidgetId,
         status_mask: WidgetStatusFlags,
-        value_getter: fn(&AppState, WidgetId) -> T,
+        value_getter: fn(&Widgets, WidgetId) -> T,
         mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
     ) -> Self {
         let id = super::create_widget_binding_node(
@@ -144,7 +144,7 @@ impl Effect {
             widget,
             status_mask,
             BindingState::new(move |cx| {
-                let value = value_getter(cx.app_state(), widget);
+                let value = value_getter(cx.widgets(), widget);
                 f(cx, &value);
             }),
         );
@@ -176,7 +176,7 @@ impl Effect {
 
     pub fn dispose(self, cx: &mut dyn ReactiveContext) {
         if !self.id.is_null() {
-            cx.app_state_mut().runtime.remove_node(self.id);
+            cx.reactive_graph_mut().remove_node(self.id);
         }
     }
 }

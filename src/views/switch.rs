@@ -35,7 +35,7 @@ where
         Effect::new(cx, move |cx| {
             let new_value = f_value(cx);
             if new_value != value {
-                cx.replace_widget_dun(id.id, f_view(&new_value).into_any_view());
+                cx.replace_widget_dyn(id.id, f_view(&new_value).into_any_view());
                 cx.widget_mut(id).request_layout();
                 value = new_value;
             }

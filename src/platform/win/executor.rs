@@ -26,6 +26,7 @@ use windows::{
 const WINDOW_CLASS: PCWSTR = w!("executor_window");
 static REGISTER_WINDOW_CLASS: Once = Once::new();
 const WAKER_MSG_ID: u32 = WM_USER + 1;
+const DRIVE_ANIMATIONS_MSG_ID: u32 = WM_USER + 2;
 
 pub enum Work {
     Runnable(Runnable),
@@ -36,6 +37,7 @@ unsafe impl Sync for Work {}
 
 struct Inner {
     receiver: Receiver<Work>,
+    animation_callbacks: Vec<TimerHandle>,
 }
 
 impl Inner {
@@ -48,6 +50,17 @@ impl Inner {
                 Work::Fn(f) => f(),
             }
         }
+    }
+}
+
+pub struct TimerHandle {
+    callback: Box<dyn Fn()>,
+    runner: Weak<Inner>,
+}
+
+impl Drop for TimerHandle {
+    fn drop(&mut self) {
+        // Remove the timer from inner
     }
 }
 
@@ -168,6 +181,10 @@ unsafe extern "system" fn wndproc(
         if message == WM_NCDESTROY {
             unsafe { SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0) };
             drop(unsafe { Rc::from_raw(inner_ptr) });
+        } else if message == DRIVE_ANIMATIONS_MSG_ID {
+            for animation in inner.animation_timers {
+                (inner.callback)();
+            }
         }
     }
 

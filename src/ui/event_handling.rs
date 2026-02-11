@@ -1,12 +1,7 @@
 use super::{
     AppState, EventStatus, ParamContext, ReactiveContext, ReadContext, ReadScope, WidgetFlags,
-    WidgetId, WindowId, WriteContext,
-    animation::{drive_animations, request_animation_frame},
-    clipboard::Clipboard,
-    invalidate_window,
-    layout::request_layout,
-    layout_window,
-    render::invalidate_widget,
+    WidgetId, WindowId, WriteContext, animation::drive_animations, clipboard::Clipboard,
+    invalidate_window, layout::request_layout, layout_window, render::invalidate_widget,
 };
 use crate::{
     KeyEvent, MouseEvent,
@@ -16,6 +11,7 @@ use crate::{
         StatusChange, Widget, WidgetMut,
         layout::RecomputeLayout,
         reactive::{CLICKED_STATUS, FOCUS_STATUS, notify_widget_status_changed},
+        task_queue::Task,
     },
 };
 
@@ -29,7 +25,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             if let MouseEvent::Down { position, .. } = mouse_event {
                 let mut new_focus_view = None;
                 app_state.for_each_widget_at_rev(window_id, position, |app_state, id| {
-                    if app_state.widget_data[id].flag_is_set(WidgetFlags::FOCUSABLE) {
+                    if app_state.widgets.data[id].flag_is_set(WidgetFlags::FOCUSABLE) {
                         new_focus_view = Some(id);
                         false
                     } else {
@@ -96,7 +92,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             set_focus_widget(app_state, window_id, None);
         }
         WindowEvent::Animation(animation_frame) => {
-            drive_animations(app_state, window_id, animation_frame);
+            drive_animations(app_state, animation_frame);
         }
         WindowEvent::MouseCaptureEnded => {
             set_mouse_capture_widget(app_state, None);
@@ -201,12 +197,13 @@ impl<'a> MouseEventContext<'a> {
         let mut widget = self
             .app_state
             .widgets
+            .widgets
             .remove(self.id)
             .expect("Widget not found");
         let old_id = self.id;
         let status = widget.mouse_event(event, self);
         self.id = old_id;
-        self.app_state.widgets.insert(old_id, widget);
+        self.app_state.widgets.widgets.insert(old_id, widget);
         status
     }
 
@@ -247,7 +244,7 @@ impl<'a> MouseEventContext<'a> {
     }
 
     pub fn request_layout(&mut self) {
-        request_layout(self.app_state, self.id);
+        request_layout(&mut self.app_state.widgets, self.id);
     }
 
     pub fn request_render(&mut self) {
@@ -255,7 +252,7 @@ impl<'a> MouseEventContext<'a> {
     }
 
     pub fn request_animation(&mut self) {
-        request_animation_frame(self.app_state, self.id)
+        self.app_state.widgets.request_animation(self.id)
     }
 
     pub fn bounds(&self) -> Rect {
@@ -272,11 +269,10 @@ impl<'a> MouseEventContext<'a> {
         _widget: &W,
         f: impl FnOnce(WidgetMut<'_, W>) + 'static,
     ) {
-        self.app_state
-            .push_task(super::app_state::Task::UpdateWidget {
-                widget_id: self.id,
-                f: Box::new(move |widget| f(widget.unchecked_cast())),
-            });
+        self.app_state.push_task(Task::UpdateWidget {
+            widget_id: self.id,
+            f: Box::new(move |widget| f(widget.unchecked_cast())),
+        });
     }
 }
 
@@ -291,15 +287,15 @@ impl<'a> EventContext<'a> {
     }
 
     fn dispatch_status_updated(&mut self, event: StatusChange) {
-        let mut widget = self.app_state.widgets.remove(self.id).unwrap();
+        let mut widget = self.app_state.widgets.lease_widget(self.id);
         widget.status_change(event, self);
-        self.app_state.widgets.insert(self.id, widget);
+        self.app_state.widgets.unlease_widget(self.id, widget);
     }
 
     fn dispatch_key_event(&mut self, event: KeyEvent) -> EventStatus {
-        let mut widget = self.app_state.widgets.remove(self.id).unwrap();
+        let mut widget = self.app_state.widgets.lease_widget(self.id);
         let status = widget.key_event(event, self);
-        self.app_state.widgets.insert(self.id, widget);
+        self.app_state.widgets.unlease_widget(self.id, widget);
         status
     }
 
@@ -331,11 +327,11 @@ impl<'a> EventContext<'a> {
     }
 
     pub fn request_layout(&mut self) {
-        request_layout(self.app_state, self.id);
+        request_layout(&mut self.app_state.widgets, self.id);
     }
 
     pub fn request_animation(&mut self) {
-        request_animation_frame(self.app_state, self.id)
+        self.app_state.widgets.request_animation(self.id)
     }
 
     pub fn request_render(&mut self) {
@@ -352,11 +348,10 @@ impl<'a> EventContext<'a> {
         _widget: &W,
         f: impl FnOnce(WidgetMut<'_, W>) + 'static,
     ) {
-        self.app_state
-            .push_task(super::app_state::Task::UpdateWidget {
-                widget_id: self.id,
-                f: Box::new(move |widget| f(widget.unchecked_cast())),
-            });
+        self.app_state.push_task(Task::UpdateWidget {
+            widget_id: self.id,
+            f: Box::new(move |widget| f(widget.unchecked_cast())),
+        });
     }
 }
 
@@ -380,11 +375,17 @@ impl ReadContext for CallbackContext<'_> {
 impl WriteContext for CallbackContext<'_> {}
 
 impl ReactiveContext for CallbackContext<'_> {
-    fn app_state(&self) -> &AppState {
-        self.app_state
+    fn components(&self) -> (&super::ReactiveGraph, &super::Widgets) {
+        self.app_state.components()
     }
 
-    fn app_state_mut(&mut self) -> &mut AppState {
-        self.app_state
+    fn components_mut(
+        &mut self,
+    ) -> (
+        &mut super::ReactiveGraph,
+        &mut super::Widgets,
+        &mut super::task_queue::TaskQueue,
+    ) {
+        self.app_state.components_mut()
     }
 }

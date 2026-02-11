@@ -8,11 +8,13 @@ mod overlay;
 pub(super) mod reactive;
 mod render;
 pub mod style;
+mod task_queue;
 mod view;
 mod view_sequence;
 mod widget;
 mod widget_data;
 mod widget_ref;
+mod widgets;
 mod window;
 
 use std::{cell::RefCell, marker::PhantomData, rc::Rc};
@@ -28,19 +30,21 @@ pub use reactive::{
     Accessor, Animated, AnimatedFn, Animation, Cached, CachedContext, Computed, CreateContext,
     Easing, Effect, EffectContext, EventChannel, EventReceiver, Mapped, Node, NodeId, Owner,
     ParamContext, ParamSetter, ReactiveContext, ReactiveGraph, ReactiveValue, ReadContext,
-    ReadScope, ReadSignal, SpringOptions, Trigger, TweenOptions, Var, ViewContext, WatchContext,
-    WidgetContext, WriteContext,
+    ReadScope, ReadSignal, SpringOptions, Trigger, TweenOptions, Var, WatchContext, WidgetContext,
+    WriteContext,
 };
 pub use render::{
     Canvas, CanvasContext, CanvasWidget, RenderContext, Scene, TextLayout, invalidate_window,
     render_window,
 };
+pub use task_queue::TaskQueue;
 
 pub use view::*;
 pub use view_sequence::*;
 pub use widget::{EventStatus, StatusChange, Widget, WidgetAdapter};
 pub use widget_data::{WidgetData, WidgetFlags, WidgetId};
 pub use widget_ref::{WidgetMut, WidgetRef};
+pub use widgets::Widgets;
 #[cfg(target_os = "macos")]
 pub(crate) use window::MyHandler;
 pub use window::Window;

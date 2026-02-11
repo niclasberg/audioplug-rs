@@ -1,21 +1,26 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
-use crate::ui::{Accessor, AppState, Effect, ReadSignal};
+use crate::ui::{
+    Accessor, AppState, Effect, ReactiveGraph, ReadSignal, Widgets, reactive::LocalContext,
+    task_queue::TaskQueue,
+};
 
-use super::{CreateContext, NodeId, NodeType, ReactiveContext, ReactiveValue, ReadContext, ReadScope};
+use super::{
+    CreateContext, NodeId, NodeType, ReactiveContext, ReactiveValue, ReadContext, ReadScope,
+};
 
 pub struct CachedContext<'a> {
     pub(super) memo_id: NodeId,
-    pub(super) app_state: &'a mut AppState,
+    pub(super) cx: LocalContext<'a>,
 }
 
 impl ReactiveContext for CachedContext<'_> {
-    fn app_state(&self) -> &AppState {
-        self.app_state
+    fn components(&self) -> (&ReactiveGraph, &Widgets) {
+        self.cx.components()
     }
 
-    fn app_state_mut(&mut self) -> &mut AppState {
-        self.app_state
+    fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
+        self.cx.components_mut()
     }
 }
 
@@ -118,8 +123,8 @@ impl<T: 'static> ReactiveValue for Cached<T> {
 }
 
 fn update_and_get_memo_value(cx: &mut dyn ReactiveContext, id: NodeId) -> &dyn Any {
-    super::update_if_necessary(cx.app_state_mut(), id);
-    match &cx.app_state_mut().runtime.get_node_mut(id).node_type {
+    super::update_if_necessary(cx, id);
+    match &cx.reactive_graph().get_node(id).node_type {
         NodeType::Memo(state) => state
             .value
             .as_ref()
@@ -137,8 +142,8 @@ pub struct CachedState {
 }
 
 impl CachedState {
-    pub fn eval(&mut self, memo_id: NodeId, app_state: &mut AppState) -> bool {
-        let mut cx = CachedContext { memo_id, app_state };
+    pub fn eval(&mut self, memo_id: NodeId, cx: LocalContext) -> bool {
+        let mut cx = CachedContext { memo_id, cx };
         (self.f)(&mut cx, &mut self.value)
     }
 }

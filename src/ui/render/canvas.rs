@@ -47,7 +47,7 @@ where
             cx.widget_mut(widget_id).request_render();
         });
         let effect_id = create_effect_node(
-            &mut cx.as_create_context(Owner::Widget(widget_id.id)),
+            &mut cx.with_owner(Owner::Widget(widget_id.id)),
             state,
             false,
         );
@@ -74,12 +74,18 @@ impl CanvasContext<'_> {
 }
 
 impl ReactiveContext for CanvasContext<'_> {
-    fn app_state(&self) -> &AppState {
-        self.app_state
+    fn components(&self) -> (&crate::ui::ReactiveGraph, &crate::ui::Widgets) {
+        self.app_state.components()
     }
 
-    fn app_state_mut(&mut self) -> &mut AppState {
-        self.app_state
+    fn components_mut(
+        &mut self,
+    ) -> (
+        &mut crate::ui::ReactiveGraph,
+        &mut crate::ui::Widgets,
+        &mut crate::ui::task_queue::TaskQueue,
+    ) {
+        self.app_state.components_mut()
     }
 }
 
@@ -104,7 +110,9 @@ impl Widget for CanvasWidget {
     }
 
     fn render(&mut self, cx: &mut crate::ui::RenderContext) -> Scene {
-        cx.app_state.runtime.clear_node_sources(self.effect_id);
+        cx.app_state
+            .reactive_graph
+            .clear_node_sources(self.effect_id);
         let mut cx = CanvasContext {
             widget_id: cx.id,
             effect_id: self.effect_id,

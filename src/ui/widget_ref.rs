@@ -3,34 +3,80 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use slotmap::Key;
+
 use super::{
     AppState, OverlayOptions, View, Widget, WidgetData, WidgetFlags, WidgetId,
     app_state::WidgetInsertPos, layout::request_layout, render::invalidate_widget, style::Style,
 };
-use crate::core::{Rect, diff::DiffOp};
+use crate::{
+    core::{Rect, diff::DiffOp},
+    ui::Widgets,
+};
 
 pub struct ChildIter<'a> {
-    app_state: &'a AppState,
-    current_id: *const WidgetId,
-    end_id: *const WidgetId,
+    widgets: &'a Widgets,
+    first: WidgetId,
+    last: WidgetId,
+    done: bool,
+}
+
+impl<'a> ChildIter<'a> {
+    pub fn new(widgets: &'a Widgets, parent_id: WidgetId) -> Self {
+        let first = widgets.data[parent_id].first_child_id;
+        if first.is_null() {
+            Self {
+                widgets,
+                first: WidgetId::null(),
+                last: WidgetId::null(),
+                done: true,
+            }
+        } else {
+            let last = widgets.data[first].prev_sibling_id;
+            Self {
+                widgets,
+                first,
+                last,
+                done: false,
+            }
+        }
+    }
 }
 
 impl<'a> Iterator for ChildIter<'a> {
     type Item = WidgetRef<'a, dyn Widget>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current_id == self.end_id {
+        if self.done {
             None
         } else {
-            let id = unsafe { *self.current_id };
-            self.current_id = unsafe { self.current_id.offset(1) };
-            Some(WidgetRef::new(self.app_state, id))
+            let first = self.first;
+            self.first = self.widgets.data[first].next_sibling_id;
+            if self.first == self.last {
+                self.done = true;
+            }
+            Some(WidgetRef::new(self.widgets, first))
+        }
+    }
+}
+
+impl<'a> DoubleEndedIterator for ChildIter<'a> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.done {
+            None
+        } else {
+            let last = self.last;
+            self.last = self.widgets.data[last].prev_sibling_id;
+            if self.first == self.last {
+                self.done = true;
+            }
+            Some(WidgetRef::new(self.widgets, last))
         }
     }
 }
 
 pub struct ChildIterMut<'a> {
-    app_state: &'a mut AppState,
+    app_state: &'a mut Widgets,
     current_id: *const WidgetId,
     end_id: *const WidgetId,
 }
@@ -44,22 +90,22 @@ impl<'a> Iterator for ChildIterMut<'a> {
 }
 
 pub struct WidgetRef<'a, W: 'a + Widget + ?Sized> {
-    pub(super) app_state: &'a AppState,
+    pub(super) widgets: &'a Widgets,
     pub(super) id: WidgetId,
     _phantom: PhantomData<&'a W>,
 }
 
 impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
-    pub(super) fn new(app_state: &'a AppState, id: WidgetId) -> Self {
+    pub(super) fn new(widgets: &'a Widgets, id: WidgetId) -> Self {
         Self {
-            app_state,
+            widgets,
             id,
             _phantom: PhantomData,
         }
     }
 
     pub fn data(&self) -> &WidgetData {
-        &self.app_state.widget_data[self.id]
+        &self.widgets.data[self.id]
     }
 
     pub fn local_bounds(&self) -> Rect {
@@ -76,7 +122,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
 
     pub(super) fn unchecked_cast<W2: 'a + Widget + ?Sized>(self) -> WidgetRef<'a, W2> {
         WidgetRef {
-            app_state: self.app_state,
+            widgets: self.widgets,
             id: self.id,
             _phantom: PhantomData,
         }
@@ -87,7 +133,7 @@ impl Deref for WidgetRef<'_, dyn Widget> {
     type Target = dyn Widget;
 
     fn deref(&self) -> &Self::Target {
-        &self.app_state.widgets[self.id]
+        &self.widgets.widgets[self.id]
     }
 }
 
@@ -95,7 +141,7 @@ impl<'a, W: 'a + Widget> Deref for WidgetRef<'a, W> {
     type Target = W;
 
     fn deref(&self) -> &Self::Target {
-        self.app_state.widgets[self.id].downcast_ref().unwrap()
+        self.widgets.widgets[self.id].downcast_ref().unwrap()
     }
 }
 
@@ -115,22 +161,22 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 
     pub fn data(&self) -> &WidgetData {
-        &self.app_state.widget_data[self.id]
+        &self.app_state.widgets.data[self.id]
     }
 
     pub fn data_mut(&mut self) -> &mut WidgetData {
-        &mut self.app_state.widget_data[self.id]
+        &mut self.app_state.widgets.data[self.id]
     }
 
     pub fn child_count(&self) -> usize {
-        self.data().children.len()
+        self.app_state.widgets.child_count(self.id)
     }
 
     pub fn add_overlay<V: View>(&mut self, view: V, options: OverlayOptions) -> WidgetId {
         let widget_id = self
             .app_state
             .add_widget(self.id, view, WidgetInsertPos::Overlay(options));
-        request_layout(self.app_state, widget_id);
+        request_layout(&mut self.app_state.widgets, widget_id);
         widget_id
     }
 
@@ -138,14 +184,14 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         let widget_id = self
             .app_state
             .add_widget(self.id, view, WidgetInsertPos::End);
-        request_layout(self.app_state, widget_id);
+        request_layout(&mut self.app_state.widgets, widget_id);
     }
 
     pub fn insert_child<V: View>(&mut self, view: V, index: usize) {
         let widget_id = self
             .app_state
             .add_widget(self.id, view, WidgetInsertPos::Index(index));
-        request_layout(self.app_state, widget_id);
+        request_layout(&mut self.app_state.widgets, widget_id);
     }
 
     pub fn remove_child(&mut self, i: usize) {
@@ -182,12 +228,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 
     pub fn child_iter(&self) -> ChildIter<'_> {
-        let ptr_range = self.data().children.as_ptr_range();
-        ChildIter {
-            app_state: self.app_state,
-            current_id: ptr_range.start,
-            end_id: ptr_range.end,
-        }
+        ChildIter::new(self.widgets, self.id)
     }
 
     pub fn child_iter_mut(&mut self) -> ChildIterMut<'_> {

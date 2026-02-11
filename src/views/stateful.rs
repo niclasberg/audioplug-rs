@@ -1,6 +1,9 @@
 use crate::{
     core::WindowTheme,
-    ui::{AppState, CreateContext, ReactiveContext, ReadSignal, View, ViewContext, WidgetId},
+    ui::{
+        AppState, CreateContext, ReactiveContext, ReactiveGraph, ReadSignal, TaskQueue, View,
+        WidgetId, Widgets,
+    },
 };
 
 pub struct ScopeContext<'a> {
@@ -15,24 +18,18 @@ impl ScopeContext<'_> {
 }
 
 impl ReactiveContext for ScopeContext<'_> {
-    fn app_state(&self) -> &AppState {
-        self.app_state
+    fn components(&self) -> (&ReactiveGraph, &Widgets) {
+        self.app_state.components()
     }
 
-    fn app_state_mut(&mut self) -> &mut AppState {
-        self.app_state
+    fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
+        self.app_state.components_mut()
     }
 }
 
 impl CreateContext for ScopeContext<'_> {
     fn owner(&self) -> Option<crate::ui::Owner> {
         Some(crate::ui::Owner::Widget(self.id))
-    }
-}
-
-impl ViewContext for ScopeContext<'_> {
-    fn window_id(&self) -> crate::ui::WindowId {
-        self.app_state.get_window_id_for_widget(self.id)
     }
 }
 

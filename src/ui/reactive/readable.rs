@@ -6,13 +6,13 @@ use crate::{
     core::{FxIndexSet, diff},
     param::ParameterId,
     ui::{
-        AnyView, AppState, BuildContext, View, ViewSequence, Widget, WidgetId, WidgetMut,
-        WidgetRef, WindowId,
-        app_state::Task,
+        AnyView, BuildContext, ReactiveGraph, View, ViewSequence, Widget, WidgetId, WidgetMut,
+        WidgetRef, Widgets,
         reactive::{
             animation::{AnimationState, DerivedAnimationState},
             effect::BindingState,
         },
+        task_queue::{Task, TaskQueue},
     },
 };
 
@@ -25,17 +25,51 @@ pub trait ReactiveContext {
     /// Get immutable access to the underlying reactive runtime. This method
     /// is mostly used internally, users should rarely have to interact directly
     /// with the runtime.
-    fn app_state(&self) -> &AppState;
+    fn components(&self) -> (&ReactiveGraph, &Widgets);
 
-    /// Get mutable access to the underlying reactive runtime. This method
-    /// is mostly used internally, users should rarely have to interact directly
-    /// with the runtime.
-    fn app_state_mut(&mut self) -> &mut AppState;
+    fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue);
 
-    fn as_create_context(&mut self, owner: Owner) -> LocalCreateContext<'_> {
+    fn reactive_graph(&self) -> &ReactiveGraph {
+        self.components().0
+    }
+
+    fn reactive_graph_mut(&mut self) -> &mut ReactiveGraph {
+        self.components_mut().0
+    }
+
+    fn widgets(&self) -> &Widgets {
+        self.components().1
+    }
+
+    fn widgets_mut(&mut self) -> &mut Widgets {
+        self.components_mut().1
+    }
+
+    fn task_queue_mut(&mut self) -> &mut TaskQueue {
+        self.components_mut().2
+    }
+
+    fn with_owner(&mut self, owner: Owner) -> LocalCreateContext<'_> {
+        let (reactive_graph, widgets, task_queue) = self.components_mut();
         LocalCreateContext {
-            app_state: self.app_state_mut(),
+            cx: LocalContext {
+                widgets,
+                reactive_graph,
+                task_queue,
+            },
             owner,
+        }
+    }
+
+    fn with_read_scope(&mut self, scope: ReadScope) -> LocalReadContext<'_> {
+        let (reactive_graph, widgets, task_queue) = self.components_mut();
+        LocalReadContext {
+            cx: LocalContext {
+                widgets,
+                reactive_graph,
+                task_queue,
+            },
+            scope,
         }
     }
 }
@@ -56,8 +90,7 @@ pub(crate) fn create_var_node(
     state: super::var::SignalState,
 ) -> NodeId {
     let owner = cx.owner();
-    cx.app_state_mut()
-        .runtime
+    cx.reactive_graph_mut()
         .create_node(NodeType::Signal(state), NodeState::Clean, owner)
 }
 
@@ -66,8 +99,7 @@ pub(crate) fn create_memo_node(
     state: super::cached::CachedState,
 ) -> NodeId {
     let owner = cx.owner();
-    cx.app_state_mut()
-        .runtime
+    cx.reactive_graph_mut()
         .create_node(NodeType::Memo(state), NodeState::Dirty, owner)
 }
 
@@ -78,20 +110,18 @@ pub(crate) fn create_effect_node(
 ) -> NodeId {
     let f = Rc::downgrade(&state.f);
     let owner = cx.owner();
-    let id =
-        cx.app_state_mut()
-            .runtime
-            .create_node(NodeType::Effect(state), NodeState::Dirty, owner);
+    let id = cx
+        .reactive_graph_mut()
+        .create_node(NodeType::Effect(state), NodeState::Dirty, owner);
     if run_effect {
-        cx.app_state_mut().push_task(Task::RunEffect { id, f });
+        cx.task_queue_mut().push(Task::RunEffect { id, f });
     }
     id
 }
 
 pub(crate) fn create_trigger(cx: &mut dyn CreateContext) -> NodeId {
     let owner = cx.owner();
-    cx.app_state_mut()
-        .runtime
+    cx.reactive_graph_mut()
         .create_node(NodeType::Trigger, NodeState::Clean, owner)
 }
 
@@ -101,7 +131,7 @@ pub(crate) fn create_node_binding_node(
     state: BindingState,
 ) -> NodeId {
     let owner = cx.owner();
-    let graph = &mut cx.app_state_mut().runtime;
+    let graph = &mut cx.reactive_graph_mut();
     let id = graph.create_node(NodeType::Binding(state), NodeState::Clean, owner);
     graph.add_node_subscription(source, id);
     id
@@ -113,7 +143,7 @@ pub(crate) fn create_parameter_binding_node(
     state: BindingState,
 ) -> NodeId {
     let owner = cx.owner();
-    let graph = &mut cx.app_state_mut().runtime;
+    let graph = &mut cx.reactive_graph_mut();
     let id = graph.create_node(NodeType::Binding(state), NodeState::Clean, owner);
     graph.add_parameter_subscription(source, id);
     id
@@ -126,7 +156,7 @@ pub(crate) fn create_widget_binding_node(
     state: BindingState,
 ) -> NodeId {
     let owner = cx.owner();
-    let graph = &mut cx.app_state_mut().runtime;
+    let graph = &mut cx.reactive_graph_mut();
     let id = graph.create_node(NodeType::Binding(state), NodeState::Clean, owner);
     graph.add_widget_status_subscription(widget, status_mask, id);
     id
@@ -134,8 +164,7 @@ pub(crate) fn create_widget_binding_node(
 
 pub(crate) fn create_animation_node(cx: &mut dyn CreateContext, state: AnimationState) -> NodeId {
     let owner = cx.owner();
-    cx.app_state_mut()
-        .runtime
+    cx.reactive_graph_mut()
         .create_node(NodeType::Animation(state), NodeState::Clean, owner)
 }
 
@@ -145,12 +174,11 @@ pub(crate) fn create_derived_animation_node(
 ) -> NodeId {
     let owner = cx.owner();
     let id = cx
-        .app_state_mut()
-        .runtime
+        .reactive_graph_mut()
         .create_node(NodeType::TmpRemoved, NodeState::Clean, owner);
     let state = state_fn(cx, id);
     let _ = std::mem::replace(
-        &mut cx.app_state_mut().runtime.nodes[id].node_type,
+        &mut cx.reactive_graph_mut().nodes[id].node_type,
         NodeType::DerivedAnimation(state),
     );
     id
@@ -158,21 +186,15 @@ pub(crate) fn create_derived_animation_node(
 
 pub(crate) fn create_event_emitter(cx: &mut dyn CreateContext) -> NodeId {
     let owner = cx.owner();
-    cx.app_state_mut()
-        .runtime
+    cx.reactive_graph_mut()
         .create_node(NodeType::EventEmitter, NodeState::Clean, owner)
-}
-
-/// Allows access to the underlying window (needed for example to create timers and animations)
-pub trait ViewContext: CreateContext {
-    fn window_id(&self) -> WindowId;
 }
 
 /// Allows access to widgets
 pub trait WidgetContext {
     fn widget_ref_dyn(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget>;
     fn widget_mut_dyn(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget>;
-    fn replace_widget_dun(&mut self, id: WidgetId, view: AnyView);
+    fn replace_widget_dyn(&mut self, id: WidgetId, view: AnyView);
 }
 
 /// Allows to read and subscribe to reactive nodes
@@ -218,18 +240,52 @@ impl dyn WriteContext + '_ {
     }
 }
 
+pub struct LocalContext<'a> {
+    widgets: &'a mut Widgets,
+    reactive_graph: &'a mut ReactiveGraph,
+    task_queue: &'a mut TaskQueue,
+}
+
+impl<'a> LocalContext<'a> {
+    pub fn new(
+        widgets: &'a mut Widgets,
+        reactive_graph: &'a mut ReactiveGraph,
+        task_queue: &'a mut TaskQueue,
+    ) -> Self {
+        Self {
+            widgets,
+            reactive_graph,
+            task_queue,
+        }
+    }
+}
+
+impl<'a> ReactiveContext for LocalContext<'a> {
+    fn components(&self) -> (&ReactiveGraph, &Widgets) {
+        (&self.reactive_graph, &self.widgets)
+    }
+
+    fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
+        (
+            &mut self.reactive_graph,
+            &mut self.widgets,
+            &mut self.task_queue,
+        )
+    }
+}
+
 pub struct LocalCreateContext<'a> {
-    app_state: &'a mut AppState,
+    cx: LocalContext<'a>,
     owner: Owner,
 }
 
 impl ReactiveContext for LocalCreateContext<'_> {
-    fn app_state(&self) -> &AppState {
-        self.app_state
+    fn components(&self) -> (&ReactiveGraph, &Widgets) {
+        self.cx.components()
     }
 
-    fn app_state_mut(&mut self) -> &mut AppState {
-        self.app_state
+    fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
+        self.cx.components_mut()
     }
 }
 
@@ -240,23 +296,17 @@ impl CreateContext for LocalCreateContext<'_> {
 }
 
 pub struct LocalReadContext<'a> {
-    app_state: &'a mut AppState,
+    cx: LocalContext<'a>,
     scope: ReadScope,
 }
 
-impl<'a> LocalReadContext<'a> {
-    pub fn new(app_state: &'a mut AppState, scope: ReadScope) -> Self {
-        Self { app_state, scope }
-    }
-}
-
 impl ReactiveContext for LocalReadContext<'_> {
-    fn app_state(&self) -> &AppState {
-        self.app_state
+    fn components(&self) -> (&ReactiveGraph, &Widgets) {
+        self.cx.components()
     }
 
-    fn app_state_mut(&mut self) -> &mut AppState {
-        self.app_state
+    fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
+        self.cx.components_mut()
     }
 }
 

@@ -10,11 +10,11 @@ use super::{
 use crate::{
     core::{FxHashMap, FxHashSet, FxIndexSet},
     param::{AnyParameterMap, ParamRef, ParameterId},
-    ui::WidgetId,
+    ui::{WidgetId, Widgets, reactive::LocalContext, task_queue::TaskQueue},
 };
 use slotmap::{SecondaryMap, SlotMap};
 use smallvec::SmallVec;
-use std::{any::Any, rc::Rc, time::Instant};
+use std::{any::Any, collections::VecDeque, rc::Rc, time::Instant};
 
 pub struct Node {
     pub(crate) node_type: NodeType,
@@ -66,14 +66,17 @@ pub enum NodeState {
 
 pub enum NodeType {
     TmpRemoved,
+    // Sources
     Trigger,
     Signal(SignalState),
+    Animation(AnimationState),
+    EventEmitter,
+    // Derived nodes
     Memo(CachedState),
+    DerivedAnimation(DerivedAnimationState),
+    // Effects (reactions)
     Effect(EffectState),
     Binding(BindingState),
-    Animation(AnimationState),
-    DerivedAnimation(DerivedAnimationState),
-    EventEmitter,
     EventHandler(EventHandlerState),
 }
 
@@ -111,6 +114,8 @@ pub struct ReactiveGraph {
     pub(super) node_observers: SecondaryMap<NodeId, FxIndexSet<NodeId>>,
     pub(super) parameter_observers: FxHashMap<ParameterId, FxIndexSet<NodeId>>,
     pub(super) widget_observers: SecondaryMap<WidgetId, SmallVec<[(NodeId, WidgetStatusFlags); 4]>>,
+    pub(crate) node_id_buffer: VecDeque<NodeId>,
+    pub(super) pending_animations: FxIndexSet<NodeId>,
 }
 
 impl ReactiveGraph {
@@ -129,6 +134,8 @@ impl ReactiveGraph {
             parameters: parameter_map,
             nodes_owned_by_node: Default::default(),
             nodes_owned_by_widget: Default::default(),
+            node_id_buffer: Default::default(),
+            pending_animations: Default::default(),
         }
     }
 
@@ -220,7 +227,20 @@ impl ReactiveGraph {
             .map(|node| NodeType::get_value_ref(&node.node_type))
     }
 
-    pub fn try_drive_animation(&mut self, node_id: NodeId, now: Instant) -> bool {
+    pub fn drive_animations(&mut self, widgets: &mut Widgets, task_queue: &mut TaskQueue) {
+        let node_ids = std::mem::take(&mut self.pending_animations);
+        let now = Instant::now();
+        for node_id in node_ids {
+            let did_change = self.try_drive_animation(node_id, now);
+            if did_change {
+                super::notify(&mut LocalContext::new(widgets, self, task_queue), node_id);
+                // Re-queue the animation for the next frame
+                self.pending_animations.insert(node_id);
+            }
+        }
+    }
+
+    fn try_drive_animation(&mut self, node_id: NodeId, now: Instant) -> bool {
         if let Some(node) = self.nodes.get_mut(node_id) {
             match &mut node.node_type {
                 NodeType::Animation(animation) => animation.inner.drive(now),
@@ -230,6 +250,10 @@ impl ReactiveGraph {
         } else {
             false
         }
+    }
+
+    pub(super) fn request_animation(&mut self, node_id: NodeId) {
+        self.pending_animations.insert(node_id);
     }
 
     pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef<'_> {

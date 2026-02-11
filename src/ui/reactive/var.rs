@@ -44,7 +44,7 @@ impl<T: Any> Var<T> {
 
     /// Set the current value, notifies subscribers
     pub fn set_with(&self, cx: &mut dyn WriteContext, f: impl FnOnce(&mut dyn CreateContext) -> T) {
-        let new_value = f(&mut cx.as_create_context(super::Owner::Node(self.id)));
+        let new_value = f(&mut cx.with_owner(super::Owner::Node(self.id)));
         self.update(cx, move |_, value| *value = new_value);
     }
 
@@ -54,20 +54,20 @@ impl<T: Any> Var<T> {
         cx: &mut dyn WriteContext,
         f: impl FnOnce(&mut dyn CreateContext, &mut T),
     ) {
-        if let Some(mut node) = cx.app_state_mut().runtime.lease_node(self.id) {
+        if let Some(mut node) = cx.reactive_graph_mut().lease_node(self.id) {
             match &mut node {
                 NodeType::Signal(signal) => {
                     let value = signal
                         .value
                         .downcast_mut()
                         .expect("Invalid signal value type");
-                    f(&mut cx.as_create_context(Owner::Node(self.id)), value);
+                    f(&mut cx.with_owner(Owner::Node(self.id)), value);
                 }
                 _ => unreachable!(),
             }
-            cx.app_state_mut().runtime.unlease_node(self.id, node);
+            cx.reactive_graph_mut().unlease_node(self.id, node);
         }
-        super::notify(cx.app_state_mut(), self.id);
+        super::notify(cx, self.id);
     }
 
     pub fn as_read_signal(self) -> ReadSignal<T> {
@@ -75,7 +75,7 @@ impl<T: Any> Var<T> {
     }
 
     pub fn dispose(self, cx: &mut dyn ReactiveContext) {
-        cx.app_state_mut().runtime.remove_node(self.id);
+        cx.reactive_graph_mut().remove_node(self.id);
     }
 }
 
@@ -97,8 +97,7 @@ impl<T: 'static> ReactiveValue for Var<T> {
         cx: &mut dyn super::ReactiveContext,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
-        f(cx.app_state_mut()
-            .runtime
+        f(cx.reactive_graph()
             .get_node_value_ref(self.id)
             .unwrap()
             .downcast_ref()

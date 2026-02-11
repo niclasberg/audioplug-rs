@@ -23,7 +23,7 @@ impl Trigger {
     }
 
     pub fn notify(&self, cx: &mut dyn ReactiveContext) {
-        super::notify(cx.app_state_mut(), self.node_id);
+        super::notify(cx, self.node_id);
     }
 }
 

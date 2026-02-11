@@ -1,4 +1,4 @@
-use crate::ui::{AppState, ReadSignal, WidgetId};
+use crate::ui::{AppState, ReadSignal, WidgetId, Widgets};
 use bitflags::bitflags;
 
 bitflags! {
@@ -13,7 +13,7 @@ bitflags! {
 #[derive(Clone, Copy)]
 pub struct WidgetStatus<T> {
     pub mask: WidgetStatusFlags,
-    pub getter: fn(&AppState, WidgetId) -> T,
+    pub getter: fn(&Widgets, WidgetId) -> T,
 }
 
 impl<T> WidgetStatus<T> {

@@ -7,12 +7,12 @@ use std::{
 
 use crate::{
     core::{Lerp, SpringPhysics},
-    ui::{AppState, WindowId, reactive::notify},
+    ui::reactive::notify,
 };
 
 use super::{
-    Accessor, CreateContext, Effect, LocalReadContext, NodeId, NodeType, ReactiveContext,
-    ReactiveValue, ReadContext, ReadScope, ReadSignal, ViewContext, WatchContext, WriteContext,
+    Accessor, CreateContext, Effect, NodeId, NodeType, ReactiveContext, ReactiveValue, ReadContext,
+    ReadScope, ReadSignal, WatchContext, WriteContext,
 };
 
 pub use super::spring::{SpringAnimation, SpringOptions};
@@ -79,7 +79,6 @@ impl AnyAnimation for Box<dyn AnyAnimation> {
 
 pub struct AnimationState {
     pub(super) inner: Box<dyn AnyAnimation>,
-    pub(super) window_id: WindowId,
 }
 
 type ResetFn = dyn Fn(&mut dyn AnyAnimation, &mut dyn ReadContext) -> bool;
@@ -87,14 +86,13 @@ type ResetFn = dyn Fn(&mut dyn AnyAnimation, &mut dyn ReadContext) -> bool;
 pub struct DerivedAnimationState {
     pub(super) inner: Box<dyn AnyAnimation>,
     reset_fn: Box<ResetFn>,
-    pub(super) window_id: WindowId,
 }
 
 impl DerivedAnimationState {
-    pub fn reset(&mut self, node_id: NodeId, app_state: &mut AppState) -> bool {
+    pub fn reset(&mut self, node_id: NodeId, cx: &mut dyn ReactiveContext) -> bool {
         (self.reset_fn)(
             &mut self.inner,
-            &mut LocalReadContext::new(app_state, ReadScope::Node(node_id)),
+            &mut cx.with_read_scope(ReadScope::Node(node_id)),
         )
     }
 }
@@ -113,24 +111,23 @@ impl<T> Clone for Animated<T> {
 impl<T> Copy for Animated<T> {}
 
 impl<T: 'static> Animated<T> {
-    pub fn new(cx: &mut dyn ViewContext, animation: impl Animation<Value = T> + 'static) -> Self {
-        let window_id = cx.window_id();
+    pub fn new(cx: &mut dyn CreateContext, animation: impl Animation<Value = T> + 'static) -> Self {
         let inner = Box::new(animation);
-        let state = AnimationState { inner, window_id };
+        let state = AnimationState { inner };
         Self {
             id: super::create_animation_node(cx, state),
             _phantom: PhantomData,
         }
     }
 
-    pub fn spring(cx: &mut dyn ViewContext, initial_value: T, options: SpringOptions) -> Self
+    pub fn spring(cx: &mut dyn CreateContext, initial_value: T, options: SpringOptions) -> Self
     where
         T: SpringPhysics + Clone + Any,
     {
         Self::new(cx, SpringAnimation::new(initial_value, options))
     }
 
-    pub fn tween(cx: &mut dyn ViewContext, initial_value: T, options: TweenOptions) -> Self
+    pub fn tween(cx: &mut dyn CreateContext, initial_value: T, options: TweenOptions) -> Self
     where
         T: Lerp + Clone + Any,
     {
@@ -140,25 +137,23 @@ impl<T: 'static> Animated<T> {
 
 impl<T: Any> Animated<T> {
     pub fn set_target(&self, cx: &mut dyn WriteContext, value: T) {
-        let node = cx.app_state_mut().runtime.get_node_mut(self.id);
-        let window_id_if_changed = match &mut node.node_type {
-            NodeType::Animation(anim) => {
-                anim.inner.set_target_dyn(&value).then_some(anim.window_id)
-            }
+        let node = cx.reactive_graph_mut().get_node_mut(self.id);
+        let changed = match &mut node.node_type {
+            NodeType::Animation(anim) => anim.inner.set_target_dyn(&value),
             _ => unreachable!(),
         };
-        if let Some(window_id) = window_id_if_changed {
-            cx.app_state_mut().request_animation(window_id, self.id);
+        if changed {
+            cx.reactive_graph_mut().request_animation(self.id);
         }
     }
 
     pub fn set_target_and_value(&self, cx: &mut dyn WriteContext, value: T) {
-        let node = cx.app_state_mut().runtime.get_node_mut(self.id);
+        let node = cx.reactive_graph_mut().get_node_mut(self.id);
         match &mut node.node_type {
             NodeType::Animation(anim) => anim.inner.set_target_and_value_dyn(&value),
             _ => unreachable!(),
         };
-        notify(cx.app_state_mut(), self.id);
+        notify(cx, self.id);
     }
 }
 
@@ -221,27 +216,19 @@ impl<T> Copy for AnimatedFn<T> {}
 
 impl<T: 'static> AnimatedFn<T> {
     pub fn new<A: Animation<Value = T> + 'static>(
-        cx: &mut dyn ViewContext,
+        cx: &mut dyn CreateContext,
         f_value: impl Fn(&mut dyn ReadContext) -> T + 'static,
         f_anim: impl FnOnce(T) -> A,
     ) -> Self {
-        let window_id = cx.window_id();
         let id = super::create_derived_animation_node(cx, move |cx, id| {
-            let value = f_value(&mut LocalReadContext::new(
-                cx.app_state_mut(),
-                ReadScope::Node(id),
-            ));
+            let value = f_value(&mut cx.with_read_scope(ReadScope::Node(id)));
             let inner = Box::new(f_anim(value));
             let reset_fn = Box::new(
                 move |animation: &mut dyn AnyAnimation, cx: &mut dyn ReadContext| {
                     animation.set_target_dyn(&f_value(cx))
                 },
             );
-            DerivedAnimationState {
-                inner,
-                reset_fn,
-                window_id,
-            }
+            DerivedAnimationState { inner, reset_fn }
         });
 
         Self {
@@ -251,7 +238,7 @@ impl<T: 'static> AnimatedFn<T> {
     }
 
     pub fn spring(
-        cx: &mut dyn ViewContext,
+        cx: &mut dyn CreateContext,
         f: impl Fn(&mut dyn ReadContext) -> T + 'static,
         options: SpringOptions,
     ) -> Self
@@ -264,7 +251,7 @@ impl<T: 'static> AnimatedFn<T> {
     }
 
     pub fn tween(
-        cx: &mut dyn ViewContext,
+        cx: &mut dyn CreateContext,
         f: impl Fn(&mut dyn ReadContext) -> T + 'static,
         options: TweenOptions,
     ) -> Self
@@ -322,7 +309,7 @@ impl<T: 'static> ReactiveValue for AnimatedFn<T> {
 }
 
 fn get_animation_value_ref(cx: &dyn ReactiveContext, node_id: NodeId) -> &dyn Any {
-    match &cx.app_state().runtime.get_node(node_id).node_type {
+    match &cx.reactive_graph().get_node(node_id).node_type {
         NodeType::Animation(animation) => animation.inner.value_dyn(),
         NodeType::DerivedAnimation(animation) => animation.inner.value_dyn(),
         _ => unreachable!(),

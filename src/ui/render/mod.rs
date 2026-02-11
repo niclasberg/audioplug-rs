@@ -46,7 +46,7 @@ pub fn invalidate_window(app_state: &AppState, window_id: WindowId) {
 }
 
 pub fn invalidate_widget(app_state: &AppState, widget_id: WidgetId) {
-    let bounds = app_state.widget_data[widget_id].global_bounds();
+    let bounds = app_state.widgets.data[widget_id].global_bounds();
     let window_id = app_state.get_window_id_for_widget(widget_id);
     let handle = &app_state.window(window_id).handle;
     handle.invalidate(bounds);

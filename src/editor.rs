@@ -4,7 +4,8 @@ use crate::{
     core::Size,
     param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params},
     ui::{
-        AnyView, AppState, CreateContext, ReactiveContext, Var, View,
+        AnyView, AppState, CreateContext, ReactiveContext, ReactiveGraph, TaskQueue, Var, View,
+        Widgets,
         style::{Length, UiRect},
     },
     views::{Column, Container, Label, ParameterSlider, Row, Stateful},
@@ -15,12 +16,12 @@ pub struct EditorContext<'a> {
 }
 
 impl ReactiveContext for EditorContext<'_> {
-    fn app_state(&self) -> &AppState {
-        self.app_state
+    fn components(&self) -> (&ReactiveGraph, &Widgets) {
+        self.app_state.components()
     }
 
-    fn app_state_mut(&mut self) -> &mut AppState {
-        self.app_state
+    fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
+        self.app_state.components_mut()
     }
 }
 

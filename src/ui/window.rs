@@ -83,7 +83,7 @@ impl<V: View> platform::WindowHandler for MyHandler<V> {
         let app_state = self.app_state.borrow();
         let mut selected_cursor = None;
         app_state.for_each_widget_at_rev(self.state.window_id(), pos, |app_state, widget_id| {
-            if let Some(cursor) = app_state.widget_data_ref(widget_id).style.cursor {
+            if let Some(cursor) = app_state.widgets.data[widget_id].style.cursor {
                 selected_cursor = Some(cursor);
                 false
             } else {

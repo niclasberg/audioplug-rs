@@ -31,11 +31,15 @@ bitflags!(
         // Dirty flags
         const NEEDS_LAYOUT = 1 << 1;
         const NEEDS_RENDER = 1 << 2;
+        const CHILDREN_CHANGED = 1 << 3;
 
+        // Capability flags
         const FOCUSABLE = 1 << 4;
         const OVERLAY = 1 << 5;
 
+        // Status flags
         const UNDER_MOUSE_CURSOR = 1 << 8;
+        const HAS_FOCUS = 1 << 9;
     }
 );
 
@@ -43,9 +47,9 @@ pub struct WidgetData {
     pub(super) id: WidgetId,
     pub(super) window_id: WindowId,
     pub(super) parent_id: WidgetId,
-    /// Children, excluding overlays
-    pub(super) children: Vec<WidgetId>,
-    pub(super) overlays: Vec<WidgetId>,
+    pub(super) first_child_id: WidgetId,
+    pub(super) next_sibling_id: WidgetId,
+    pub(super) prev_sibling_id: WidgetId,
     pub(super) style: Style,
     pub(super) cache: taffy::Cache,
     pub(super) layout: taffy::Layout,
@@ -60,8 +64,9 @@ impl WidgetData {
             id,
             window_id,
             parent_id: WidgetId::null(),
-            children: Vec::new(),
-            overlays: Vec::new(),
+            first_child_id: WidgetId::null(),
+            next_sibling_id: id,
+            prev_sibling_id: id,
             style: Default::default(),
             cache: Default::default(),
             layout: Default::default(),

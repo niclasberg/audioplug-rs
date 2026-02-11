@@ -1,5 +1,7 @@
 use std::rc::Rc;
 
+use crate::ui::ReadScope;
+
 use super::{Effect, LocalReadContext, ReactiveValue, ReadContext};
 
 type ComputedFn<T> = dyn Fn(&mut dyn ReadContext) -> T;
@@ -37,18 +39,12 @@ impl<T: 'static> ReactiveValue for Computed<T> {
         cx: &mut dyn super::ReactiveContext,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
-        let value = (self.f)(&mut LocalReadContext::new(
-            cx.app_state_mut(),
-            super::ReadScope::Untracked,
-        ));
+        let value = (self.f)(&mut cx.with_read_scope(ReadScope::Untracked));
         f(&value)
     }
 
     fn get_untracked(&self, cx: &mut dyn super::ReactiveContext) -> Self::Value {
-        (self.f)(&mut LocalReadContext::new(
-            cx.app_state_mut(),
-            super::ReadScope::Untracked,
-        ))
+        (self.f)(&mut cx.with_read_scope(ReadScope::Untracked))
     }
 
     fn watch<F>(self, cx: &mut dyn super::CreateContext, mut f: F) -> Effect

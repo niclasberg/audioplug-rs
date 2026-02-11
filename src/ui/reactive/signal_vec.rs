@@ -28,30 +28,30 @@ impl<T: Any> SignalVec<T> {
     }
 
     pub fn push(&self, cx: &mut impl WriteContext, value: T) {
-        let trigger = Trigger::new(&mut cx.as_create_context(Owner::Node(self.id)));
+        let trigger = Trigger::new(&mut cx.with_owner(Owner::Node(self.id)));
         self.with_inner_mut(cx, move |inner| {
             inner.values.push(value);
             inner.triggers.push(trigger);
         });
-        super::notify(cx.app_state_mut(), self.id);
+        super::notify(cx, self.id);
     }
 
     pub fn extend(&self, cx: &mut impl WriteContext, iter: impl IntoIterator<Item = T>) {
         self.with_inner_mut(cx, move |inner| {
             inner.values.extend(iter);
         });
-        super::notify(cx.app_state_mut(), self.id);
+        super::notify(cx, self.id);
     }
 
     pub fn retain(&self, cx: &mut impl WriteContext, f: impl Fn(&T) -> bool) {
         self.with_inner_mut(cx, move |inner| {
             inner.values.retain(f);
         });
-        super::notify(cx.app_state_mut(), self.id);
+        super::notify(cx, self.id);
     }
 
     fn with_inner<R>(&self, cx: &dyn ReactiveContext, f: impl FnOnce(&Inner<T>) -> R) -> R {
-        let graph = &cx.app_state().runtime;
+        let graph = &cx.reactive_graph();
         let value = match &graph.get_node(self.id).node_type {
             NodeType::Signal(signal) => signal.value.as_ref(),
             _ => unreachable!(),
@@ -64,7 +64,7 @@ impl<T: Any> SignalVec<T> {
         cx: &mut dyn ReactiveContext,
         f: impl FnOnce(&mut Inner<T>) -> R,
     ) -> R {
-        let graph = &mut cx.app_state_mut().runtime;
+        let graph = &mut cx.reactive_graph_mut();
         let value = match &mut graph.get_node_mut(self.id).node_type {
             NodeType::Signal(signal) => signal.value.as_mut(),
             _ => unreachable!(),

@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 use crate::{
     param::{ParamRef, ParameterId},
     ui::{
-        Accessor, AppState, CreateContext, Effect, NodeId, ReactiveValue, ReadContext,
-        WatchContext, WidgetId, reactive::widget_status::WidgetStatusFlags,
+        Accessor, CreateContext, Effect, NodeId, ReactiveValue, ReadContext, WatchContext,
+        WidgetId, Widgets, reactive::widget_status::WidgetStatusFlags,
     },
 };
 
@@ -16,7 +16,7 @@ enum ReadSignalSource<T> {
     },
     WidgetStatus {
         widget_id: WidgetId,
-        value_fn: fn(&AppState, WidgetId) -> T,
+        value_fn: fn(&Widgets, WidgetId) -> T,
         status_mask: WidgetStatusFlags,
     },
 }
@@ -66,7 +66,7 @@ impl<T> ReadSignal<T> {
 
     pub(crate) fn from_widget_status(
         widget_id: WidgetId,
-        value_getter: fn(&AppState, WidgetId) -> T,
+        value_getter: fn(&Widgets, WidgetId) -> T,
         status_mask: WidgetStatusFlags,
     ) -> Self {
         Self {
@@ -102,14 +102,13 @@ impl<T: 'static> ReactiveValue for ReadSignal<T> {
     ) -> R {
         match self.source {
             ReadSignalSource::Parameter { id, getter } => {
-                let value = getter(cx.app_state().runtime.get_parameter_ref(id));
+                let value = getter(cx.reactive_graph().get_parameter_ref(id));
                 f(&value)
             }
             ReadSignalSource::Node(node_id) => {
-                super::update_if_necessary(cx.app_state_mut(), node_id);
+                super::update_if_necessary(cx, node_id);
                 let value = cx
-                    .app_state()
-                    .runtime
+                    .reactive_graph()
                     .get_node_value_ref(node_id)
                     .unwrap()
                     .downcast_ref()
@@ -121,7 +120,7 @@ impl<T: 'static> ReactiveValue for ReadSignal<T> {
                 value_fn: value_getter,
                 ..
             } => {
-                let value = value_getter(cx.app_state(), widget_id);
+                let value = value_getter(cx.widgets(), widget_id);
                 f(&value)
             }
         }
