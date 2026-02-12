@@ -3,7 +3,7 @@ use slotmap::Key;
 use crate::{
     param::{ParamRef, ParameterId},
     ui::{
-        TypedWidgetId, Widget, WidgetContext, WidgetId, WidgetMut, WidgetRef, Widgets,
+        Widget, WidgetContext, WidgetHandle, WidgetId, WidgetMut, WidgetRef, Widgets,
         reactive::WidgetStatusFlags,
     },
 };
@@ -15,22 +15,22 @@ pub trait EffectContext: ReactiveContext + ReadContext + WriteContext + WidgetCo
     fn as_watch_context(&mut self) -> &mut dyn WatchContext;
 }
 impl dyn EffectContext + '_ {
-    pub fn widget_ref<W: Widget + ?Sized>(&self, id: TypedWidgetId<W>) -> WidgetRef<'_, W> {
+    pub fn widget_ref<W: Widget + ?Sized>(&self, id: WidgetHandle<W>) -> WidgetRef<'_, W> {
         self.widget_ref_dyn(id.id).unchecked_cast()
     }
 
-    pub fn widget_mut<W: Widget + ?Sized>(&mut self, id: TypedWidgetId<W>) -> WidgetMut<'_, W> {
+    pub fn widget_mut<W: Widget + ?Sized>(&mut self, id: WidgetHandle<W>) -> WidgetMut<'_, W> {
         self.widget_mut_dyn(id.id).unchecked_cast()
     }
 }
 
 pub trait WatchContext: ReactiveContext + WriteContext + WidgetContext {}
 impl dyn WatchContext + '_ {
-    pub fn widget_ref<W: Widget + ?Sized>(&self, id: TypedWidgetId<W>) -> WidgetRef<'_, W> {
+    pub fn widget_ref<W: Widget + ?Sized>(&self, id: WidgetHandle<W>) -> WidgetRef<'_, W> {
         self.widget_ref_dyn(id.id).unchecked_cast()
     }
 
-    pub fn widget_mut<W: Widget + ?Sized>(&mut self, id: TypedWidgetId<W>) -> WidgetMut<'_, W> {
+    pub fn widget_mut<W: Widget + ?Sized>(&mut self, id: WidgetHandle<W>) -> WidgetMut<'_, W> {
         self.widget_mut_dyn(id.id).unchecked_cast()
     }
 }

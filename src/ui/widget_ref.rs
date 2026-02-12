@@ -8,16 +8,14 @@ use slotmap::Key;
 
 use super::{
     AppState, OverlayOptions, View, Widget, WidgetData, WidgetFlags, WidgetId,
-    app_state::WidgetInsertPos, render::invalidate_widget, style::Style,
+    render::invalidate_widget, style::Style, widgets::WidgetInsertPos,
 };
 use crate::{
     core::{Rect, diff::DiffOp},
-    ui::{TypedWidgetId, Widgets, widgets::WidgetIdIter},
+    ui::{WidgetHandle, Widgets, widgets::WidgetIdIter},
 };
 
-pub struct WidgetNotFound<'a, W: Widget + ?Sized>(
-    WidgetMut<'a, W>
-);
+pub struct WidgetNotFound<'a, W: Widget + ?Sized>(WidgetMut<'a, W>);
 
 impl<'a, W: Widget + ?Sized> Debug for WidgetNotFound<'a, W> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -34,13 +32,17 @@ impl<'a> Iterator for WidgetRefIter<'a> {
     type Item = WidgetRef<'a, dyn Widget>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next_id(self.widgets).map(|id| WidgetRef::new(self.widgets, id))
+        self.inner
+            .next_id(self.widgets)
+            .map(|id| WidgetRef::new(self.widgets, id))
     }
 }
 
 impl<'a> DoubleEndedIterator for WidgetRefIter<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        self.inner.next_back_id(self.widgets).map(|id| WidgetRef::new(self.widgets, id))
+        self.inner
+            .next_back_id(self.widgets)
+            .map(|id| WidgetRef::new(self.widgets, id))
     }
 }
 
@@ -171,8 +173,14 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         self.child_iter().position(|w| w.id == id)
     }
 
-    pub fn find_child<W2: Widget + ?Sized>(self, id: TypedWidgetId<W2>) -> Result<WidgetMut<'a, W2>, WidgetNotFound<'a, W>> {
-        let found = self.app_state.widgets.child_id_iter(self.id)
+    pub fn find_child<W2: Widget + ?Sized>(
+        self,
+        id: WidgetHandle<W2>,
+    ) -> Result<WidgetMut<'a, W2>, WidgetNotFound<'a, W>> {
+        let found = self
+            .app_state
+            .widgets
+            .child_id_iter(self.id)
             .find(|&child_id| child_id == id.id);
 
         if let Some(child_id) = found {
@@ -182,10 +190,16 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         }
     }
 
-    pub fn find_sibling<W2: Widget + ?Sized>(self, id: TypedWidgetId<W2>) -> Result<WidgetMut<'a, W2>, WidgetNotFound<'a, W>> {
-        let found = self.app_state.widgets.sibling_id_iter(self.id)
+    pub fn find_sibling<W2: Widget + ?Sized>(
+        self,
+        id: WidgetHandle<W2>,
+    ) -> Result<WidgetMut<'a, W2>, WidgetNotFound<'a, W>> {
+        let found = self
+            .app_state
+            .widgets
+            .sibling_id_iter(self.id)
             .find(|&child_id| child_id == id.id);
-        
+
         if let Some(child_id) = found {
             Ok(WidgetMut::new(self.app_state, child_id))
         } else {
@@ -211,19 +225,23 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 
     pub fn for_each_child_mut(&mut self, mut f: impl FnMut(WidgetMut<'_, dyn Widget>)) {
-        fn _impl(app_state: &mut AppState, id: WidgetId, f: &mut dyn FnMut(WidgetMut<'_, dyn Widget>)) {
+        fn _impl(
+            app_state: &mut AppState,
+            id: WidgetId,
+            f: &mut dyn FnMut(WidgetMut<'_, dyn Widget>),
+        ) {
             let mut child_iter = WidgetIdIter::all_children(&app_state.widgets, id);
             let mut current = child_iter.next_id(&app_state.widgets);
             while let Some(child_id) = current {
                 // This copy is needed - the widget might be removed while visited
-                let next = child_iter.next_id(&app_state.widgets); 
+                let next = child_iter.next_id(&app_state.widgets);
                 f(WidgetMut::new(app_state, child_id));
                 current = next;
             }
         }
         _impl(self.app_state, self.id, &mut f)
     }
-    
+
     pub fn remove(self) {
         self.app_state.remove_widget(self.id);
     }
@@ -241,18 +259,22 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         todo!()
     }
 
-    pub fn add_overlay<V: View>(&mut self, view: V, options: OverlayOptions) -> TypedWidgetId<V::Element> {
+    pub fn add_overlay<V: View>(
+        &mut self,
+        view: V,
+        options: OverlayOptions,
+    ) -> WidgetHandle<V::Element> {
         let widget_id = self
             .app_state
             .add_widget(view, WidgetInsertPos::Overlay(self.id, options));
-        TypedWidgetId::new(widget_id)
+        WidgetHandle::new(widget_id)
     }
 
-    pub fn push_child<V: View>(&mut self, view: V) -> TypedWidgetId<V::Element> {
+    pub fn push_child<V: View>(&mut self, view: V) -> WidgetHandle<V::Element> {
         let widget_id = self
             .app_state
             .add_widget(view, WidgetInsertPos::AfterLastChildOf(self.id));
-        TypedWidgetId::new(widget_id)
+        WidgetHandle::new(widget_id)
     }
 
     /*pub fn remove_child(&mut self, i: usize) {
@@ -359,7 +381,9 @@ impl<'a, W: 'a + Widget> Deref for WidgetMut<'a, W> {
     type Target = W;
 
     fn deref(&self) -> &Self::Target {
-        self.app_state.widgets.widgets[self.id].downcast_ref().unwrap()
+        self.app_state.widgets.widgets[self.id]
+            .downcast_ref()
+            .unwrap()
     }
 }
 
@@ -371,6 +395,8 @@ impl DerefMut for WidgetMut<'_, dyn Widget> {
 
 impl<'a, W: 'a + Widget> DerefMut for WidgetMut<'a, W> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.app_state.widgets.widgets[self.id].downcast_mut().unwrap()
+        self.app_state.widgets.widgets[self.id]
+            .downcast_mut()
+            .unwrap()
     }
 }

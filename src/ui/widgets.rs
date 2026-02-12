@@ -4,9 +4,17 @@ use slotmap::{Key, SecondaryMap, SlotMap};
 
 use crate::{
     core::{FxIndexSet, Point},
-    ui::{Widget, WidgetData, WidgetFlags, WidgetId, WidgetRef},
+    ui::{OverlayOptions, Widget, WidgetData, WidgetFlags, WidgetId, WidgetRef, WindowId},
 };
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum WidgetInsertPos {
+    Before(WidgetId),
+    After(WidgetId),
+    BeforeFirstChildOf(WidgetId),
+    AfterLastChildOf(WidgetId),
+    Overlay(WidgetId, OverlayOptions),
+}
 
 #[derive(Default)]
 pub struct Widgets {
@@ -36,26 +44,110 @@ impl Widgets {
     pub(crate) fn children_as_vec(&self, widget_id: WidgetId) -> &Vec<WidgetId> {
         let widget_data = &self.data[widget_id];
         if widget_data.flag_is_set(WidgetFlags::CHILDREN_CHANGED) {
-
             widget_data.clear_flag(WidgetFlags::CHILDREN_CHANGED);
         }
         &self.children[widget_id]
     }
 
     pub fn sibling_id_iter(&self, widget_id: WidgetId) -> ChildIdIter<'_> {
-        ChildIdIter { inner: WidgetIdIter::all_siblings(&self, widget_id), widgets: &self }
+        ChildIdIter {
+            inner: WidgetIdIter::all_siblings(&self, widget_id),
+            widgets: &self,
+        }
     }
 
     pub fn child_id_iter(&self, widget_id: WidgetId) -> ChildIdIter<'_> {
-        ChildIdIter { inner: WidgetIdIter::all_children(&self, widget_id), widgets: &self }
+        ChildIdIter {
+            inner: WidgetIdIter::all_children(&self, widget_id),
+            widgets: &self,
+        }
     }
 
     pub fn overlay_id_iter(&self, widget_id: WidgetId) -> ChildIdIter<'_> {
-        ChildIdIter { inner: WidgetIdIter::all_children(&self, widget_id), widgets: &self }
+        ChildIdIter {
+            inner: WidgetIdIter::all_children(&self, widget_id),
+            widgets: &self,
+        }
+    }
+
+    /// Allocate a new widget - you need to manually insert the Widget itself into the widgets slotmap afterwards
+    /// or things will break!
+    pub(super) fn allocate_root_widget(&mut self, window_id: WindowId) -> WidgetId {
+        let id = self
+            .data
+            .insert_with_key(|id| WidgetData::new(window_id, id));
+        self.children.insert(id, Vec::new());
+        id
+    }
+
+    pub(super) fn allocate_widget(&mut self, position: WidgetInsertPos) -> WidgetId {
+        let parent_id = match position {
+            WidgetInsertPos::Before(next_id) => self.data[next_id].parent_id,
+            WidgetInsertPos::After(prev_id) => self.data[prev_id].parent_id,
+            WidgetInsertPos::BeforeFirstChildOf(parent_id) => parent_id,
+            WidgetInsertPos::AfterLastChildOf(parent_id) => parent_id,
+            WidgetInsertPos::Overlay(widget_id, _) => widget_id,
+        };
+
+        let parent = self
+            .data
+            .get_mut(parent_id)
+            .expect("Parent should exist when adding a new widget");
+
+        let window_id = parent.window_id;
+        parent.set_flag(WidgetFlags::CHILDREN_CHANGED);
+
+        let id = self
+            .data
+            .insert_with_key(|id| WidgetData::new(window_id, id).with_parent(parent_id));
+        self.children.insert(id, Vec::new());
+
+        let set_prev_and_next = |data: &mut SlotMap<WidgetId, WidgetData>, prev, next| {
+            let new_widget = &mut data[id];
+            new_widget.prev_sibling_id = prev;
+            new_widget.next_sibling_id = next;
+        };
+
+        match position {
+            WidgetInsertPos::Before(next_id) => {
+                let prev_id = self.data[next_id].prev_sibling_id;
+                set_prev_and_next(&mut self.data, prev_id, next_id);
+            }
+            WidgetInsertPos::After(prev_id) => {
+                let next_id = self.data[prev_id].next_sibling_id;
+                set_prev_and_next(&mut self.data, prev_id, next_id);
+            }
+            WidgetInsertPos::BeforeFirstChildOf(parent_id) => {
+                let next_id = self.data[parent_id].first_child_id;
+                self.data[parent_id].first_child_id = id;
+                if !next_id.is_null() {
+                    let prev_id = self.data[next_id].prev_sibling_id;
+                    set_prev_and_next(&mut self.data, prev_id, next_id);
+                }
+            }
+            WidgetInsertPos::AfterLastChildOf(parent_id) => {
+                // Even when inserting at the end, the "next" widget will be the first child of the parent
+                // (since our list is circular).
+                let next_id = self.data[parent_id].first_child_id;
+                if !next_id.is_null() {
+                    let prev_id = self.data[next_id].prev_sibling_id;
+                    set_prev_and_next(&mut self.data, prev_id, next_id);
+                } else {
+                    // Only replace the parents first child if it previously didn't have a child
+                    self.data[parent_id].first_child_id = id;
+                }
+            }
+            WidgetInsertPos::Overlay(parent_id, _) => {
+                let next_id = self.data[parent_id].first_overlay_id;
+                if !next_id.is_null() {}
+            }
+        };
+
+        id
     }
 
     pub(super) fn remove(&mut self, widget_id: WidgetId) {
-        
+        self.children.remove(widget_id);
     }
 
     #[inline(always)]
@@ -130,7 +222,7 @@ impl Widgets {
 
 pub struct ChildIdIter<'a> {
     inner: WidgetIdIter,
-    widgets: &'a Widgets
+    widgets: &'a Widgets,
 }
 
 impl<'a> Iterator for ChildIdIter<'a> {

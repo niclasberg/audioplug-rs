@@ -1,15 +1,17 @@
 use super::{
     AppState, CallbackContext, CreateContext, EventStatus, MouseEventContext, Owner, ParamContext,
-    ReactiveContext, ReadContext, ReadScope, ReadSignal, TypedWidgetId, ViewSequence, Widget,
-    WidgetAdapter, WidgetFlags, WidgetId,
-    app_state::WidgetInsertPos,
+    ReactiveContext, ReadContext, ReadScope, ReadSignal, ViewSequence, Widget, WidgetAdapter,
+    WidgetFlags, WidgetHandle, WidgetId,
     overlay::OverlayOptions,
     reactive::FOCUS_STATUS,
     style::{Style, StyleBuilder},
 };
 use crate::{
     MouseButton, MouseEvent,
-    ui::{ReactiveGraph, Widgets, reactive::CLICKED_STATUS, task_queue::TaskQueue},
+    ui::{
+        ReactiveGraph, Widgets, reactive::CLICKED_STATUS, task_queue::TaskQueue,
+        widgets::WidgetInsertPos,
+    },
 };
 use std::marker::PhantomData;
 
@@ -171,8 +173,8 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
         }
     }
 
-    pub fn id(&self) -> TypedWidgetId<W> {
-        TypedWidgetId::new(self.id)
+    pub fn id(&self) -> WidgetHandle<W> {
+        WidgetHandle::new(self.id)
     }
 
     pub fn set_focusable(&mut self, focusable: bool) {

@@ -1,7 +1,7 @@
 use super::{
     AnyView, BuildContext, CreateContext, HostHandle, ParamContext, ReactiveContext, ReadContext,
-    ReadSignal, Var, View, Widget, WidgetContext, WidgetData, WidgetId, WidgetMut,
-    WidgetRef, WindowId, WriteContext,
+    ReadSignal, Var, View, Widget, WidgetContext, WidgetData, WidgetId, WidgetMut, WidgetRef,
+    WindowId, WriteContext,
     clipboard::Clipboard,
     event_handling::{set_focus_widget, set_mouse_capture_widget},
     layout::RecomputeLayout,
@@ -18,6 +18,7 @@ use crate::{
         Widgets,
         render::{GpuScene, WGPUSurface},
         task_queue::TaskQueue,
+        widgets::WidgetInsertPos,
     },
 };
 use slotmap::{Key, SlotMap};
@@ -42,15 +43,6 @@ pub struct AppState {
     host_handle: Option<Box<dyn HostHandle>>,
     id_buffer: Cell<Vec<WidgetId>>,
     pub(super) task_queue: TaskQueue,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum WidgetInsertPos {
-    Before(WidgetId),
-    After(WidgetId),
-    BeforeFirstChildOf(WidgetId),
-    AfterLastChildOf(WidgetId),
-    Overlay(WidgetId, OverlayOptions),
 }
 
 impl AppState {
@@ -125,10 +117,7 @@ impl AppState {
             gpu_scene: GpuScene::new(),
         });
 
-        let widget_id = self
-            .widgets
-            .data
-            .insert_with_key(|id| WidgetData::new(window_id, id));
+        let widget_id = self.widgets.allocate_root_widget(window_id);
 
         self.windows[window_id].root_widget = widget_id;
         self.build_and_insert_widget(widget_id, view);
@@ -150,40 +139,25 @@ impl AppState {
     }
 
     /// Add a new widget
-    pub fn add_widget<V: View>(
-        &mut self,
-        view: V,
-        position: WidgetInsertPos,
-    ) -> WidgetId {
-        let parent_id = match position {
-            WidgetInsertPos::Before(widget_id) => self.widgets.get_parent(widget_id),
-            WidgetInsertPos::After(widget_id) => self.widgets.get_parent(widget_id),
-            WidgetInsertPos::BeforeFirstChildOf(widget_id) => widget_id,
-            WidgetInsertPos::AfterLastChildOf(widget_id) => widget_id,
-            WidgetInsertPos::Overlay(widget_id, _) => widget_id,
-        };
-
-        let window_id = self
-            .widgets
-            .data
-            .get(parent_id)
-            .expect("Parent should exist when adding a new widget")
-            .window_id;
-        let id = self
-            .widgets
-            .data
-            .insert_with_key(|id| WidgetData::new(window_id, id).with_parent(parent_id));
-
+    pub fn add_widget<V: View>(&mut self, view: V, position: WidgetInsertPos) -> WidgetId {
+        let id = self.widgets.allocate_widget(position);
         self.build_and_insert_widget(id, view);
-        
+
+        /*match position {
+            WidgetInsertPos::Overlay(_, options) => {
+                self.window_mut(window_id)
+                    .overlays
+                    .insert_or_update(id, options);
+            }
+            _ => {}
+        };*/
+
         /*WidgetInsertPos::Index(index) => self.widgets.children[parent_id].insert(index, id),
         WidgetInsertPos::End => self.widgets.children[parent_id].push(id),
         WidgetInsertPos::Overlay(options) => {
             self.widgets.overlays[parent_id].push(id);
             self.widgets.data[id].set_flag(WidgetFlags::OVERLAY);
-            self.window_mut(window_id)
-                .overlays
-                .insert_or_update(id, options);
+
         }*/
 
         id
@@ -411,11 +385,15 @@ impl AppState {
     }
 
     pub fn focus_widget(&self, window_id: WindowId) -> Option<WidgetRef<'_, dyn Widget>> {
-        self.window(window_id).focus_widget.map(|id| WidgetRef::new(&self.widgets, id))
+        self.window(window_id)
+            .focus_widget
+            .map(|id| WidgetRef::new(&self.widgets, id))
     }
 
     pub fn focus_widget_mut(&mut self, window_id: WindowId) -> Option<WidgetMut<'_, dyn Widget>> {
-        self.window(window_id).focus_widget.map(|id| WidgetMut::new(self, id))
+        self.window(window_id)
+            .focus_widget
+            .map(|id| WidgetMut::new(self, id))
     }
 
     pub fn get_window_id_for_widget(&self, widget_id: WidgetId) -> WindowId {

@@ -4,6 +4,7 @@ use super::style::{AvailableSpace, LayoutMode, ResolveInto, Style, UiRect};
 use super::{OverlayAnchor, OverlayOptions};
 use crate::core::{HAlign, Point, Rect, Size, VAlign, Vec2, Zero};
 use crate::ui::Widgets;
+use crate::ui::widgets::WidgetIdIter;
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree,
     TraversePartialTree, TraverseTree,
@@ -317,7 +318,8 @@ impl LayoutPartialTree for LayoutContext<'_> {
 
             // Need to request layout for all overlays, their position
             // might depend on the bounding box of its parent
-            for overlay_id in self.widgets.overlay_id_iter(node_id.into()) {
+            let mut id_iter = WidgetIdIter::all_overlays(self.widgets, node_id.into());
+            while let Some(overlay_id) = id_iter.next_id(self.widgets) {
                 self.widgets.request_layout(overlay_id);
             }
         }
