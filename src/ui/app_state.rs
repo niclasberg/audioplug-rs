@@ -6,7 +6,7 @@ use super::{
     event_handling::{set_focus_widget, set_mouse_capture_widget},
     layout::RecomputeLayout,
     layout_window,
-    overlay::{OverlayContainer, OverlayOptions},
+    overlay::OverlayContainer,
     reactive::{ReactiveGraph, WatchContext},
     style::StyleBuilder,
 };
@@ -15,10 +15,9 @@ use crate::{
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
     ui::{
-        Widgets,
+        OverlayOptions, Widgets,
         render::{GpuScene, WGPUSurface},
         task_queue::TaskQueue,
-        widgets::WidgetInsertPos,
     },
 };
 use slotmap::{Key, SlotMap};
@@ -43,6 +42,15 @@ pub struct AppState {
     host_handle: Option<Box<dyn HostHandle>>,
     id_buffer: Cell<Vec<WidgetId>>,
     pub(super) task_queue: TaskQueue,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum WidgetInsertPos {
+    Before(WidgetId),
+    After(WidgetId),
+    BeforeFirstChildOf(WidgetId),
+    AfterLastChildOf(WidgetId),
+    Overlay(WidgetId, OverlayOptions),
 }
 
 impl AppState {
@@ -117,8 +125,7 @@ impl AppState {
             gpu_scene: GpuScene::new(),
         });
 
-        let widget_id = self.widgets.allocate_root_widget(window_id);
-
+        let widget_id = self.widgets.allocate_widget(window_id);
         self.windows[window_id].root_widget = widget_id;
         self.build_and_insert_widget(widget_id, view);
 
@@ -140,7 +147,7 @@ impl AppState {
 
     /// Add a new widget
     pub fn add_widget<V: View>(&mut self, view: V, position: WidgetInsertPos) -> WidgetId {
-        let id = self.widgets.allocate_widget(position);
+        let id = self.widgets.allocate_widget(WindowId::null());
         self.build_and_insert_widget(id, view);
 
         /*match position {
@@ -207,20 +214,19 @@ impl AppState {
     pub fn replace_widget<V: View>(&mut self, id: WidgetId, view: V) {
         self.clear_mouse_capture_and_focus(id);
 
-        let parent_id = self.widgets.data[id].parent_id;
-        let window_id = self.widgets.data[id].window_id;
+        let WidgetData {
+            parent_id,
+            window_id,
+            next_sibling_id,
+            prev_sibling_id,
+            ..
+        } = self.widgets.data[id];
 
-        self.with_id_buffer_mut(|app_state, children_to_remove| {
-            children_to_remove.extend(std::mem::take(&mut app_state.widgets.children[id]));
-            children_to_remove.extend(std::mem::take(&mut app_state.widgets.overlays[id]));
-            while let Some(id) = children_to_remove.pop() {
-                let widget_data = app_state.do_remove_widget(id);
-                children_to_remove.extend(widget_data.children);
-                children_to_remove.extend(widget_data.overlays);
-            }
-        });
+        self.widgets.remove_children(id, |_| {});
 
-        self.widgets.data[id] = WidgetData::new(window_id, id).with_parent(parent_id);
+        self.widgets.data[id] = WidgetData::new(window_id, id)
+            .with_parent(parent_id)
+            .with_siblings(prev_sibling_id, next_sibling_id);
         self.build_and_insert_widget(id, view);
     }
 

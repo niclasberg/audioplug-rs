@@ -1,19 +1,20 @@
-use std::cell::Cell;
+use std::{cell::Cell, collections::VecDeque};
 
 use slotmap::{Key, SecondaryMap, SlotMap};
 
 use crate::{
     core::{FxIndexSet, Point},
-    ui::{OverlayOptions, Widget, WidgetData, WidgetFlags, WidgetId, WidgetRef, WindowId},
+    ui::{Widget, WidgetData, WidgetFlags, WidgetId, WidgetRef, WindowId},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum WidgetInsertPos {
+pub enum WidgetPos {
     Before(WidgetId),
     After(WidgetId),
-    BeforeFirstChildOf(WidgetId),
-    AfterLastChildOf(WidgetId),
-    Overlay(WidgetId, OverlayOptions),
+    FirstChild(WidgetId),
+    LastChild(WidgetId),
+    FirstOverlay(WidgetId),
+    LastOverlay(WidgetId),
 }
 
 #[derive(Default)]
@@ -29,7 +30,7 @@ pub struct Widgets {
     /// Ids of all widgets that have requested render.
     pub(super) needing_render: FxIndexSet<WidgetId>,
     /// Temporary cache used to avoid allocations while performing traversals
-    id_buffer: Cell<Vec<WidgetId>>,
+    id_buffer: Cell<VecDeque<WidgetId>>,
 }
 
 impl Widgets {
@@ -70,9 +71,10 @@ impl Widgets {
         }
     }
 
-    /// Allocate a new widget - you need to manually insert the Widget itself into the widgets slotmap afterwards
-    /// or things will break!
-    pub(super) fn allocate_root_widget(&mut self, window_id: WindowId) -> WidgetId {
+    /// Allocate a new widget which does not have an implementation or a parent attached.
+    /// Make sure to call [set_widget_impl] afterwards (or there will be panics later)
+    /// For non-root widgets, call [move_widget] to assign siblings and parent
+    pub(super) fn allocate_widget(&mut self, window_id: WindowId) -> WidgetId {
         let id = self
             .data
             .insert_with_key(|id| WidgetData::new(window_id, id));
@@ -80,74 +82,108 @@ impl Widgets {
         id
     }
 
-    pub(super) fn allocate_widget(&mut self, position: WidgetInsertPos) -> WidgetId {
-        let parent_id = match position {
-            WidgetInsertPos::Before(next_id) => self.data[next_id].parent_id,
-            WidgetInsertPos::After(prev_id) => self.data[prev_id].parent_id,
-            WidgetInsertPos::BeforeFirstChildOf(parent_id) => parent_id,
-            WidgetInsertPos::AfterLastChildOf(parent_id) => parent_id,
-            WidgetInsertPos::Overlay(widget_id, _) => widget_id,
-        };
-
-        let parent = self
-            .data
-            .get_mut(parent_id)
-            .expect("Parent should exist when adding a new widget");
-
-        let window_id = parent.window_id;
-        parent.set_flag(WidgetFlags::CHILDREN_CHANGED);
-
-        let id = self
-            .data
-            .insert_with_key(|id| WidgetData::new(window_id, id).with_parent(parent_id));
-        self.children.insert(id, Vec::new());
-
-        let set_prev_and_next = |data: &mut SlotMap<WidgetId, WidgetData>, prev, next| {
-            let new_widget = &mut data[id];
-            new_widget.prev_sibling_id = prev;
-            new_widget.next_sibling_id = next;
-        };
-
-        match position {
-            WidgetInsertPos::Before(next_id) => {
-                let prev_id = self.data[next_id].prev_sibling_id;
-                set_prev_and_next(&mut self.data, prev_id, next_id);
-            }
-            WidgetInsertPos::After(prev_id) => {
-                let next_id = self.data[prev_id].next_sibling_id;
-                set_prev_and_next(&mut self.data, prev_id, next_id);
-            }
-            WidgetInsertPos::BeforeFirstChildOf(parent_id) => {
-                let next_id = self.data[parent_id].first_child_id;
-                self.data[parent_id].first_child_id = id;
-                if !next_id.is_null() {
-                    let prev_id = self.data[next_id].prev_sibling_id;
-                    set_prev_and_next(&mut self.data, prev_id, next_id);
-                }
-            }
-            WidgetInsertPos::AfterLastChildOf(parent_id) => {
-                // Even when inserting at the end, the "next" widget will be the first child of the parent
-                // (since our list is circular).
-                let next_id = self.data[parent_id].first_child_id;
-                if !next_id.is_null() {
-                    let prev_id = self.data[next_id].prev_sibling_id;
-                    set_prev_and_next(&mut self.data, prev_id, next_id);
-                } else {
-                    // Only replace the parents first child if it previously didn't have a child
-                    self.data[parent_id].first_child_id = id;
-                }
-            }
-            WidgetInsertPos::Overlay(parent_id, _) => {
-                let next_id = self.data[parent_id].first_overlay_id;
-                if !next_id.is_null() {}
-            }
-        };
-
-        id
+    pub(super) fn set_widget_impl(
+        &mut self,
+        widget_id: WidgetId,
+        widget: Box<dyn Widget>,
+    ) -> Option<Box<dyn Widget>> {
+        self.widgets.insert(widget_id, widget)
     }
 
-    pub(super) fn remove(&mut self, widget_id: WidgetId) {
+    pub(super) fn internal_remove(&mut self, widget_id: WidgetId) -> WidgetData {
         self.children.remove(widget_id);
+        self.widgets.remove(widget_id);
+        self.pending_animations.shift_remove(&widget_id);
+        self.needing_render.shift_remove(&widget_id);
+        self.data
+            .remove(widget_id)
+            .expect("Widget being removed should exist")
+    }
+
+    pub(super) fn remove(&mut self, widget_id: WidgetId, mut f: impl FnMut(WidgetData)) {
+        let parent_id = self.data[widget_id].parent_id;
+        if !parent_id.is_null() {
+            let parent = &mut self.data[widget_id];
+            if parent.first_overlay_id == widget_id {}
+        }
+        self.remove_children(widget_id, f);
+        f(self.internal_remove(widget_id));
+    }
+
+    pub(super) fn remove_children(&mut self, widget_id: WidgetId, mut f: impl FnMut(WidgetData)) {
+        let mut children_to_remove = self.id_buffer.take();
+        children_to_remove.clear();
+        children_to_remove.extend(self.child_id_iter(widget_id));
+        children_to_remove.extend(self.overlay_id_iter(widget_id));
+
+        while let Some(child_id) = children_to_remove.back().copied() {
+            children_to_remove.extend(self.child_id_iter(child_id));
+            children_to_remove.extend(self.overlay_id_iter(child_id));
+            f(self.internal_remove(child_id));
+        }
+
+        self.id_buffer.set(children_to_remove);
+    }
+
+    fn move_widget_before(&mut self, widget_id: WidgetId, next_id: WidgetId) {
+        let next = &mut self.data[next_id];
+        let prev_id = std::mem::replace(&mut next.prev_sibling_id, widget_id);
+        let new_parent_id = next.parent_id;
+        assert!(!new_parent_id.is_null());
+        self.data[prev_id].next_sibling_id = widget_id;
+
+        let current = &mut self.data[widget_id];
+        let old_parent_id = current.parent_id;
+        current.next_sibling_id = next_id;
+        current.prev_sibling_id = prev_id;
+        current.parent_id = new_parent_id;
+
+        if !old_parent_id.is_null() {
+            self.data[old_parent_id].set_flag(WidgetFlags::CHILDREN_CHANGED);
+        }
+
+        self.data[new_parent_id].set_flag(WidgetFlags::CHILDREN_CHANGED);
+    }
+
+    pub fn move_widget(&mut self, widget_id: WidgetId, destination: WidgetPos) {
+        match destination {
+            WidgetPos::Before(next_id) => self.move_widget_before(widget_id, next_id),
+            WidgetPos::After(prev_id) => {
+                self.move_widget_before(widget_id, self.data[prev_id].next_sibling_id)
+            }
+            WidgetPos::FirstChild(parent_id) => {
+                let parent = &mut self.data[parent_id];
+                let first_child_id = std::mem::replace(&mut parent.first_child_id, widget_id);
+                if !first_child_id.is_null() {
+                    self.move_widget_before(widget_id, first_child_id);
+                }
+            }
+            WidgetPos::LastChild(parent_id) => {
+                let parent = &mut self.data[parent_id];
+                let first_child_id = parent.first_child_id;
+                if first_child_id.is_null() {
+                    parent.first_child_id = widget_id;
+                } else {
+                    self.move_widget_before(widget_id, first_child_id);
+                }
+            }
+            WidgetPos::FirstOverlay(parent_id) => {
+                let parent = &mut self.data[parent_id];
+                let first_overlay_id = std::mem::replace(&mut parent.first_overlay_id, widget_id);
+                if !first_overlay_id.is_null() {
+                    self.move_widget_before(widget_id, first_overlay_id);
+                }
+            }
+            WidgetPos::LastOverlay(parent_id) => {
+                let parent = &mut self.data[parent_id];
+                let first_overlay_id = parent.first_overlay_id;
+                if first_overlay_id.is_null() {
+                    parent.first_overlay_id = widget_id;
+                } else {
+                    self.move_widget_before(widget_id, first_overlay_id);
+                }
+            }
+        };
     }
 
     #[inline(always)]
@@ -203,14 +239,14 @@ impl Widgets {
         stack.clear();
 
         if self.data[root_id].global_bounds().contains(pos) {
-            stack.push(root_id);
-            while let Some(current) = stack.pop() {
+            stack.push_front(root_id);
+            while let Some(current) = stack.pop_back() {
                 widgets.push(current);
 
                 for &child in self.children[current].iter().rev() {
                     let data = &self.data[child];
                     if data.global_bounds().contains(pos) && !data.is_overlay() {
-                        stack.push(child)
+                        stack.push_front(child)
                     }
                 }
             }

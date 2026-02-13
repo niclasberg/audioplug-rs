@@ -8,11 +8,11 @@ use slotmap::Key;
 
 use super::{
     AppState, OverlayOptions, View, Widget, WidgetData, WidgetFlags, WidgetId,
-    render::invalidate_widget, style::Style, widgets::WidgetInsertPos,
+    render::invalidate_widget, style::Style,
 };
 use crate::{
     core::{Rect, diff::DiffOp},
-    ui::{WidgetHandle, Widgets, widgets::WidgetIdIter},
+    ui::{WidgetHandle, Widgets, app_state::WidgetInsertPos, widgets::WidgetIdIter},
 };
 
 pub struct WidgetNotFound<'a, W: Widget + ?Sized>(WidgetMut<'a, W>);

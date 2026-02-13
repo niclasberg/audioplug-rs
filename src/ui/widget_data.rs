@@ -86,6 +86,12 @@ impl WidgetData {
         self
     }
 
+    pub fn with_siblings(mut self, prev_id: WidgetId, next_id: WidgetId) -> Self {
+        self.prev_sibling_id = prev_id;
+        self.next_sibling_id = next_id;
+        self
+    }
+
     pub fn id(&self) -> WidgetId {
         self.id
     }
