@@ -6,8 +6,7 @@ use crate::{
 /// Should be called when the animation timer for a window ticks.
 /// Steps all animations that have been enqueued for window.
 pub(super) fn drive_animations(app_state: &mut AppState, animation_frame: AnimationFrame) {
-    let widget_ids = std::mem::take(&mut app_state.widgets.pending_animations);
-    for widget_id in widget_ids {
+    for widget_id in app_state.widgets.take_requested_animations() {
         let mut ctx = AnimationContext {
             id: widget_id,
             app_state,

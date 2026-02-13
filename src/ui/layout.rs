@@ -31,6 +31,7 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId, mode: Recomp
             height: taffy::AvailableSpace::Definite(window_size.height as f32),
         };
 
+        app_state.widgets.rebuild_children();
         // Need to layout root first, the overlay positions can depend on their parent positions
         if mode == RecomputeLayout::Force || app_state.widgets.data[root_id].needs_layout() {
             println!("Layout main ui");
@@ -180,16 +181,16 @@ impl taffy::TraversePartialTree for LayoutContext<'_> {
         Self: 'b;
 
     fn child_ids(&self, parent_node_id: taffy::NodeId) -> Self::ChildIter<'_> {
-        let inner = self.widgets.children_as_vec(parent_node_id.into()).iter();
-        LayoutChildIter { inner }
+        let inner: &Vec<WidgetId> = self.widgets.cached_child_ids(parent_node_id.into()).as_ref();
+        LayoutChildIter { inner: inner.iter() }
     }
 
     fn child_count(&self, parent_node_id: taffy::NodeId) -> usize {
-        self.widgets.children_as_vec(parent_node_id.into()).len()
+        self.widgets.cached_child_ids(parent_node_id.into()).len()
     }
 
     fn get_child_id(&self, parent_node_id: taffy::NodeId, child_index: usize) -> taffy::NodeId {
-        self.widgets.children_as_vec(parent_node_id.into())[child_index].into()
+        self.widgets.cached_child_ids(parent_node_id.into())[child_index].into()
     }
 }
 

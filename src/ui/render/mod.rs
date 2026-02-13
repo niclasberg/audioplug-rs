@@ -4,7 +4,7 @@ use crate::{
         Vec2, Vec2f,
     },
     platform,
-    ui::{Widgets, render::gpu_scene::GpuFill},
+    ui::render::gpu_scene::GpuFill,
 };
 
 mod canvas;
@@ -246,7 +246,7 @@ impl RenderContext<'_> {
     fn render_current_widget(&mut self) {
         let mut widget = self.app_state.widgets.lease_widget(self.id);
         let scene = widget.render(self);
-        self.app_state.widgets.unlease_widget(self.id, widget);
+        self.app_state.widgets.unlease_widget(widget);
         self.app_state.widgets.data[self.id].scene = scene;
         invalidate_widget(self.app_state, self.id);
     }

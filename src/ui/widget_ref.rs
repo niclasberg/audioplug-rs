@@ -89,15 +89,15 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
         self.widgets.data[self.id].flag_is_set(WidgetFlags::HAS_MOUSE_CAPTURE)
     }
 
-    pub fn child_count(&self) -> usize {
-        self.widgets.children_as_vec(self.id).len()
-    }
-
     pub fn child_iter(&self) -> WidgetRefIter<'_> {
         WidgetRefIter {
             inner: WidgetIdIter::all_children(self.widgets, self.id),
             widgets: self.widgets,
         }
+    }
+
+    pub fn for_each_child_ref(&self, mut f: impl FnMut(WidgetRef<'_, dyn Widget>)) {
+        for_each_child_ref_impl(&self.widgets, self.id, &mut f);
     }
 
     pub fn parent_id(&self) -> WidgetId {
@@ -142,6 +142,13 @@ impl<'a, W: 'a + Widget> Deref for WidgetRef<'a, W> {
     }
 }
 
+fn for_each_child_ref_impl(widgets: &Widgets, id: WidgetId, f: &mut dyn FnMut(WidgetRef<'_, dyn Widget>)) {
+    let mut child_iter = WidgetIdIter::all_children(widgets, id);
+    while let Some(child_id) = child_iter.next_id(widgets) {
+        f(WidgetRef::new(widgets, child_id))
+    }
+}
+
 pub struct WidgetMut<'a, W: 'a + Widget + ?Sized> {
     pub(super) app_state: &'a mut AppState,
     pub(super) id: WidgetId,
@@ -165,10 +172,6 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         &mut self.app_state.widgets.data[self.id]
     }
 
-    pub fn child_count(&self) -> usize {
-        self.app_state.widgets.children_as_vec(self.id).len()
-    }
-
     pub fn index_of_child(&self, id: WidgetId) -> Option<usize> {
         self.child_iter().position(|w| w.id == id)
     }
@@ -177,6 +180,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         self,
         id: WidgetHandle<W2>,
     ) -> Result<WidgetMut<'a, W2>, WidgetNotFound<'a, W>> {
+        // Could just find the widget by id and verify that it is a child of this widget
         let found = self
             .app_state
             .widgets
@@ -215,13 +219,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 
     pub fn for_each_child_ref(&self, mut f: impl FnMut(WidgetRef<'_, dyn Widget>)) {
-        fn _impl(widgets: &Widgets, id: WidgetId, f: &mut dyn FnMut(WidgetRef<'_, dyn Widget>)) {
-            let mut child_iter = WidgetIdIter::all_children(widgets, id);
-            while let Some(child_id) = child_iter.next_id(widgets) {
-                f(WidgetRef::new(widgets, child_id))
-            }
-        }
-        _impl(&self.app_state.widgets, self.id, &mut f)
+        for_each_child_ref_impl(&self.app_state.widgets, self.id, &mut f);
     }
 
     pub fn for_each_child_mut(&mut self, mut f: impl FnMut(WidgetMut<'_, dyn Widget>)) {
@@ -251,12 +249,28 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         WidgetMut::new(self.app_state, self.id)
     }
 
-    pub fn insert_before<V: View>(&mut self, view: V) -> WidgetId {
-        todo!()
+    pub fn add_before<V: View>(&mut self, view: V) -> WidgetHandle<V::Element> {
+        let id = self.app_state.add_widget(view, WidgetInsertPos::Before(self.id));
+        WidgetHandle::new(id)
     }
 
-    pub fn insert_after<V: View>(&mut self, view: V) -> WidgetId {
-        todo!()
+    pub fn add_after<V: View>(&mut self, view: V) -> WidgetHandle<V::Element> {
+        let id = self.app_state.add_widget(view, WidgetInsertPos::After(self.id));
+        WidgetHandle::new(id)
+    }
+
+    pub fn push_child_front<V: View>(&mut self, view: V) -> WidgetHandle<V::Element> {
+        let widget_id = self
+            .app_state
+            .add_widget(view, WidgetInsertPos::BeforeFirstChildOf(self.id));
+        WidgetHandle::new(widget_id)
+    }
+
+    pub fn push_child_back<V: View>(&mut self, view: V) -> WidgetHandle<V::Element> {
+        let widget_id = self
+            .app_state
+            .add_widget(view, WidgetInsertPos::AfterLastChildOf(self.id));
+        WidgetHandle::new(widget_id)
     }
 
     pub fn add_overlay<V: View>(
@@ -267,13 +281,6 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         let widget_id = self
             .app_state
             .add_widget(view, WidgetInsertPos::Overlay(self.id, options));
-        WidgetHandle::new(widget_id)
-    }
-
-    pub fn push_child<V: View>(&mut self, view: V) -> WidgetHandle<V::Element> {
-        let widget_id = self
-            .app_state
-            .add_widget(view, WidgetInsertPos::AfterLastChildOf(self.id));
         WidgetHandle::new(widget_id)
     }
 

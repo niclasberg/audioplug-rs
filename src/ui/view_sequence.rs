@@ -87,23 +87,14 @@ impl<V: View, F: Fn(usize) -> V + 'static> ViewSequence for IndexedViewSeq<F> {
 
         let f = self.view_factory;
         self.count.bind(cx, move |value, mut widget| {
-            match widget.child_count().cmp(&value) {
-                std::cmp::Ordering::Equal => {}
-                std::cmp::Ordering::Less => {
-                    for i in widget.child_count()..value {
-                        widget.push_child(f(i));
-                    }
+            let child_index = 0;
+            widget.for_each_child_mut(|child| {
+                if child_index > value {
+                    child.remove();
                 }
-                std::cmp::Ordering::Greater => {
-                    let mut i = 0; 
-                    let child_count = widget.child_count();
-                    widget.for_each_child_mut(|child| {
-                        if i >= child_count {
-                            child.remove();
-                        }
-                        i += 1;
-                    });
-                }
+            });
+            for i in child_index..value {
+                widget.push_child_back(f(i));
             }
         });
     }
@@ -133,7 +124,7 @@ where
                 }
             } else {
                 for value in new_values.iter() {
-                    widget.push_child((self.view_fn)(value));
+                    widget.push_child_back((self.view_fn)(value));
                 }
             }
             widget.request_render();

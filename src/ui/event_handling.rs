@@ -294,13 +294,13 @@ impl<'a> EventContext<'a> {
     fn dispatch_status_updated(&mut self, event: StatusChange) {
         let mut widget = self.app_state.widgets.lease_widget(self.id);
         widget.status_change(event, self);
-        self.app_state.widgets.unlease_widget(self.id, widget);
+        self.app_state.widgets.unlease_widget(widget);
     }
 
     fn dispatch_key_event(&mut self, event: KeyEvent) -> EventStatus {
         let mut widget = self.app_state.widgets.lease_widget(self.id);
         let status = widget.key_event(event, self);
-        self.app_state.widgets.unlease_widget(self.id, widget);
+        self.app_state.widgets.unlease_widget(widget);
         status
     }
 

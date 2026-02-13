@@ -33,7 +33,6 @@ bitflags!(
         // Dirty flags
         const NEEDS_LAYOUT = 1 << 1;
         const NEEDS_RENDER = 1 << 2;
-        const CHILDREN_CHANGED = 1 << 3;
 
         // Capability flags
         const FOCUSABLE = 1 << 4;

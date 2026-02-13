@@ -17,11 +17,11 @@ use crate::{
     ui::{
         OverlayOptions, Widgets,
         render::{GpuScene, WGPUSurface},
-        task_queue::TaskQueue,
+        task_queue::TaskQueue, widgets::WidgetPos,
     },
 };
 use slotmap::{Key, SlotMap};
-use std::{cell::Cell, rc::Rc};
+use std::{cell::Cell, ops::DerefMut, rc::Rc};
 
 pub(super) struct WindowState {
     pub(super) handle: platform::Handle,
@@ -148,24 +148,24 @@ impl AppState {
     /// Add a new widget
     pub fn add_widget<V: View>(&mut self, view: V, position: WidgetInsertPos) -> WidgetId {
         let id = self.widgets.allocate_widget(WindowId::null());
+        self.widgets.move_widget(id, match position {
+            WidgetInsertPos::Before(widget_id) => WidgetPos::Before(widget_id),
+            WidgetInsertPos::After(widget_id) => WidgetPos::After(widget_id),
+            WidgetInsertPos::BeforeFirstChildOf(widget_id) => WidgetPos::FirstChild(widget_id),
+            WidgetInsertPos::AfterLastChildOf(widget_id) => WidgetPos::LastChild(widget_id),
+            WidgetInsertPos::Overlay(widget_id, _) => WidgetPos::LastOverlay(widget_id),
+        });
         self.build_and_insert_widget(id, view);
 
-        /*match position {
+        match position {
             WidgetInsertPos::Overlay(_, options) => {
+                let window_id = self.widgets.get(id).data().window_id;
                 self.window_mut(window_id)
                     .overlays
                     .insert_or_update(id, options);
             }
             _ => {}
-        };*/
-
-        /*WidgetInsertPos::Index(index) => self.widgets.children[parent_id].insert(index, id),
-        WidgetInsertPos::End => self.widgets.children[parent_id].push(id),
-        WidgetInsertPos::Overlay(options) => {
-            self.widgets.overlays[parent_id].push(id);
-            self.widgets.data[id].set_flag(WidgetFlags::OVERLAY);
-
-        }*/
+        };
 
         id
     }
@@ -181,34 +181,16 @@ impl AppState {
     /// Remove a widget and all of its children and associated signals
     pub fn remove_widget(&mut self, id: WidgetId) {
         self.clear_mouse_capture_and_focus(id);
-
-        let widget_data = self.do_remove_widget(id);
-        let parent_id = widget_data.parent_id;
-        if !parent_id.is_null() {
-            // Must be removed from parent's child list
-            self.widgets.children[parent_id].retain(|child_id| *child_id != id);
-            self.widgets.overlays[parent_id].retain(|child_id| *child_id != id);
-        }
-
-        self.with_id_buffer_mut(|app_state, children_to_remove| {
-            children_to_remove.extend(widget_data.children);
-            children_to_remove.extend(widget_data.overlays);
-            while let Some(id) = children_to_remove.pop() {
-                let widget_data = app_state.do_remove_widget(id);
-                children_to_remove.extend(widget_data.children.into_iter());
-                children_to_remove.extend(widget_data.overlays.into_iter());
-            }
-        });
+        let windows = &mut self.windows;
+        let reactive_graph = &mut self.reactive_graph;
+        self.widgets.remove(id, &mut |data| Self::clear_widget_dependencies(&data, windows, reactive_graph));
     }
 
-    fn do_remove_widget(&mut self, id: WidgetId) -> WidgetData {
-        let widget_data = self.widget_data.remove(id).unwrap();
-        if widget_data.is_overlay() {
-            self.window_mut(widget_data.window_id).overlays.remove(id);
+    fn clear_widget_dependencies(data: &WidgetData, windows: &mut SlotMap<WindowId, WindowState>, reactive_graph: &mut ReactiveGraph) {
+        if data.is_overlay() {
+            windows[data.window_id].overlays.remove(data.id);
         }
-        self.widgets.remove(id).expect("Widget already removed");
-        self.reactive_graph.clear_nodes_for_widget(id);
-        widget_data
+        reactive_graph.clear_nodes_for_widget(data.id)
     }
 
     pub fn replace_widget<V: View>(&mut self, id: WidgetId, view: V) {
@@ -222,7 +204,10 @@ impl AppState {
             ..
         } = self.widgets.data[id];
 
-        self.widgets.remove_children(id, |_| {});
+        let windows = &mut self.windows;
+        let reactive_graph = &mut self.reactive_graph;
+        Self::clear_widget_dependencies(&self.widgets.data[id], windows, reactive_graph);
+        self.widgets.remove_children(id, &mut |data| Self::clear_widget_dependencies(&data, windows, reactive_graph));
 
         self.widgets.data[id] = WidgetData::new(window_id, id)
             .with_parent(parent_id)
@@ -259,8 +244,8 @@ impl AppState {
         f: impl FnOnce(&mut Self, &mut dyn Widget) -> R,
     ) -> R {
         let mut widget = self.widgets.lease_widget(id);
-        let value = f(self, widget.as_mut());
-        self.widgets.unlease_widget(id, widget);
+        let value = f(self, widget.deref_mut());
+        self.widgets.unlease_widget(widget);
         value
     }
 
@@ -284,13 +269,6 @@ impl AppState {
 
     pub fn widget_has_captured_mouse(&self, widget_id: WidgetId) -> bool {
         self.mouse_capture_widget.is_some_and(|id| id == widget_id)
-    }
-
-    pub(super) fn with_id_buffer(&self, f: impl FnOnce(&Self, &mut Vec<WidgetId>)) {
-        let mut scratch = self.id_buffer.replace(Vec::new());
-        scratch.clear();
-        f(self, &mut scratch);
-        self.id_buffer.set(scratch);
     }
 
     pub(super) fn with_id_buffer_mut(&mut self, f: impl FnOnce(&mut Self, &mut Vec<WidgetId>)) {

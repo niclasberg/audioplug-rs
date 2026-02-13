@@ -9,8 +9,7 @@ use super::{
 use crate::{
     MouseButton, MouseEvent,
     ui::{
-        ReactiveGraph, Widgets, reactive::CLICKED_STATUS, task_queue::TaskQueue,
-        widgets::WidgetInsertPos,
+        ReactiveGraph, Widgets, app_state::WidgetInsertPos, reactive::CLICKED_STATUS, task_queue::TaskQueue
     },
 };
 use std::marker::PhantomData;
