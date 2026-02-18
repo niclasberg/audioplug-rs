@@ -28,8 +28,8 @@ impl ReactiveContext for ScopeContext<'_> {
 }
 
 impl CreateContext for ScopeContext<'_> {
-    fn owner(&self) -> Option<crate::ui::Owner> {
-        Some(crate::ui::Owner::Widget(self.id))
+    fn owner(&self) -> crate::ui::Owner {
+        crate::ui::Owner::Widget(self.id)
     }
 }
 

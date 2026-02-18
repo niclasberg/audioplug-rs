@@ -6,7 +6,6 @@ use super::{
     event_handling::{set_focus_widget, set_mouse_capture_widget},
     layout::RecomputeLayout,
     layout_window,
-    overlay::OverlayContainer,
     reactive::{ReactiveGraph, WatchContext},
     style::StyleBuilder,
 };
@@ -15,58 +14,52 @@ use crate::{
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
     ui::{
-        OverlayOptions, Widgets,
+        Widgets,
+        reactive::LocalCreateContext,
         render::{GpuScene, WGPUSurface},
-        task_queue::TaskQueue, widgets::WidgetPos,
+        task_queue::TaskQueue,
+        widgets::WidgetPos,
     },
 };
-use slotmap::{Key, SlotMap};
+use slotmap::Key;
 use std::{cell::Cell, ops::DerefMut, rc::Rc};
-
-pub(super) struct WindowState {
-    pub(super) handle: platform::Handle,
-    pub(super) wgpu_surface: WGPUSurface,
-    pub(super) gpu_scene: GpuScene,
-    pub(super) root_widget: WidgetId,
-    pub(super) focus_widget: Option<WidgetId>,
-    pub(super) theme_signal: Var<WindowTheme>,
-    pub(super) overlays: OverlayContainer,
-}
 
 pub struct AppState {
     pub(super) wgpu_instance: wgpu::Instance,
-    pub(super) windows: SlotMap<WindowId, WindowState>,
     pub(super) widgets: Widgets,
-    pub(super) mouse_capture_widget: Option<WidgetId>,
     pub(super) reactive_graph: ReactiveGraph,
     host_handle: Option<Box<dyn HostHandle>>,
     id_buffer: Cell<Vec<WidgetId>>,
     pub(super) task_queue: TaskQueue,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum WidgetInsertPos {
-    Before(WidgetId),
-    After(WidgetId),
-    BeforeFirstChildOf(WidgetId),
-    AfterLastChildOf(WidgetId),
-    Overlay(WidgetId, OverlayOptions),
+    theme_signal: Var<WindowTheme>,
 }
 
 impl AppState {
     pub fn new(parameters: Rc<dyn AnyParameterMap>) -> Self {
+        let mut reactive_graph = ReactiveGraph::new(parameters);
+        let mut task_queue = TaskQueue::default();
+        let mut widgets = Widgets::default();
+        let theme_signal = Var::new(
+            &mut LocalCreateContext::new_root_context(
+                &mut widgets,
+                &mut reactive_graph,
+                &mut task_queue,
+            ),
+            WindowTheme::Dark,
+        );
+
         Self {
             wgpu_instance: wgpu::Instance::new(&wgpu::InstanceDescriptor {
                 backends: wgpu::Backends::PRIMARY,
                 ..Default::default()
             }),
-            widgets: Default::default(),
-            windows: Default::default(),
             mouse_capture_widget: None,
-            reactive_graph: ReactiveGraph::new(parameters),
+            reactive_graph,
             host_handle: None,
             id_buffer: Default::default(),
-            task_queue: Default::default(),
+            theme_signal,
+            widgets,
+            task_queue,
         }
     }
 
@@ -113,24 +106,10 @@ impl AppState {
         wgpu_surface: WGPUSurface,
         view: impl View,
     ) -> WindowId {
-        let theme_signal = Var::new(self, handle.theme());
-
-        let window_id = self.windows.insert(WindowState {
-            handle,
-            wgpu_surface,
-            root_widget: WidgetId::null(),
-            focus_widget: None,
-            theme_signal,
-            overlays: Default::default(),
-            gpu_scene: GpuScene::new(),
-        });
-
-        let widget_id = self.widgets.allocate_widget(window_id);
-        self.windows[window_id].root_widget = widget_id;
-        self.build_and_insert_widget(widget_id, view);
-
+        let window_id = self.widgets.allocate_window(handle, wgpu_surface);
+        let root_widget_id = self.widgets.window(window_id).root_widget;
+        self.build_and_insert_widget(root_widget_id, view);
         layout_window(self, window_id, RecomputeLayout::Force);
-
         window_id
     }
 
@@ -146,51 +125,25 @@ impl AppState {
     }
 
     /// Add a new widget
-    pub fn add_widget<V: View>(&mut self, view: V, position: WidgetInsertPos) -> WidgetId {
-        let id = self.widgets.allocate_widget(WindowId::null());
-        self.widgets.move_widget(id, match position {
-            WidgetInsertPos::Before(widget_id) => WidgetPos::Before(widget_id),
-            WidgetInsertPos::After(widget_id) => WidgetPos::After(widget_id),
-            WidgetInsertPos::BeforeFirstChildOf(widget_id) => WidgetPos::FirstChild(widget_id),
-            WidgetInsertPos::AfterLastChildOf(widget_id) => WidgetPos::LastChild(widget_id),
-            WidgetInsertPos::Overlay(widget_id, _) => WidgetPos::LastOverlay(widget_id),
-        });
+    pub fn add_widget<V: View>(&mut self, view: V, position: WidgetPos) -> WidgetId {
+        let id = self.widgets.allocate_widget(position);
         self.build_and_insert_widget(id, view);
-
-        match position {
-            WidgetInsertPos::Overlay(_, options) => {
-                let window_id = self.widgets.get(id).data().window_id;
-                self.window_mut(window_id)
-                    .overlays
-                    .insert_or_update(id, options);
-            }
-            _ => {}
-        };
-
         id
     }
 
     pub fn remove_window(&mut self, id: WindowId) {
         let root_widget = self.window_mut(id).root_widget;
-        let theme_signal_id = self.window_mut(id).theme_signal.id;
         self.remove_widget(root_widget);
-        self.reactive_graph.remove_node(theme_signal_id);
         self.windows.remove(id).expect("Window not found");
     }
 
     /// Remove a widget and all of its children and associated signals
     pub fn remove_widget(&mut self, id: WidgetId) {
         self.clear_mouse_capture_and_focus(id);
-        let windows = &mut self.windows;
         let reactive_graph = &mut self.reactive_graph;
-        self.widgets.remove(id, &mut |data| Self::clear_widget_dependencies(&data, windows, reactive_graph));
-    }
-
-    fn clear_widget_dependencies(data: &WidgetData, windows: &mut SlotMap<WindowId, WindowState>, reactive_graph: &mut ReactiveGraph) {
-        if data.is_overlay() {
-            windows[data.window_id].overlays.remove(data.id);
-        }
-        reactive_graph.clear_nodes_for_widget(data.id)
+        self.widgets.remove(id, &mut |data| {
+            reactive_graph.clear_nodes_for_widget(data.id);
+        });
     }
 
     pub fn replace_widget<V: View>(&mut self, id: WidgetId, view: V) {
@@ -204,10 +157,11 @@ impl AppState {
             ..
         } = self.widgets.data[id];
 
-        let windows = &mut self.windows;
         let reactive_graph = &mut self.reactive_graph;
-        Self::clear_widget_dependencies(&self.widgets.data[id], windows, reactive_graph);
-        self.widgets.remove_children(id, &mut |data| Self::clear_widget_dependencies(&data, windows, reactive_graph));
+        reactive_graph.clear_nodes_for_widget(id);
+        self.widgets.remove_children(id, &mut |data| {
+            reactive_graph.clear_nodes_for_widget(data.id);
+        });
 
         self.widgets.data[id] = WidgetData::new(window_id, id)
             .with_parent(parent_id)
@@ -350,26 +304,13 @@ impl AppState {
         }
     }
 
-    pub(super) fn window(&self, id: WindowId) -> &WindowState {
-        self.windows.get(id).expect("Window handle not found")
-    }
-
-    pub(super) fn window_for_widget(&self, id: WidgetId) -> &WindowState {
-        self.windows
-            .get(self.widgets.data[id].window_id)
-            .expect("Window handle not found")
-    }
-
-    pub(super) fn window_mut(&mut self, id: WindowId) -> &mut WindowState {
-        self.windows.get_mut(id).expect("Window handle not found")
-    }
-
     pub fn window_theme_signal(&self, id: WidgetId) -> ReadSignal<WindowTheme> {
         self.window_for_widget(id).theme_signal.as_read_signal()
     }
 
     pub fn focus_widget(&self, window_id: WindowId) -> Option<WidgetRef<'_, dyn Widget>> {
-        self.window(window_id)
+        self.widgets
+            .window(window_id)
             .focus_widget
             .map(|id| WidgetRef::new(&self.widgets, id))
     }

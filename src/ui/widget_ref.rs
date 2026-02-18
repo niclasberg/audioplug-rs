@@ -12,7 +12,7 @@ use super::{
 };
 use crate::{
     core::{Rect, diff::DiffOp},
-    ui::{WidgetHandle, Widgets, app_state::WidgetInsertPos, widgets::WidgetIdIter},
+    ui::{WidgetHandle, WidgetPos, Widgets, widgets::WidgetIdIter},
 };
 
 pub struct WidgetNotFound<'a, W: Widget + ?Sized>(WidgetMut<'a, W>);
@@ -142,7 +142,11 @@ impl<'a, W: 'a + Widget> Deref for WidgetRef<'a, W> {
     }
 }
 
-fn for_each_child_ref_impl(widgets: &Widgets, id: WidgetId, f: &mut dyn FnMut(WidgetRef<'_, dyn Widget>)) {
+fn for_each_child_ref_impl(
+    widgets: &Widgets,
+    id: WidgetId,
+    f: &mut dyn FnMut(WidgetRef<'_, dyn Widget>),
+) {
     let mut child_iter = WidgetIdIter::all_children(widgets, id);
     while let Some(child_id) = child_iter.next_id(widgets) {
         f(WidgetRef::new(widgets, child_id))
@@ -250,26 +254,26 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 
     pub fn add_before<V: View>(&mut self, view: V) -> WidgetHandle<V::Element> {
-        let id = self.app_state.add_widget(view, WidgetInsertPos::Before(self.id));
+        let id = self.app_state.add_widget(view, WidgetPos::Before(self.id));
         WidgetHandle::new(id)
     }
 
     pub fn add_after<V: View>(&mut self, view: V) -> WidgetHandle<V::Element> {
-        let id = self.app_state.add_widget(view, WidgetInsertPos::After(self.id));
+        let id = self.app_state.add_widget(view, WidgetPos::After(self.id));
         WidgetHandle::new(id)
     }
 
     pub fn push_child_front<V: View>(&mut self, view: V) -> WidgetHandle<V::Element> {
         let widget_id = self
             .app_state
-            .add_widget(view, WidgetInsertPos::BeforeFirstChildOf(self.id));
+            .add_widget(view, WidgetPos::FirstChild(self.id));
         WidgetHandle::new(widget_id)
     }
 
     pub fn push_child_back<V: View>(&mut self, view: V) -> WidgetHandle<V::Element> {
         let widget_id = self
             .app_state
-            .add_widget(view, WidgetInsertPos::AfterLastChildOf(self.id));
+            .add_widget(view, WidgetPos::LastChild(self.id));
         WidgetHandle::new(widget_id)
     }
 
@@ -280,7 +284,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     ) -> WidgetHandle<V::Element> {
         let widget_id = self
             .app_state
-            .add_widget(view, WidgetInsertPos::Overlay(self.id, options));
+            .add_widget(view, WidgetPos::Overlay(self.id, options));
         WidgetHandle::new(widget_id)
     }
 

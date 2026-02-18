@@ -44,7 +44,7 @@ pub use view_sequence::*;
 pub use widget::{EventStatus, StatusChange, Widget, WidgetAdapter};
 pub use widget_data::{WidgetData, WidgetFlags, WidgetId};
 pub use widget_ref::{WidgetMut, WidgetRef};
-pub use widgets::Widgets;
+pub use widgets::{WidgetPos, Widgets};
 #[cfg(target_os = "macos")]
 pub(crate) use window::MyHandler;
 pub use window::Window;

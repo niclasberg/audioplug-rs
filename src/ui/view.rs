@@ -8,9 +8,7 @@ use super::{
 };
 use crate::{
     MouseButton, MouseEvent,
-    ui::{
-        ReactiveGraph, Widgets, app_state::WidgetInsertPos, reactive::CLICKED_STATUS, task_queue::TaskQueue
-    },
+    ui::{ReactiveGraph, WidgetPos, Widgets, reactive::CLICKED_STATUS, task_queue::TaskQueue},
 };
 use std::marker::PhantomData;
 
@@ -182,7 +180,7 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
 
     pub fn add_child(&mut self, view: impl View) -> WidgetId {
         self.app_state
-            .add_widget(view, WidgetInsertPos::AfterLastChildOf(self.id))
+            .add_widget(view, WidgetPos::LastChild(self.id))
     }
 
     pub fn add_children(&mut self, view_sequence: impl ViewSequence) {
@@ -196,7 +194,7 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
 
     pub fn add_overlay(&mut self, view: impl View, options: OverlayOptions) -> WidgetId {
         self.app_state
-            .add_widget(view, WidgetInsertPos::Overlay(self.id, options))
+            .add_widget(view, WidgetPos::Overlay(self.id, options))
     }
 
     pub(crate) fn build_inner<V: View>(&mut self, view: V) -> V::Element {

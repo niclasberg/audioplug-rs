@@ -79,10 +79,10 @@ pub trait CreateContext: ReactiveContext {
     /// Returns the owner that should be assigned to newly created reactive nodes.
     ///
     /// We use this mechanism to scope nodes to either:
-    /// - A widget (`Some(Owner::Widget)`): When the widget is removed, the node is removed
-    /// - Another node (`Some(Owner::Node)`): When the other node is removed, the node is removed
-    /// - No owner (None): will not be cleaned up until the plugin instance is exited.
-    fn owner(&self) -> Option<Owner>;
+    /// - A widget (`Owner::Widget`): When the widget is removed, the node is removed
+    /// - Another node (`Owner::Node`): When the other node is removed, the node is removed
+    /// - No owner (Owner::Root): will not be cleaned up until the plugin instance is exited.
+    fn owner(&self) -> Owner;
 }
 
 pub(crate) fn create_var_node(
@@ -277,6 +277,23 @@ pub struct LocalCreateContext<'a> {
     owner: Owner,
 }
 
+impl<'a> LocalCreateContext<'a> {
+    pub(crate) fn new_root_context(
+        widgets: &'a mut Widgets,
+        reactive_graph: &'a mut ReactiveGraph,
+        task_queue: &'a mut TaskQueue,
+    ) -> Self {
+        Self {
+            cx: LocalContext {
+                widgets,
+                reactive_graph,
+                task_queue,
+            },
+            owner: Owner::Root,
+        }
+    }
+}
+
 impl ReactiveContext for LocalCreateContext<'_> {
     fn components(&self) -> (&ReactiveGraph, &Widgets) {
         self.cx.components()
@@ -288,8 +305,8 @@ impl ReactiveContext for LocalCreateContext<'_> {
 }
 
 impl CreateContext for LocalCreateContext<'_> {
-    fn owner(&self) -> Option<Owner> {
-        Some(self.owner)
+    fn owner(&self) -> Owner {
+        self.owner
     }
 }
 

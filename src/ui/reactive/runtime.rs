@@ -23,6 +23,7 @@ pub struct Node {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Owner {
+    Root,
     /// The reactive node is owned by a widget, and will be removed
     /// when the widget is removed.
     Widget(WidgetId),
@@ -143,28 +144,28 @@ impl ReactiveGraph {
         &mut self,
         node_type: NodeType,
         state: NodeState,
-        owner: Option<Owner>,
+        owner: Owner,
     ) -> NodeId {
         let node = Node { node_type, state };
         let id = self.nodes.insert(node);
         self.node_observers.insert(id, FxIndexSet::default());
 
         match owner {
-            Some(Owner::Widget(widget_id)) => {
+            Owner::Widget(widget_id) => {
                 self.nodes_owned_by_widget
                     .entry(widget_id)
                     .unwrap()
                     .or_default()
                     .insert(id);
             }
-            Some(Owner::Node(node_id)) => {
+            Owner::Node(node_id) => {
                 self.nodes_owned_by_node
                     .entry(node_id)
                     .unwrap()
                     .or_default()
                     .insert(id);
             }
-            _ => {}
+            Owner::Root => {}
         };
 
         id

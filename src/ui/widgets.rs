@@ -1,11 +1,22 @@
-use std::{cell::Cell, collections::VecDeque, ops::{Deref, DerefMut}};
+use std::{
+    cell::Cell,
+    collections::VecDeque,
+    ops::{Deref, DerefMut},
+};
 
 use slotmap::{Key, SecondaryMap, SlotMap};
 
 use crate::{
     core::{FxIndexSet, Point},
-    ui::{Widget, WidgetData, WidgetFlags, WidgetId, WidgetRef, WindowId},
+    platform,
+    ui::{
+        OverlayOptions, Widget, WidgetData, WidgetFlags, WidgetId, WidgetRef, WindowId,
+        overlay::OverlayContainer,
+        render::{GpuScene, WGPUSurface},
+    },
 };
+
+type ChildCache = SecondaryMap<WidgetId, Vec<WidgetId>>;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WidgetPos {
@@ -13,8 +24,16 @@ pub enum WidgetPos {
     After(WidgetId),
     FirstChild(WidgetId),
     LastChild(WidgetId),
-    FirstOverlay(WidgetId),
-    LastOverlay(WidgetId),
+    Overlay(WidgetId, OverlayOptions),
+}
+
+pub(super) struct WindowState {
+    pub(super) handle: platform::Handle,
+    pub(super) wgpu_surface: WGPUSurface,
+    pub(super) gpu_scene: GpuScene,
+    pub(super) root_widget: WidgetId,
+    pub(super) focus_widget: Option<WidgetId>,
+    pub(super) overlays: OverlayContainer,
 }
 
 #[derive(Default)]
@@ -23,8 +42,9 @@ pub struct Widgets {
     pub(super) data: SlotMap<WidgetId, WidgetData>,
     /// Widget implementation. Should exist for each widget data.
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
+    pub(super) windows: SlotMap<WindowId, WindowState>,
     /// (Lazy) cache of child ids. Taffy requires random access during layout.
-    child_id_cache: SecondaryMap<WidgetId, Vec<WidgetId>>,
+    child_id_cache: ChildCache,
     /// Ids of all widgets that have had their child list changed. Cleared during call to rebuild_children.
     child_layout_changed: FxIndexSet<WidgetId>,
     /// Ids of all widgets that have requested animation. Cleared during each call to [drive_animations]
@@ -33,6 +53,8 @@ pub struct Widgets {
     pub(super) needing_render: FxIndexSet<WidgetId>,
     /// Temporary cache used to avoid allocations while performing traversals
     id_buffer: Cell<VecDeque<WidgetId>>,
+    /// The widget that currently has mouse capture
+    pub(super) mouse_capture_widget: Option<WidgetId>,
 }
 
 impl Widgets {
@@ -83,53 +105,47 @@ impl Widgets {
         }
     }
 
-    /// Allocate a new widget which does not have an implementation or a parent attached.
+    pub(super) fn allocate_window(
+        &mut self,
+        handle: platform::Handle,
+        wgpu_surface: WGPUSurface,
+    ) -> WindowId {
+        let window_id = self.windows.insert_with_key(|window_id| {
+            let root_widget = self
+                .data
+                .insert_with_key(|id| WidgetData::new(window_id, id));
+            self.child_id_cache.insert(root_widget, Vec::new());
+            WindowState {
+                handle,
+                wgpu_surface,
+                root_widget,
+                focus_widget: None,
+                gpu_scene: GpuScene::new(),
+                overlays: OverlayContainer::default(),
+            }
+        });
+
+        window_id
+    }
+
+    /// Allocate a new widget which does not have an implementation.
     /// Make sure to call [set_widget_impl] afterwards (or there will be panics later)
-    /// For non-root widgets, you also need to call [move_widget] to assign siblings, window and parent
-    pub(super) fn allocate_widget(&mut self, window_id: WindowId) -> WidgetId {
+    pub(super) fn allocate_widget(&mut self, position: WidgetPos) -> WidgetId {
+        let parent_id = match position {
+            WidgetPos::Before(widget_id) => self.data[widget_id].parent_id,
+            WidgetPos::After(widget_id) => self.data[widget_id].parent_id,
+            WidgetPos::FirstChild(widget_id) => widget_id,
+            WidgetPos::LastChild(widget_id) => widget_id,
+            WidgetPos::Overlay(widget_id, _) => widget_id,
+        };
+        let window_id = self.data[parent_id].window_id;
+
         let id = self
             .data
-            .insert_with_key(|id| WidgetData::new(window_id, id));
+            .insert_with_key(|id| WidgetData::new(window_id, id).with_parent(parent_id));
         self.child_id_cache.insert(id, Vec::new());
+        self.move_widget(id, position);
         id
-    }
-
-    fn internal_remove(&mut self, widget_id: WidgetId) -> WidgetData {
-        self.child_id_cache.remove(widget_id);
-        self.widgets.remove(widget_id);
-        // Maybe skip clearing these and update dependent code to not require the widgets to exist
-        self.pending_animations.shift_remove(&widget_id);
-        self.needing_render.shift_remove(&widget_id);
-
-        self.data
-            .remove(widget_id)
-            .expect("Widget being removed should exist")
-    }
-
-    // Remove a widget and all its children. 
-    pub(super) fn remove(&mut self, widget_id: WidgetId, f: &mut impl FnMut(WidgetData)) {
-        let parent_id = self.data[widget_id].parent_id;
-        if !parent_id.is_null() {
-            let parent = &mut self.data[widget_id];
-            if parent.first_overlay_id == widget_id {}
-        }
-        self.remove_children(widget_id, f);
-        f(self.internal_remove(widget_id));
-    }
-
-    pub(super) fn remove_children(&mut self, widget_id: WidgetId, f: &mut impl FnMut(WidgetData)) {
-        let mut children_to_remove = self.id_buffer.take();
-        children_to_remove.clear();
-        children_to_remove.extend(self.child_id_iter(widget_id));
-        children_to_remove.extend(self.overlay_id_iter(widget_id));
-
-        while let Some(child_id) = children_to_remove.back().copied() {
-            children_to_remove.extend(self.child_id_iter(child_id));
-            children_to_remove.extend(self.overlay_id_iter(child_id));
-            f(self.internal_remove(child_id));
-        }
-
-        self.id_buffer.set(children_to_remove);
     }
 
     fn move_widget_before(&mut self, widget_id: WidgetId, next_id: WidgetId) -> WidgetId {
@@ -147,11 +163,12 @@ impl Widgets {
 
     /// Moves a widget to a new position in the tree by.
     pub fn move_widget(&mut self, widget_id: WidgetId, destination: WidgetPos) {
-        let current = self.data.get_mut(widget_id).expect("Widget should exist when being moved");
+        let current = self
+            .data
+            .get_mut(widget_id)
+            .expect("Widget should exist when being moved");
         let old_parent_id = current.parent_id;
-        if !old_parent_id.is_null() {
-            self.child_layout_changed.insert(old_parent_id);
-        }
+        assert!(!old_parent_id.is_null(), "Cannot move a root widget");
 
         let new_parent_id = match destination {
             WidgetPos::Before(next_id) => self.move_widget_before(widget_id, next_id),
@@ -176,17 +193,12 @@ impl Widgets {
                 }
                 parent_id
             }
-            WidgetPos::FirstOverlay(parent_id) => {
-                let parent = &mut self.data[parent_id];
-                let first_overlay_id = std::mem::replace(&mut parent.first_overlay_id, widget_id);
-                if !first_overlay_id.is_null() {
-                    self.move_widget_before(widget_id, first_overlay_id);
-                }
-                parent_id
-            }
-            WidgetPos::LastOverlay(parent_id) => {
+            WidgetPos::Overlay(parent_id, overlay_options) => {
                 let parent = &mut self.data[parent_id];
                 let first_overlay_id = parent.first_overlay_id;
+                self.windows[parent.window_id]
+                    .overlays
+                    .insert_or_update(widget_id, overlay_options);
                 if first_overlay_id.is_null() {
                     parent.first_overlay_id = widget_id;
                 } else {
@@ -203,6 +215,62 @@ impl Widgets {
         let current = &mut self.data[widget_id];
         current.parent_id = new_parent_id;
         current.window_id = window_id;
+    }
+
+    pub(super) fn window(&self, id: WindowId) -> &WindowState {
+        self.windows.get(id).expect("Window handle not found")
+    }
+
+    pub(super) fn window_for_widget(&self, id: WidgetId) -> &WindowState {
+        self.windows
+            .get(self.data[id].window_id)
+            .expect("Window handle not found")
+    }
+
+    pub(super) fn window_mut(&mut self, id: WindowId) -> &mut WindowState {
+        self.windows.get_mut(id).expect("Window handle not found")
+    }
+
+    fn internal_remove(&mut self, widget_id: WidgetId) -> WidgetData {
+        self.child_id_cache.remove(widget_id);
+        self.widgets.remove(widget_id);
+        // Maybe skip clearing these and update dependent code to not require the widgets to exist
+        self.pending_animations.shift_remove(&widget_id);
+        self.needing_render.shift_remove(&widget_id);
+
+        self.data
+            .remove(widget_id)
+            .expect("Widget being removed should exist")
+    }
+
+    // Remove a widget and all its children.
+    pub(super) fn remove(&mut self, widget_id: WidgetId, f: &mut impl FnMut(WidgetData)) {
+        let data = &self.data[widget_id];
+        let is_overlay = data.is_overlay();
+        let window_id = data.window_id;
+        let parent_id = data.parent_id;
+        if !parent_id.is_null() {
+            let parent = &mut self.data[parent_id];
+            if parent.first_overlay_id == widget_id {}
+        }
+        self.overlays[window_id].remove(widget_id);
+        self.remove_children(widget_id, f);
+        f(self.internal_remove(widget_id));
+    }
+
+    pub(super) fn remove_children(&mut self, widget_id: WidgetId, f: &mut impl FnMut(WidgetData)) {
+        let mut children_to_remove = self.id_buffer.take();
+        children_to_remove.clear();
+        children_to_remove.extend(self.child_id_iter(widget_id));
+        children_to_remove.extend(self.overlay_id_iter(widget_id));
+
+        while let Some(child_id) = children_to_remove.back().copied() {
+            children_to_remove.extend(self.child_id_iter(child_id));
+            children_to_remove.extend(self.overlay_id_iter(child_id));
+            f(self.internal_remove(child_id));
+        }
+
+        self.id_buffer.set(children_to_remove);
     }
 
     #[inline(always)]

@@ -87,11 +87,12 @@ impl<V: View, F: Fn(usize) -> V + 'static> ViewSequence for IndexedViewSeq<F> {
 
         let f = self.view_factory;
         self.count.bind(cx, move |value, mut widget| {
-            let child_index = 0;
+            let mut child_index = 0;
             widget.for_each_child_mut(|child| {
-                if child_index > value {
+                if child_index >= value {
                     child.remove();
                 }
+                child_index += 1;
             });
             for i in child_index..value {
                 widget.push_child_back(f(i));
