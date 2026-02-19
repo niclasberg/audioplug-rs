@@ -242,7 +242,7 @@ impl<W: Widget + ?Sized> ReactiveContext for BuildContext<'_, W> {
 }
 
 impl<W: Widget + ?Sized> CreateContext for BuildContext<'_, W> {
-    fn owner(&self) -> Option<Owner> {
-        Some(Owner::Widget(self.id))
+    fn owner(&self) -> Owner {
+        Owner::Widget(self.id)
     }
 }

@@ -22,9 +22,6 @@ use super::{
 };
 
 pub trait ReactiveContext {
-    /// Get immutable access to the underlying reactive runtime. This method
-    /// is mostly used internally, users should rarely have to interact directly
-    /// with the runtime.
     fn components(&self) -> (&ReactiveGraph, &Widgets);
 
     fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue);

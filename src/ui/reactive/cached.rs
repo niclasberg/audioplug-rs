@@ -1,7 +1,7 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
 use crate::ui::{
-    Accessor, AppState, Effect, ReactiveGraph, ReadSignal, Widgets, reactive::LocalContext,
+    Accessor, Effect, ReactiveGraph, ReadSignal, Widgets, reactive::LocalContext,
     task_queue::TaskQueue,
 };
 

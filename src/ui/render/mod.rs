@@ -4,7 +4,7 @@ use crate::{
         Vec2, Vec2f,
     },
     platform,
-    ui::render::gpu_scene::GpuFill,
+    ui::{Widgets, render::gpu_scene::GpuFill},
 };
 
 mod canvas;
@@ -33,27 +33,20 @@ pub fn render_window(app_state: &mut AppState, window_id: WindowId) {
         for widget_id in widgets_to_render {
             let mut cx = RenderContext {
                 id: *widget_id,
-                app_state,
+                widgets: &mut app_state.widgets,
             };
             cx.render_current_widget();
         }
     });
 }
 
-pub fn invalidate_window(app_state: &AppState, window_id: WindowId) {
-    let handle = &app_state.window(window_id).handle;
+pub fn invalidate_window(widgets: &Widgets, window_id: WindowId) {
+    let handle = &widgets.window(window_id).handle;
     handle.invalidate_window()
 }
 
-pub fn invalidate_widget(app_state: &AppState, widget_id: WidgetId) {
-    let bounds = app_state.widgets.data[widget_id].global_bounds();
-    let window_id = app_state.get_window_id_for_widget(widget_id);
-    let handle = &app_state.window(window_id).handle;
-    handle.invalidate(bounds);
-}
-
-pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: Rect) {
-    let window = &mut app_state.windows[window_id];
+pub fn paint_window(widgets: &mut Widgets, window_id: WindowId, dirty_rect: Rect) {
+    let window = widgets.window_mut(window_id);
     let wgpu_surface = &mut window.wgpu_surface;
     let scale_factor = window.handle.scale_factor().0;
 
@@ -219,36 +212,36 @@ pub fn paint_window(app_state: &mut AppState, window_id: WindowId, dirty_rect: R
 
 pub struct RenderContext<'a> {
     id: WidgetId,
-    app_state: &'a mut AppState,
+    widgets: &'a mut Widgets,
 }
 
 impl RenderContext<'_> {
     pub fn local_bounds(&self) -> Rect {
-        self.app_state.widgets.get(self.id).local_bounds()
+        self.widgets.get(self.id).local_bounds()
     }
 
     pub fn global_bounds(&self) -> Rect {
-        self.app_state.widgets.get(self.id).global_bounds()
+        self.widgets.get(self.id).global_bounds()
     }
 
     pub fn content_bounds(&self) -> Rect {
-        self.app_state.widgets.get(self.id).content_bounds()
+        self.widgets.get(self.id).content_bounds()
     }
 
     pub fn has_focus(&self) -> bool {
-        self.app_state.widgets.get(self.id).has_focus()
+        self.widgets.get(self.id).has_focus()
     }
 
     pub fn has_mouse_capture(&self) -> bool {
-        self.app_state.widgets.get(self.id).has_mouse_capture()
+        self.widgets.get(self.id).has_mouse_capture()
     }
 
     fn render_current_widget(&mut self) {
-        let mut widget = self.app_state.widgets.lease_widget(self.id);
+        let mut widget = self.widgets.lease_widget(self.id);
         let scene = widget.render(self);
-        self.app_state.widgets.unlease_widget(widget);
-        self.app_state.widgets.data[self.id].scene = scene;
-        invalidate_widget(self.app_state, self.id);
+        self.widgets.unlease_widget(widget);
+        self.widgets.data[self.id].scene = scene;
+        self.widgets.invalidate_widget(self.id);
     }
 }
 

@@ -7,8 +7,7 @@ use std::{
 use slotmap::Key;
 
 use super::{
-    AppState, OverlayOptions, View, Widget, WidgetData, WidgetFlags, WidgetId,
-    render::invalidate_widget, style::Style,
+    AppState, OverlayOptions, View, Widget, WidgetData, WidgetFlags, WidgetId, style::Style,
 };
 use crate::{
     core::{Rect, diff::DiffOp},

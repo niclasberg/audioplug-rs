@@ -42,7 +42,7 @@ pub struct Widgets {
     pub(super) data: SlotMap<WidgetId, WidgetData>,
     /// Widget implementation. Should exist for each widget data.
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
-    pub(super) windows: SlotMap<WindowId, WindowState>,
+    windows: SlotMap<WindowId, WindowState>,
     /// (Lazy) cache of child ids. Taffy requires random access during layout.
     child_id_cache: ChildCache,
     /// Ids of all widgets that have had their child list changed. Cleared during call to rebuild_children.
@@ -244,7 +244,7 @@ impl Widgets {
     }
 
     // Remove a widget and all its children.
-    pub(super) fn remove(&mut self, widget_id: WidgetId, f: &mut impl FnMut(WidgetData)) {
+    pub(super) fn remove_widget(&mut self, widget_id: WidgetId, f: &mut impl FnMut(WidgetData)) {
         let data = &self.data[widget_id];
         let is_overlay = data.is_overlay();
         let window_id = data.window_id;
@@ -253,7 +253,7 @@ impl Widgets {
             let parent = &mut self.data[parent_id];
             if parent.first_overlay_id == widget_id {}
         }
-        self.overlays[window_id].remove(widget_id);
+        self.windows[window_id].overlays.remove(widget_id);
         self.remove_children(widget_id, f);
         f(self.internal_remove(widget_id));
     }
@@ -263,6 +263,9 @@ impl Widgets {
         children_to_remove.clear();
         children_to_remove.extend(self.child_id_iter(widget_id));
         children_to_remove.extend(self.overlay_id_iter(widget_id));
+        let data = &mut self.data[widget_id];
+        data.first_child_id = WidgetId::null();
+        data.first_overlay_id = WidgetId::null();
 
         while let Some(child_id) = children_to_remove.back().copied() {
             children_to_remove.extend(self.child_id_iter(child_id));
@@ -271,6 +274,12 @@ impl Widgets {
         }
 
         self.id_buffer.set(children_to_remove);
+    }
+
+    pub(super) fn remove_window(&mut self, window_id: WindowId, f: &mut impl FnMut(WidgetData)) {
+        let root_widget = self.windows[window_id].root_widget;
+        self.remove_widget(root_widget, f);
+        self.windows.remove(window_id);
     }
 
     #[inline(always)]
@@ -287,6 +296,21 @@ impl Widgets {
             }
         }
         false
+    }
+
+    pub fn widget_has_focus(&self, id: WidgetId) -> bool {
+        self.windows[self.data[id].window_id]
+            .focus_widget
+            .as_ref()
+            .is_some_and(|focus_widget_id| *focus_widget_id == id)
+    }
+
+    pub fn focus_widget_id(&self, window_id: WindowId) -> Option<WidgetId> {
+        self.windows[window_id].focus_widget
+    }
+
+    pub fn widget_has_captured_mouse(&self, widget_id: WidgetId) -> bool {
+        self.mouse_capture_widget.is_some_and(|id| id == widget_id)
     }
 
     pub(crate) fn request_animation(&mut self, widget_id: WidgetId) {
@@ -313,6 +337,12 @@ impl Widgets {
             data.set_flag(WidgetFlags::NEEDS_LAYOUT);
             current = data.parent_id;
         }
+    }
+
+    pub fn invalidate_widget(&self, widget_id: WidgetId) {
+        let bounds = self.data[widget_id].global_bounds();
+        let window_id = self.data[widget_id].window_id;
+        self.windows[window_id].handle.invalidate(bounds);
     }
 
     pub(super) fn lease_widget(&mut self, id: WidgetId) -> LeasedWidget {

@@ -20,7 +20,8 @@ pub enum RecomputeLayout {
 
 pub fn layout_window(app_state: &mut AppState, window_id: WindowId, mode: RecomputeLayout) {
     app_state.with_id_buffer_mut(move |app_state, overlay_ids| {
-        let window = app_state.window(window_id);
+        let widgets = &mut app_state.widgets;
+        let window = widgets.window(window_id);
         let window_size = window.handle.global_bounds().size();
         let window_rect = Rect::from_origin(Point::ZERO, window_size);
         let root_id = window.root_widget;
@@ -31,21 +32,21 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId, mode: Recomp
             height: taffy::AvailableSpace::Definite(window_size.height as f32),
         };
 
-        app_state.widgets.rebuild_children();
+        widgets.rebuild_children();
         // Need to layout root first, the overlay positions can depend on their parent positions
-        if mode == RecomputeLayout::Force || app_state.widgets.data[root_id].needs_layout() {
+        if mode == RecomputeLayout::Force || widgets.data[root_id].needs_layout() {
             println!("Layout main ui");
             let mut cx = LayoutContext {
-                widgets: &mut app_state.widgets,
+                widgets,
                 window_size,
                 region_to_invalidate: None,
             };
             taffy::compute_root_layout(&mut cx, root_id.into(), available_space);
             let region_to_invalidate = cx.region_to_invalidate;
 
-            update_node_origins(&mut app_state.widgets, root_id, Point::ZERO);
+            update_node_origins(widgets, root_id, Point::ZERO);
             if let Some(region_to_invalidate) = region_to_invalidate {
-                app_state
+                widgets
                     .window(window_id)
                     .handle
                     .invalidate(region_to_invalidate);
@@ -56,27 +57,25 @@ pub fn layout_window(app_state: &mut AppState, window_id: WindowId, mode: Recomp
         // If an overlay's position depends on the position of a previously created overlay,
         // this will be wrong.
         for (i, overlay_id) in overlay_ids.iter().enumerate() {
-            if mode == RecomputeLayout::Force || app_state.widgets.data[*overlay_id].needs_layout()
-            {
+            if mode == RecomputeLayout::Force || widgets.data[*overlay_id].needs_layout() {
                 let mut cx = LayoutContext {
-                    widgets: &mut app_state.widgets,
+                    widgets,
                     window_size,
                     region_to_invalidate: None,
                 };
                 taffy::compute_root_layout(&mut cx, (*overlay_id).into(), available_space);
                 let region_to_invalidate = cx.region_to_invalidate;
-                let options = app_state
+                let options = widgets
                     .window(window_id)
                     .overlays
                     .get_overlay_options(i)
                     .unwrap();
 
-                let offset =
-                    compute_overlay_offset(&app_state.widgets, window_rect, *overlay_id, options);
+                let offset = compute_overlay_offset(widgets, window_rect, *overlay_id, options);
 
-                update_node_origins(&mut app_state.widgets, *overlay_id, offset.into_point());
+                update_node_origins(widgets, *overlay_id, offset.into_point());
                 if let Some(region_to_invalidate) = region_to_invalidate {
-                    app_state
+                    widgets
                         .window(window_id)
                         .handle
                         .invalidate(region_to_invalidate.offset(offset));
@@ -181,8 +180,13 @@ impl taffy::TraversePartialTree for LayoutContext<'_> {
         Self: 'b;
 
     fn child_ids(&self, parent_node_id: taffy::NodeId) -> Self::ChildIter<'_> {
-        let inner: &Vec<WidgetId> = self.widgets.cached_child_ids(parent_node_id.into()).as_ref();
-        LayoutChildIter { inner: inner.iter() }
+        let inner: &Vec<WidgetId> = self
+            .widgets
+            .cached_child_ids(parent_node_id.into())
+            .as_ref();
+        LayoutChildIter {
+            inner: inner.iter(),
+        }
     }
 
     fn child_count(&self, parent_node_id: taffy::NodeId) -> usize {

@@ -14,10 +14,7 @@ use crate::{
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
     ui::{
-        Widgets,
-        reactive::LocalCreateContext,
-        render::{GpuScene, WGPUSurface},
-        task_queue::TaskQueue,
+        Owner, Widgets, reactive::LocalCreateContext, render::WGPUSurface, task_queue::TaskQueue,
         widgets::WidgetPos,
     },
 };
@@ -31,7 +28,7 @@ pub struct AppState {
     host_handle: Option<Box<dyn HostHandle>>,
     id_buffer: Cell<Vec<WidgetId>>,
     pub(super) task_queue: TaskQueue,
-    theme_signal: Var<WindowTheme>,
+    pub(super) theme_signal: Var<WindowTheme>,
 }
 
 impl AppState {
@@ -53,7 +50,6 @@ impl AppState {
                 backends: wgpu::Backends::PRIMARY,
                 ..Default::default()
             }),
-            mouse_capture_widget: None,
             reactive_graph,
             host_handle: None,
             id_buffer: Default::default(),
@@ -132,16 +128,18 @@ impl AppState {
     }
 
     pub fn remove_window(&mut self, id: WindowId) {
-        let root_widget = self.window_mut(id).root_widget;
-        self.remove_widget(root_widget);
-        self.windows.remove(id).expect("Window not found");
+        self.clear_mouse_capture_and_focus(self.widgets.window(id).root_widget);
+        let reactive_graph = &mut self.reactive_graph;
+        self.widgets.remove_window(id, &mut |data| {
+            reactive_graph.clear_nodes_for_widget(data.id);
+        });
     }
 
     /// Remove a widget and all of its children and associated signals
     pub fn remove_widget(&mut self, id: WidgetId) {
         self.clear_mouse_capture_and_focus(id);
         let reactive_graph = &mut self.reactive_graph;
-        self.widgets.remove(id, &mut |data| {
+        self.widgets.remove_widget(id, &mut |data| {
             reactive_graph.clear_nodes_for_widget(data.id);
         });
     }
@@ -170,14 +168,14 @@ impl AppState {
     }
 
     fn clear_mouse_capture_and_focus(&mut self, id: WidgetId) {
-        if let Some(mouse_capture_widget) = self.mouse_capture_widget
+        if let Some(mouse_capture_widget) = self.widgets.mouse_capture_widget
             && (mouse_capture_widget == id || self.widget_has_parent(mouse_capture_widget, id))
         {
             set_mouse_capture_widget(self, None);
         }
 
         let window_id = self.get_window_id_for_widget(id);
-        if let Some(focus_widget) = self.window(window_id).focus_widget
+        if let Some(focus_widget) = self.widgets.focus_widget_id(window_id)
             && (focus_widget == id || self.widget_has_parent(focus_widget, id))
         {
             set_focus_widget(self, window_id, None);
@@ -212,17 +210,6 @@ impl AppState {
             }
         }
         false
-    }
-
-    pub fn widget_has_focus(&self, id: WidgetId) -> bool {
-        self.window(self.widgets.data[id].window_id)
-            .focus_widget
-            .as_ref()
-            .is_some_and(|focus_widget_id| *focus_widget_id == id)
-    }
-
-    pub fn widget_has_captured_mouse(&self, widget_id: WidgetId) -> bool {
-        self.mouse_capture_widget.is_some_and(|id| id == widget_id)
     }
 
     pub(super) fn with_id_buffer_mut(&mut self, f: impl FnOnce(&mut Self, &mut Vec<WidgetId>)) {
@@ -383,8 +370,8 @@ impl ParamContext for AppState {
 }
 
 impl CreateContext for AppState {
-    fn owner(&self) -> Option<super::Owner> {
-        None
+    fn owner(&self) -> Owner {
+        Owner::Root
     }
 }
 
