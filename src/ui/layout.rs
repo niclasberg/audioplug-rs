@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use super::style::{AvailableSpace, LayoutMode, ResolveInto, Style, UiRect};
-use super::{OverlayAnchor, OverlayOptions};
-use crate::core::{HAlign, Point, Rect, Size, VAlign, Vec2, Zero};
+use crate::core::{Rect, Size};
 use crate::ui::Widgets;
 use crate::ui::widgets::WidgetIdIter;
 use taffy::{
@@ -10,7 +9,7 @@ use taffy::{
     TraversePartialTree, TraverseTree,
 };
 
-use super::{AppState, WidgetFlags, WidgetId, WindowId};
+use super::{WidgetFlags, WidgetId};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum RecomputeLayout {
@@ -18,132 +17,19 @@ pub enum RecomputeLayout {
     Force,
 }
 
-pub fn layout_window(app_state: &mut AppState, window_id: WindowId, mode: RecomputeLayout) {
-    app_state.with_id_buffer_mut(move |app_state, overlay_ids| {
-        let widgets = &mut app_state.widgets;
-        let window = widgets.window(window_id);
-        let window_size = window.handle.global_bounds().size();
-        let window_rect = Rect::from_origin(Point::ZERO, window_size);
-        let root_id = window.root_widget;
-        overlay_ids.extend(window.overlays.iter());
-
-        let available_space = taffy::Size {
-            width: taffy::AvailableSpace::Definite(window_size.width as f32),
-            height: taffy::AvailableSpace::Definite(window_size.height as f32),
-        };
-
-        widgets.rebuild_children();
-        // Need to layout root first, the overlay positions can depend on their parent positions
-        if mode == RecomputeLayout::Force || widgets.data[root_id].needs_layout() {
-            println!("Layout main ui");
-            let mut cx = LayoutContext {
-                widgets,
-                window_size,
-                region_to_invalidate: None,
-            };
-            taffy::compute_root_layout(&mut cx, root_id.into(), available_space);
-            let region_to_invalidate = cx.region_to_invalidate;
-
-            update_node_origins(widgets, root_id, Point::ZERO);
-            if let Some(region_to_invalidate) = region_to_invalidate {
-                widgets
-                    .window(window_id)
-                    .handle
-                    .invalidate(region_to_invalidate);
-            }
-        }
-
-        // This is currently in z-index order, we should probably iterate in insertion order
-        // If an overlay's position depends on the position of a previously created overlay,
-        // this will be wrong.
-        for (i, overlay_id) in overlay_ids.iter().enumerate() {
-            if mode == RecomputeLayout::Force || widgets.data[*overlay_id].needs_layout() {
-                let mut cx = LayoutContext {
-                    widgets,
-                    window_size,
-                    region_to_invalidate: None,
-                };
-                taffy::compute_root_layout(&mut cx, (*overlay_id).into(), available_space);
-                let region_to_invalidate = cx.region_to_invalidate;
-                let options = widgets
-                    .window(window_id)
-                    .overlays
-                    .get_overlay_options(i)
-                    .unwrap();
-
-                let offset = compute_overlay_offset(widgets, window_rect, *overlay_id, options);
-
-                update_node_origins(widgets, *overlay_id, offset.into_point());
-                if let Some(region_to_invalidate) = region_to_invalidate {
-                    widgets
-                        .window(window_id)
-                        .handle
-                        .invalidate(region_to_invalidate.offset(offset));
-                }
-            }
-        }
-
-        //let region_to_invalidate = ctx.region_to_invalidate;
-
-        /*if let Some(region_to_invalidate) = region_to_invalidate {
-            app_state
-                .window(window_id)
-                .handle
-                .invalidate(region_to_invalidate);
-        }*/
-        //taffy::print_tree(&mut ctx, widget_id.into());
-    });
-
-    //invalidate_window(app_state, window_id);
-}
-
-fn compute_overlay_offset(
-    widgets: &Widgets,
-    window_rect: Rect,
-    overlay_id: WidgetId,
-    options: OverlayOptions,
-) -> Vec2 {
-    let current_bounds = widgets.data[overlay_id].local_bounds();
-    let parent_id = widgets.data[overlay_id].parent_id;
-    let parent_bounds = widgets.data[parent_id].global_bounds();
-    let alignment_offset = match options.anchor {
-        OverlayAnchor::Fixed => options.align.compute_offset(current_bounds, window_rect),
-        OverlayAnchor::InsideParent => options.align.compute_offset(current_bounds, parent_bounds),
-        OverlayAnchor::OutsideParent => {
-            let mut result = options.align.compute_offset(current_bounds, parent_bounds);
-            match options.align.get_h_align() {
-                HAlign::Left => result.x -= current_bounds.width(),
-                HAlign::Right => result.x += current_bounds.width(),
-                _ => {}
-            };
-            match options.align.get_v_align() {
-                VAlign::Top => result.y -= current_bounds.height(),
-                VAlign::Bottom => result.y += current_bounds.height(),
-                _ => {}
-            }
-            result
-        }
+pub(super) fn compute_root_layout(
+    widgets: &mut Widgets,
+    root_widget_id: WidgetId,
+    window_size: Size,
+) -> Option<Rect> {
+    let available_space = taffy::Size {
+        width: taffy::AvailableSpace::Definite(window_size.width as f32),
+        height: taffy::AvailableSpace::Definite(window_size.height as f32),
     };
-
-    alignment_offset + options.offset
+    let mut layout_context = LayoutContext::new(widgets, window_size);
+    taffy::compute_root_layout(&mut layout_context, root_widget_id.into(), available_space);
+    layout_context.region_to_invalidate
 }
-
-fn update_node_origins(widgets: &mut Widgets, root_widget: WidgetId, position: Point) {
-    let mut stack = vec![];
-    widgets.data[root_widget].origin = position;
-    for child in widgets.child_id_iter(root_widget) {
-        stack.push((child, position));
-    }
-
-    while let Some((widget_id, parent_origin)) = stack.pop() {
-        let origin = widgets.data[widget_id].offset() + parent_origin.into_vec2();
-        for child in widgets.child_id_iter(widget_id) {
-            stack.push((child, origin))
-        }
-        widgets.data[widget_id].origin = origin;
-    }
-}
-
 pub struct LayoutChildIter<'a> {
     inner: std::slice::Iter<'a, WidgetId>,
 }
@@ -162,7 +48,15 @@ pub struct LayoutContext<'a> {
     region_to_invalidate: Option<Rect>,
 }
 
-impl LayoutContext<'_> {
+impl<'a> LayoutContext<'a> {
+    pub(super) fn new(widgets: &'a mut Widgets, window_size: Size) -> Self {
+        Self {
+            widgets,
+            window_size,
+            region_to_invalidate: None,
+        }
+    }
+
     fn get_layout_style(&self, node_id: taffy::NodeId) -> LayoutStyle<'_> {
         let node_id = node_id.into();
         LayoutStyle {

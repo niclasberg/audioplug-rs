@@ -7,10 +7,12 @@ use std::{
 use slotmap::{Key, SecondaryMap, SlotMap};
 
 use crate::{
-    core::{FxIndexSet, Point},
+    core::{FxIndexSet, HAlign, Point, Rect, VAlign, Vec2, Zero},
     platform,
     ui::{
-        OverlayOptions, Widget, WidgetData, WidgetFlags, WidgetId, WidgetRef, WindowId,
+        OverlayAnchor, OverlayOptions, Widget, WidgetData, WidgetFlags, WidgetId, WidgetRef,
+        WindowId,
+        layout::RecomputeLayout,
         overlay::OverlayContainer,
         render::{GpuScene, WGPUSurface},
     },
@@ -49,8 +51,6 @@ pub struct Widgets {
     child_layout_changed: FxIndexSet<WidgetId>,
     /// Ids of all widgets that have requested animation. Cleared during each call to [drive_animations]
     pending_animations: FxIndexSet<WidgetId>,
-    /// Ids of all widgets that have requested render.
-    needing_render: FxIndexSet<WidgetId>,
     /// Temporary cache used to avoid allocations while performing traversals
     id_buffer: Cell<VecDeque<WidgetId>>,
     /// The widget that currently has mouse capture
@@ -64,21 +64,6 @@ impl Widgets {
 
     pub fn contains(&self, widget_id: WidgetId) -> bool {
         self.data.contains_key(widget_id)
-    }
-
-    pub(super) fn rebuild_children(&mut self) {
-        for widget_id in std::mem::take(&mut self.child_layout_changed) {
-            let mut children = std::mem::take(&mut self.child_id_cache[widget_id]);
-            children.clear();
-            children.extend(self.child_id_iter(widget_id));
-            self.child_id_cache[widget_id] = children;
-        }
-    }
-
-    /// Get the (cached) child ids for a widget. You must call rebuild_children before using this method.
-    pub(super) fn cached_child_ids(&self, widget_id: WidgetId) -> &Vec<WidgetId> {
-        debug_assert!(self.child_layout_changed.is_empty());
-        &self.child_id_cache[widget_id]
     }
 
     /// Iterator over the ids of all siblings of a node
@@ -103,6 +88,10 @@ impl Widgets {
             inner: WidgetIdIter::all_children(&self, widget_id),
             widgets: &self,
         }
+    }
+
+    pub fn window_id_iter(&self) -> impl Iterator<Item = WindowId> {
+        self.windows.iter().map(|(k, _)| k)
     }
 
     pub(super) fn allocate_window(
@@ -220,9 +209,6 @@ impl Widgets {
     fn internal_remove(&mut self, widget_id: WidgetId) -> WidgetData {
         self.child_id_cache.remove(widget_id);
         self.widgets.remove(widget_id);
-        // Maybe skip clearing these and update dependent code to not require the widgets to exist
-        self.pending_animations.shift_remove(&widget_id);
-        self.needing_render.shift_remove(&widget_id);
 
         self.data
             .remove(widget_id)
@@ -321,26 +307,18 @@ impl Widgets {
         self.pending_animations.insert(widget_id);
     }
 
+    /// Returns the ids of all widgets that have requested an animation frame.
+    /// May contain ids of widgets that have been removed.
     pub(super) fn take_requested_animations(&mut self) -> FxIndexSet<WidgetId> {
         std::mem::take(&mut self.pending_animations)
     }
 
-    pub(crate) fn request_layout(&mut self, widget_id: WidgetId) {
-        let mut current = widget_id;
-        // Merge until we hit the root, an overlay or another node that
-        // already have marked as needing layout
-        loop {
-            if current.is_null() {
-                break;
-            }
-            let data = &mut self.data[current];
-            if data.is_overlay() || data.flag_is_set(WidgetFlags::NEEDS_LAYOUT) {
-                break;
-            }
-
-            data.set_flag(WidgetFlags::NEEDS_LAYOUT);
-            current = data.parent_id;
-        }
+    pub fn request_render(&mut self, widget_id: WidgetId) {
+        let data = &mut self.data[widget_id];
+        data.set_flag(WidgetFlags::NEEDS_RENDER);
+        self.windows[data.window_id]
+            .handle
+            .invalidate(data.global_bounds());
     }
 
     pub fn invalidate_widget(&self, widget_id: WidgetId) {
@@ -358,27 +336,164 @@ impl Widgets {
     }
 
     /// Gets children of a widget. The order is from the root and down the tree (draw order).
-    pub(super) fn get_widgets_at(&self, root_id: WidgetId, pos: Point) -> Vec<WidgetId> {
+    pub(super) fn get_widgets_at(&self, window_id: WindowId, pos: Point) -> Vec<WidgetId> {
         let mut widgets = Vec::new();
+        let window = &self.windows[window_id];
+        let mut roots = vec![window.root_widget];
+        roots.extend(window.overlays.iter());
+
         let mut stack = self.id_buffer.take();
         stack.clear();
 
-        if self.data[root_id].global_bounds().contains(pos) {
-            stack.push_back(root_id);
-            while let Some(current) = stack.pop_front() {
-                widgets.push(current);
+        for root_id in roots {
+            if self.data[root_id].global_bounds().contains(pos) {
+                stack.push_back(root_id);
+                while let Some(current) = stack.pop_front() {
+                    widgets.push(current);
 
-                let mut widget_id_iter = WidgetIdIter::all_children(&self, current);
-                while let Some(child_id) = widget_id_iter.next_id(&self) {
-                    let data = &self.data[child_id];
-                    if data.global_bounds().contains(pos) && !data.is_overlay() {
-                        stack.push_back(child_id)
+                    let mut widget_id_iter = WidgetIdIter::all_children(&self, current);
+                    while let Some(child_id) = widget_id_iter.next_id(&self) {
+                        let data = &self.data[child_id];
+                        if data.global_bounds().contains(pos) && !data.is_overlay() {
+                            stack.push_back(child_id)
+                        }
                     }
                 }
             }
         }
+
         self.id_buffer.set(stack);
         widgets
+    }
+}
+
+// Layout
+impl Widgets {
+    pub(crate) fn request_layout(&mut self, widget_id: WidgetId) {
+        let mut current = widget_id;
+        // Mark the widget and all parents as needing layout until we hit the root,
+        // an overlay or another node that already have marked as needing layout
+        loop {
+            if current.is_null() {
+                break;
+            }
+            let data = &mut self.data[current];
+            if data.is_overlay() || data.flag_is_set(WidgetFlags::NEEDS_LAYOUT) {
+                break;
+            }
+
+            data.set_flag(WidgetFlags::NEEDS_LAYOUT);
+            current = data.parent_id;
+        }
+    }
+
+    pub fn layout_window(&mut self, window_id: WindowId, mode: RecomputeLayout) {
+        use super::layout::compute_root_layout;
+
+        let window = &mut self.windows[window_id];
+        let window_size = window.handle.global_bounds().size();
+        let window_rect = Rect::from_origin(Point::ZERO, window_size);
+        let root_id = window.root_widget;
+
+        self.rebuild_children();
+
+        // Need to layout root first, the overlay positions can depend on their parent positions
+        if mode == RecomputeLayout::Force || self.data[root_id].needs_layout() {
+            let region_to_invalidate = compute_root_layout(self, root_id, window_size);
+            self.update_node_origins(root_id, Point::ZERO);
+            if let Some(region_to_invalidate) = region_to_invalidate {
+                self.window(window_id)
+                    .handle
+                    .invalidate(region_to_invalidate);
+            }
+        }
+
+        // This is currently in z-index order, we should probably iterate in insertion order
+        // If an overlay's position depends on the position of a previously created overlay,
+        // this will be wrong.
+        let overlay_ids: Vec<_> = self.windows[window_id].overlays.iter().collect();
+        for (i, overlay_id) in overlay_ids.into_iter().enumerate() {
+            if mode == RecomputeLayout::Force || self.data[overlay_id].needs_layout() {
+                let region_to_invalidate = compute_root_layout(self, root_id, window_size);
+                let options = self
+                    .window(window_id)
+                    .overlays
+                    .get_overlay_options(i)
+                    .unwrap();
+
+                let offset = self.compute_overlay_offset(window_rect, overlay_id, options);
+                self.update_node_origins(overlay_id, offset.into_point());
+                if let Some(region_to_invalidate) = region_to_invalidate {
+                    self.window(window_id)
+                        .handle
+                        .invalidate(region_to_invalidate.offset(offset));
+                }
+            }
+        }
+    }
+
+    fn rebuild_children(&mut self) {
+        for widget_id in std::mem::take(&mut self.child_layout_changed) {
+            let mut children = std::mem::take(&mut self.child_id_cache[widget_id]);
+            children.clear();
+            children.extend(self.child_id_iter(widget_id));
+            self.child_id_cache[widget_id] = children;
+        }
+    }
+
+    fn compute_overlay_offset(
+        &self,
+        window_rect: Rect,
+        overlay_id: WidgetId,
+        options: OverlayOptions,
+    ) -> Vec2 {
+        let current_bounds = self.data[overlay_id].local_bounds();
+        let parent_id = self.data[overlay_id].parent_id;
+        let parent_bounds = self.data[parent_id].global_bounds();
+        let alignment_offset = match options.anchor {
+            OverlayAnchor::Fixed => options.align.compute_offset(current_bounds, window_rect),
+            OverlayAnchor::InsideParent => {
+                options.align.compute_offset(current_bounds, parent_bounds)
+            }
+            OverlayAnchor::OutsideParent => {
+                let mut result = options.align.compute_offset(current_bounds, parent_bounds);
+                match options.align.get_h_align() {
+                    HAlign::Left => result.x -= current_bounds.width(),
+                    HAlign::Right => result.x += current_bounds.width(),
+                    _ => {}
+                };
+                match options.align.get_v_align() {
+                    VAlign::Top => result.y -= current_bounds.height(),
+                    VAlign::Bottom => result.y += current_bounds.height(),
+                    _ => {}
+                }
+                result
+            }
+        };
+
+        alignment_offset + options.offset
+    }
+
+    fn update_node_origins(&mut self, root_widget: WidgetId, position: Point) {
+        let mut stack = vec![];
+        self.data[root_widget].origin = position;
+        for child in self.child_id_iter(root_widget) {
+            stack.push((child, position));
+        }
+
+        while let Some((widget_id, parent_origin)) = stack.pop() {
+            let origin = self.data[widget_id].offset() + parent_origin.into_vec2();
+            for child in self.child_id_iter(widget_id) {
+                stack.push((child, origin))
+            }
+            self.data[widget_id].origin = origin;
+        }
+    }
+
+    /// Get the (cached) child ids for a widget. You must call rebuild_children before using this method.
+    pub(super) fn cached_child_ids(&self, widget_id: WidgetId) -> &Vec<WidgetId> {
+        debug_assert!(self.child_layout_changed.is_empty());
+        &self.child_id_cache[widget_id]
     }
 }
 

@@ -447,7 +447,7 @@ impl ReactiveGraph {
         self.notify_source_changed(widgets, task_queue, nodes_to_notify);
     }
 
-    pub(crate) fn notify_widget_status_changed<Cx>(
+    pub(crate) fn notify_widget_status_changed(
         &mut self,
         widgets: &mut Widgets,
         task_queue: &mut TaskQueue,

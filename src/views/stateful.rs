@@ -13,7 +13,7 @@ pub struct ScopeContext<'a> {
 
 impl ScopeContext<'_> {
     pub fn theme(&self) -> ReadSignal<WindowTheme> {
-        self.app_state.window_theme_signal(self.id)
+        self.app_state.theme_signal.as_read_signal()
     }
 }
 

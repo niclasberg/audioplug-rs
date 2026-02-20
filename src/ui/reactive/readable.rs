@@ -57,14 +57,6 @@ where
     reactive_graph.update_cached_value_if_necessary(widgets, node_id);
 }
 
-pub(crate) fn notify_parameter_subscribers<Cx>(cx: &mut Cx, parameter_id: ParameterId)
-where
-    Cx: ReactiveContextMut + ?Sized,
-{
-    let (reactive_graph, widgets, task_queue) = cx.components_mut();
-    reactive_graph.notify_parameter_subscribers(widgets, task_queue, parameter_id);
-}
-
 pub trait ReactiveContextMut: ReactiveContext {
     fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue);
 
@@ -91,6 +83,25 @@ where
 {
     let (reactive_graph, widgets, task_queue) = cx.components_mut();
     reactive_graph.notify(widgets, task_queue, node_id);
+}
+
+pub(crate) fn notify_parameter_subscribers<Cx>(cx: &mut Cx, parameter_id: ParameterId)
+where
+    Cx: ReactiveContextMut + ?Sized,
+{
+    let (reactive_graph, widgets, task_queue) = cx.components_mut();
+    reactive_graph.notify_parameter_subscribers(widgets, task_queue, parameter_id);
+}
+
+pub(crate) fn notify_widget_status_changed<Cx>(
+    cx: &mut Cx,
+    widget_id: WidgetId,
+    flags: WidgetStatusFlags,
+) where
+    Cx: ReactiveContextMut + ?Sized,
+{
+    let (reactive_graph, widgets, task_queue) = cx.components_mut();
+    reactive_graph.notify_widget_status_changed(widgets, task_queue, widget_id, flags);
 }
 
 /// Contexts implementing `CreateContext` allows reactive elements to be created.

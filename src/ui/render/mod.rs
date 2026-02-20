@@ -21,25 +21,6 @@ pub use wgpu_surface::WGPUSurface;
 use super::{WidgetId, WindowId};
 pub use platform::TextLayout;
 
-pub fn render_widgets(widgets: &mut Widgets, reactive_graph: &mut ReactiveGraph) {
-    app_state.with_id_buffer_mut(move |app_state, widgets_to_render| {
-        /*widgets_to_render.extend(
-            app_state
-                .window_mut(window_id)
-                .widgets_needing_render
-                .drain(..),
-        );*/
-
-        for widget_id in widgets_to_render {
-            let mut cx = RenderContext {
-                id: *widget_id,
-                widgets: &mut app_state.widgets,
-            };
-            cx.render_current_widget();
-        }
-    });
-}
-
 pub fn invalidate_window(widgets: &Widgets, window_id: WindowId) {
     let handle = &widgets.window(window_id).handle;
     handle.invalidate_window()
@@ -216,7 +197,19 @@ pub struct RenderContext<'a> {
     pub(super) reactive_graph: &'a mut ReactiveGraph,
 }
 
-impl RenderContext<'_> {
+impl<'a> RenderContext<'a> {
+    pub(super) fn new(
+        id: WidgetId,
+        widgets: &'a mut Widgets,
+        reactive_graph: &'a mut ReactiveGraph,
+    ) -> Self {
+        Self {
+            id,
+            widgets,
+            reactive_graph,
+        }
+    }
+
     pub fn local_bounds(&self) -> Rect {
         self.widgets.get(self.id).local_bounds()
     }
@@ -238,7 +231,7 @@ impl RenderContext<'_> {
     }
 
     fn render_current_widget(&mut self) {
-        let mut widget = self.widgets.lease_widget(self.id);
+        let mut widget = self.widgets.lease_widget(self.id).unwrap();
         let scene = widget.render(self);
         self.widgets.unlease_widget(widget);
         self.widgets.data[self.id].scene = scene;

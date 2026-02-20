@@ -81,16 +81,12 @@ impl<V: View> platform::WindowHandler for MyHandler<V> {
 
     fn get_cursor(&self, pos: Point) -> Option<Cursor> {
         let app_state = self.app_state.borrow();
-        let mut selected_cursor = None;
-        app_state.for_each_widget_at_rev(self.state.window_id(), pos, |app_state, widget_id| {
-            if let Some(cursor) = app_state.widgets.data[widget_id].style.cursor {
-                selected_cursor = Some(cursor);
-                false
-            } else {
-                true
-            }
-        });
-        selected_cursor
+        app_state
+            .widgets
+            .get_widgets_at(self.state.window_id(), pos)
+            .into_iter()
+            .rev()
+            .find_map(|id| app_state.widgets.data[id].style.cursor)
     }
 }
 

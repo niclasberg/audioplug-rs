@@ -23,7 +23,6 @@ pub use animation::AnimationContext;
 pub(crate) use app_state::AppState;
 pub use event_handling::{CallbackContext, EventContext, MouseEventContext};
 pub use host_handle::HostHandle;
-pub use layout::{LayoutContext, layout_window};
 pub use overlay::{OverlayAnchor, OverlayOptions};
 
 pub use reactive::{
@@ -35,7 +34,6 @@ pub use reactive::{
 };
 pub use render::{
     Canvas, CanvasContext, CanvasWidget, RenderContext, Scene, TextLayout, invalidate_window,
-    render_widgets,
 };
 pub use task_queue::TaskQueue;
 

@@ -1,29 +1,26 @@
 use super::{
     AnyView, BuildContext, CreateContext, HostHandle, ParamContext, ReactiveContext, ReadContext,
-    ReadSignal, Var, View, Widget, WidgetContext, WidgetData, WidgetId, WidgetMut, WidgetRef,
-    WindowId, WriteContext,
+    Var, View, Widget, WidgetContext, WidgetData, WidgetId, WidgetMut, WidgetRef, WindowId,
+    WriteContext,
     clipboard::Clipboard,
     event_handling::{set_focus_widget, set_mouse_capture_widget},
     layout::RecomputeLayout,
-    layout_window,
     reactive::{ReactiveGraph, WatchContext},
     style::StyleBuilder,
 };
 use crate::{
-    core::{Point, WindowTheme},
+    core::WindowTheme,
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
     ui::{
         Owner, Widgets,
         reactive::{LocalCreateContext, ReactiveContextMut},
         render::WGPUSurface,
-        render_widgets,
         task_queue::TaskQueue,
         widgets::WidgetPos,
     },
 };
-use slotmap::Key;
-use std::{cell::Cell, ops::DerefMut, rc::Rc};
+use std::{cell::Cell, rc::Rc};
 
 pub struct AppState {
     pub(super) wgpu_instance: wgpu::Instance,
@@ -32,7 +29,7 @@ pub struct AppState {
     host_handle: Option<Box<dyn HostHandle>>,
     id_buffer: Cell<Vec<WidgetId>>,
     pub(super) task_queue: TaskQueue,
-    pub(super) theme_signal: Var<WindowTheme>,
+    pub(crate) theme_signal: Var<WindowTheme>,
 }
 
 impl AppState {
@@ -109,7 +106,8 @@ impl AppState {
         let window_id = self.widgets.allocate_window(handle, wgpu_surface);
         let root_widget_id = self.widgets.window(window_id).root_widget;
         self.build_and_insert_widget(root_widget_id, view);
-        layout_window(self, window_id, RecomputeLayout::Force);
+        self.widgets
+            .layout_window(window_id, RecomputeLayout::Force);
         window_id
     }
 
@@ -201,82 +199,6 @@ impl AppState {
         self.id_buffer.set(scratch);
     }
 
-    /// Calls `f` for each widget that contains `pos`. The order is from the root and down the tree (draw order).
-    /// Iteration continues until all widgets have been visited, or `f` returns false
-    pub fn for_each_widget_at(
-        &self,
-        id: WindowId,
-        pos: Point,
-        mut f: impl FnMut(&Self, WidgetId) -> bool,
-    ) {
-        let mut root_and_overlays = vec![self.windows[id].root_widget];
-        root_and_overlays.extend(self.windows[id].overlays.iter());
-        for root in root_and_overlays {
-            for id in self.widgets.get_widgets_at(root, pos) {
-                if !f(self, id) {
-                    return;
-                }
-            }
-        }
-    }
-
-    pub fn for_each_widget_at_mut(
-        &mut self,
-        id: WindowId,
-        pos: Point,
-        mut f: impl FnMut(&mut Self, WidgetId) -> bool,
-    ) {
-        let mut root_and_overlays = vec![self.windows[id].root_widget];
-        root_and_overlays.extend(self.windows[id].overlays.iter());
-        for root in root_and_overlays {
-            for id in self.widgets.get_widgets_at(root, pos) {
-                if !f(self, id) {
-                    return;
-                }
-            }
-        }
-    }
-
-    /// Calls `f` for each widget that contains `pos`. The traversal order is from the top leaf back to the root (reverse draw order)
-    pub fn for_each_widget_at_rev(
-        &self,
-        id: WindowId,
-        pos: Point,
-        mut f: impl FnMut(&Self, WidgetId) -> bool,
-    ) {
-        // Overlays first (in reverse order) and then the "regular" view hierarchy
-        let mut root_and_overlays: Vec<_> = self.windows[id].overlays.iter().rev().collect();
-        root_and_overlays.push(self.windows[id].root_widget);
-        for root in root_and_overlays {
-            for id in self.widgets.get_widgets_at(root, pos).into_iter().rev() {
-                if !f(self, id) {
-                    return;
-                }
-            }
-        }
-    }
-
-    pub fn for_each_widget_at_rev_mut(
-        &mut self,
-        id: WindowId,
-        pos: Point,
-        mut f: impl FnMut(&mut Self, WidgetId) -> bool,
-    ) {
-        let mut root_and_overlays: Vec<_> = self.windows[id].overlays.iter().rev().collect();
-        root_and_overlays.push(self.windows[id].root_widget);
-        for root in root_and_overlays {
-            for id in self.widgets.get_widgets_at(root, pos).into_iter().rev() {
-                if !f(self, id) {
-                    return;
-                }
-            }
-        }
-    }
-
-    pub fn window_theme_signal(&self, id: WidgetId) -> ReadSignal<WindowTheme> {
-        self.window_for_widget(id).theme_signal.as_read_signal()
-    }
-
     pub fn focus_widget(&self, window_id: WindowId) -> Option<WidgetRef<'_, dyn Widget>> {
         self.widgets
             .window(window_id)
@@ -285,7 +207,8 @@ impl AppState {
     }
 
     pub fn focus_widget_mut(&mut self, window_id: WindowId) -> Option<WidgetMut<'_, dyn Widget>> {
-        self.window(window_id)
+        self.widgets
+            .window(window_id)
             .focus_widget
             .map(|id| WidgetMut::new(self, id))
     }
@@ -307,12 +230,11 @@ impl AppState {
         }
 
         // Layout if needed
-        let window_ids: Vec<_> = self.windows.iter().map(|window| window.0).collect();
+        let window_ids: Vec<_> = self.widgets.window_id_iter().collect();
         for window_id in window_ids {
-            layout_window(self, window_id, RecomputeLayout::IfNeeded);
+            self.widgets
+                .layout_window(window_id, RecomputeLayout::IfNeeded);
         }
-
-        render_widgets(&mut self.widgets, &mut self.reactive_graph);
     }
 
     pub fn clipboard(&self, window_id: WindowId) -> Clipboard<'_> {
@@ -327,7 +249,7 @@ impl ReactiveContext for AppState {
         (&self.reactive_graph, &self.widgets)
     }
 
-    fn reactive_graph_mut_and_widgets(&mut self) -> (&mut ReactiveGraph, &mut Widgets) {
+    fn reactive_graph_mut_and_widgets(&mut self) -> (&mut ReactiveGraph, &Widgets) {
         (&mut self.reactive_graph, &mut self.widgets)
     }
 }
