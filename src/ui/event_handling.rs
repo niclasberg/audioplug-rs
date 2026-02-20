@@ -68,8 +68,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             let mut key_widget = app_state
                 .widgets
                 .focus_widget_id(window_id)
-                .focus_widget
-                .unwrap_or(app_state.window(window_id).root_widget);
+                .unwrap_or(app_state.wid window(window_id).root_widget);
 
             // We start from the current focus widget, and work our way down until either
             // the event is handled, or we have reached a parentless widget
