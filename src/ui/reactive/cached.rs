@@ -1,9 +1,6 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
-use crate::ui::{
-    Accessor, Effect, ReactiveGraph, ReadSignal, Widgets, reactive::LocalContext,
-    task_queue::TaskQueue,
-};
+use crate::ui::{Accessor, Effect, ReactiveGraph, ReadSignal, Widgets, reactive::LocalContext};
 
 use super::{
     CreateContext, NodeId, NodeType, ReactiveContext, ReactiveValue, ReadContext, ReadScope,
@@ -15,12 +12,12 @@ pub struct CachedContext<'a> {
 }
 
 impl ReactiveContext for CachedContext<'_> {
-    fn components(&self) -> (&ReactiveGraph, &Widgets) {
-        self.cx.components()
+    fn reactive_graph_and_widgets(&self) -> (&ReactiveGraph, &Widgets) {
+        self.cx.reactive_graph_and_widgets()
     }
 
-    fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
-        self.cx.components_mut()
+    fn reactive_graph_mut_and_widgets(&mut self) -> (&mut ReactiveGraph, &Widgets) {
+        self.cx.reactive_graph_mut_and_widgets()
     }
 }
 
@@ -78,7 +75,7 @@ impl<T: Any> Cached<T> {
             }),
             value: None,
         };
-        let id = super::create_memo_node(cx, state);
+        let id = cx.create_memo_node(state);
 
         Self {
             id,
@@ -123,7 +120,7 @@ impl<T: 'static> ReactiveValue for Cached<T> {
 }
 
 fn update_and_get_memo_value(cx: &mut dyn ReactiveContext, id: NodeId) -> &dyn Any {
-    super::update_if_necessary(cx, id);
+    super::update_value_if_needed(cx, id);
     match &cx.reactive_graph().get_node(id).node_type {
         NodeType::Memo(state) => state
             .value

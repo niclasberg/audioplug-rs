@@ -333,7 +333,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 
     pub fn request_render(&mut self) {
-        invalidate_widget(self.app_state, self.id);
+        self.app_state.widgets.invalidate_widget(self.id);
     }
 
     pub fn update_style(&mut self, f: impl FnOnce(&mut Style)) {

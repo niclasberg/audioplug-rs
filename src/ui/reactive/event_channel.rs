@@ -37,7 +37,7 @@ impl<T: Any> EventReceiver<T> {
 pub fn create_event_channel<T: Any>(
     cx: &mut dyn CreateContext,
 ) -> (EventChannel<T>, EventReceiver<T>) {
-    let emitter_id = super::create_event_emitter(cx);
+    let emitter_id = cx.create_event_emitter();
     let emitter = EventChannel {
         emitter_id,
         _phantom: PhantomData,

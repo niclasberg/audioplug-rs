@@ -3,8 +3,7 @@ use std::{any::Any, marker::PhantomData};
 use crate::ui::{Accessor, ReactiveContext};
 
 use super::{
-    CreateContext, NodeId, NodeType, Owner, ReactiveGraph, ReactiveValue, Trigger, WriteContext,
-    var::SignalState,
+    CreateContext, NodeId, NodeType, Owner, ReactiveValue, Trigger, WriteContext, var::SignalState,
 };
 
 #[derive(Copy, Clone)]
@@ -20,7 +19,7 @@ impl<T: Any> SignalVec<T> {
             triggers: Vec::new(),
             len_trigger: None,
         });
-        let id = super::create_var_node(cx, state);
+        let id = cx.create_var_node(state);
         Self {
             id,
             _phantom: PhantomData,
@@ -61,7 +60,7 @@ impl<T: Any> SignalVec<T> {
 
     fn with_inner_mut<R>(
         &self,
-        cx: &mut dyn ReactiveContext,
+        cx: &mut dyn WriteContext,
         f: impl FnOnce(&mut Inner<T>) -> R,
     ) -> R {
         let graph = &mut cx.reactive_graph_mut();

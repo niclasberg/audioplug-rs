@@ -6,6 +6,7 @@ use crate::{
     ui::{
         AnyView, AppState, CreateContext, Owner, ReactiveContext, ReactiveGraph, TaskQueue, Var,
         View, Widgets,
+        reactive::ReactiveContextMut,
         style::{Length, UiRect},
     },
     views::{Column, Container, Label, ParameterSlider, Row, Stateful},
@@ -16,10 +17,16 @@ pub struct EditorContext<'a> {
 }
 
 impl ReactiveContext for EditorContext<'_> {
-    fn components(&self) -> (&ReactiveGraph, &Widgets) {
-        self.app_state.components()
+    fn reactive_graph_and_widgets(&self) -> (&ReactiveGraph, &Widgets) {
+        self.app_state.reactive_graph_and_widgets()
     }
 
+    fn reactive_graph_mut_and_widgets(&mut self) -> (&mut ReactiveGraph, &Widgets) {
+        self.app_state.reactive_graph_mut_and_widgets()
+    }
+}
+
+impl ReactiveContextMut for EditorContext<'_> {
     fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
         self.app_state.components_mut()
     }

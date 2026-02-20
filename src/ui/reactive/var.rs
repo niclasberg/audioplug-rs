@@ -1,4 +1,4 @@
-use std::{any::Any, marker::PhantomData};
+use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
 use super::{
     Accessor, CreateContext, Effect, NodeId, NodeType, Owner, ReactiveContext, ReactiveValue,
@@ -22,7 +22,7 @@ impl<T> Copy for Var<T> {}
 impl<T: Any> Var<T> {
     pub fn new(cx: &mut dyn CreateContext, value: T) -> Self {
         let state = SignalState::new(value);
-        let id = super::create_var_node(cx, state);
+        let id = cx.create_var_node(state);
         Self {
             id,
             _marker: PhantomData,
@@ -55,7 +55,7 @@ impl<T: Any> Var<T> {
         f: impl FnOnce(&mut dyn CreateContext, &mut T),
     ) {
         if let Some(mut node) = cx.reactive_graph_mut().lease_node(self.id) {
-            match &mut node {
+            match node.deref_mut() {
                 NodeType::Signal(signal) => {
                     let value = signal
                         .value
@@ -65,7 +65,7 @@ impl<T: Any> Var<T> {
                 }
                 _ => unreachable!(),
             }
-            cx.reactive_graph_mut().unlease_node(self.id, node);
+            cx.reactive_graph_mut().unlease_node(node);
         }
         super::notify(cx, self.id);
     }

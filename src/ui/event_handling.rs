@@ -1,7 +1,7 @@
 use super::{
     AppState, EventStatus, ParamContext, ReactiveContext, ReadContext, ReadScope, WidgetFlags,
     WidgetId, WindowId, WriteContext, animation::drive_animations, clipboard::Clipboard,
-    invalidate_window, layout_window, render::invalidate_widget,
+    invalidate_window, layout_window,
 };
 use crate::{
     KeyEvent, MouseEvent,
@@ -10,7 +10,7 @@ use crate::{
     ui::{
         StatusChange, TaskQueue, Widget, WidgetMut, Widgets,
         layout::RecomputeLayout,
-        reactive::{CLICKED_STATUS, FOCUS_STATUS, notify_widget_status_changed},
+        reactive::{CLICKED_STATUS, FOCUS_STATUS, ReactiveContextMut},
         task_queue::Task,
     },
 };
@@ -35,8 +35,8 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                 set_focus_widget(app_state, window_id, new_focus_view);
             };
 
-            let mut new_mouse_capture_widget = app_state.mouse_capture_widget;
-            if let Some(capture_view) = app_state.mouse_capture_widget {
+            let mut new_mouse_capture_widget = app_state.widgets.mouse_capture_widget;
+            if let Some(capture_view) = app_state.widgets.mouse_capture_widget {
                 let mut cx = MouseEventContext {
                     id: capture_view,
                     widgets: &mut app_state.widgets,
@@ -66,7 +66,8 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         WindowEvent::Key(key_event) => {
             let mut event_status = EventStatus::Ignored;
             let mut key_widget = app_state
-                .window(window_id)
+                .widgets
+                .focus_widget_id(window_id)
                 .focus_widget
                 .unwrap_or(app_state.window(window_id).root_widget);
 
@@ -224,10 +225,6 @@ impl<'a> MouseEventContext<'a> {
         self.widgets.widget_has_captured_mouse(self.id)
     }
 
-    pub fn app_state(&self) -> &AppState {
-        self.app_state
-    }
-
     pub fn as_callback_context(&mut self) -> CallbackContext<'_> {
         CallbackContext {
             _id: self.id,
@@ -344,7 +341,7 @@ impl<'a> EventContext<'a> {
     }
 
     pub fn request_render(&mut self) {
-        invalidate_widget(self.app_state, self.id);
+        self.app_state.widgets.invalidate_widget(self.id);
     }
 
     pub fn clipboard(&self) -> Clipboard<'_> {
@@ -384,10 +381,18 @@ impl ReadContext for CallbackContext<'_> {
 impl WriteContext for CallbackContext<'_> {}
 
 impl ReactiveContext for CallbackContext<'_> {
-    fn components(&self) -> (&super::ReactiveGraph, &super::Widgets) {
-        self.app_state.components()
+    fn reactive_graph_and_widgets(&self) -> (&super::ReactiveGraph, &super::Widgets) {
+        self.app_state.reactive_graph_and_widgets()
     }
 
+    fn reactive_graph_mut_and_widgets(
+        &mut self,
+    ) -> (&mut super::ReactiveGraph, &mut super::Widgets) {
+        self.app_state.reactive_graph_mut_and_widgets()
+    }
+}
+
+impl ReactiveContextMut for CallbackContext<'_> {
     fn components_mut(
         &mut self,
     ) -> (

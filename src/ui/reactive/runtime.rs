@@ -10,11 +10,21 @@ use super::{
 use crate::{
     core::{FxHashMap, FxHashSet, FxIndexSet},
     param::{AnyParameterMap, ParamRef, ParameterId},
-    ui::{WidgetId, Widgets, reactive::LocalContext, task_queue::TaskQueue},
+    ui::{
+        WidgetId, Widgets,
+        reactive::{LocalContext, LocalContextMut},
+        task_queue::{Task, TaskQueue},
+    },
 };
 use slotmap::{SecondaryMap, SlotMap};
 use smallvec::SmallVec;
-use std::{any::Any, collections::VecDeque, rc::Rc, time::Instant};
+use std::{
+    any::Any,
+    collections::VecDeque,
+    ops::{Deref, DerefMut},
+    rc::Rc,
+    time::Instant,
+};
 
 pub struct Node {
     pub(crate) node_type: NodeType,
@@ -103,6 +113,20 @@ impl NodeType {
                 panic!("Cannot get value of EventHandler")
             }
         }
+    }
+}
+
+pub(super) struct LeasedNode(NodeId, NodeType);
+impl Deref for LeasedNode {
+    type Target = NodeType;
+
+    fn deref(&self) -> &Self::Target {
+        &self.1
+    }
+}
+impl DerefMut for LeasedNode {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.1
     }
 }
 
@@ -234,7 +258,7 @@ impl ReactiveGraph {
         for node_id in node_ids {
             let did_change = self.try_drive_animation(node_id, now);
             if did_change {
-                super::notify(&mut LocalContext::new(widgets, self, task_queue), node_id);
+                self.notify(widgets, task_queue, node_id);
                 // Re-queue the animation for the next frame
                 self.pending_animations.insert(node_id);
             }
@@ -264,21 +288,182 @@ impl ReactiveGraph {
     }
 
     /// Temporarily remove a node and return it
-    pub(super) fn lease_node(&mut self, node_id: NodeId) -> Option<NodeType> {
+    pub(super) fn lease_node(&mut self, node_id: NodeId) -> Option<LeasedNode> {
         if let Some(node) = self.nodes.get_mut(node_id) {
-            Some(std::mem::replace(&mut node.node_type, NodeType::TmpRemoved))
+            Some(LeasedNode(
+                node_id,
+                std::mem::replace(&mut node.node_type, NodeType::TmpRemoved),
+            ))
         } else {
             None
         }
     }
 
     /// Return a node that has previously been leased
-    pub(super) fn unlease_node(&mut self, node_id: NodeId, mut node: NodeType) {
-        std::mem::swap(&mut self.nodes[node_id].node_type, &mut node);
+    pub(super) fn unlease_node(&mut self, mut node: LeasedNode) {
+        std::mem::swap(&mut self.nodes[node.0].node_type, &mut node.1);
     }
 
     pub(crate) fn mark_node_as_clean(&mut self, node_id: NodeId) {
         self.nodes[node_id].state = NodeState::Clean;
+    }
+
+    pub(crate) fn notify(
+        &mut self,
+        widgets: &mut Widgets,
+        task_queue: &mut TaskQueue,
+        node_id: NodeId,
+    ) {
+        let mut observers = std::mem::take(&mut self.node_id_buffer);
+        observers.clear();
+        observers.extend(self.node_observers[node_id].iter());
+        self.notify_source_changed(widgets, task_queue, observers);
+    }
+
+    fn notify_source_changed(
+        &mut self,
+        widgets: &mut Widgets,
+        task_queue: &mut TaskQueue,
+        mut nodes_to_notify: VecDeque<NodeId>,
+    ) {
+        let mut effects_to_check = FxHashSet::default();
+
+        {
+            let direct_child_count = nodes_to_notify.len();
+            let mut i = 0;
+            while let Some(node_id) = nodes_to_notify.pop_front() {
+                // Mark direct nodes as Dirty and grand-children as Check
+                let new_state = if i < direct_child_count {
+                    NodeState::Dirty
+                } else {
+                    NodeState::Check
+                };
+                let node = self.get_node_mut(node_id);
+                if node.state < new_state {
+                    node.state = new_state;
+                    match &node.node_type {
+                        NodeType::Effect(_)
+                        | NodeType::Binding(_)
+                        | NodeType::DerivedAnimation(_) => {
+                            effects_to_check.insert(node_id);
+                        }
+                        _ => {}
+                    }
+                    nodes_to_notify.extend(self.node_observers[node_id].iter());
+                }
+                i += 1;
+            }
+        }
+
+        // Swap back the scratch buffer. Saves us from having to reallocate
+        std::mem::swap(&mut self.node_id_buffer, &mut nodes_to_notify);
+
+        for node_id in effects_to_check {
+            if self.update_sources_if_necessary(widgets, node_id) == NodeState::Dirty {
+                let mut node_type = self.lease_node(node_id).unwrap();
+                match node_type.deref_mut() {
+                    NodeType::Effect(EffectState { f }) => {
+                        // Clear the sources, they will be re-populated while running the effect function
+                        self.clear_node_sources(node_id);
+                        let task = Task::RunEffect {
+                            id: node_id,
+                            f: Rc::downgrade(f),
+                        };
+                        task_queue.push(task);
+                    }
+                    NodeType::Binding(BindingState { f }) => {
+                        let task = Task::UpdateBinding {
+                            f: Rc::downgrade(f),
+                            node_id,
+                        };
+                        task_queue.push(task);
+                    }
+                    NodeType::DerivedAnimation(anim) => {
+                        // Clear the sources, they will be re-populated while running the reset function
+                        self.clear_node_sources(node_id);
+                        if anim.reset(node_id, &mut LocalContext::new(widgets, self)) {
+                            self.request_animation(node_id);
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+                self.unlease_node(node_type);
+            }
+        }
+    }
+
+    /// Given a node (effect, binding, derived animation, or cached value), check if any of its sources have changed.
+    /// Any invalid cached value will be re-evaluated.
+    fn update_sources_if_necessary(&mut self, widgets: &Widgets, node_id: NodeId) -> NodeState {
+        let state = self.get_node(node_id).state;
+        if state == NodeState::Clean {
+            return NodeState::Clean;
+        }
+
+        if state == NodeState::Check {
+            for source_id in self.sources[node_id].clone() {
+                if let SourceId::Node(source_id) = source_id {
+                    self.update_cached_value_if_necessary(widgets, source_id);
+                    if self.get_node(node_id).state == NodeState::Dirty {
+                        return NodeState::Dirty;
+                    }
+                }
+            }
+        }
+
+        self.get_node(node_id).state
+    }
+
+    pub(super) fn update_cached_value_if_necessary(&mut self, widgets: &Widgets, node_id: NodeId) {
+        if self.update_sources_if_necessary(widgets, node_id) == NodeState::Dirty {
+            let mut node_type = self.lease_node(node_id).unwrap();
+            match node_type.deref_mut() {
+                NodeType::Memo(memo) => {
+                    // Clear the sources, they will be re-populated while running the memo function
+                    self.clear_node_sources(node_id);
+                    if memo.eval(node_id, LocalContext::new(widgets, self)) {
+                        // Memo eval returned false, meaning that it has changed.
+                        for &observer_id in self.node_observers[node_id].iter() {
+                            self.nodes[observer_id].state = NodeState::Dirty;
+                        }
+                    }
+                }
+                _ => unreachable!(),
+            }
+            self.unlease_node(node_type);
+        }
+        self.get_node_mut(node_id).state = NodeState::Clean;
+    }
+
+    pub(crate) fn notify_parameter_subscribers(
+        &mut self,
+        widgets: &mut Widgets,
+        task_queue: &mut TaskQueue,
+        source_id: ParameterId,
+    ) {
+        let mut nodes_to_notify = std::mem::take(&mut self.node_id_buffer);
+        nodes_to_notify.clear();
+        nodes_to_notify.extend(self.parameter_observers.get_mut(&source_id).unwrap().iter());
+        self.notify_source_changed(widgets, task_queue, nodes_to_notify);
+    }
+
+    pub(crate) fn notify_widget_status_changed<Cx>(
+        &mut self,
+        widgets: &mut Widgets,
+        task_queue: &mut TaskQueue,
+        widget_id: WidgetId,
+        change_mask: WidgetStatusFlags,
+    ) {
+        if let Some(widget_observers) = self.widget_observers.get(widget_id) {
+            let mut nodes_to_notify = std::mem::take(&mut self.node_id_buffer);
+            nodes_to_notify.clear();
+            nodes_to_notify.extend(
+                widget_observers
+                    .iter()
+                    .filter_map(|(node_id, mask)| mask.contains(change_mask).then_some(node_id)),
+            );
+            self.notify_source_changed(widgets, task_queue, nodes_to_notify);
+        }
     }
 
     #[inline(always)]

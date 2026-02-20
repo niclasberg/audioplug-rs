@@ -5,10 +5,7 @@ use std::{
     time::Instant,
 };
 
-use crate::{
-    core::{Lerp, SpringPhysics},
-    ui::reactive::notify,
-};
+use crate::core::{Lerp, SpringPhysics};
 
 use super::{
     Accessor, CreateContext, Effect, NodeId, NodeType, ReactiveContext, ReactiveValue, ReadContext,
@@ -115,7 +112,7 @@ impl<T: 'static> Animated<T> {
         let inner = Box::new(animation);
         let state = AnimationState { inner };
         Self {
-            id: super::create_animation_node(cx, state),
+            id: cx.create_animation_node(state),
             _phantom: PhantomData,
         }
     }
@@ -153,7 +150,7 @@ impl<T: Any> Animated<T> {
             NodeType::Animation(anim) => anim.inner.set_target_and_value_dyn(&value),
             _ => unreachable!(),
         };
-        notify(cx, self.id);
+        super::notify(cx, self.id);
     }
 }
 
@@ -220,7 +217,7 @@ impl<T: 'static> AnimatedFn<T> {
         f_value: impl Fn(&mut dyn ReadContext) -> T + 'static,
         f_anim: impl FnOnce(T) -> A,
     ) -> Self {
-        let id = super::create_derived_animation_node(cx, move |cx, id| {
+        let id = cx.create_derived_animation_node(move |cx, id| {
             let value = f_value(&mut cx.with_read_scope(ReadScope::Node(id)));
             let inner = Box::new(f_anim(value));
             let reset_fn = Box::new(

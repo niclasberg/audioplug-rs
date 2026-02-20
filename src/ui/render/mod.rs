@@ -4,7 +4,7 @@ use crate::{
         Vec2, Vec2f,
     },
     platform,
-    ui::{Widgets, render::gpu_scene::GpuFill},
+    ui::{ReactiveGraph, Widgets, render::gpu_scene::GpuFill},
 };
 
 mod canvas;
@@ -18,10 +18,10 @@ pub use gpu_scene::GpuScene;
 pub use scene::Scene;
 pub use wgpu_surface::WGPUSurface;
 
-use super::{AppState, WidgetId, WindowId};
+use super::{WidgetId, WindowId};
 pub use platform::TextLayout;
 
-pub fn render_window(app_state: &mut AppState, window_id: WindowId) {
+pub fn render_widgets(widgets: &mut Widgets, reactive_graph: &mut ReactiveGraph) {
     app_state.with_id_buffer_mut(move |app_state, widgets_to_render| {
         /*widgets_to_render.extend(
             app_state
@@ -212,7 +212,8 @@ pub fn paint_window(widgets: &mut Widgets, window_id: WindowId, dirty_rect: Rect
 
 pub struct RenderContext<'a> {
     id: WidgetId,
-    widgets: &'a mut Widgets,
+    pub(super) widgets: &'a mut Widgets,
+    pub(super) reactive_graph: &'a mut ReactiveGraph,
 }
 
 impl RenderContext<'_> {

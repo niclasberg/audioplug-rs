@@ -50,7 +50,7 @@ pub struct Widgets {
     /// Ids of all widgets that have requested animation. Cleared during each call to [drive_animations]
     pending_animations: FxIndexSet<WidgetId>,
     /// Ids of all widgets that have requested render.
-    pub(super) needing_render: FxIndexSet<WidgetId>,
+    needing_render: FxIndexSet<WidgetId>,
     /// Temporary cache used to avoid allocations while performing traversals
     id_buffer: Cell<VecDeque<WidgetId>>,
     /// The widget that currently has mouse capture
@@ -217,20 +217,6 @@ impl Widgets {
         current.window_id = window_id;
     }
 
-    pub(super) fn window(&self, id: WindowId) -> &WindowState {
-        self.windows.get(id).expect("Window handle not found")
-    }
-
-    pub(super) fn window_for_widget(&self, id: WidgetId) -> &WindowState {
-        self.windows
-            .get(self.data[id].window_id)
-            .expect("Window handle not found")
-    }
-
-    pub(super) fn window_mut(&mut self, id: WindowId) -> &mut WindowState {
-        self.windows.get_mut(id).expect("Window handle not found")
-    }
-
     fn internal_remove(&mut self, widget_id: WidgetId) -> WidgetData {
         self.child_id_cache.remove(widget_id);
         self.widgets.remove(widget_id);
@@ -280,6 +266,24 @@ impl Widgets {
         let root_widget = self.windows[window_id].root_widget;
         self.remove_widget(root_widget, f);
         self.windows.remove(window_id);
+    }
+
+    pub(super) fn window(&self, id: WindowId) -> &WindowState {
+        self.windows.get(id).expect("Window handle not found")
+    }
+
+    pub(super) fn window_for_widget(&self, id: WidgetId) -> &WindowState {
+        self.windows
+            .get(self.data[id].window_id)
+            .expect("Window handle not found")
+    }
+
+    pub(super) fn window_mut(&mut self, id: WindowId) -> &mut WindowState {
+        self.windows.get_mut(id).expect("Window handle not found")
+    }
+
+    pub(super) fn root_widget_for_window(&self, id: WindowId) -> WidgetId {
+        self.windows[id].root_widget
     }
 
     #[inline(always)]
@@ -345,8 +349,8 @@ impl Widgets {
         self.windows[window_id].handle.invalidate(bounds);
     }
 
-    pub(super) fn lease_widget(&mut self, id: WidgetId) -> LeasedWidget {
-        LeasedWidget(id, self.widgets.remove(id).unwrap())
+    pub(super) fn lease_widget(&mut self, id: WidgetId) -> Option<LeasedWidget> {
+        self.widgets.remove(id).map(|w| LeasedWidget(id, w))
     }
 
     pub(super) fn unlease_widget(&mut self, widget: LeasedWidget) {

@@ -24,7 +24,7 @@ impl dyn EffectContext + '_ {
     }
 }
 
-pub trait WatchContext: ReactiveContext + WriteContext + WidgetContext {}
+pub trait WatchContext: WriteContext + WidgetContext {}
 impl dyn WatchContext + '_ {
     pub fn widget_ref<W: Widget + ?Sized>(&self, id: WidgetHandle<W>) -> WidgetRef<'_, W> {
         self.widget_ref_dyn(id.id).unchecked_cast()
@@ -62,8 +62,7 @@ impl Effect {
         cx: &mut dyn CreateContext,
         f: impl FnMut(&mut dyn EffectContext) + 'static,
     ) -> Self {
-        let id = super::create_effect_node(
-            cx,
+        let id = cx.create_effect_node(
             EffectState {
                 f: Rc::new(RefCell::new(f)),
             },
@@ -77,8 +76,7 @@ impl Effect {
         f: impl Fn(&mut dyn EffectContext, Option<T>) -> T + 'static,
     ) -> Self {
         let mut state: Option<T> = None;
-        let id = super::create_effect_node(
-            cx,
+        let id = cx.create_effect_node(
             EffectState {
                 f: Rc::new(RefCell::new(move |cx: &mut dyn EffectContext| {
                     let old_state = state.take();
@@ -96,8 +94,7 @@ impl Effect {
         getter: fn(ParamRef) -> T,
         mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
     ) -> Self {
-        let id = super::create_parameter_binding_node(
-            cx,
+        let id = cx.create_parameter_binding_node(
             id,
             BindingState::new(move |cx| {
                 let value = getter(cx.reactive_graph_mut().get_parameter_ref(id));
@@ -113,18 +110,17 @@ impl Effect {
         node_id: NodeId,
         mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
     ) -> Self {
-        let id = super::create_node_binding_node(
-            cx,
+        let id = cx.create_node_binding_node(
             node_id,
             BindingState::new(move |cx| {
-                super::update_if_necessary(cx, node_id);
+                super::update_value_if_needed(cx, node_id);
                 if let Some(node) = cx.reactive_graph_mut().lease_node(node_id) {
                     let value = node
                         .get_value_ref()
                         .downcast_ref()
                         .expect("Node should have the correct value type");
                     f(cx, value);
-                    cx.reactive_graph_mut().unlease_node(node_id, node);
+                    cx.reactive_graph_mut().unlease_node(node);
                 }
             }),
         );
@@ -139,8 +135,7 @@ impl Effect {
         value_getter: fn(&Widgets, WidgetId) -> T,
         mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
     ) -> Self {
-        let id = super::create_widget_binding_node(
-            cx,
+        let id = cx.create_widget_binding_node(
             widget,
             status_mask,
             BindingState::new(move |cx| {
@@ -158,8 +153,7 @@ impl Effect {
         mut handler_fn: impl FnMut(&mut dyn WatchContext, &T, Option<&T>) + 'static,
     ) -> Self {
         let mut current_value: Option<T> = None;
-        let id = super::create_effect_node(
-            cx,
+        let id = cx.create_effect_node(
             EffectState {
                 f: Rc::new(RefCell::new(move |cx: &mut dyn EffectContext| {
                     let old_value = current_value.take();

@@ -106,7 +106,7 @@ impl<T: 'static> ReactiveValue for ReadSignal<T> {
                 f(&value)
             }
             ReadSignalSource::Node(node_id) => {
-                super::update_if_necessary(cx, node_id);
+                super::update_value_if_needed(cx, node_id);
                 let value = cx
                     .reactive_graph()
                     .get_node_value_ref(node_id)

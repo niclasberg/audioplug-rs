@@ -76,7 +76,7 @@ impl<V: View> platform::WindowHandler for MyHandler<V> {
 
     fn paint(&mut self, dirty_rect: Rect) {
         let mut app_state = self.app_state.borrow_mut();
-        super::render::paint_window(&mut app_state, self.state.window_id(), dirty_rect)
+        super::render::paint_window(&mut app_state.widgets, self.state.window_id(), dirty_rect)
     }
 
     fn get_cursor(&self, pos: Point) -> Option<Cursor> {

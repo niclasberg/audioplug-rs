@@ -8,7 +8,11 @@ use super::{
 };
 use crate::{
     MouseButton, MouseEvent,
-    ui::{ReactiveGraph, WidgetPos, Widgets, reactive::CLICKED_STATUS, task_queue::TaskQueue},
+    ui::{
+        ReactiveGraph, WidgetPos, Widgets,
+        reactive::{CLICKED_STATUS, ReactiveContextMut},
+        task_queue::TaskQueue,
+    },
 };
 use std::marker::PhantomData;
 
@@ -232,10 +236,16 @@ impl<W: Widget + ?Sized> ReadContext for BuildContext<'_, W> {
 }
 
 impl<W: Widget + ?Sized> ReactiveContext for BuildContext<'_, W> {
-    fn components(&self) -> (&ReactiveGraph, &Widgets) {
-        self.app_state.components()
+    fn reactive_graph_and_widgets(&self) -> (&ReactiveGraph, &Widgets) {
+        self.app_state.reactive_graph_and_widgets()
     }
 
+    fn reactive_graph_mut_and_widgets(&mut self) -> (&mut ReactiveGraph, &Widgets) {
+        self.app_state.reactive_graph_mut_and_widgets()
+    }
+}
+
+impl<W: Widget + ?Sized> ReactiveContextMut for BuildContext<'_, W> {
     fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
         self.app_state.components_mut()
     }

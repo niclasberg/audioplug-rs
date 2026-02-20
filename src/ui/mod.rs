@@ -35,7 +35,7 @@ pub use reactive::{
 };
 pub use render::{
     Canvas, CanvasContext, CanvasWidget, RenderContext, Scene, TextLayout, invalidate_window,
-    render_window,
+    render_widgets,
 };
 pub use task_queue::TaskQueue;
 

@@ -14,7 +14,11 @@ use crate::{
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
     ui::{
-        Owner, Widgets, reactive::LocalCreateContext, render::WGPUSurface, task_queue::TaskQueue,
+        Owner, Widgets,
+        reactive::{LocalCreateContext, ReactiveContextMut},
+        render::WGPUSurface,
+        render_widgets,
+        task_queue::TaskQueue,
         widgets::WidgetPos,
     },
 };
@@ -169,14 +173,14 @@ impl AppState {
 
     fn clear_mouse_capture_and_focus(&mut self, id: WidgetId) {
         if let Some(mouse_capture_widget) = self.widgets.mouse_capture_widget
-            && (mouse_capture_widget == id || self.widget_has_parent(mouse_capture_widget, id))
+            && (mouse_capture_widget == id || self.widgets.has_parent(mouse_capture_widget, id))
         {
             set_mouse_capture_widget(self, None);
         }
 
         let window_id = self.get_window_id_for_widget(id);
         if let Some(focus_widget) = self.widgets.focus_widget_id(window_id)
-            && (focus_widget == id || self.widget_has_parent(focus_widget, id))
+            && (focus_widget == id || self.widgets.has_parent(focus_widget, id))
         {
             set_focus_widget(self, window_id, None);
         }
@@ -188,28 +192,6 @@ impl AppState {
 
     pub fn widget_mut(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
         WidgetMut::new(self, id)
-    }
-
-    pub fn with_widget_mut<R>(
-        &mut self,
-        id: WidgetId,
-        f: impl FnOnce(&mut Self, &mut dyn Widget) -> R,
-    ) -> R {
-        let mut widget = self.widgets.lease_widget(id);
-        let value = f(self, widget.deref_mut());
-        self.widgets.unlease_widget(widget);
-        value
-    }
-
-    pub fn widget_has_parent(&self, child_id: WidgetId, parent_id: WidgetId) -> bool {
-        let mut id = child_id;
-        while !id.is_null() {
-            id = self.widgets.data[id].parent_id;
-            if id == parent_id {
-                return true;
-            }
-        }
-        false
     }
 
     pub(super) fn with_id_buffer_mut(&mut self, f: impl FnOnce(&mut Self, &mut Vec<WidgetId>)) {
@@ -329,20 +311,28 @@ impl AppState {
         for window_id in window_ids {
             layout_window(self, window_id, RecomputeLayout::IfNeeded);
         }
+
+        render_widgets(&mut self.widgets, &mut self.reactive_graph);
     }
 
     pub fn clipboard(&self, window_id: WindowId) -> Clipboard<'_> {
         Clipboard {
-            handle: &self.window(window_id).handle,
+            handle: &self.widgets.window(window_id).handle,
         }
     }
 }
 
 impl ReactiveContext for AppState {
-    fn components(&self) -> (&ReactiveGraph, &Widgets) {
+    fn reactive_graph_and_widgets(&self) -> (&ReactiveGraph, &Widgets) {
         (&self.reactive_graph, &self.widgets)
     }
 
+    fn reactive_graph_mut_and_widgets(&mut self) -> (&mut ReactiveGraph, &mut Widgets) {
+        (&mut self.reactive_graph, &mut self.widgets)
+    }
+}
+
+impl ReactiveContextMut for AppState {
     fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
         (
             &mut self.reactive_graph,

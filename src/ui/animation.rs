@@ -28,9 +28,9 @@ pub struct AnimationContext<'a> {
 
 impl AnimationContext<'_> {
     fn run_animation(&mut self, animation_frame: AnimationFrame) {
-        if let Some(mut widget) = self.widgets.widgets.remove(self.id) {
+        if let Some(mut widget) = self.widgets.lease_widget(self.id) {
             widget.animation_frame(animation_frame, self);
-            self.widgets.widgets.insert(self.id, widget);
+            self.widgets.unlease_widget(widget);
         }
     }
 

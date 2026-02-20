@@ -2,12 +2,10 @@ use std::marker::PhantomData;
 
 use crate::{
     param::{AnyParameter, NormalizedValue, Parameter, ParameterId, PlainValue},
-    ui::HostHandle,
+    ui::{HostHandle, reactive::ReactiveContextMut},
 };
 
-use super::ReactiveContext;
-
-pub trait ParamContext: ReactiveContext {
+pub trait ParamContext: ReactiveContextMut {
     fn host_handle(&self) -> &dyn HostHandle;
 }
 

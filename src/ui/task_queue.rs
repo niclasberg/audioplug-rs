@@ -9,7 +9,7 @@ use crate::ui::{
     AnyView, AppState, EffectContext, NodeId, ReactiveContext, ReactiveGraph, ReadContext,
     ReadScope, WatchContext, Widget, WidgetContext, WidgetId, WidgetMut, WidgetRef, Widgets,
     WriteContext,
-    reactive::{BindingFn, EffectFn, HandleEventFn},
+    reactive::{BindingFn, EffectFn, HandleEventFn, ReactiveContextMut},
 };
 
 #[derive(Default)]
@@ -99,10 +99,16 @@ impl WidgetContext for EffectContextImpl<'_> {
 }
 
 impl ReactiveContext for EffectContextImpl<'_> {
-    fn components(&self) -> (&ReactiveGraph, &Widgets) {
-        self.app_state.components()
+    fn reactive_graph_and_widgets(&self) -> (&ReactiveGraph, &Widgets) {
+        self.app_state.reactive_graph_and_widgets()
     }
 
+    fn reactive_graph_mut_and_widgets(&mut self) -> (&mut ReactiveGraph, &Widgets) {
+        self.app_state.reactive_graph_mut_and_widgets()
+    }
+}
+
+impl ReactiveContextMut for EffectContextImpl<'_> {
     fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
         self.app_state.components_mut()
     }
