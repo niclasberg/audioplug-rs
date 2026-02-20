@@ -122,21 +122,13 @@ pub fn set_focus_widget(
             new_focus_widget
         );
 
-        if let Some(mut old_focus_widget) = app_state.focus_widget_mut(window_id) {
-            old_focus_widget
-                .data_mut()
-                .clear_flag(WidgetFlags::HAS_FOCUS);
-            let id = old_focus_widget.id;
-            dispatch_focus_change(app_state, id, false);
+        if let Some(old_focus_widget) = app_state.focus_widget(window_id) {
+            dispatch_focus_change(app_state, old_focus_widget.id, false);
         }
 
         app_state.widgets.window_mut(window_id).focus_widget = new_focus_widget;
 
         if let Some(focus_gained_widget) = new_focus_widget {
-            app_state
-                .widget_mut(focus_gained_widget)
-                .data_mut()
-                .set_flag(WidgetFlags::HAS_FOCUS);
             dispatch_focus_change(app_state, focus_gained_widget, true);
         }
     }
@@ -173,13 +165,10 @@ pub fn set_mouse_capture_widget(app_state: &mut AppState, new_capture_widget: Op
         );
 
         if let Some(old_mouse_capture_widget) = old_capture_widget {
-            app_state.widgets.data[old_mouse_capture_widget]
-                .clear_flag(WidgetFlags::HAS_MOUSE_CAPTURE);
             dispatch_mouse_capture_change(app_state, old_mouse_capture_widget, false);
         }
 
         if let Some(new_capture_widget) = new_capture_widget {
-            app_state.widgets.data[new_capture_widget].set_flag(WidgetFlags::HAS_MOUSE_CAPTURE);
             dispatch_mouse_capture_change(app_state, new_capture_widget, true);
         }
     }

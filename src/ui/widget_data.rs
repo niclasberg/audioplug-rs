@@ -40,8 +40,6 @@ bitflags!(
 
         // Status flags
         const UNDER_MOUSE_CURSOR = 1 << 8;
-        const HAS_FOCUS = 1 << 9;
-        const HAS_MOUSE_CAPTURE = 1 << 10;
     }
 );
 

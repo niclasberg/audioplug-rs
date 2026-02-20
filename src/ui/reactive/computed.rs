@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::ui::ReadScope;
 
-use super::{Effect, LocalReadContext, ReactiveValue, ReadContext};
+use super::{Effect, ReactiveValue, ReadContext};
 
 type ComputedFn<T> = dyn Fn(&mut dyn ReadContext) -> T;
 

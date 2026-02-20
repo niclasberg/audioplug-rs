@@ -30,7 +30,7 @@ pub use reactive::{
     Easing, Effect, EffectContext, EventChannel, EventReceiver, Mapped, Node, NodeId, Owner,
     ParamContext, ParamSetter, ReactiveContext, ReactiveGraph, ReactiveValue, ReadContext,
     ReadScope, ReadSignal, SpringOptions, Trigger, TweenOptions, Var, WatchContext, WidgetContext,
-    WriteContext,
+    WriteContext, create_event_channel,
 };
 pub use render::{
     Canvas, CanvasContext, CanvasWidget, RenderContext, Scene, TextLayout, invalidate_window,

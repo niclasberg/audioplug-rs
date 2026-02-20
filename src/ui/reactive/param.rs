@@ -64,8 +64,7 @@ impl<P: Parameter> ParamSetter<P> {
     pub fn set_value(&self, cx: &mut dyn ParamContext, value: P::Value) {
         let param_ref = cx.reactive_graph().get_parameter_ref(self.id);
         let param = P::downcast_param_ref(param_ref).expect("Parameter should have correct type");
-
         let value = param.normalized_value(value);
-        todo!()
+        self.set_value_normalized(cx, value);
     }
 }

@@ -81,11 +81,11 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
     }
 
     pub fn has_focus(&self) -> bool {
-        self.widgets.data[self.id].flag_is_set(WidgetFlags::HAS_FOCUS)
+        self.widgets.widget_has_focus(self.id)
     }
 
     pub fn has_mouse_capture(&self) -> bool {
-        self.widgets.data[self.id].flag_is_set(WidgetFlags::HAS_MOUSE_CAPTURE)
+        self.widgets.widget_has_captured_mouse(self.id)
     }
 
     pub fn child_iter(&self) -> WidgetRefIter<'_> {

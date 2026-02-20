@@ -15,8 +15,6 @@ mod tween;
 mod var;
 mod widget_status;
 
-use std::{collections::VecDeque, ops::DerefMut, rc::Rc};
-
 pub use accessor::Accessor;
 pub use animation::{Animated, AnimatedFn, Animation, Easing, SpringOptions, TweenOptions};
 pub use cached::{Cached, CachedContext};
@@ -24,7 +22,7 @@ pub use computed::Computed;
 pub(super) use effect::{BindingFn, EffectFn, EffectState};
 pub use effect::{Effect, EffectContext, WatchContext};
 pub(super) use event_channel::HandleEventFn;
-pub use event_channel::{EventChannel, EventReceiver};
+pub use event_channel::{EventChannel, EventReceiver, create_event_channel};
 pub use param::{ParamContext, ParamSetter};
 pub use read_signal::ReadSignal;
 pub use readable::*;

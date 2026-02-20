@@ -12,7 +12,7 @@ use crate::{
     param::{AnyParameterMap, ParamRef, ParameterId},
     ui::{
         WidgetId, Widgets,
-        reactive::{LocalContext, LocalContextMut},
+        reactive::LocalContext,
         task_queue::{Task, TaskQueue},
     },
 };

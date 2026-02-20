@@ -27,9 +27,9 @@ pub fn invalidate_window(widgets: &Widgets, window_id: WindowId) {
 }
 
 pub fn paint_window(widgets: &mut Widgets, window_id: WindowId, dirty_rect: Rect) {
+    rebuild_scene(widgets, window_id);
     let window = widgets.window_mut(window_id);
     let wgpu_surface = &mut window.wgpu_surface;
-    let scale_factor = window.handle.scale_factor().0;
 
     println!("Paint window, dirty rect: {dirty_rect:?}");
     wgpu_surface.configure_if_needed(window.handle.physical_size());
@@ -48,7 +48,74 @@ pub fn paint_window(widgets: &mut Widgets, window_id: WindowId, dirty_rect: Rect
             ..Default::default()
         });
 
-    let mut gpu_scene = GpuScene::new();
+    let mut encoder = wgpu_surface
+        .device
+        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("AudioPlug command encoder"),
+        });
+    wgpu_surface.upload_scene(&window.gpu_scene);
+
+    let dims = wgpu_surface.render_tiles_workgroup_count();
+    let state = wgpu_surface.state.as_mut().unwrap();
+
+    {
+        let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
+        compute_pass.set_pipeline(&wgpu_surface.render_tiles_program.pipeline);
+        compute_pass.set_bind_group(0, &state.render_tiles_bind_group0, &[]);
+        compute_pass.set_bind_group(1, &wgpu_surface.render_tiles_bind_group1, &[]);
+        compute_pass.dispatch_workgroups(dims.width, dims.height, 1);
+    }
+
+    {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &texture_view,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+
+        // Blit the texture to the render target
+        render_pass.set_pipeline(&wgpu_surface.blit_program.pipeline);
+        render_pass.set_bind_group(0, &state.blit_bind_group, &[]);
+        render_pass.draw(0..3, 0..1);
+    }
+
+    wgpu_surface.queue.submit(std::iter::once(encoder.finish()));
+
+    surface_texture.present();
+
+    /*
+    overlays.extend(app_state.window(window_id).overlays.iter());
+
+        // Root
+        let mut cx = RenderContext {
+            id: app_state.window(window_id).root_widget,
+            app_state,
+        };
+        cx.render_current_widget();
+
+        // Overlays
+        for overlay_id in overlays.iter() {
+            cx.id = *overlay_id;
+            cx.render_current_widget();
+        }
+         */
+}
+
+fn rebuild_scene(widgets: &mut Widgets, window_id: WindowId) {
+    let window = widgets.window_mut(window_id);
+    let scale_factor = window.handle.scale_factor().0;
+    let gpu_scene = &mut window.gpu_scene;
     {
         let rect = gpu_scene.add_rect(Rect {
             left: 10.0,
@@ -126,69 +193,6 @@ pub fn paint_window(widgets: &mut Widgets, window_id: WindowId, dirty_rect: Rect
             },
         )
     }
-
-    let mut encoder = wgpu_surface
-        .device
-        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("AudioPlug command encoder"),
-        });
-    wgpu_surface.upload_scene(&gpu_scene);
-
-    let dims = wgpu_surface.render_tiles_workgroup_count();
-    let state = wgpu_surface.state.as_mut().unwrap();
-
-    {
-        let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
-        compute_pass.set_pipeline(&wgpu_surface.render_tiles_program.pipeline);
-        compute_pass.set_bind_group(0, &state.render_tiles_bind_group0, &[]);
-        compute_pass.set_bind_group(1, &wgpu_surface.render_tiles_bind_group1, &[]);
-        compute_pass.dispatch_workgroups(dims.width, dims.height, 1);
-    }
-
-    {
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &texture_view,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
-
-        // Blit the texture to the render target
-        render_pass.set_pipeline(&wgpu_surface.blit_program.pipeline);
-        render_pass.set_bind_group(0, &state.blit_bind_group, &[]);
-        render_pass.draw(0..3, 0..1);
-    }
-
-    wgpu_surface.queue.submit(std::iter::once(encoder.finish()));
-
-    surface_texture.present();
-
-    /*
-    overlays.extend(app_state.window(window_id).overlays.iter());
-
-        // Root
-        let mut cx = RenderContext {
-            id: app_state.window(window_id).root_widget,
-            app_state,
-        };
-        cx.render_current_widget();
-
-        // Overlays
-        for overlay_id in overlays.iter() {
-            cx.id = *overlay_id;
-            cx.render_current_widget();
-        }
-         */
 }
 
 pub struct RenderContext<'a> {

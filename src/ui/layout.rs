@@ -30,7 +30,7 @@ pub(super) fn compute_root_layout(
     taffy::compute_root_layout(&mut layout_context, root_widget_id.into(), available_space);
     layout_context.region_to_invalidate
 }
-pub struct LayoutChildIter<'a> {
+struct LayoutChildIter<'a> {
     inner: std::slice::Iter<'a, WidgetId>,
 }
 
@@ -42,7 +42,7 @@ impl Iterator for LayoutChildIter<'_> {
     }
 }
 
-pub struct LayoutContext<'a> {
+struct LayoutContext<'a> {
     widgets: &'a mut Widgets,
     window_size: Size,
     region_to_invalidate: Option<Rect>,
