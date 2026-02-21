@@ -76,6 +76,7 @@ pub enum NodeState {
 }
 
 pub enum NodeType {
+    // Temporary value used while a node is leased
     TmpRemoved,
     // Sources
     Trigger,

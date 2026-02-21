@@ -1,22 +1,19 @@
-use std::{any::Any, marker::PhantomData, rc::Rc};
+use std::{any::Any, rc::Rc};
 
 use crate::{
     param::ParameterId,
     ui::{
-        AnyView, ViewProp, Widget, WidgetId, WidgetMut, WidgetRef, Widgets,
-        reactive::{
-            EffectState,
-            animation::{AnimationState, DerivedAnimationState},
-            cached::CachedState,
-            effect::BindingState,
-            var::SignalState,
-        },
+        AnyView, Widget, WidgetId, WidgetMut, WidgetRef, Widgets,
         task_queue::{Task, TaskQueue},
     },
 };
 
 use super::{
-    Computed, Effect, NodeId, NodeState, NodeType, Owner, ReactiveGraph, ReadScope, WatchContext,
+    EffectState, NodeId, NodeState, NodeType, Owner, ReactiveGraph, ReadScope,
+    animation::{AnimationState, DerivedAnimationState},
+    cached::CachedState,
+    effect::BindingState,
+    var::SignalState,
     widget_status::WidgetStatusFlags,
 };
 
