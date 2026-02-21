@@ -1,6 +1,9 @@
+use rustc_hash::FxBuildHasher;
+
 use super::reactive::{Effect, ReactiveValue, ReadContext};
 use super::{BuildContext, View, ViewProp, Widget};
-use crate::core::diff;
+use crate::core::{FxIndexSet, diff};
+use std::hash::Hash;
 
 pub trait ViewSequence: Sized + 'static {
     fn build_seq(self, cx: &mut BuildContext<dyn Widget>);
@@ -107,7 +110,7 @@ impl<T, C, V, FValues, FView> ViewSequence for ViewForEach<FValues, FView>
 where
     FValues: Fn(&mut dyn ReadContext) -> C + 'static,
     C: IntoIterator<Item = T>,
-    T: PartialEq + Clone + 'static,
+    T: PartialEq + 'static,
     FView: Fn(&T) -> V + 'static,
     V: View,
 {
@@ -138,9 +141,96 @@ pub fn view_for_each<T, C, V, FValues, FView>(
 where
     FValues: Fn(&mut dyn ReadContext) -> C + 'static,
     C: IntoIterator<Item = T>,
-    T: PartialEq + Clone + 'static,
+    T: PartialEq + 'static,
     FView: Fn(&T) -> V + 'static,
     V: View,
 {
     ViewForEach { values_fn, view_fn }
+}
+
+pub trait ReactiveValueExt: ReactiveValue {
+    fn map_to_views_keyed<T, K, V, FKey, FView>(
+        self,
+        key_fn: FKey,
+        view_fn: FView,
+    ) -> impl ViewSequence
+    where
+        for<'a> &'a Self::Value: IntoIterator<Item = &'a T>,
+        K: Hash + Eq + 'static,
+        T: 'static,
+        V: View,
+        FView: Fn(&T) -> V + 'static,
+        FKey: Fn(&T) -> K + 'static;
+}
+
+impl<R> ReactiveValueExt for R
+where
+    R: ReactiveValue + 'static,
+{
+    fn map_to_views_keyed<T, K, V, FKey, FView>(
+        self,
+        key_fn: FKey,
+        view_fn: FView,
+    ) -> impl ViewSequence
+    where
+        for<'a> &'a Self::Value: IntoIterator<Item = &'a T>,
+        K: Hash + Eq + 'static,
+        T: 'static,
+        V: View,
+        FView: Fn(&T) -> V + 'static,
+        FKey: Fn(&T) -> K + 'static,
+    {
+        MapToViewsKeyedImpl {
+            readable: self,
+            view_fn,
+            key_fn,
+        }
+    }
+}
+
+struct MapToViewsKeyedImpl<R, F, FKey> {
+    readable: R,
+    view_fn: F,
+    key_fn: FKey,
+}
+
+impl<S, C: 'static, K, T, V, F, FKey> ViewSequence for MapToViewsKeyedImpl<S, F, FKey>
+where
+    S: ReactiveValue<Value = C> + 'static,
+    for<'a> &'a C: IntoIterator<Item = &'a T>,
+    K: Hash + Eq + 'static,
+    T: 'static,
+    V: View,
+    F: Fn(&T) -> V + 'static,
+    FKey: Fn(&T) -> K + 'static,
+{
+    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
+        let views_keys: Vec<_> = self.readable.with_ref(cx, |values| {
+            values
+                .into_iter()
+                .map(|value| ((self.key_fn)(value), (self.view_fn)(value)))
+                .collect()
+        });
+
+        let mut old_indices = FxIndexSet::with_capacity_and_hasher(views_keys.len(), FxBuildHasher);
+        for (key, view) in views_keys.into_iter() {
+            old_indices.insert(key);
+            cx.add_child(view);
+        }
+
+        let widget_id = cx.id();
+        self.readable.watch(cx, move |cx, values| {
+            let new_indices: FxIndexSet<_> = values.into_iter().map(|x| (self.key_fn)(x)).collect();
+            let value_vec: Vec<_> = values.into_iter().collect();
+            let mut widget = cx.widget_mut(widget_id);
+
+            diff::diff_keyed_with(&old_indices, &new_indices, &value_vec, |diff| {
+                let f = |x: &&T| (self.view_fn)(*x);
+                widget.apply_diff_to_children(diff, &f)
+            });
+            widget.request_render();
+
+            old_indices = new_indices;
+        });
+    }
 }

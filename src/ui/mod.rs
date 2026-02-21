@@ -110,7 +110,7 @@ impl Default for App {
 pub mod prelude {
     pub use super::reactive::prelude::*;
     pub use super::{
-        BuildContext, EventStatus, IndexedViewSeq, OverlayAnchor, OverlayOptions, View,
-        ViewSequence, Widget, view_for_each,
+        BuildContext, EventStatus, IndexedViewSeq, OverlayAnchor, OverlayOptions, ReactiveValueExt,
+        View, ViewSequence, Widget, view_for_each,
     };
 }

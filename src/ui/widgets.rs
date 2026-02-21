@@ -150,7 +150,6 @@ impl Widgets {
         new_parent_id
     }
 
-    /// Moves a widget to a new position in the tree by.
     pub fn move_widget(&mut self, widget_id: WidgetId, destination: WidgetPos) {
         let current = self
             .data
@@ -210,16 +209,22 @@ impl Widgets {
         self.child_id_cache.remove(widget_id);
         self.widgets.remove(widget_id);
 
-        self.data
+        let data = self
+            .data
             .remove(widget_id)
-            .expect("Widget being removed should exist")
+            .expect("Widget being removed should exist");
+
+        if data.is_overlay() {
+            self.windows[data.window_id].overlays.remove(widget_id);
+        }
+
+        data
     }
 
-    // Remove a widget and all its children.
+    // Remove a widget and all its children. The `f` function is invoked after each removed widget.
     pub(super) fn remove_widget(&mut self, widget_id: WidgetId, f: &mut impl FnMut(WidgetData)) {
         let data = &self.data[widget_id];
         let is_overlay = data.is_overlay();
-        let window_id = data.window_id;
         let parent_id = data.parent_id;
         if !parent_id.is_null() {
             let parent = &mut self.data[parent_id];
@@ -227,9 +232,9 @@ impl Widgets {
         }
         self.remove_children(widget_id, f);
         f(self.internal_remove(widget_id));
-        self.windows[window_id].overlays.remove(widget_id);
     }
 
+    // Remove all children of a widget. The `f` function is invoked after each removed widget.
     pub(super) fn remove_children(&mut self, widget_id: WidgetId, f: &mut impl FnMut(WidgetData)) {
         let mut children_to_remove = self.id_buffer.take();
         children_to_remove.clear();
@@ -239,7 +244,7 @@ impl Widgets {
         data.first_child_id = WidgetId::null();
         data.first_overlay_id = WidgetId::null();
 
-        while let Some(child_id) = children_to_remove.front().copied() {
+        while let Some(child_id) = children_to_remove.pop_front() {
             children_to_remove.extend(self.child_id_iter(child_id));
             children_to_remove.extend(self.overlay_id_iter(child_id));
             f(self.internal_remove(child_id));
