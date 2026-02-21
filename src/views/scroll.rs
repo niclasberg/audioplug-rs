@@ -1,6 +1,6 @@
 use taffy::Overflow;
 
-use crate::ui::{Accessor, BuildContext, View, Widget, style::LayoutMode};
+use crate::ui::{BuildContext, View, ViewProp, Widget, style::LayoutMode};
 
 enum Direction {
     Horizontal,
@@ -9,14 +9,14 @@ enum Direction {
 
 pub struct Scroll<V> {
     child: V,
-    overflow_x: Accessor<Overflow>,
+    overflow_x: ViewProp<Overflow>,
 }
 
 impl<V: View> Scroll<V> {
     pub fn new(child: V) -> Self {
         Self {
             child,
-            overflow_x: Accessor::Const(Overflow::Scroll),
+            overflow_x: ViewProp::Const(Overflow::Scroll),
         }
     }
 }

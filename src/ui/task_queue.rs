@@ -5,10 +5,12 @@ use std::{
     rc::{Rc, Weak},
 };
 
+use super::reactive::{
+    EffectContext, NodeId, ReactiveContext, ReactiveGraph, ReadContext, ReadScope, WatchContext,
+    WidgetContext, WriteContext,
+};
 use crate::ui::{
-    AnyView, AppState, EffectContext, NodeId, ReactiveContext, ReactiveGraph, ReadContext,
-    ReadScope, WatchContext, Widget, WidgetContext, WidgetId, WidgetMut, WidgetRef, Widgets,
-    WriteContext,
+    AnyView, AppState, Widget, WidgetId, WidgetMut, WidgetRef, Widgets,
     reactive::{BindingFn, EffectFn, HandleEventFn, ReactiveContextMut},
 };
 

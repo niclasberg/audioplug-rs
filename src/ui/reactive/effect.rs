@@ -2,13 +2,13 @@ use slotmap::Key;
 
 use crate::{
     param::{ParamRef, ParameterId},
-    ui::{
-        Widget, WidgetContext, WidgetHandle, WidgetId, WidgetMut, WidgetRef, Widgets,
-        reactive::WidgetStatusFlags,
-    },
+    ui::{Widget, WidgetHandle, WidgetId, WidgetMut, WidgetRef, Widgets},
 };
 
-use super::{CreateContext, NodeId, ReactiveContext, ReadContext, WriteContext};
+use super::{
+    CreateContext, NodeId, ReactiveContext, ReadContext, WidgetContext, WidgetStatusFlags,
+    WriteContext,
+};
 use std::{any::Any, cell::RefCell, rc::Rc};
 
 pub trait EffectContext: ReactiveContext + ReadContext + WriteContext + WidgetContext {
@@ -54,7 +54,7 @@ pub struct Effect {
 }
 
 impl Effect {
-    pub(super) fn new_empty() -> Self {
+    pub(crate) fn new_empty() -> Self {
         Self { id: NodeId::null() }
     }
 

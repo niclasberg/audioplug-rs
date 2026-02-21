@@ -1,33 +1,30 @@
+use super::reactive::{
+    CreateContext, LocalCreateContext, Owner, ParamContext, ReactiveContext, ReactiveContextMut,
+    ReactiveGraph, ReadContext, ReadScope, Var, WatchContext, WidgetContext, WriteContext,
+};
 use super::{
-    AnyView, BuildContext, CreateContext, HostHandle, ParamContext, ReactiveContext, ReadContext,
-    Var, View, Widget, WidgetContext, WidgetData, WidgetId, WidgetMut, WidgetRef, WindowId,
-    WriteContext,
+    AnyView, BuildContext, HostHandle, View, Widget, WidgetData, WidgetId, WidgetMut, WidgetRef,
+    Widgets, WindowId,
     clipboard::Clipboard,
     event_handling::{set_focus_widget, set_mouse_capture_widget},
     layout::RecomputeLayout,
-    reactive::{ReactiveGraph, WatchContext},
+    render::WGPUSurface,
     style::StyleBuilder,
+    task_queue::TaskQueue,
+    widgets::WidgetPos,
 };
 use crate::{
     core::WindowTheme,
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
     platform,
-    ui::{
-        Owner, Widgets,
-        reactive::{LocalCreateContext, ReactiveContextMut},
-        render::WGPUSurface,
-        task_queue::TaskQueue,
-        widgets::WidgetPos,
-    },
 };
-use std::{cell::Cell, rc::Rc};
+use std::rc::Rc;
 
 pub struct AppState {
     pub(super) wgpu_instance: wgpu::Instance,
     pub(super) widgets: Widgets,
     pub(super) reactive_graph: ReactiveGraph,
     host_handle: Option<Box<dyn HostHandle>>,
-    id_buffer: Cell<Vec<WidgetId>>,
     pub(super) task_queue: TaskQueue,
     pub(crate) theme_signal: Var<WindowTheme>,
 }
@@ -53,7 +50,6 @@ impl AppState {
             }),
             reactive_graph,
             host_handle: None,
-            id_buffer: Default::default(),
             theme_signal,
             widgets,
             task_queue,
@@ -192,13 +188,6 @@ impl AppState {
         WidgetMut::new(self, id)
     }
 
-    pub(super) fn with_id_buffer_mut(&mut self, f: impl FnOnce(&mut Self, &mut Vec<WidgetId>)) {
-        let mut scratch = self.id_buffer.replace(Vec::new());
-        scratch.clear();
-        f(self, &mut scratch);
-        self.id_buffer.set(scratch);
-    }
-
     pub fn focus_widget(&self, window_id: WindowId) -> Option<WidgetRef<'_, dyn Widget>> {
         self.widgets
             .window(window_id)
@@ -265,8 +254,8 @@ impl ReactiveContextMut for AppState {
 }
 
 impl ReadContext for AppState {
-    fn scope(&self) -> super::ReadScope {
-        super::ReadScope::Untracked
+    fn scope(&self) -> ReadScope {
+        ReadScope::Untracked
     }
 }
 

@@ -1,8 +1,6 @@
 use std::rc::Rc;
 
-use crate::ui::ReadScope;
-
-use super::{Effect, ReactiveValue, ReadContext};
+use super::{Effect, ReactiveValue, ReadContext, ReadScope};
 
 type ComputedFn<T> = dyn Fn(&mut dyn ReadContext) -> T;
 

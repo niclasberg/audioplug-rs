@@ -1,6 +1,9 @@
 use crate::{
     KeyEvent,
-    ui::{Accessor, BuildContext, EventStatus, OverlayOptions, ReactiveValue, View, WriteContext},
+    ui::{
+        BuildContext, EventStatus, OverlayOptions, View, ViewProp,
+        reactive::{ReactiveValue, WriteContext},
+    },
 };
 
 use super::key_down::OnKeyEvent;
@@ -10,7 +13,7 @@ pub trait ViewExt {
     where
         Self: Sized,
         F: FnMut(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static;
-    fn overlay<V2>(self, options: impl Into<Accessor<OverlayOptions>>, v: V2) -> Overlay<Self, V2>
+    fn overlay<V2>(self, options: impl Into<ViewProp<OverlayOptions>>, v: V2) -> Overlay<Self, V2>
     where
         Self: Sized,
         V2: View + Sized;
@@ -29,7 +32,7 @@ impl<V: View + Sized> ViewExt for V {
 
     fn overlay<V2>(
         self,
-        options: impl Into<Accessor<OverlayOptions>>,
+        options: impl Into<ViewProp<OverlayOptions>>,
         overlay_view: V2,
     ) -> Overlay<Self, V2>
     where
@@ -46,7 +49,7 @@ impl<V: View + Sized> ViewExt for V {
 pub struct Overlay<V, V2> {
     parent_view: V,
     child_view: V2,
-    options: Accessor<OverlayOptions>,
+    options: ViewProp<OverlayOptions>,
 }
 
 impl<V: View, V2: View> View for Overlay<V, V2> {

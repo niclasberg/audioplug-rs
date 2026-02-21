@@ -1,12 +1,13 @@
 use audioplug::core::{Color, Size};
 use audioplug::param::{BoolParameter, FloatParameter, ParameterId, Params};
+use audioplug::ui::prelude::*;
 use audioplug::ui::style::UiRect;
 use audioplug::wrapper::vst3::VST3Categories;
+use audioplug::EditorContext;
 use audioplug::{
     audioplug_auv3_plugin, audioplug_vst3_plugin, params, AudioLayout, Bus, ChannelType, Editor,
     HostInfo, Plugin, ProcessContext, VST3Plugin,
 };
-use audioplug::{ui::*, EditorContext};
 use audioplug::{views::*, Uuid};
 
 params!(

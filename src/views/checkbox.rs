@@ -2,8 +2,8 @@ use crate::{
     KeyEvent, MouseButton, MouseEvent,
     core::{Color, Key, Rect, Size, Zero},
     ui::{
-        Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
-        RenderContext, Scene, View, Widget,
+        BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext, RenderContext,
+        Scene, View, ViewProp, Widget,
         style::{AvailableSpace, LayoutMode, Length, Measure, Style, UiRect},
     },
 };
@@ -11,8 +11,8 @@ use crate::{
 type OnClickFn = dyn Fn(&mut CallbackContext);
 
 pub struct Checkbox {
-    checked: Option<Accessor<bool>>,
-    enabled: Accessor<bool>,
+    checked: Option<ViewProp<bool>>,
+    enabled: ViewProp<bool>,
     click_fn: Option<Box<OnClickFn>>,
 }
 
@@ -20,17 +20,17 @@ impl Checkbox {
     pub fn new() -> Self {
         Self {
             checked: None,
-            enabled: Accessor::Const(true),
+            enabled: ViewProp::Const(true),
             click_fn: None,
         }
     }
 
-    pub fn checked(mut self, val: impl Into<Accessor<bool>>) -> Self {
+    pub fn checked(mut self, val: impl Into<ViewProp<bool>>) -> Self {
         self.checked = Some(val.into());
         self
     }
 
-    pub fn enabled(mut self, val: impl Into<Accessor<bool>>) -> Self {
+    pub fn enabled(mut self, val: impl Into<ViewProp<bool>>) -> Self {
         self.enabled = val.into();
         self
     }

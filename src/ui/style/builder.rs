@@ -2,34 +2,34 @@ use taffy::{AlignSelf, JustifySelf};
 
 use crate::{
     core::{Brush, Color, ShadowOptions, Size},
-    ui::{Accessor, BuildContext, Widget},
+    ui::{BuildContext, ViewProp, Widget},
 };
 
 use super::{ImageEffect, Length, Style, UiRect};
 
 #[derive(Default, Clone)]
 pub struct StyleBuilder {
-    hidden: Option<Accessor<bool>>,
-    padding: Option<Accessor<UiRect>>,
-    width: Option<Accessor<Length>>,
-    height: Option<Accessor<Length>>,
-    min_width: Option<Accessor<Length>>,
-    min_height: Option<Accessor<Length>>,
-    max_width: Option<Accessor<Length>>,
-    max_height: Option<Accessor<Length>>,
-    aspect_ratio: Option<Accessor<f64>>,
-    border: Option<Accessor<Length>>,
-    margin: Option<Accessor<UiRect>>,
-    inset: Option<Accessor<UiRect>>,
-    background: Option<Accessor<Brush>>,
-    corner_radius: Option<Accessor<Size>>,
-    border_color: Option<Accessor<Color>>,
-    justify_self: Option<Accessor<JustifySelf>>,
-    align_self: Option<Accessor<AlignSelf>>,
-    box_shadow: Option<Accessor<ShadowOptions>>,
-    effects: Option<Accessor<Vec<ImageEffect>>>,
-    flex_grow: Option<Accessor<f32>>,
-    flex_shrink: Option<Accessor<f32>>,
+    hidden: Option<ViewProp<bool>>,
+    padding: Option<ViewProp<UiRect>>,
+    width: Option<ViewProp<Length>>,
+    height: Option<ViewProp<Length>>,
+    min_width: Option<ViewProp<Length>>,
+    min_height: Option<ViewProp<Length>>,
+    max_width: Option<ViewProp<Length>>,
+    max_height: Option<ViewProp<Length>>,
+    aspect_ratio: Option<ViewProp<f64>>,
+    border: Option<ViewProp<Length>>,
+    margin: Option<ViewProp<UiRect>>,
+    inset: Option<ViewProp<UiRect>>,
+    background: Option<ViewProp<Brush>>,
+    corner_radius: Option<ViewProp<Size>>,
+    border_color: Option<ViewProp<Color>>,
+    justify_self: Option<ViewProp<JustifySelf>>,
+    align_self: Option<ViewProp<AlignSelf>>,
+    box_shadow: Option<ViewProp<ShadowOptions>>,
+    effects: Option<ViewProp<Vec<ImageEffect>>>,
+    flex_grow: Option<ViewProp<f32>>,
+    flex_shrink: Option<ViewProp<f32>>,
 }
 
 impl StyleBuilder {
@@ -57,92 +57,92 @@ impl StyleBuilder {
         flex_shrink: None,
     };
 
-    pub fn hidden(&mut self, value: impl Into<Accessor<bool>>) -> &mut Self {
+    pub fn hidden(&mut self, value: impl Into<ViewProp<bool>>) -> &mut Self {
         self.hidden = Some(value.into());
         self
     }
 
-    pub fn padding(&mut self, value: impl Into<Accessor<UiRect>>) -> &mut Self {
+    pub fn padding(&mut self, value: impl Into<ViewProp<UiRect>>) -> &mut Self {
         self.padding = Some(value.into());
         self
     }
 
-    pub fn margin(&mut self, value: impl Into<Accessor<UiRect>>) -> &mut Self {
+    pub fn margin(&mut self, value: impl Into<ViewProp<UiRect>>) -> &mut Self {
         self.margin = Some(value.into());
         self
     }
 
-    pub fn height(&mut self, value: impl Into<Accessor<Length>>) -> &mut Self {
+    pub fn height(&mut self, value: impl Into<ViewProp<Length>>) -> &mut Self {
         self.height = Some(value.into());
         self
     }
 
-    pub fn width(&mut self, value: impl Into<Accessor<Length>>) -> &mut Self {
+    pub fn width(&mut self, value: impl Into<ViewProp<Length>>) -> &mut Self {
         self.width = Some(value.into());
         self
     }
 
-    pub fn min_width(&mut self, value: impl Into<Accessor<Length>>) -> &mut Self {
+    pub fn min_width(&mut self, value: impl Into<ViewProp<Length>>) -> &mut Self {
         self.min_width = Some(value.into());
         self
     }
 
-    pub fn max_width(&mut self, value: impl Into<Accessor<Length>>) -> &mut Self {
+    pub fn max_width(&mut self, value: impl Into<ViewProp<Length>>) -> &mut Self {
         self.max_width = Some(value.into());
         self
     }
 
-    pub fn min_height(&mut self, value: impl Into<Accessor<Length>>) -> &mut Self {
+    pub fn min_height(&mut self, value: impl Into<ViewProp<Length>>) -> &mut Self {
         self.min_height = Some(value.into());
         self
     }
 
-    pub fn max_height(&mut self, value: impl Into<Accessor<Length>>) -> &mut Self {
+    pub fn max_height(&mut self, value: impl Into<ViewProp<Length>>) -> &mut Self {
         self.max_height = Some(value.into());
         self
     }
 
-    pub fn background(&mut self, value: impl Into<Accessor<Brush>>) -> &mut Self {
+    pub fn background(&mut self, value: impl Into<ViewProp<Brush>>) -> &mut Self {
         self.background = Some(value.into());
         self
     }
 
-    pub fn corner_radius(&mut self, value: impl Into<Accessor<Size>>) -> &mut Self {
+    pub fn corner_radius(&mut self, value: impl Into<ViewProp<Size>>) -> &mut Self {
         self.corner_radius = Some(value.into());
         self
     }
 
     pub fn border(
         &mut self,
-        value: impl Into<Accessor<Length>>,
-        color: impl Into<Accessor<Color>>,
+        value: impl Into<ViewProp<Length>>,
+        color: impl Into<ViewProp<Color>>,
     ) -> &mut Self {
         self.border = Some(value.into());
         self.border_color = Some(color.into());
         self
     }
 
-    pub fn align_self(&mut self, value: impl Into<Accessor<AlignSelf>>) -> &mut Self {
+    pub fn align_self(&mut self, value: impl Into<ViewProp<AlignSelf>>) -> &mut Self {
         self.align_self = Some(value.into());
         self
     }
 
-    pub fn flex_grow(&mut self, value: impl Into<Accessor<f32>>) -> &mut Self {
+    pub fn flex_grow(&mut self, value: impl Into<ViewProp<f32>>) -> &mut Self {
         self.flex_grow = Some(value.into());
         self
     }
 
-    pub fn flex_shrink(&mut self, value: impl Into<Accessor<f32>>) -> &mut Self {
+    pub fn flex_shrink(&mut self, value: impl Into<ViewProp<f32>>) -> &mut Self {
         self.flex_shrink = Some(value.into());
         self
     }
 
-    pub fn box_shadow(&mut self, value: impl Into<Accessor<ShadowOptions>>) -> &mut Self {
+    pub fn box_shadow(&mut self, value: impl Into<ViewProp<ShadowOptions>>) -> &mut Self {
         self.box_shadow = Some(value.into());
         self
     }
 
-    pub fn effects(&mut self, value: impl Into<Accessor<Vec<ImageEffect>>>) -> &mut Self {
+    pub fn effects(&mut self, value: impl Into<ViewProp<Vec<ImageEffect>>>) -> &mut Self {
         self.effects = Some(value.into());
         self
     }
@@ -229,7 +229,7 @@ fn replace_if_some<T>(current: &mut Option<T>, new_value: Option<T>) {
 }
 
 fn apply_layout_style<T: Clone + 'static>(
-    accessor: Option<Accessor<T>>,
+    accessor: Option<ViewProp<T>>,
     ctx: &mut BuildContext<dyn Widget>,
     apply_fn: fn(T, &mut Style),
 ) {
@@ -243,7 +243,7 @@ fn apply_layout_style<T: Clone + 'static>(
 }
 
 fn apply_render_style<T: Clone + 'static>(
-    accessor: Option<Accessor<T>>,
+    accessor: Option<ViewProp<T>>,
     ctx: &mut BuildContext<dyn Widget>,
     apply_fn: fn(T, &mut Style),
 ) {

@@ -2,10 +2,10 @@ use rtrb::{Consumer, Producer, RingBuffer};
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    App, Editor, Plugin,
+    Editor, Plugin,
     param::{AnyParameter, NormalizedValue, ParameterId, ParameterMap, Params},
     platform::{self, AudioHost},
-    ui::{AppState, HostHandle, Window},
+    ui::{App, AppState, HostHandle, Window},
 };
 
 const SAMPLES_PER_BLOCK: usize = 128;

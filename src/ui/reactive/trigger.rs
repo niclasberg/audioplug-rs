@@ -1,8 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::ui::WriteContext;
-
-use super::{CreateContext, NodeId, ReadContext};
+use super::{CreateContext, NodeId, ReadContext, WriteContext};
 
 #[derive(Clone, Copy)]
 pub struct Trigger {

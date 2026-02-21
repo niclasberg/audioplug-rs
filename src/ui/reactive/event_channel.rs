@@ -1,6 +1,6 @@
 use std::{any::Any, marker::PhantomData, rc::Rc};
 
-use crate::ui::{CreateContext, NodeId, WatchContext, WriteContext};
+use super::{CreateContext, NodeId, WatchContext, WriteContext};
 
 pub struct EventChannel<T> {
     emitter_id: NodeId,

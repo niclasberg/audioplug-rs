@@ -1,9 +1,10 @@
 use audioplug::{
     core::{Color, Path, ShadowOptions, Size, Vec2},
     param::{AnyParameter, FloatParameter},
+    ui::prelude::*,
     ui::{
         style::{AlignItems, Length, UiRect},
-        Canvas, ReactiveValue, Scene, View,
+        Canvas, Scene, View,
     },
     views::{Checkbox, Column, Label, ParameterKnob, ParameterSlider, Row},
     Editor, EditorContext,

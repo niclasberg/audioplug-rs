@@ -1,8 +1,10 @@
 use crate::{
     core::WindowTheme,
     ui::{
-        AppState, CreateContext, ReactiveContext, ReactiveGraph, ReadSignal, TaskQueue, View,
-        WidgetId, Widgets, reactive::ReactiveContextMut,
+        AppState, TaskQueue, View, WidgetId, Widgets,
+        reactive::{
+            CreateContext, Owner, ReactiveContext, ReactiveContextMut, ReactiveGraph, ReadSignal,
+        },
     },
 };
 
@@ -34,8 +36,8 @@ impl ReactiveContextMut for ScopeContext<'_> {
 }
 
 impl CreateContext for ScopeContext<'_> {
-    fn owner(&self) -> crate::ui::Owner {
-        crate::ui::Owner::Widget(self.id)
+    fn owner(&self) -> Owner {
+        Owner::Widget(self.id)
     }
 }
 

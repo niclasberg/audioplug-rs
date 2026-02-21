@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-use crate::{param::Parameter, ui::ReadSignal};
+use crate::{param::Parameter, ui::reactive::ReadSignal};
 
 use super::{
     AnyParameter, NormalizedValue, ParamRef, ParamVisitor, ParameterId, ParameterTraversal,

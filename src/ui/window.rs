@@ -4,8 +4,7 @@ use std::rc::Rc;
 use pollster::FutureExt;
 use raw_window_handle::RawWindowHandle;
 
-use super::{AppState, View, WindowId};
-use crate::App;
+use super::{App, AppState, View, WindowId};
 use crate::core::{Cursor, PhysicalRect, Point, Rect, ScaleFactor};
 use crate::platform::{self, WindowEvent};
 use crate::ui::render::WGPUSurface;

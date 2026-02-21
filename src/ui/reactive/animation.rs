@@ -5,12 +5,12 @@ use std::{
     time::Instant,
 };
 
-use crate::core::{Lerp, SpringPhysics};
-
 use super::{
-    Accessor, CreateContext, Effect, NodeId, NodeType, ReactiveContext, ReactiveValue, ReadContext,
+    CreateContext, Effect, NodeId, NodeType, ReactiveContext, ReactiveValue, ReadContext,
     ReadScope, ReadSignal, WatchContext, WriteContext,
 };
+use crate::core::{Lerp, SpringPhysics};
+use crate::ui::ViewProp;
 
 pub use super::spring::{SpringAnimation, SpringOptions};
 pub use super::tween::{Easing, TweenAnimation, TweenOptions};
@@ -160,7 +160,7 @@ impl<T: 'static> From<Animated<T>> for ReadSignal<T> {
     }
 }
 
-impl<T: 'static> From<Animated<T>> for Accessor<T> {
+impl<T: 'static> From<Animated<T>> for ViewProp<T> {
     fn from(value: Animated<T>) -> Self {
         Self::ReadSignal(ReadSignal::from_node(value.id))
     }
@@ -267,7 +267,7 @@ impl<T: 'static> From<AnimatedFn<T>> for ReadSignal<T> {
     }
 }
 
-impl<T> From<AnimatedFn<T>> for Accessor<T> {
+impl<T> From<AnimatedFn<T>> for ViewProp<T> {
     fn from(value: AnimatedFn<T>) -> Self {
         Self::ReadSignal(ReadSignal::from_node(value.id))
     }

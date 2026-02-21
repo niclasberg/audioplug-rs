@@ -4,8 +4,9 @@ use crate::{
     event::MouseButton,
     param::{AnyParameter, NormalizedValue, PlainValue},
     ui::{
-        Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
-        ParamSetter, RenderContext, Scene, StatusChange, View, Widget,
+        BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext, RenderContext,
+        Scene, StatusChange, View, ViewProp, Widget,
+        reactive::ParamSetter,
         style::{AvailableSpace, LayoutMode, Length, Measure, Style},
     },
 };
@@ -25,7 +26,7 @@ type OnValueChangeCallback = dyn Fn(&mut CallbackContext, f64);
 pub struct Slider {
     min: f64,
     max: f64,
-    value: Option<Accessor<f64>>,
+    value: Option<ViewProp<f64>>,
     on_drag_start: Option<Box<OnDragCallback>>,
     on_drag_end: Option<Box<OnDragCallback>>,
     on_value_changed: Box<OnValueChangeCallback>,
@@ -60,7 +61,7 @@ impl Slider {
         self
     }
 
-    pub fn value(mut self, value: impl Into<Accessor<f64>>) -> Self {
+    pub fn value(mut self, value: impl Into<ViewProp<f64>>) -> Self {
         self.value = Some(value.into());
         self
     }
@@ -107,7 +108,7 @@ impl View for Slider {
 
 pub struct ParameterSlider<P: AnyParameter> {
     editor: ParamSetter<P>,
-    signal: Accessor<NormalizedValue>,
+    signal: ViewProp<NormalizedValue>,
     direction: Direction,
 }
 

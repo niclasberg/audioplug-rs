@@ -1,10 +1,10 @@
 use std::{any::Any, marker::PhantomData};
 
-use crate::ui::{Accessor, ReactiveContext};
-
 use super::{
-    CreateContext, NodeId, NodeType, Owner, ReactiveValue, Trigger, WriteContext, var::SignalState,
+    CreateContext, NodeId, NodeType, Owner, ReactiveContext, ReactiveValue, Trigger, WriteContext,
+    var::SignalState,
 };
+use crate::ui::ViewProp;
 
 #[derive(Copy, Clone)]
 pub struct SignalVec<T> {
@@ -80,7 +80,7 @@ impl<T: Any> SignalVec<T> {
     }
 }
 
-impl<T> From<SignalVec<T>> for Accessor<Vec<T>> {
+impl<T> From<SignalVec<T>> for ViewProp<Vec<T>> {
     fn from(value: SignalVec<T>) -> Self {
         todo!()
     }
@@ -121,7 +121,7 @@ pub struct AtIndex<Parent, T> {
     _phantom2: PhantomData<*const T>,
 }
 
-impl<T: Any> From<AtIndex<SignalVec<T>, T>> for Accessor<T> {
+impl<T: Any> From<AtIndex<SignalVec<T>, T>> for ViewProp<T> {
     fn from(value: AtIndex<SignalVec<T>, T>) -> Self {
         todo!()
     }

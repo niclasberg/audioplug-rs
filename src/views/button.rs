@@ -3,8 +3,9 @@ use crate::{
     core::{Color, Key},
     event::{KeyEvent, MouseButton},
     ui::{
-        Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
-        ReactiveValue, StatusChange, View, Widget,
+        BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext, StatusChange,
+        View, ViewProp, Widget,
+        reactive::ReactiveValue,
         style::{FlexStyle, LayoutMode, Length, UiRect},
     },
     views::Label,
@@ -27,7 +28,7 @@ impl<V: View> Button<V> {
 }
 
 impl Button<Label> {
-    pub fn new_with_label(text: impl Into<Accessor<String>>) -> Self {
+    pub fn new_with_label(text: impl Into<ViewProp<String>>) -> Self {
         Self {
             child: Label::new(text),
             click_fn: None,

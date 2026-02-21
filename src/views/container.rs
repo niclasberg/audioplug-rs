@@ -1,5 +1,6 @@
 use crate::ui::{
-    Accessor, BuildContext, Cached, ReactiveValue, View, ViewSequence, Widget,
+    BuildContext, View, ViewProp, ViewSequence, Widget,
+    reactive::{Cached, ReactiveValue},
     style::{
         AlignItems, FlexDirection, FlexStyle, FlexWrap, GridStyle, JustifyContent, LayoutMode,
         Length,
@@ -11,24 +12,24 @@ pub type Column<VS> = FlexContainer<VS, false>;
 
 pub struct FlexContainer<VS, const IS_ROW: bool> {
     view_seq: VS,
-    spacing: Accessor<Length>,
-    wrap: Accessor<FlexWrap>,
-    align_items: Option<Accessor<AlignItems>>,
-    justify_content: Option<Accessor<JustifyContent>>,
+    spacing: ViewProp<Length>,
+    wrap: ViewProp<FlexWrap>,
+    align_items: Option<ViewProp<AlignItems>>,
+    justify_content: Option<ViewProp<JustifyContent>>,
 }
 
 impl<VS: ViewSequence, const IS_ROW: bool> FlexContainer<VS, IS_ROW> {
     pub fn new(view_seq: VS) -> Self {
         Self {
             view_seq,
-            spacing: Accessor::Const(Length::ZERO),
-            wrap: Accessor::Const(Default::default()),
+            spacing: ViewProp::Const(Length::ZERO),
+            wrap: ViewProp::Const(Default::default()),
             align_items: None,
             justify_content: None,
         }
     }
 
-    pub fn wrapping(mut self, value: impl Into<Accessor<FlexWrap>>) -> Self {
+    pub fn wrapping(mut self, value: impl Into<ViewProp<FlexWrap>>) -> Self {
         self.wrap = value.into();
         self
     }
@@ -43,7 +44,7 @@ impl<VS: ViewSequence, const IS_ROW: bool> FlexContainer<VS, IS_ROW> {
         self.wrapping(FlexWrap::WrapReverse)
     }
 
-    pub fn spacing(mut self, value: impl Into<Accessor<Length>>) -> Self {
+    pub fn spacing(mut self, value: impl Into<ViewProp<Length>>) -> Self {
         self.spacing = value.into();
         self
     }
@@ -56,12 +57,12 @@ impl<VS: ViewSequence, const IS_ROW: bool> FlexContainer<VS, IS_ROW> {
 }
 
 impl<VS> Row<VS> {
-    pub fn h_align(mut self, value: impl Into<Accessor<JustifyContent>>) -> Self {
+    pub fn h_align(mut self, value: impl Into<ViewProp<JustifyContent>>) -> Self {
         self.justify_content = Some(value.into());
         self
     }
 
-    pub fn v_align(mut self, value: impl Into<Accessor<AlignItems>>) -> Self {
+    pub fn v_align(mut self, value: impl Into<ViewProp<AlignItems>>) -> Self {
         self.align_items = Some(value.into());
         self
     }
@@ -96,12 +97,12 @@ impl<VS> Row<VS> {
 }
 
 impl<VS> Column<VS> {
-    pub fn v_align(mut self, value: impl Into<Accessor<AlignItems>>) -> Self {
+    pub fn v_align(mut self, value: impl Into<ViewProp<AlignItems>>) -> Self {
         self.align_items = Some(value.into());
         self
     }
 
-    pub fn h_align(mut self, value: impl Into<Accessor<taffy::AlignContent>>) -> Self {
+    pub fn h_align(mut self, value: impl Into<ViewProp<taffy::AlignContent>>) -> Self {
         self.justify_content = Some(value.into());
         self
     }
@@ -134,8 +135,8 @@ impl<VS: ViewSequence, const IS_ROW: bool> View for FlexContainer<VS, IS_ROW> {
 
 pub struct Grid<VS> {
     view_seq: VS,
-    columns: Accessor<Vec<taffy::TrackSizingFunction>>,
-    rows: Accessor<Vec<taffy::TrackSizingFunction>>,
+    columns: ViewProp<Vec<taffy::TrackSizingFunction>>,
+    rows: ViewProp<Vec<taffy::TrackSizingFunction>>,
 }
 
 impl<VS: ViewSequence> Grid<VS> {
@@ -164,14 +165,14 @@ pub enum ContainerStyle {
 
 pub struct Container<VS> {
     view_seq: VS,
-    style: Accessor<ContainerStyle>,
+    style: ViewProp<ContainerStyle>,
 }
 
 impl<VS: ViewSequence> Container<VS> {
     pub fn new(view_seq: VS) -> Self {
         Self {
             view_seq,
-            style: Accessor::Const(ContainerStyle::Block),
+            style: ViewProp::Const(ContainerStyle::Block),
         }
     }
 }

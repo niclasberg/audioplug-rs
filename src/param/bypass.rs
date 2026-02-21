@@ -2,7 +2,7 @@ use std::cell::Cell;
 
 use crate::{
     param::{ParamRef, Parameter, ParseError},
-    ui::ReadSignal,
+    ui::reactive::ReadSignal,
 };
 
 use super::{AnyParameter, NormalizedValue, ParameterId, PlainValue};

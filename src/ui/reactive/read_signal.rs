@@ -1,11 +1,12 @@
 use std::marker::PhantomData;
 
+use super::{
+    CreateContext, Effect, NodeId, ReactiveValue, ReadContext, WatchContext,
+    widget_status::WidgetStatusFlags,
+};
 use crate::{
     param::{ParamRef, ParameterId},
-    ui::{
-        Accessor, CreateContext, Effect, NodeId, ReactiveValue, ReadContext, WatchContext,
-        WidgetId, Widgets, reactive::widget_status::WidgetStatusFlags,
-    },
+    ui::{ViewProp, WidgetId, Widgets},
 };
 
 enum ReadSignalSource<T> {
@@ -43,7 +44,7 @@ impl<T> Clone for ReadSignal<T> {
 
 impl<T> Copy for ReadSignal<T> {}
 
-impl<T> From<ReadSignal<T>> for Accessor<T> {
+impl<T> From<ReadSignal<T>> for ViewProp<T> {
     fn from(value: ReadSignal<T>) -> Self {
         Self::ReadSignal(value)
     }

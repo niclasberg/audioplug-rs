@@ -1,10 +1,11 @@
 use std::sync::atomic::AtomicUsize;
 
 use audioplug::{
-    App, KeyEvent,
+    KeyEvent,
     core::{Color, Key},
+    ui::prelude::*,
     ui::style::{Length, UiRect},
-    ui::*,
+    ui::{App, Window},
     views::*,
 };
 use rand::prelude::*;

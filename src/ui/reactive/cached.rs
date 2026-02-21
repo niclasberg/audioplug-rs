@@ -1,9 +1,10 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
-use crate::ui::{Accessor, Effect, ReactiveGraph, ReadSignal, Widgets, reactive::LocalContext};
+use crate::ui::{ViewProp, Widgets};
 
 use super::{
-    CreateContext, NodeId, NodeType, ReactiveContext, ReactiveValue, ReadContext, ReadScope,
+    CreateContext, Effect, LocalContext, NodeId, NodeType, ReactiveContext, ReactiveGraph,
+    ReactiveValue, ReadContext, ReadScope, ReadSignal,
 };
 
 pub struct CachedContext<'a> {
@@ -88,7 +89,7 @@ impl<T: Any> Cached<T> {
     }
 }
 
-impl<T: 'static> From<Cached<T>> for Accessor<T> {
+impl<T: 'static> From<Cached<T>> for ViewProp<T> {
     fn from(value: Cached<T>) -> Self {
         Self::ReadSignal(value.as_read_signal())
     }
@@ -150,7 +151,8 @@ mod tests {
     use super::*;
     use crate::{
         param::ParameterMap,
-        ui::{AppState, Effect, Var},
+        ui::AppState,
+        ui::reactive::{Effect, Var},
     };
     use std::{cell::Cell, rc::Rc};
 

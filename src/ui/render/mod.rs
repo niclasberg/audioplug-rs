@@ -4,7 +4,7 @@ use crate::{
         Vec2, Vec2f,
     },
     platform,
-    ui::{ReactiveGraph, Widgets, render::gpu_scene::GpuFill},
+    ui::{Widgets, reactive::ReactiveGraph, render::gpu_scene::GpuFill},
 };
 
 mod canvas;

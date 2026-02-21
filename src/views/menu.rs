@@ -1,4 +1,4 @@
-use crate::ui::WriteContext;
+use crate::ui::reactive::WriteContext;
 
 pub struct MenuItem {
     label: String,

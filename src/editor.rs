@@ -4,9 +4,8 @@ use crate::{
     core::Size,
     param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params},
     ui::{
-        AnyView, AppState, CreateContext, Owner, ReactiveContext, ReactiveGraph, TaskQueue, Var,
-        View, Widgets,
-        reactive::ReactiveContextMut,
+        AnyView, AppState, TaskQueue, View, Widgets,
+        reactive::{CreateContext, Owner, ReactiveContext, ReactiveContextMut, ReactiveGraph, Var},
         style::{Length, UiRect},
     },
     views::{Column, Container, Label, ParameterSlider, Row, Stateful},

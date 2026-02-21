@@ -6,7 +6,7 @@ use crate::{
     core::{FxIndexSet, diff},
     param::ParameterId,
     ui::{
-        AnyView, BuildContext, ReactiveGraph, View, ViewSequence, Widget, WidgetId, WidgetMut,
+        AnyView, BuildContext, View, ViewProp, ViewSequence, Widget, WidgetId, WidgetMut,
         WidgetRef, Widgets,
         reactive::{
             EffectState,
@@ -20,7 +20,7 @@ use crate::{
 };
 
 use super::{
-    Accessor, Computed, Effect, NodeId, NodeState, NodeType, Owner, ReadScope, WatchContext,
+    Computed, Effect, NodeId, NodeState, NodeType, Owner, ReactiveGraph, ReadScope, WatchContext,
     widget_status::WidgetStatusFlags,
 };
 
@@ -389,7 +389,7 @@ impl ReadContext for LocalReadContext<'_> {
     }
 }
 
-pub trait ReactiveValue: Into<Accessor<Self::Value>> {
+pub trait ReactiveValue: Into<ViewProp<Self::Value>> {
     type Value;
 
     /// Map the current value using `f` and subscribe to changes
@@ -519,7 +519,7 @@ pub struct Mapped<S, T, R, F> {
     _marker: PhantomData<fn(&T) -> R>,
 }
 
-impl<S, T, R, F> From<Mapped<S, T, R, F>> for Accessor<R>
+impl<S, T, R, F> From<Mapped<S, T, R, F>> for ViewProp<R>
 where
     T: 'static,
     R: 'static,

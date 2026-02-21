@@ -3,8 +3,9 @@ use crate::{
     core::{Circle, Color, Modifiers, Point, Rect, Size, Vec2},
     param::{AnyParameter, NormalizedValue, PlainValue},
     ui::{
-        Accessor, BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext,
-        ParamSetter, RenderContext, Scene, StatusChange, View, Widget,
+        BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext, RenderContext,
+        Scene, StatusChange, View, ViewProp, Widget,
+        reactive::ParamSetter,
         style::{AvailableSpace, LayoutMode, Measure, Style},
     },
 };
@@ -18,7 +19,7 @@ type ValueChangedFn = dyn Fn(&mut CallbackContext, f64);
 pub struct Knob {
     min: f64,
     max: f64,
-    value: Option<Accessor<f64>>,
+    value: Option<ViewProp<f64>>,
     on_drag_start: Option<Box<DragStartFn>>,
     on_drag_end: Option<Box<DragEndFn>>,
     on_value_changed: Option<Box<ValueChangedFn>>,
@@ -42,7 +43,7 @@ impl Knob {
         self
     }
 
-    pub fn value(mut self, value: impl Into<Accessor<f64>>) -> Self {
+    pub fn value(mut self, value: impl Into<ViewProp<f64>>) -> Self {
         self.value = Some(value.into());
         self
     }
@@ -72,7 +73,7 @@ impl View for Knob {
 
 pub struct ParameterKnob<P> {
     editor: ParamSetter<P>,
-    signal: Accessor<NormalizedValue>,
+    signal: ViewProp<NormalizedValue>,
 }
 
 impl<P: AnyParameter> ParameterKnob<P> {

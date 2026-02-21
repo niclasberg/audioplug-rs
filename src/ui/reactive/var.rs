@@ -1,9 +1,10 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
 use super::{
-    Accessor, CreateContext, Effect, NodeId, NodeType, Owner, ReactiveContext, ReactiveValue,
-    ReadContext, ReadSignal, WriteContext,
+    CreateContext, Effect, NodeId, NodeType, Owner, ReactiveContext, ReactiveValue, ReadContext,
+    ReadSignal, WriteContext,
 };
+use crate::ui::ViewProp;
 
 /// A value that may change over time.
 pub struct Var<T> {
@@ -79,9 +80,9 @@ impl<T: Any> Var<T> {
     }
 }
 
-impl<T: 'static> From<Var<T>> for Accessor<T> {
+impl<T: 'static> From<Var<T>> for ViewProp<T> {
     fn from(value: Var<T>) -> Self {
-        Accessor::ReadSignal(value.as_read_signal())
+        ViewProp::ReadSignal(value.as_read_signal())
     }
 }
 

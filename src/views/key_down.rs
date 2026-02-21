@@ -1,6 +1,9 @@
 use crate::{
     KeyEvent,
-    ui::{BuildContext, EventContext, EventStatus, View, Widget, WidgetAdapter, WriteContext},
+    ui::{
+        BuildContext, EventContext, EventStatus, View, Widget, WidgetAdapter,
+        reactive::WriteContext,
+    },
 };
 
 pub struct OnKeyEvent<V, F> {

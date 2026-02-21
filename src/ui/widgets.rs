@@ -85,7 +85,7 @@ impl Widgets {
     /// Iterator over the ids of all overlays of a node
     pub fn overlay_id_iter(&self, widget_id: WidgetId) -> ChildIdIter<'_> {
         ChildIdIter {
-            inner: WidgetIdIter::all_children(&self, widget_id),
+            inner: WidgetIdIter::all_overlays(&self, widget_id),
             widgets: &self,
         }
     }
@@ -225,9 +225,9 @@ impl Widgets {
             let parent = &mut self.data[parent_id];
             if parent.first_overlay_id == widget_id {}
         }
-        self.windows[window_id].overlays.remove(widget_id);
         self.remove_children(widget_id, f);
         f(self.internal_remove(widget_id));
+        self.windows[window_id].overlays.remove(widget_id);
     }
 
     pub(super) fn remove_children(&mut self, widget_id: WidgetId, f: &mut impl FnMut(WidgetData)) {
@@ -239,7 +239,7 @@ impl Widgets {
         data.first_child_id = WidgetId::null();
         data.first_overlay_id = WidgetId::null();
 
-        while let Some(child_id) = children_to_remove.back().copied() {
+        while let Some(child_id) = children_to_remove.front().copied() {
             children_to_remove.extend(self.child_id_iter(child_id));
             children_to_remove.extend(self.overlay_id_iter(child_id));
             f(self.internal_remove(child_id));

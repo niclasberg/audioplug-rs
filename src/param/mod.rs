@@ -18,7 +18,7 @@ pub use parameter_map::{AnyParameterMap, ParamRef, ParameterMap, Params};
 pub use string_list::StringListParameter;
 pub use traversal::{ParamVisitor, ParameterTraversal};
 
-use crate::ui::ReadSignal;
+use crate::ui::reactive::ReadSignal;
 
 #[derive(Clone, Debug)]
 pub struct ParseError;

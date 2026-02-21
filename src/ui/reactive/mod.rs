@@ -1,4 +1,3 @@
-mod accessor;
 mod animation;
 mod cached;
 mod computed;
@@ -15,7 +14,6 @@ mod tween;
 mod var;
 mod widget_status;
 
-pub use accessor::Accessor;
 pub use animation::{Animated, AnimatedFn, Animation, Easing, SpringOptions, TweenOptions};
 pub use cached::{Cached, CachedContext};
 pub use computed::Computed;
@@ -33,4 +31,12 @@ pub use widget_status::{CLICKED_STATUS, FOCUS_STATUS, WidgetStatusFlags};
 
 slotmap::new_key_type! {
     pub struct NodeId;
+}
+
+pub mod prelude {
+    pub use super::{
+        Animated, AnimatedFn, Cached, Computed, CreateContext, Effect, ReactiveContext,
+        ReactiveContextMut, ReactiveValue, ReadContext, SpringOptions, Trigger, TweenOptions, Var,
+        WriteContext,
+    };
 }

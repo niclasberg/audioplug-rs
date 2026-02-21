@@ -1,20 +1,22 @@
-use super::{Computed, Effect, ReactiveValue, ReadContext, ReadSignal};
+use super::reactive::{
+    Computed, CreateContext, Effect, ReactiveContext, ReactiveValue, ReadContext, ReadSignal,
+};
 use crate::{
     core::{Brush, Color, LinearGradient},
-    ui::{BuildContext, Widget, WidgetMut},
+    ui::{BuildContext, Widget, WidgetMut, reactive::WatchContext},
 };
 
 /// Represents a value that is either varying over time (a `ReactiveValue`) or a constant
 ///
 /// Commonly used as input to views.
 #[derive(Clone)]
-pub enum Accessor<T> {
+pub enum ViewProp<T> {
     Const(T),
     ReadSignal(ReadSignal<T>),
     Computed(Computed<T>),
 }
 
-impl<T: 'static> Accessor<T> {
+impl<T: 'static> ViewProp<T> {
     pub fn get_and_bind<W: Widget + ?Sized>(
         self,
         cx: &mut BuildContext<W>,
@@ -62,7 +64,7 @@ impl<T: 'static> Accessor<T> {
     }
 }
 
-impl<T: 'static> ReactiveValue for Accessor<T> {
+impl<T: 'static> ReactiveValue for ViewProp<T> {
     type Value = T;
 
     fn track(&self, cx: &mut dyn ReadContext) {
@@ -94,7 +96,7 @@ impl<T: 'static> ReactiveValue for Accessor<T> {
 
     fn with_ref_untracked<R>(
         &self,
-        cx: &mut dyn super::ReactiveContext,
+        cx: &mut dyn ReactiveContext,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
         match self {
@@ -104,60 +106,60 @@ impl<T: 'static> ReactiveValue for Accessor<T> {
         }
     }
 
-    fn get_untracked(&self, cx: &mut dyn super::ReactiveContext) -> Self::Value
+    fn get_untracked(&self, cx: &mut dyn ReactiveContext) -> Self::Value
     where
         Self::Value: Clone,
     {
         match self {
-            Accessor::ReadSignal(read_signal) => read_signal.get_untracked(cx),
-            Accessor::Computed(computed) => computed.get_untracked(cx),
-            Accessor::Const(value) => value.clone(),
+            ViewProp::ReadSignal(read_signal) => read_signal.get_untracked(cx),
+            ViewProp::Computed(computed) => computed.get_untracked(cx),
+            ViewProp::Const(value) => value.clone(),
         }
     }
 
-    fn watch<F>(self, cx: &mut dyn super::CreateContext, f: F) -> Effect
+    fn watch<F>(self, cx: &mut dyn CreateContext, f: F) -> Effect
     where
-        F: FnMut(&mut dyn super::WatchContext, &Self::Value) + 'static,
+        F: FnMut(&mut dyn WatchContext, &Self::Value) + 'static,
     {
         match self {
-            Accessor::ReadSignal(read_signal) => read_signal.watch(cx, f),
-            Accessor::Computed(computed) => computed.watch(cx, f),
-            Accessor::Const(_) => Effect::new_empty(),
+            ViewProp::ReadSignal(read_signal) => read_signal.watch(cx, f),
+            ViewProp::Computed(computed) => computed.watch(cx, f),
+            ViewProp::Const(_) => Effect::new_empty(),
         }
     }
 }
 
-impl<T: Default> Default for Accessor<T> {
+impl<T: Default> Default for ViewProp<T> {
     fn default() -> Self {
         Self::Const(T::default())
     }
 }
 
-impl<T> From<T> for Accessor<T> {
+impl<T> From<T> for ViewProp<T> {
     fn from(value: T) -> Self {
         Self::Const(value)
     }
 }
 
-impl From<&str> for Accessor<String> {
+impl From<&str> for ViewProp<String> {
     fn from(value: &str) -> Self {
         Self::Const(value.to_string())
     }
 }
 
-impl From<Color> for Accessor<Brush> {
+impl From<Color> for ViewProp<Brush> {
     fn from(value: Color) -> Self {
         Self::Const(value.into())
     }
 }
 
-impl From<LinearGradient> for Accessor<Brush> {
+impl From<LinearGradient> for ViewProp<Brush> {
     fn from(value: LinearGradient) -> Self {
         Self::Const(value.into())
     }
 }
 
-impl<T> From<Computed<T>> for Accessor<T> {
+impl<T> From<Computed<T>> for ViewProp<T> {
     fn from(value: Computed<T>) -> Self {
         Self::Computed(value)
     }

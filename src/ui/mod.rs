@@ -5,11 +5,12 @@ mod event_handling;
 mod host_handle;
 mod layout;
 mod overlay;
-pub(super) mod reactive;
+pub mod reactive;
 mod render;
 pub mod style;
 mod task_queue;
 mod view;
+mod view_prop;
 mod view_sequence;
 mod widget;
 mod widget_data;
@@ -25,19 +26,12 @@ pub use event_handling::{CallbackContext, EventContext, MouseEventContext};
 pub use host_handle::HostHandle;
 pub use overlay::{OverlayAnchor, OverlayOptions};
 
-pub use reactive::{
-    Accessor, Animated, AnimatedFn, Animation, Cached, CachedContext, Computed, CreateContext,
-    Easing, Effect, EffectContext, EventChannel, EventReceiver, Mapped, Node, NodeId, Owner,
-    ParamContext, ParamSetter, ReactiveContext, ReactiveGraph, ReactiveValue, ReadContext,
-    ReadScope, ReadSignal, SpringOptions, Trigger, TweenOptions, Var, WatchContext, WidgetContext,
-    WriteContext, create_event_channel,
-};
 pub use render::{
     Canvas, CanvasContext, CanvasWidget, RenderContext, Scene, TextLayout, invalidate_window,
 };
 pub use task_queue::TaskQueue;
-
 pub use view::*;
+pub use view_prop::ViewProp;
 pub use view_sequence::*;
 pub use widget::{EventStatus, StatusChange, Widget, WidgetAdapter};
 pub use widget_data::{WidgetData, WidgetFlags, WidgetId};
@@ -113,4 +107,10 @@ impl Default for App {
     }
 }
 
-mod prelude {}
+pub mod prelude {
+    pub use super::reactive::prelude::*;
+    pub use super::{
+        BuildContext, EventStatus, IndexedViewSeq, OverlayAnchor, OverlayOptions, View,
+        ViewSequence, Widget, view_for_each,
+    };
+}

@@ -3,25 +3,25 @@ use std::cell::RefCell;
 use crate::{
     core::{Color, Size},
     ui::{
-        Accessor, BuildContext, RenderContext, Scene, TextLayout, View, Widget, WidgetMut,
+        BuildContext, RenderContext, Scene, TextLayout, View, ViewProp, Widget, WidgetMut,
         style::{AvailableSpace, LayoutMode, Measure, Style},
     },
 };
 
 pub struct Label {
-    pub text: Accessor<String>,
-    color: Accessor<Color>,
+    pub text: ViewProp<String>,
+    color: ViewProp<Color>,
 }
 
 impl Label {
-    pub fn new(str: impl Into<Accessor<String>>) -> Self {
+    pub fn new(str: impl Into<ViewProp<String>>) -> Self {
         Self {
             text: str.into(),
-            color: Accessor::Const(Color::BLACK),
+            color: ViewProp::Const(Color::BLACK),
         }
     }
 
-    pub fn color(mut self, color: impl Into<Accessor<Color>>) -> Self {
+    pub fn color(mut self, color: impl Into<ViewProp<Color>>) -> Self {
         self.color = color.into();
         self
     }

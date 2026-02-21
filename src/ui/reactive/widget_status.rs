@@ -1,4 +1,5 @@
-use crate::ui::{ReadSignal, WidgetId, Widgets};
+use super::ReadSignal;
+use crate::ui::{WidgetId, Widgets};
 use bitflags::bitflags;
 
 bitflags! {

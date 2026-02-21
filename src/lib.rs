@@ -19,5 +19,4 @@ pub use audiolayout::*;
 pub use editor::*;
 pub use event::{AnimationFrame, KeyEvent, MouseButton, MouseButtons, MouseEvent};
 pub use plugin::*;
-pub use ui::App;
 pub use uuid::Uuid;

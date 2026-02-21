@@ -1,19 +1,15 @@
 use super::{
-    AppState, CallbackContext, CreateContext, EventStatus, MouseEventContext, Owner, ParamContext,
-    ReactiveContext, ReadContext, ReadScope, ReadSignal, ViewSequence, Widget, WidgetAdapter,
-    WidgetFlags, WidgetHandle, WidgetId,
+    AppState, CallbackContext, EventStatus, MouseEventContext, ViewSequence, Widget, WidgetAdapter,
+    WidgetFlags, WidgetHandle, WidgetId, WidgetPos, Widgets,
     overlay::OverlayOptions,
-    reactive::FOCUS_STATUS,
-    style::{Style, StyleBuilder},
-};
-use crate::{
-    MouseButton, MouseEvent,
-    ui::{
-        ReactiveGraph, WidgetPos, Widgets,
-        reactive::{CLICKED_STATUS, ReactiveContextMut},
-        task_queue::TaskQueue,
+    reactive::{
+        CLICKED_STATUS, CreateContext, FOCUS_STATUS, Owner, ParamContext, ReactiveContext,
+        ReactiveContextMut, ReactiveGraph, ReadContext, ReadScope, ReadSignal,
     },
+    style::{Style, StyleBuilder},
+    task_queue::TaskQueue,
 };
+use crate::{ MouseButton, MouseEvent};
 use std::marker::PhantomData;
 
 pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn Widget>>;

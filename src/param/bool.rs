@@ -1,6 +1,6 @@
 use crate::{
     param::{ParamRef, Parameter},
-    ui::ReadSignal,
+    ui::reactive::ReadSignal,
 };
 
 use super::{

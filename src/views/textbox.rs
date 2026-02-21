@@ -3,8 +3,8 @@ use crate::core::{Color, Cursor, Key, Modifiers, Rect, Size};
 use crate::event::{KeyEvent, MouseButton};
 use crate::ui::Scene;
 use crate::ui::{
-    Accessor, AnimationContext, AppState, BuildContext, EventContext, EventStatus,
-    MouseEventContext, RenderContext, StatusChange, TextLayout, View, Widget,
+    AnimationContext, AppState, BuildContext, EventContext, EventStatus, MouseEventContext,
+    RenderContext, StatusChange, TextLayout, View, ViewProp, Widget,
     style::{AvailableSpace, LayoutMode, Length, Measure, Style, UiRect},
 };
 use std::ops::Range;
@@ -15,8 +15,8 @@ type InputChangedFn = dyn Fn(&mut AppState, &str);
 pub struct TextBox {
     width: f64,
     input_changed_fn: Box<InputChangedFn>,
-    value: Option<Accessor<String>>,
-    placeholder: Option<Accessor<String>>,
+    value: Option<ViewProp<String>>,
+    placeholder: Option<ViewProp<String>>,
 }
 
 impl TextBox {
@@ -29,12 +29,12 @@ impl TextBox {
         }
     }
 
-    pub fn value(mut self, value: impl Into<Accessor<String>>) -> Self {
+    pub fn value(mut self, value: impl Into<ViewProp<String>>) -> Self {
         self.value = Some(value.into());
         self
     }
 
-    pub fn placeholder(mut self, value: impl Into<Accessor<String>>) -> Self {
+    pub fn placeholder(mut self, value: impl Into<ViewProp<String>>) -> Self {
         self.placeholder = Some(value.into());
         self
     }

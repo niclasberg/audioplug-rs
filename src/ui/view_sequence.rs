@@ -1,9 +1,6 @@
-use crate::{
-    core::diff,
-    ui::{Effect, ReactiveValue, ReadContext},
-};
-
-use super::{Accessor, BuildContext, View, Widget};
+use super::reactive::{Effect, ReactiveValue, ReadContext};
+use super::{BuildContext, View, ViewProp, Widget};
+use crate::core::diff;
 
 pub trait ViewSequence: Sized + 'static {
     fn build_seq(self, cx: &mut BuildContext<dyn Widget>);
@@ -65,12 +62,12 @@ impl<const N: usize, V: View> ViewSequence for [V; N] {
 }
 
 pub struct IndexedViewSeq<F> {
-    count: Accessor<usize>,
+    count: ViewProp<usize>,
     view_factory: F,
 }
 
 impl<V: View, F: Fn(usize) -> V> IndexedViewSeq<F> {
-    pub fn new(count: impl Into<Accessor<usize>>, view_factory: F) -> Self {
+    pub fn new(count: impl Into<ViewProp<usize>>, view_factory: F) -> Self {
         Self {
             count: count.into(),
             view_factory,

@@ -1,10 +1,8 @@
 use audioplug::{
-    App,
     core::{Color, Key, LinearGradient, Size, UnitPoint},
-    ui::{
-        style::{AlignSelf, Length, UiRect},
-        *,
-    },
+    ui::prelude::*,
+    ui::style::{AlignSelf, Length, UiRect},
+    ui::{App, Window},
     views::*,
 };
 

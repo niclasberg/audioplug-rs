@@ -1,4 +1,7 @@
-use crate::ui::{BuildContext, Effect, ReadContext, View};
+use crate::ui::{
+    BuildContext, View,
+    reactive::{Effect, ReadContext},
+};
 
 pub struct Switch<FValue, FView> {
     f_value: FValue,
