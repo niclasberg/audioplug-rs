@@ -1,5 +1,3 @@
-use wgpu::util::DeviceExt;
-
 use crate::core::{
     Color, ColorMap, Ellipse, FillRule, Path, Rect, RoundedRect, ShadowKind, ShadowOptions, Vec2f,
 };

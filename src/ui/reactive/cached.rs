@@ -3,8 +3,8 @@ use std::{any::Any, marker::PhantomData, ops::DerefMut};
 use crate::ui::{ViewProp, Widgets};
 
 use super::{
-    CreateContext, Effect, LocalContext, NodeId, NodeType, ReactiveContext, ReactiveGraph,
-    ReactiveValue, ReadContext, ReadScope, ReadSignal,
+    CreateContext, Effect, LocalContext, NodeId, ReactiveContext, ReactiveGraph, ReactiveValue,
+    ReadContext, ReadScope, ReadSignal, runtime::NodeType,
 };
 
 pub struct CachedContext<'a> {

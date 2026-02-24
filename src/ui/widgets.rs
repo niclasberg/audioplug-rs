@@ -15,6 +15,7 @@ use crate::{
         layout::RecomputeLayout,
         overlay::OverlayContainer,
         render::{GpuScene, WGPUSurface},
+        widget_data::{ChildIdIter, SiblingWalker, WidgetDataMap},
     },
 };
 
@@ -30,6 +31,7 @@ pub enum WidgetPos {
 }
 
 pub(super) struct WindowState {
+    pub(super) id: WindowId,
     pub(super) handle: platform::Handle,
     pub(super) wgpu_surface: WGPUSurface,
     pub(super) gpu_scene: GpuScene,
@@ -41,7 +43,7 @@ pub(super) struct WindowState {
 #[derive(Default)]
 pub struct Widgets {
     /// Data (e.g. parent, layout, render scene etc.) associated with each widget
-    pub(super) data: SlotMap<WidgetId, WidgetData>,
+    pub(super) data: WidgetDataMap,
     /// Widget implementation. Should exist for each widget data.
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
     windows: SlotMap<WindowId, WindowState>,
@@ -63,31 +65,17 @@ impl Widgets {
     }
 
     pub fn contains(&self, widget_id: WidgetId) -> bool {
-        self.data.contains_key(widget_id)
+        self.data.contains(widget_id)
     }
 
     /// Iterator over the ids of all siblings of a node
     pub fn sibling_id_iter(&self, widget_id: WidgetId) -> ChildIdIter<'_> {
-        ChildIdIter {
-            inner: WidgetIdIter::all_siblings(&self, widget_id),
-            widgets: &self,
-        }
+        self.data.sibling_id_iter(widget_id)
     }
 
     /// Iterator over the ids of all children of a node
     pub fn child_id_iter(&self, widget_id: WidgetId) -> ChildIdIter<'_> {
-        ChildIdIter {
-            inner: WidgetIdIter::all_children(&self, widget_id),
-            widgets: &self,
-        }
-    }
-
-    /// Iterator over the ids of all overlays of a node
-    pub fn overlay_id_iter(&self, widget_id: WidgetId) -> ChildIdIter<'_> {
-        ChildIdIter {
-            inner: WidgetIdIter::all_overlays(&self, widget_id),
-            widgets: &self,
-        }
+        self.data.child_id_iter(widget_id)
     }
 
     pub fn window_id_iter(&self) -> impl Iterator<Item = WindowId> {
@@ -100,11 +88,10 @@ impl Widgets {
         wgpu_surface: WGPUSurface,
     ) -> WindowId {
         let window_id = self.windows.insert_with_key(|window_id| {
-            let root_widget = self
-                .data
-                .insert_with_key(|id| WidgetData::new(window_id, id));
+            let root_widget = self.data.insert_root(window_id);
             self.child_id_cache.insert(root_widget, Vec::new());
             WindowState {
+                id: window_id,
                 handle,
                 wgpu_surface,
                 root_widget,
@@ -120,20 +107,22 @@ impl Widgets {
     /// Allocate a new widget which does not have an implementation.
     /// Make sure to call [set_widget_impl] afterwards (or there will be panics later)
     pub(super) fn allocate_widget(&mut self, position: WidgetPos) -> WidgetId {
-        let parent_id = match position {
-            WidgetPos::Before(widget_id) => self.data[widget_id].parent_id,
-            WidgetPos::After(widget_id) => self.data[widget_id].parent_id,
-            WidgetPos::FirstChild(widget_id) => widget_id,
-            WidgetPos::LastChild(widget_id) => widget_id,
-            WidgetPos::Overlay(widget_id, _) => widget_id,
+        let id = match position {
+            WidgetPos::Before(widget_id) => self.data.insert_before(widget_id),
+            WidgetPos::After(widget_id) => self.data.insert_after(widget_id),
+            WidgetPos::FirstChild(widget_id) => self.data.insert_first_child(widget_id),
+            WidgetPos::LastChild(widget_id) => self.data.insert_last_child(widget_id),
+            WidgetPos::Overlay(parent_id, overlay_options) => {
+                let id = self.data.insert_last_child(parent_id);
+                let data = &mut self.data[id];
+                data.set_flag(WidgetFlags::OVERLAY);
+                self.windows[data.window_id]
+                    .overlays
+                    .insert_or_update(id, overlay_options);
+                id
+            }
         };
-        let window_id = self.data[parent_id].window_id;
-
-        let id = self
-            .data
-            .insert_with_key(|id| WidgetData::new(window_id, id).with_parent(parent_id));
         self.child_id_cache.insert(id, Vec::new());
-        self.move_widget(id, position);
         id
     }
 
@@ -205,18 +194,22 @@ impl Widgets {
         current.window_id = window_id;
     }
 
+    pub fn swap_widgets(&mut self, src_id: WidgetId, dst_id: WidgetId) {
+        self.data.swap(src_id, dst_id);
+        self.request_layout(src_id);
+        self.request_layout(dst_id);
+    }
+
     fn internal_remove(&mut self, widget_id: WidgetId) -> WidgetData {
         self.child_id_cache.remove(widget_id);
         self.widgets.remove(widget_id);
 
         let data = self
             .data
-            .remove(widget_id)
+            .unchecked_remove(widget_id)
             .expect("Widget being removed should exist");
 
-        if data.is_overlay() {
-            self.windows[data.window_id].overlays.remove(widget_id);
-        }
+        self.windows[data.window_id].overlays.remove(widget_id);
 
         data
     }
@@ -224,11 +217,9 @@ impl Widgets {
     // Remove a widget and all its children. The `f` function is invoked after each removed widget.
     pub(super) fn remove_widget(&mut self, widget_id: WidgetId, f: &mut impl FnMut(WidgetData)) {
         let data = &self.data[widget_id];
-        let is_overlay = data.is_overlay();
         let parent_id = data.parent_id;
         if !parent_id.is_null() {
             let parent = &mut self.data[parent_id];
-            if parent.first_overlay_id == widget_id {}
         }
         self.remove_children(widget_id, f);
         f(self.internal_remove(widget_id));
@@ -239,14 +230,11 @@ impl Widgets {
         let mut children_to_remove = self.id_buffer.take();
         children_to_remove.clear();
         children_to_remove.extend(self.child_id_iter(widget_id));
-        children_to_remove.extend(self.overlay_id_iter(widget_id));
         let data = &mut self.data[widget_id];
         data.first_child_id = WidgetId::null();
-        data.first_overlay_id = WidgetId::null();
 
         while let Some(child_id) = children_to_remove.pop_front() {
             children_to_remove.extend(self.child_id_iter(child_id));
-            children_to_remove.extend(self.overlay_id_iter(child_id));
             f(self.internal_remove(child_id));
         }
 
@@ -294,7 +282,7 @@ impl Widgets {
     }
 
     pub fn widget_has_focus(&self, id: WidgetId) -> bool {
-        self.windows[self.data[id].window_id]
+        self.windows[self.data.get(id).unwrap().window_id]
             .focus_widget
             .as_ref()
             .is_some_and(|focus_widget_id| *focus_widget_id == id)
@@ -356,8 +344,8 @@ impl Widgets {
                 while let Some(current) = stack.pop_front() {
                     widgets.push(current);
 
-                    let mut widget_id_iter = WidgetIdIter::all_children(&self, current);
-                    while let Some(child_id) = widget_id_iter.next_id(&self) {
+                    let mut widget_id_iter = SiblingWalker::all_children(&self.data, current);
+                    while let Some(child_id) = widget_id_iter.next_id(&self.data) {
                         let data = &self.data[child_id];
                         if data.global_bounds().contains(pos) && !data.is_overlay() {
                             stack.push_back(child_id)
@@ -382,7 +370,7 @@ impl Widgets {
             if current.is_null() {
                 break;
             }
-            let data = &mut self.data[current];
+            let data = &mut self.data.get(current).unwrap();
             if data.is_overlay() || data.flag_is_set(WidgetFlags::NEEDS_LAYOUT) {
                 break;
             }
@@ -403,9 +391,9 @@ impl Widgets {
         self.rebuild_children();
 
         // Need to layout root first, the overlay positions can depend on their parent positions
-        if mode == RecomputeLayout::Force || self.data[root_id].needs_layout() {
+        if mode == RecomputeLayout::Force || self.data.get(root_id).unwrap().needs_layout() {
             let region_to_invalidate = compute_root_layout(self, root_id, window_size);
-            self.update_node_origins(root_id, Point::ZERO);
+            self.data.update_node_origins(root_id, Point::ZERO);
             if let Some(region_to_invalidate) = region_to_invalidate {
                 self.window(window_id)
                     .handle
@@ -418,7 +406,7 @@ impl Widgets {
         // this will be wrong.
         let overlay_ids: Vec<_> = self.windows[window_id].overlays.iter().collect();
         for (i, overlay_id) in overlay_ids.into_iter().enumerate() {
-            if mode == RecomputeLayout::Force || self.data[overlay_id].needs_layout() {
+            if mode == RecomputeLayout::Force || self.data.get(overlay_id).unwrap().needs_layout() {
                 let region_to_invalidate = compute_root_layout(self, root_id, window_size);
                 let options = self
                     .window(window_id)
@@ -427,7 +415,8 @@ impl Widgets {
                     .unwrap();
 
                 let offset = self.compute_overlay_offset(window_rect, overlay_id, options);
-                self.update_node_origins(overlay_id, offset.into_point());
+                self.data
+                    .update_node_origins(overlay_id, offset.into_point());
                 if let Some(region_to_invalidate) = region_to_invalidate {
                     self.window(window_id)
                         .handle
@@ -452,9 +441,9 @@ impl Widgets {
         overlay_id: WidgetId,
         options: OverlayOptions,
     ) -> Vec2 {
-        let current_bounds = self.data[overlay_id].local_bounds();
-        let parent_id = self.data[overlay_id].parent_id;
-        let parent_bounds = self.data[parent_id].global_bounds();
+        let current_bounds = self.data.get(overlay_id).unwrap().local_bounds();
+        let parent_id = self.data.get(overlay_id).unwrap().parent_id;
+        let parent_bounds = self.data.get(parent_id).unwrap().global_bounds();
         let alignment_offset = match options.anchor {
             OverlayAnchor::Fixed => options.align.compute_offset(current_bounds, window_rect),
             OverlayAnchor::InsideParent => {
@@ -479,108 +468,10 @@ impl Widgets {
         alignment_offset + options.offset
     }
 
-    fn update_node_origins(&mut self, root_widget: WidgetId, position: Point) {
-        let mut stack = vec![];
-        self.data[root_widget].origin = position;
-        for child in self.child_id_iter(root_widget) {
-            stack.push((child, position));
-        }
-
-        while let Some((widget_id, parent_origin)) = stack.pop() {
-            let origin = self.data[widget_id].offset() + parent_origin.into_vec2();
-            for child in self.child_id_iter(widget_id) {
-                stack.push((child, origin))
-            }
-            self.data[widget_id].origin = origin;
-        }
-    }
-
     /// Get the (cached) child ids for a widget. You must call rebuild_children before using this method.
     pub(super) fn cached_child_ids(&self, widget_id: WidgetId) -> &Vec<WidgetId> {
         debug_assert!(self.child_layout_changed.is_empty());
         &self.child_id_cache[widget_id]
-    }
-}
-
-pub struct ChildIdIter<'a> {
-    inner: WidgetIdIter,
-    widgets: &'a Widgets,
-}
-
-impl<'a> Iterator for ChildIdIter<'a> {
-    type Item = WidgetId;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next_id(self.widgets)
-    }
-}
-
-impl<'a> DoubleEndedIterator for ChildIdIter<'a> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.inner.next_back_id(self.widgets)
-    }
-}
-
-// Keeps track of the current iterable range. The Widgets have to be passed on each
-// call to next_id in order to avoid borrowing problems.
-pub(super) struct WidgetIdIter {
-    first: WidgetId,
-    last: WidgetId,
-    done: bool,
-}
-
-impl WidgetIdIter {
-    pub(super) fn all_siblings(widgets: &Widgets, first: WidgetId) -> Self {
-        if first.is_null() {
-            Self {
-                first: WidgetId::null(),
-                last: WidgetId::null(),
-                done: true,
-            }
-        } else {
-            let last = widgets.data[first].prev_sibling_id;
-            Self {
-                first,
-                last,
-                done: false,
-            }
-        }
-    }
-
-    pub(super) fn all_children(widgets: &Widgets, parent_id: WidgetId) -> Self {
-        let first = widgets.data[parent_id].first_child_id;
-        Self::all_siblings(widgets, first)
-    }
-
-    pub(super) fn all_overlays(widgets: &Widgets, parent_id: WidgetId) -> Self {
-        let first = widgets.data[parent_id].first_overlay_id;
-        Self::all_siblings(widgets, first)
-    }
-
-    pub(super) fn next_id(&mut self, widgets: &Widgets) -> Option<WidgetId> {
-        if self.done {
-            None
-        } else {
-            let first = self.first;
-            self.first = widgets.data[first].next_sibling_id;
-            if self.first == self.last {
-                self.done = true;
-            }
-            Some(first)
-        }
-    }
-
-    pub(super) fn next_back_id(&mut self, widgets: &Widgets) -> Option<WidgetId> {
-        if self.done {
-            None
-        } else {
-            let last = self.last;
-            self.last = widgets.data[last].prev_sibling_id;
-            if self.first == self.last {
-                self.done = true;
-            }
-            Some(last)
-        }
     }
 }
 

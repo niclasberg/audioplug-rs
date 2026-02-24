@@ -6,8 +6,8 @@ use std::{
 };
 
 use super::{
-    CreateContext, Effect, NodeId, NodeType, ReactiveContext, ReactiveValue, ReadContext,
-    ReadScope, ReadSignal, WatchContext, WriteContext,
+    CreateContext, Effect, NodeId, ReactiveContext, ReactiveValue, ReadContext, ReadScope,
+    ReadSignal, WatchContext, WriteContext, runtime::NodeType,
 };
 use crate::core::{Lerp, SpringPhysics};
 use crate::ui::ViewProp;

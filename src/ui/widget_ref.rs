@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     core::{Rect, diff::DiffOp},
-    ui::{WidgetHandle, WidgetPos, Widgets, widgets::WidgetIdIter},
+    ui::{WidgetHandle, WidgetPos, Widgets, widget_data::SiblingWalker},
 };
 
 pub struct WidgetNotFound<'a, W: Widget + ?Sized>(WidgetMut<'a, W>);
@@ -24,7 +24,7 @@ impl<'a, W: Widget + ?Sized> Debug for WidgetNotFound<'a, W> {
 
 pub struct WidgetRefIter<'a> {
     widgets: &'a Widgets,
-    inner: WidgetIdIter,
+    inner: SiblingWalker,
 }
 
 impl<'a> Iterator for WidgetRefIter<'a> {
@@ -32,7 +32,7 @@ impl<'a> Iterator for WidgetRefIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner
-            .next_id(self.widgets)
+            .next_id(&self.widgets.data)
             .map(|id| WidgetRef::new(self.widgets, id))
     }
 }
@@ -40,7 +40,7 @@ impl<'a> Iterator for WidgetRefIter<'a> {
 impl<'a> DoubleEndedIterator for WidgetRefIter<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.inner
-            .next_back_id(self.widgets)
+            .next_back_id(&self.widgets.data)
             .map(|id| WidgetRef::new(self.widgets, id))
     }
 }
@@ -61,7 +61,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
     }
 
     pub fn data(&self) -> &WidgetData {
-        &self.widgets.data[self.id]
+        &self.widgets.data.get(self.id).unwrap()
     }
 
     pub fn local_bounds(&self) -> Rect {
@@ -90,7 +90,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
 
     pub fn child_iter(&self) -> WidgetRefIter<'_> {
         WidgetRefIter {
-            inner: WidgetIdIter::all_children(self.widgets, self.id),
+            inner: SiblingWalker::all_children(&self.widgets.data, self.id),
             widgets: self.widgets,
         }
     }
@@ -146,8 +146,8 @@ fn for_each_child_ref_impl(
     id: WidgetId,
     f: &mut dyn FnMut(WidgetRef<'_, dyn Widget>),
 ) {
-    let mut child_iter = WidgetIdIter::all_children(widgets, id);
-    while let Some(child_id) = child_iter.next_id(widgets) {
+    let mut child_iter = SiblingWalker::all_children(&widgets.data, id);
+    while let Some(child_id) = child_iter.next_id(&widgets.data) {
         f(WidgetRef::new(widgets, child_id))
     }
 }
@@ -167,12 +167,12 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         }
     }
 
-    pub fn data(&self) -> &WidgetData {
-        &self.app_state.widgets.data[self.id]
+    fn data(&self) -> &WidgetData {
+        self.app_state.widgets.data.get(self.id).unwrap()
     }
 
-    pub fn data_mut(&mut self) -> &mut WidgetData {
-        &mut self.app_state.widgets.data[self.id]
+    fn data_mut(&mut self) -> &mut WidgetData {
+        self.app_state.widgets.data.get_mut(self.id).unwrap()
     }
 
     pub fn index_of_child(&self, id: WidgetId) -> Option<usize> {
@@ -216,7 +216,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
 
     pub fn child_iter(&self) -> WidgetRefIter<'_> {
         WidgetRefIter {
-            inner: WidgetIdIter::all_children(&self.app_state.widgets, self.id),
+            inner: SiblingWalker::all_children(&self.app_state.widgets.data, self.id),
             widgets: &self.app_state.widgets,
         }
     }
@@ -231,11 +231,11 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
             id: WidgetId,
             f: &mut dyn FnMut(WidgetMut<'_, dyn Widget>),
         ) {
-            let mut child_iter = WidgetIdIter::all_children(&app_state.widgets, id);
-            let mut current = child_iter.next_id(&app_state.widgets);
+            let mut child_iter = SiblingWalker::all_children(&app_state.widgets.data, id);
+            let mut current = child_iter.next_id(&app_state.widgets.data);
             while let Some(child_id) = current {
                 // This copy is needed - the widget might be removed while visited
-                let next = child_iter.next_id(&app_state.widgets);
+                let next = child_iter.next_id(&app_state.widgets.data);
                 f(WidgetMut::new(app_state, child_id));
                 current = next;
             }
@@ -285,6 +285,10 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
             .app_state
             .add_widget(view, WidgetPos::Overlay(self.id, options));
         WidgetHandle::new(widget_id)
+    }
+
+    pub fn swap_with(&mut self, widget_id: WidgetId) {
+        self.app_state.widgets.swap_widgets(self.id, widget_id);
     }
 
     /*pub fn remove_child(&mut self, i: usize) {

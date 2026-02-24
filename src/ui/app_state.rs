@@ -3,8 +3,8 @@ use super::reactive::{
     ReactiveGraph, ReadContext, ReadScope, Var, WatchContext, WidgetContext, WriteContext,
 };
 use super::{
-    AnyView, BuildContext, HostHandle, View, Widget, WidgetData, WidgetId, WidgetMut, WidgetRef,
-    Widgets, WindowId,
+    AnyView, BuildContext, HostHandle, View, Widget, WidgetId, WidgetMut, WidgetRef, Widgets,
+    WindowId,
     clipboard::Clipboard,
     event_handling::{set_focus_widget, set_mouse_capture_widget},
     layout::RecomputeLayout,
@@ -145,23 +145,13 @@ impl AppState {
     pub fn replace_widget<V: View>(&mut self, id: WidgetId, view: V) {
         self.clear_mouse_capture_and_focus(id);
 
-        let WidgetData {
-            parent_id,
-            window_id,
-            next_sibling_id,
-            prev_sibling_id,
-            ..
-        } = self.widgets.data[id];
-
         let reactive_graph = &mut self.reactive_graph;
         reactive_graph.clear_nodes_for_widget(id);
         self.widgets.remove_children(id, &mut |data| {
             reactive_graph.clear_nodes_for_widget(data.id);
         });
 
-        self.widgets.data[id] = WidgetData::new(window_id, id)
-            .with_parent(parent_id)
-            .with_siblings(prev_sibling_id, next_sibling_id);
+        self.widgets.data.get_mut(id).unwrap().reset();
         self.build_and_insert_widget(id, view);
     }
 
@@ -172,7 +162,7 @@ impl AppState {
             set_mouse_capture_widget(self, None);
         }
 
-        let window_id = self.get_window_id_for_widget(id);
+        let window_id = self.widgets.window_for_widget(id).id;
         if let Some(focus_widget) = self.widgets.focus_widget_id(window_id)
             && (focus_widget == id || self.widgets.has_parent(focus_widget, id))
         {
@@ -200,10 +190,6 @@ impl AppState {
             .window(window_id)
             .focus_widget
             .map(|id| WidgetMut::new(self, id))
-    }
-
-    pub fn get_window_id_for_widget(&self, widget_id: WidgetId) -> WindowId {
-        self.widgets.data[widget_id].window_id
     }
 
     pub fn run_effects(&mut self) {

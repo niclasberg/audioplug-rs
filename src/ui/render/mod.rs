@@ -116,83 +116,82 @@ fn rebuild_scene(widgets: &mut Widgets, window_id: WindowId) {
     let window = widgets.window_mut(window_id);
     let scale_factor = window.handle.scale_factor().0;
     let gpu_scene = &mut window.gpu_scene;
-    {
-        let rect = gpu_scene.add_rect(Rect {
-            left: 10.0,
-            top: 10.0,
-            right: 150.0,
-            bottom: 200.0,
-        });
-        let rect2 = gpu_scene.add_rect(Rect {
-            left: 10.0,
-            top: 310.0,
-            right: 150.0,
-            bottom: 500.0,
-        });
-        let rounded_rect = gpu_scene.add_rounded_rect(
-            RoundedRect::new(
-                Rect {
-                    left: 50.3,
-                    top: 100.2,
-                    right: 500.0,
-                    bottom: 400.3,
-                },
-                Size::new(40.0, 30.0),
-            )
-            .scale(scale_factor),
-        );
-        let path = gpu_scene.add_path(
-            &Path::new()
-                .move_to(Point::new(100.0, 100.0))
-                .line_to(Point::new(100.0, 800.0))
-                .line_to(Point::new(800.0, 800.0))
-                .line_to(Point::new(700.0, 400.0))
-                .close_path(),
-            FillRule::NonZero,
-        );
-        let ellipse = gpu_scene.add_ellipse(
-            Ellipse::from_rectangle(Rect {
-                left: 650.3,
-                top: 200.2,
-                right: 900.0,
-                bottom: 300.3,
-            })
-            .scale(scale_factor),
-        );
-        let drop_shadow = GpuFill::Shadow(ShadowOptions {
-            radius: 25.0,
-            offset: Vec2::splat(10.0),
-            color: Color::BLACK.with_alpha(0.7),
-            kind: crate::core::ShadowKind::DropShadow,
-        });
 
-        gpu_scene.fill_shape(rect, drop_shadow.clone());
-        gpu_scene.fill_shape(rect, GpuFill::Solid(Color::RED));
-        gpu_scene.fill_shape(
-            path,
-            GpuFill::LinearGradient {
-                start: Vec2f { x: 100.0, y: 100.0 },
-                end: Vec2f { x: 800.0, y: 800.0 },
-                color_stops: ColorMap::new([]),
+    let rect = gpu_scene.add_rect(Rect {
+        left: 10.0,
+        top: 10.0,
+        right: 150.0,
+        bottom: 200.0,
+    });
+    let rect2 = gpu_scene.add_rect(Rect {
+        left: 10.0,
+        top: 310.0,
+        right: 150.0,
+        bottom: 500.0,
+    });
+    let rounded_rect = gpu_scene.add_rounded_rect(
+        RoundedRect::new(
+            Rect {
+                left: 50.3,
+                top: 100.2,
+                right: 500.0,
+                bottom: 400.3,
             },
-        );
-        gpu_scene.fill_shape(ellipse, drop_shadow.clone());
-        gpu_scene.fill_shape(ellipse, GpuFill::Solid(Color::RED));
-
-        gpu_scene.fill_shape(rounded_rect, drop_shadow.clone());
-        gpu_scene.fill_shape(
-            rounded_rect,
-            GpuFill::Solid(Color::CHAMOISEE.with_alpha(0.7)),
-        );
-        gpu_scene.fill_shape(
-            rect2,
-            GpuFill::RadialGradient {
-                center: Vec2f { x: 75.0, y: 400.0 },
-                radius: 80.0,
-                color_stops: ColorMap::new([]),
-            },
+            Size::new(40.0, 30.0),
         )
-    }
+        .scale(scale_factor),
+    );
+    let path = gpu_scene.add_path(
+        &Path::new()
+            .move_to(Point::new(100.0, 100.0))
+            .line_to(Point::new(100.0, 800.0))
+            .line_to(Point::new(800.0, 800.0))
+            .line_to(Point::new(700.0, 400.0))
+            .close_path(),
+        FillRule::NonZero,
+    );
+    let ellipse = gpu_scene.add_ellipse(
+        Ellipse::from_rectangle(Rect {
+            left: 650.3,
+            top: 200.2,
+            right: 900.0,
+            bottom: 300.3,
+        })
+        .scale(scale_factor),
+    );
+    let drop_shadow = GpuFill::Shadow(ShadowOptions {
+        radius: 25.0,
+        offset: Vec2::splat(10.0),
+        color: Color::BLACK.with_alpha(0.7),
+        kind: crate::core::ShadowKind::DropShadow,
+    });
+
+    gpu_scene.fill_shape(rect, drop_shadow.clone());
+    gpu_scene.fill_shape(rect, GpuFill::Solid(Color::RED));
+    gpu_scene.fill_shape(
+        path,
+        GpuFill::LinearGradient {
+            start: Vec2f { x: 100.0, y: 100.0 },
+            end: Vec2f { x: 800.0, y: 800.0 },
+            color_stops: ColorMap::new([]),
+        },
+    );
+    gpu_scene.fill_shape(ellipse, drop_shadow.clone());
+    gpu_scene.fill_shape(ellipse, GpuFill::Solid(Color::RED));
+
+    gpu_scene.fill_shape(rounded_rect, drop_shadow.clone());
+    gpu_scene.fill_shape(
+        rounded_rect,
+        GpuFill::Solid(Color::CHAMOISEE.with_alpha(0.7)),
+    );
+    gpu_scene.fill_shape(
+        rect2,
+        GpuFill::RadialGradient {
+            center: Vec2f { x: 75.0, y: 400.0 },
+            radius: 80.0,
+            color_stops: ColorMap::new([]),
+        },
+    )
 }
 
 pub struct RenderContext<'a> {

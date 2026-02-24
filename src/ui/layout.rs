@@ -3,7 +3,7 @@ use std::sync::Arc;
 use super::style::{AvailableSpace, LayoutMode, ResolveInto, Style, UiRect};
 use crate::core::{Rect, Size};
 use crate::ui::Widgets;
-use crate::ui::widgets::WidgetIdIter;
+use crate::ui::widget_data::SiblingWalker;
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree,
     TraversePartialTree, TraverseTree,
@@ -217,9 +217,11 @@ impl LayoutPartialTree for LayoutContext<'_> {
 
             // Need to request layout for all overlays, their position
             // might depend on the bounding box of its parent
-            let mut id_iter = WidgetIdIter::all_overlays(self.widgets, node_id.into());
-            while let Some(overlay_id) = id_iter.next_id(self.widgets) {
-                self.widgets.request_layout(overlay_id);
+            let mut id_iter = SiblingWalker::all_children(&self.widgets.data, node_id.into());
+            while let Some(child_id) = id_iter.next_id(&self.widgets.data) {
+                if self.widgets.data[child_id].is_overlay() {
+                    self.widgets.request_layout(child_id);
+                }
             }
         }
     }

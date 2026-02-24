@@ -255,7 +255,7 @@ impl<'a> MouseEventContext<'a> {
     }
 
     pub fn clipboard(&self) -> Clipboard<'_> {
-        let window_id = self.app_state.get_window_id_for_widget(self.id);
+        let window_id = self.app_state.widgets.window_for_widget(self.id).id;
         self.app_state.clipboard(window_id)
     }
 
@@ -334,7 +334,7 @@ impl<'a> EventContext<'a> {
     }
 
     pub fn clipboard(&self) -> Clipboard<'_> {
-        let window_id = self.app_state.get_window_id_for_widget(self.id);
+        let window_id = self.app_state.widgets.window_for_widget(self.id).id;
         self.app_state.clipboard(window_id)
     }
 

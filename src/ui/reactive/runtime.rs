@@ -27,8 +27,8 @@ use std::{
 };
 
 pub struct Node {
-    pub(crate) node_type: NodeType,
-    pub(crate) state: NodeState,
+    pub(super) node_type: NodeType,
+    pub(super) state: NodeState,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -66,7 +66,7 @@ pub enum ReadScope {
 }*/
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
-pub enum NodeState {
+pub(super) enum NodeState {
     /// Reactive value is valid, no need to recompute
     Clean = 0,
     /// Reactive value might be stale, check parent nodes to decide whether to recompute
@@ -75,7 +75,7 @@ pub enum NodeState {
     Dirty = 2,
 }
 
-pub enum NodeType {
+pub(super) enum NodeType {
     // Temporary value used while a node is leased
     TmpRemoved,
     // Sources
@@ -165,7 +165,7 @@ impl ReactiveGraph {
         }
     }
 
-    pub(crate) fn create_node(
+    pub(super) fn create_node(
         &mut self,
         node_type: NodeType,
         state: NodeState,

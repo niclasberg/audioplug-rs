@@ -85,7 +85,7 @@ impl<V: View> platform::WindowHandler for MyHandler<V> {
             .get_widgets_at(self.state.window_id(), pos)
             .into_iter()
             .rev()
-            .find_map(|id| app_state.widgets.data[id].style.cursor)
+            .find_map(|id| app_state.widgets.data.get(id).unwrap().style.cursor)
     }
 }
 

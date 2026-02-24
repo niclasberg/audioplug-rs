@@ -9,10 +9,11 @@ use crate::{
 };
 
 use super::{
-    EffectState, NodeId, NodeState, NodeType, Owner, ReactiveGraph, ReadScope,
+    EffectState, NodeId, ReactiveGraph, ReadScope,
     animation::{AnimationState, DerivedAnimationState},
     cached::CachedState,
     effect::BindingState,
+    runtime::{NodeState, NodeType, Owner},
     var::SignalState,
     widget_status::WidgetStatusFlags,
 };

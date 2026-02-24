@@ -1,8 +1,8 @@
 use std::{any::Any, marker::PhantomData};
 
 use super::{
-    CreateContext, NodeId, NodeType, Owner, ReactiveContext, ReactiveValue, Trigger, WriteContext,
-    var::SignalState,
+    CreateContext, NodeId, Owner, ReactiveContext, ReactiveValue, Trigger, WriteContext,
+    runtime::NodeType, var::SignalState,
 };
 use crate::ui::ViewProp;
 
