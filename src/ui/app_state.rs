@@ -1,4 +1,4 @@
-use super::reactive::{CanWrite, CreateContext, ReactiveGraph, Var, WidgetContext};
+use super::reactive::{CreateContext, ReactiveGraph, Var, WidgetContext};
 use super::{
     AnyView, BuildContext, HostHandle, View, Widget, WidgetId, WidgetMut, WidgetRef, Widgets,
     WindowId,
@@ -33,7 +33,11 @@ impl AppState {
         let mut task_queue = TaskQueue::default();
         let mut widgets = Widgets::default();
         let theme_signal = Var::new(
-            CreateContext::new_root_context(&mut widgets, &mut reactive_graph, &mut task_queue),
+            &mut CreateContext::new_root_context(
+                &mut widgets,
+                &mut reactive_graph,
+                &mut task_queue,
+            ),
             WindowTheme::Dark,
         );
 
@@ -209,7 +213,7 @@ impl AppState {
         }
     }
 
-    pub fn read_context(&mut self, scope: ReadScope) -> ReadContext {
+    pub fn read_context(&mut self, scope: ReadScope) -> ReadContext<'_> {
         ReadContext {
             widgets: &self.widgets,
             reactive_graph: &mut self.reactive_graph,

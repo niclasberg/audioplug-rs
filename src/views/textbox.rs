@@ -1,16 +1,16 @@
 use crate::MouseEvent;
 use crate::core::{Color, Cursor, Key, Modifiers, Rect, Size};
 use crate::event::{KeyEvent, MouseButton};
-use crate::ui::Scene;
 use crate::ui::{
-    AnimationContext, AppState, BuildContext, EventContext, EventStatus, MouseEventContext,
-    RenderContext, StatusChange, TextLayout, View, ViewProp, Widget,
+    AnimationContext, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext,
+    StatusChange, TextLayout, View, ViewProp, Widget,
     style::{AvailableSpace, LayoutMode, Length, Measure, Style, UiRect},
 };
+use crate::ui::{CallbackContext, Scene};
 use std::ops::Range;
 use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 
-type InputChangedFn = dyn Fn(&mut AppState, &str);
+type InputChangedFn = dyn Fn(&mut CallbackContext, &str);
 
 pub struct TextBox {
     width: f64,
@@ -20,7 +20,7 @@ pub struct TextBox {
 }
 
 impl TextBox {
-    pub fn new(input_changed_fn: impl Fn(&mut AppState, &str) + 'static) -> Self {
+    pub fn new(input_changed_fn: impl Fn(&mut CallbackContext, &str) + 'static) -> Self {
         Self {
             width: 100.0,
             input_changed_fn: Box::new(input_changed_fn),
@@ -344,7 +344,7 @@ impl Widget for TextBoxWidget {
         let rebuild_text_layout = |this: &mut Self, ctx: &mut EventContext| {
             this.rebuild_text_layout();
             ctx.request_render();
-            (this.input_changed_fn)(ctx.app_state_mut(), &this.value);
+            (this.input_changed_fn)(&mut ctx.as_callback_context(), &this.value);
         };
 
         match event {

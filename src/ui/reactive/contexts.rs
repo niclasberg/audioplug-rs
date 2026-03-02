@@ -19,6 +19,78 @@ use super::{
     widget_status::WidgetStatusFlags,
 };
 
+pub struct ReadContext<'a> {
+    pub(crate) widgets: &'a Widgets,
+    pub(crate) reactive_graph: &'a mut ReactiveGraph,
+    pub(crate) scope: ReadScope,
+}
+
+impl ReadContext<'_> {
+    pub fn track(&mut self, source_id: NodeId) {
+        if let ReadScope::Node(node_id) = self.scope {
+            self.reactive_graph
+                .add_node_subscription(source_id, node_id);
+        }
+    }
+
+    pub fn track_parameter(&mut self, source_id: ParameterId) {
+        if let ReadScope::Node(node_id) = self.scope {
+            self.reactive_graph
+                .add_parameter_subscription(source_id, node_id);
+        }
+    }
+
+    pub fn track_widget_status(&mut self, widget_id: WidgetId, status_mask: WidgetStatusFlags) {
+        if let ReadScope::Node(node_id) = self.scope {
+            self.reactive_graph
+                .add_widget_status_subscription(widget_id, status_mask, node_id);
+        }
+    }
+
+    pub fn update_value_if_needed(&mut self, node_id: NodeId) {
+        self.reactive_graph
+            .update_cached_value_if_necessary(self.widgets, node_id);
+    }
+
+    pub fn get_node_value_ref(&self, node_id: NodeId) -> Option<&dyn Any> {
+        self.reactive_graph
+            .try_get_node(node_id)
+            .map(|node| NodeType::get_value_ref(&node.node_type))
+    }
+
+    pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef<'_> {
+        self.reactive_graph.get_parameter_ref(parameter_id)
+    }
+
+    pub fn with_read_scope(&mut self, scope: ReadScope) -> ReadContext<'_> {
+        ReadContext {
+            widgets: self.widgets,
+            reactive_graph: self.reactive_graph,
+            scope,
+        }
+    }
+}
+
+/// Allows to read from reactive nodes
+pub trait CanRead<'s> {
+    fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
+    where
+        's: 's2;
+}
+
+impl<'s> CanRead<'s> for ReadContext<'s> {
+    fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
+    where
+        's: 's2,
+    {
+        ReadContext {
+            widgets: self.widgets,
+            reactive_graph: self.reactive_graph,
+            scope: self.scope,
+        }
+    }
+}
+
 pub struct CreateContext<'a> {
     pub(crate) widgets: &'a mut Widgets,
     pub(crate) reactive_graph: &'a mut ReactiveGraph,
@@ -161,24 +233,39 @@ impl<'a> CreateContext<'a> {
             &mut self.widgets.tree,
         )
     }
-
-    pub(crate) fn as_read_context<'b>(&'b mut self, scope: ReadScope) -> ReadContext<'b> {
-        ReadContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
-            scope,
-        }
-    }
 }
 
 /// Contexts implementing `CanCreate` allows reactive elements to be created.
-pub trait CanCreate<'s> {
-    fn create_context(self) -> CreateContext<'s>;
+pub trait CanCreate<'s>: CanRead<'s> {
+    fn create_context<'s2>(&'s2 mut self) -> CreateContext<'s2>
+    where
+        's: 's2;
 }
 
 impl<'s> CanCreate<'s> for CreateContext<'s> {
-    fn create_context(self) -> CreateContext<'s> {
-        self
+    fn create_context<'s2>(&'s2 mut self) -> CreateContext<'s2>
+    where
+        's: 's2,
+    {
+        CreateContext {
+            widgets: self.widgets,
+            reactive_graph: self.reactive_graph,
+            task_queue: self.task_queue,
+            owner: self.owner,
+        }
+    }
+}
+// Allow untracked reads while writing
+impl<'s> CanRead<'s> for CreateContext<'s> {
+    fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
+    where
+        's: 's2,
+    {
+        ReadContext {
+            widgets: self.widgets,
+            reactive_graph: self.reactive_graph,
+            scope: ReadScope::Untracked,
+        }
     }
 }
 
@@ -189,86 +276,6 @@ pub trait WidgetContext {
     fn replace_widget_dyn(&mut self, id: WidgetId, view: AnyView);
 }
 
-pub struct ReadContext<'a> {
-    pub(crate) widgets: &'a Widgets,
-    pub(crate) reactive_graph: &'a mut ReactiveGraph,
-    pub(crate) scope: ReadScope,
-}
-
-impl ReadContext<'_> {
-    pub fn track(&mut self, source_id: NodeId) {
-        if let ReadScope::Node(node_id) = self.scope {
-            self.reactive_graph
-                .add_node_subscription(source_id, node_id);
-        }
-    }
-
-    pub fn track_parameter(&mut self, source_id: ParameterId) {
-        if let ReadScope::Node(node_id) = self.scope {
-            self.reactive_graph
-                .add_parameter_subscription(source_id, node_id);
-        }
-    }
-
-    pub fn track_widget_status(&mut self, widget_id: WidgetId, status_mask: WidgetStatusFlags) {
-        if let ReadScope::Node(node_id) = self.scope {
-            self.reactive_graph
-                .add_widget_status_subscription(widget_id, status_mask, node_id);
-        }
-    }
-
-    pub fn update_value_if_needed(&mut self, node_id: NodeId) {
-        self.reactive_graph
-            .update_cached_value_if_necessary(self.widgets, node_id);
-    }
-
-    pub fn get_node_value_ref(&self, node_id: NodeId) -> Option<&dyn Any> {
-        self.reactive_graph
-            .try_get_node(node_id)
-            .map(|node| NodeType::get_value_ref(&node.node_type))
-    }
-
-    pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
-        self.reactive_graph.get_parameter_ref(parameter_id)
-    }
-
-    pub fn with_read_scope<R>(
-        &mut self,
-        scope: ReadScope,
-        f: impl FnOnce(ReadContext<'_>) -> R,
-    ) -> R {
-        f(ReadContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
-            scope,
-        })
-    }
-}
-
-/// Allows to read and subscribe to reactive nodes
-pub trait CanRead<'s> {
-    fn read_context(self) -> ReadContext<'s>;
-}
-
-impl<'s> CanRead<'s> for ReadContext<'s> {
-    fn read_context(self) -> ReadContext<'s> {
-        self
-    }
-}
-
-impl<'a, 'b> CanRead<'a> for &'a mut ReadContext<'b>
-where
-    'b: 'a,
-{
-    fn read_context(self) -> ReadContext<'a> {
-        ReadContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
-            scope: self.scope,
-        }
-    }
-}
-
 pub struct WriteContext<'a> {
     pub(crate) widgets: &'a mut Widgets,
     pub(crate) reactive_graph: &'a mut ReactiveGraph,
@@ -277,7 +284,7 @@ pub struct WriteContext<'a> {
 }
 
 impl<'a> WriteContext<'a> {
-    pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef {
+    pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef<'_> {
         self.reactive_graph.get_parameter_ref(parameter_id)
     }
 
@@ -330,21 +337,17 @@ impl<'a> WriteContext<'a> {
 }
 
 /// Allows writing to reactive nodes
-pub trait CanWrite<'s> {
-    fn write_context(self) -> WriteContext<'s>;
+pub trait CanWrite<'s>: CanRead<'s> {
+    fn write_context<'s2>(&'s2 mut self) -> WriteContext<'s2>
+    where
+        's: 's2;
 }
 
 impl<'s> CanWrite<'s> for WriteContext<'s> {
-    fn write_context(self) -> WriteContext<'s> {
-        self
-    }
-}
-
-impl<'a, 'b> CanWrite<'a> for &'a mut WriteContext<'b>
-where
-    'b: 'a,
-{
-    fn write_context(self) -> WriteContext<'a> {
+    fn write_context<'s2>(&'s2 mut self) -> WriteContext<'s2>
+    where
+        's: 's2,
+    {
         WriteContext {
             widgets: self.widgets,
             reactive_graph: self.reactive_graph,
@@ -354,36 +357,16 @@ where
     }
 }
 
-pub struct LocalContext<'a> {
-    widgets: &'a Widgets,
-    reactive_graph: &'a mut ReactiveGraph,
-}
-
-impl<'a> LocalContext<'a> {
-    pub fn new(widgets: &'a Widgets, reactive_graph: &'a mut ReactiveGraph) -> Self {
-        Self {
-            widgets,
-            reactive_graph,
-        }
-    }
-}
-
-pub struct LocalContextMut<'a> {
-    widgets: &'a mut Widgets,
-    reactive_graph: &'a mut ReactiveGraph,
-    task_queue: &'a mut TaskQueue,
-}
-
-impl<'a> LocalContextMut<'a> {
-    pub fn new(
-        widgets: &'a mut Widgets,
-        reactive_graph: &'a mut ReactiveGraph,
-        task_queue: &'a mut TaskQueue,
-    ) -> Self {
-        Self {
-            widgets,
-            reactive_graph,
-            task_queue,
+// Allow untracked reads while writing
+impl<'s> CanRead<'s> for WriteContext<'s> {
+    fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
+    where
+        's: 's2,
+    {
+        ReadContext {
+            widgets: self.widgets,
+            reactive_graph: self.reactive_graph,
+            scope: ReadScope::Untracked,
         }
     }
 }

@@ -8,7 +8,7 @@ use std::{
 use super::reactive::NodeId;
 use crate::ui::{
     AppState, Widget, WidgetId, WidgetMut,
-    reactive::{EffectContext, EffectFn, HandleEventFn, WatchFn},
+    reactive::{EffectContext, EffectFn, HandleEventFn, WatchContext, WatchFn},
 };
 
 #[derive(Default)]
@@ -54,13 +54,13 @@ impl Task {
             }
             Task::UpdateBinding { f, node_id } => {
                 if let Some(f) = f.upgrade() {
-                    (RefCell::borrow_mut(&f))(app_state);
+                    (RefCell::borrow_mut(&f))(&mut WatchContext { app_state });
                     app_state.reactive_graph.mark_node_as_clean(node_id);
                 }
             }
             Task::HandleEvent { f, event } => {
                 if let Some(f) = f.upgrade() {
-                    f(app_state, &event);
+                    f(&mut WatchContext { app_state }, &event);
                 }
             }
             Task::UpdateWidget { widget_id, f } => {

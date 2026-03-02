@@ -8,7 +8,7 @@ pub struct OnKeyEvent<V, F> {
     pub(super) on_key_down: F,
 }
 
-impl<V: View, F: FnMut(CallbackContext, KeyEvent) -> EventStatus + 'static> View
+impl<V: View, F: FnMut(&mut CallbackContext, KeyEvent) -> EventStatus + 'static> View
     for OnKeyEvent<V, F>
 {
     type Element = OnKeyEventWidget<V::Element, F>;
@@ -26,7 +26,7 @@ pub struct OnKeyEventWidget<W, F> {
     f: F,
 }
 
-impl<W: Widget, F: FnMut(CallbackContext, KeyEvent) -> EventStatus + 'static> WidgetAdapter
+impl<W: Widget, F: FnMut(&mut CallbackContext, KeyEvent) -> EventStatus + 'static> WidgetAdapter
     for OnKeyEventWidget<W, F>
 {
     type Inner = W;
@@ -42,6 +42,6 @@ impl<W: Widget, F: FnMut(CallbackContext, KeyEvent) -> EventStatus + 'static> Wi
     fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventStatus {
         self.widget
             .key_event(event.clone(), cx)
-            .or_else(|| (self.f)(cx.as_callback_context(), event))
+            .or_else(|| (self.f)(&mut cx.as_callback_context(), event))
     }
 }

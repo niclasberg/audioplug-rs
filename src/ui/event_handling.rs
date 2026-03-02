@@ -354,17 +354,20 @@ pub struct CallbackContext<'a> {
     app_state: &'a mut AppState,
 }
 
-impl<'a, 'b> CanRead<'a> for &'a mut CallbackContext<'b>
-where
-    'b: 'a,
-{
-    fn read_context(self) -> ReadContext<'a> {
+impl<'s> CanRead<'s> for CallbackContext<'s> {
+    fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
+    where
+        's: 's2,
+    {
         self.app_state.read_context(ReadScope::Untracked)
     }
 }
 
 impl<'s> CanWrite<'s> for CallbackContext<'s> {
-    fn write_context(self) -> WriteContext<'s> {
+    fn write_context<'s2>(&'s2 mut self) -> WriteContext<'s2>
+    where
+        's: 's2,
+    {
         self.app_state.write_context()
     }
 }

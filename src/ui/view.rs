@@ -7,10 +7,7 @@ use super::{
 };
 use crate::{
     MouseButton, MouseEvent,
-    ui::{
-        HostHandle,
-        reactive::{CreateContext, ReadContext},
-    },
+    ui::reactive::{CreateContext, ReadContext},
 };
 use std::marker::PhantomData;
 
@@ -53,7 +50,7 @@ pub trait View: 'static {
         }
     }
 
-    fn style<F>(self, builder_fn: F) -> Styled<Self, F>
+    fn style<F>(self, builder_fn: F) -> impl View
     where
         Self: Sized,
         F: FnOnce(&mut StyleBuilder, ViewSignals) + 'static,
@@ -221,19 +218,20 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
     }
 }
 
-impl<'a, 'b, W: Widget + ?Sized> CanRead<'a> for &'a mut BuildContext<'b, W> {
-    fn read_context(self) -> ReadContext<'a> {
+impl<'a, W: Widget + ?Sized> CanRead<'a> for BuildContext<'a, W> {
+    fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
+    where
+        'a: 's2,
+    {
         self.app_state.read_context(ReadScope::Untracked)
     }
 }
 
-impl<'a, 'b, W: Widget + ?Sized> CanCreate<'a> for &'a mut BuildContext<'b, W> {
-    fn create_context(self) -> CreateContext<'a> {
-        CreateContext {
-            widgets: &mut self.app_state.widgets,
-            reactive_graph: &mut self.app_state.reactive_graph,
-            task_queue: &mut self.app_state.task_queue,
-            owner: Owner::Widget(self.id),
-        }
+impl<'s, W: Widget + ?Sized> CanCreate<'s> for BuildContext<'s, W> {
+    fn create_context<'s2>(&'s2 mut self) -> CreateContext<'s2>
+    where
+        's: 's2,
+    {
+        self.app_state.create_context(Owner::Widget(self.id))
     }
 }

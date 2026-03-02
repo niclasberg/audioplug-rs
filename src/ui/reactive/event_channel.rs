@@ -35,7 +35,7 @@ impl<T: Any> EventReceiver<T> {
 }
 
 pub fn create_event_channel<'cx, T: Any>(
-    cx: impl CanCreate<'cx>,
+    cx: &mut impl CanCreate<'cx>,
 ) -> (EventChannel<T>, EventReceiver<T>) {
     let emitter_id = cx.create_context().create_event_emitter();
     let emitter = EventChannel {

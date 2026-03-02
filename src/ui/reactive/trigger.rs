@@ -9,18 +9,18 @@ pub struct Trigger {
 }
 
 impl Trigger {
-    pub fn new<'cx>(cx: impl CanCreate<'cx>) -> Self {
+    pub fn new<'cx>(cx: &mut impl CanCreate<'cx>) -> Self {
         Self {
             node_id: cx.create_context().create_trigger(),
             _marker: PhantomData,
         }
     }
 
-    pub fn track<'cx>(&self, cx: impl CanRead<'cx>) {
+    pub fn track<'cx>(&self, cx: &mut impl CanRead<'cx>) {
         cx.read_context().track(self.node_id);
     }
 
-    pub fn notify<'cx>(&self, cx: impl CanWrite<'cx>) {
+    pub fn notify<'cx>(&self, cx: &mut impl CanWrite<'cx>) {
         cx.write_context().notify(self.node_id);
     }
 }

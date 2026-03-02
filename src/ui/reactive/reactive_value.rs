@@ -7,17 +7,16 @@ pub trait ReactiveValue: Into<ViewProp<Self::Value>> {
     type Value;
 
     /// Map the current value using `f` and subscribe to changes
-    fn with_ref<'s, R>(&self, cx: impl CanRead<'s>, f: impl FnOnce(&Self::Value) -> R) -> R {
-        let mut read_context = cx.read_context();
-        let ret = self.with_ref_untracked(&mut read_context, f);
-        self.track(read_context);
+    fn with_ref<'s, R>(&self, cx: &mut impl CanRead<'s>, f: impl FnOnce(&Self::Value) -> R) -> R {
+        let ret = self.with_ref_untracked(cx, f);
+        self.track(cx);
         ret
     }
 
-    fn track<'s>(&self, cx: impl CanRead<'s>);
+    fn track<'s>(&self, cx: &mut impl CanRead<'s>);
 
     /// Get the current value and subscribe to changes
-    fn get<'s>(&self, cx: impl CanRead<'s>) -> Self::Value
+    fn get<'s>(&self, cx: &mut impl CanRead<'s>) -> Self::Value
     where
         Self::Value: Clone,
     {
@@ -27,12 +26,12 @@ pub trait ReactiveValue: Into<ViewProp<Self::Value>> {
     /// Map the current value using `f`
     fn with_ref_untracked<'s, R>(
         &self,
-        cx: impl CanRead<'s>,
+        cx: &mut impl CanRead<'s>,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R;
 
     /// Get the current value
-    fn get_untracked<'s>(&self, cx: impl CanRead<'s>) -> Self::Value
+    fn get_untracked<'s>(&self, cx: &mut impl CanRead<'s>) -> Self::Value
     where
         Self::Value: Clone,
     {
@@ -55,7 +54,7 @@ pub trait ReactiveValue: Into<ViewProp<Self::Value>> {
 
     /// Subscribe to changes to this readable. Whenever the value is updated,
     /// `f` is called.`
-    fn watch<'s, F>(self, cx: impl CanCreate<'s>, f: F) -> Effect
+    fn watch<'s, F>(self, cx: &mut impl CanCreate<'s>, f: F) -> Effect
     where
         F: FnMut(&mut WatchContext, &Self::Value) + 'static;
 }
@@ -90,34 +89,38 @@ where
 {
     type Value = R;
 
-    fn track<'s>(&self, cx: impl CanRead<'s>) {
+    fn track<'s>(&self, cx: &mut impl CanRead<'s>) {
         self.parent.track(cx);
     }
 
-    fn with_ref<'s, R2>(&self, cx: impl CanRead<'s>, f: impl FnOnce(&Self::Value) -> R2) -> R2 {
+    fn with_ref<'s, R2>(
+        &self,
+        cx: &mut impl CanRead<'s>,
+        f: impl FnOnce(&Self::Value) -> R2,
+    ) -> R2 {
         self.parent.with_ref(cx, |x| f(&(self.map_fn)(x)))
     }
 
-    fn get<'s>(&self, cx: impl CanRead<'s>) -> Self::Value {
+    fn get<'s>(&self, cx: &mut impl CanRead<'s>) -> Self::Value {
         self.parent.with_ref(cx, |x| (self.map_fn)(x))
     }
 
     fn with_ref_untracked<'s, R2>(
         &self,
-        cx: impl CanRead<'s>,
+        cx: &mut impl CanRead<'s>,
         f: impl FnOnce(&Self::Value) -> R2,
     ) -> R2 {
         self.parent.with_ref_untracked(cx, |x| f(&(self.map_fn)(x)))
     }
 
-    fn get_untracked<'s>(&self, cx: impl CanRead<'s>) -> Self::Value
+    fn get_untracked<'s>(&self, cx: &mut impl CanRead<'s>) -> Self::Value
     where
         Self::Value: Clone,
     {
         self.parent.with_ref_untracked(cx, |x| (self.map_fn)(x))
     }
 
-    fn watch<'s, F2>(self, cx: impl CanCreate<'s>, mut f: F2) -> Effect
+    fn watch<'s, F2>(self, cx: &mut impl CanCreate<'s>, mut f: F2) -> Effect
     where
         F2: FnMut(&mut WatchContext, &Self::Value) + 'static,
     {

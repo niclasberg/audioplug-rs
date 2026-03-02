@@ -17,17 +17,10 @@ pub struct CachedContext<'a> {
 }
 
 impl<'s> CanRead<'s> for CachedContext<'s> {
-    fn read_context(self) -> ReadContext<'s> {
-        ReadContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
-            scope: ReadScope::Node(self.memo_id),
-        }
-    }
-}
-
-impl<'a, 'b> CanRead<'a> for &'a mut CachedContext<'b> {
-    fn read_context(self) -> ReadContext<'a> {
+    fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
+    where
+        's: 's2,
+    {
         ReadContext {
             widgets: self.widgets,
             reactive_graph: self.reactive_graph,
@@ -51,7 +44,7 @@ impl<T> Copy for Cached<T> {}
 
 impl<T: Any> Cached<T> {
     pub fn new<'cx>(
-        cx: impl CanCreate<'cx>,
+        cx: &mut impl CanCreate<'cx>,
         f: impl Fn(&mut CachedContext, Option<&T>) -> T + 'static,
     ) -> Self
     where
@@ -61,7 +54,7 @@ impl<T: Any> Cached<T> {
     }
 
     pub fn new_with_compare<'cx>(
-        cx: impl CanCreate<'cx>,
+        cx: &mut impl CanCreate<'cx>,
         f: impl Fn(&mut CachedContext, Option<&T>) -> T + 'static,
         compare: fn(&T, &T) -> bool,
     ) -> Self {
@@ -106,13 +99,13 @@ impl<T: 'static> From<Cached<T>> for ViewProp<T> {
 impl<T: 'static> ReactiveValue for Cached<T> {
     type Value = T;
 
-    fn track<'s>(&self, cx: impl CanRead<'s>) {
+    fn track<'s>(&self, cx: &mut impl CanRead<'s>) {
         cx.read_context().track(self.id);
     }
 
     fn with_ref_untracked<'s, R>(
         &self,
-        cx: impl CanRead<'s>,
+        cx: &mut impl CanRead<'s>,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
         f(update_and_get_memo_value(cx.read_context(), self.id)
@@ -120,7 +113,7 @@ impl<T: 'static> ReactiveValue for Cached<T> {
             .expect("Memo had wrong type"))
     }
 
-    fn watch<'s, F>(self, cx: impl CanCreate<'s>, f: F) -> Effect
+    fn watch<'s, F>(self, cx: &mut impl CanCreate<'s>, f: F) -> Effect
     where
         F: FnMut(&mut WatchContext, &Self::Value) + 'static,
     {

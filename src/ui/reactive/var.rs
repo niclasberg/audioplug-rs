@@ -24,7 +24,7 @@ impl<T> Clone for Var<T> {
 impl<T> Copy for Var<T> {}
 
 impl<T: Any> Var<T> {
-    pub fn new<'cx>(cx: impl CanCreate<'cx>, value: T) -> Self {
+    pub fn new<'cx>(cx: &mut impl CanCreate<'cx>, value: T) -> Self {
         let state = SignalState::new(value);
         let id = cx.create_context().create_var_node(state);
         Self {
@@ -33,26 +33,37 @@ impl<T: Any> Var<T> {
         }
     }
 
-    pub fn new_with<'cx>(cx: impl CanCreate<'cx>, f: impl FnOnce(&mut CreateContext) -> T) -> Self {
-        let mut cx = cx.create_context();
-        let value = f(&mut cx);
+    pub fn new_with<'cx>(
+        cx: &mut impl CanCreate<'cx>,
+        f: impl FnOnce(&mut CreateContext) -> T,
+    ) -> Self {
+        let value = f(&mut cx.create_context());
         Self::new(cx, value)
     }
 
     /// Set the current value, notifies subscribers
-    pub fn set<'cx>(&self, cx: impl CanWrite<'cx>, value: T) {
+    pub fn set<'cx>(&self, cx: &mut impl CanWrite<'cx>, value: T) {
         self.update(cx, move |_, val| *val = value)
     }
 
     /// Set the current value, notifies subscribers
-    pub fn set_with<'cx>(&self, cx: impl CanWrite<'cx>, f: impl FnOnce(&mut CreateContext) -> T) {
-        let mut cx = cx.write_context();
-        let new_value = f(&mut cx.as_create_context(super::Owner::Node(self.id)));
+    pub fn set_with<'cx>(
+        &self,
+        cx: &mut impl CanWrite<'cx>,
+        f: impl FnOnce(&mut CreateContext) -> T,
+    ) {
+        let new_value = f(&mut cx
+            .write_context()
+            .as_create_context(super::Owner::Node(self.id)));
         self.update(cx, move |_, value| *value = new_value);
     }
 
     /// Set the current value, notifies subscribers
-    pub fn update<'s>(&self, cx: impl CanWrite<'s>, f: impl FnOnce(&mut CreateContext, &mut T)) {
+    pub fn update<'s>(
+        &self,
+        cx: &mut impl CanWrite<'s>,
+        f: impl FnOnce(&mut CreateContext, &mut T),
+    ) {
         let mut cx = cx.write_context();
         if let Some(mut node) = cx.reactive_graph.lease_node(self.id) {
             match node.deref_mut() {
@@ -88,13 +99,13 @@ impl<T: 'static> From<Var<T>> for ViewProp<T> {
 impl<T: 'static> ReactiveValue for Var<T> {
     type Value = T;
 
-    fn track<'a>(&self, cx: impl CanRead<'a>) {
+    fn track<'a>(&self, cx: &mut impl CanRead<'a>) {
         cx.read_context().track(self.id);
     }
 
     fn with_ref_untracked<'a, R>(
         &self,
-        cx: impl CanRead<'a>,
+        cx: &mut impl CanRead<'a>,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
         f(cx.read_context()
@@ -104,7 +115,7 @@ impl<T: 'static> ReactiveValue for Var<T> {
             .expect("Signal had wrong type"))
     }
 
-    fn watch<'cx, F>(self, cx: impl CanCreate<'cx>, f: F) -> Effect
+    fn watch<'cx, F>(self, cx: &mut impl CanCreate<'cx>, f: F) -> Effect
     where
         F: FnMut(&mut WatchContext, &Self::Value) + 'static,
     {

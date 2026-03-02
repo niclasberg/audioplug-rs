@@ -84,7 +84,7 @@ impl<T> ReadSignal<T> {
 impl<T: 'static> ReactiveValue for ReadSignal<T> {
     type Value = T;
 
-    fn track<'a>(&self, cx: impl CanRead<'a>) {
+    fn track<'cx>(&self, cx: &mut impl CanRead<'cx>) {
         match &self.source {
             ReadSignalSource::Parameter { id, .. } => cx.read_context().track_parameter(*id),
             ReadSignalSource::Node(node_id) => cx.read_context().track(*node_id),
@@ -98,9 +98,9 @@ impl<T: 'static> ReactiveValue for ReadSignal<T> {
         }
     }
 
-    fn with_ref_untracked<'a, R>(
+    fn with_ref_untracked<'cx, R>(
         &self,
-        cx: impl CanRead<'a>,
+        cx: &mut impl CanRead<'cx>,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
         let mut cx = cx.read_context();
@@ -129,7 +129,7 @@ impl<T: 'static> ReactiveValue for ReadSignal<T> {
         }
     }
 
-    fn watch<'a, F>(self, cx: impl CanCreate<'a>, f: F) -> Effect
+    fn watch<'a, F>(self, cx: &mut impl CanCreate<'a>, f: F) -> Effect
     where
         F: FnMut(&mut WatchContext, &Self::Value) + 'static,
     {

@@ -146,6 +146,12 @@ impl WidgetData {
         }
     }
 
+    pub fn get_and_clear_flag(&self, flag: WidgetFlags) -> bool {
+        let flags = self.flags.get();
+        self.flags.set(flags & !flag);
+        flags.contains(flag)
+    }
+
     pub fn set_or_clear_flag(&self, flag: WidgetFlags, set: bool) {
         let mut flags = self.flags.get();
         if set {
@@ -490,10 +496,10 @@ impl SiblingWalker {
             None
         } else {
             let first = self.first;
-            self.first = widgets.data[first].next_sibling_id;
             if self.first == self.last {
                 self.done = true;
             }
+            self.first = widgets.data[first].next_sibling_id;
             Some(first)
         }
     }
@@ -503,10 +509,11 @@ impl SiblingWalker {
             None
         } else {
             let last = self.last;
-            self.last = widgets.data[last].prev_sibling_id;
             if self.first == self.last {
                 self.done = true;
             }
+            self.last = widgets.data[last].prev_sibling_id;
+
             Some(last)
         }
     }
@@ -566,5 +573,40 @@ impl DFSWalker {
 
     pub fn skip_children(&mut self) {
         self.skip_children = true;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn insert_last_child() {
+        let mut tree = WidgetTree::default();
+        let root_id = tree.insert_root(WindowId::null());
+
+        let mut children = Vec::new();
+        children.push(tree.insert_last_child(root_id));
+        children.push(tree.insert_last_child(root_id));
+        children.push(tree.insert_last_child(root_id));
+        children.push(tree.insert_last_child(root_id));
+
+        let children2: Vec<_> = tree.child_id_iter(root_id).collect();
+        assert_eq!(children, children2);
+    }
+
+    #[test]
+    fn insert_first_child() {
+        let mut tree = WidgetTree::default();
+        let root_id = tree.insert_root(WindowId::null());
+
+        let mut children = Vec::new();
+        children.push(tree.insert_first_child(root_id));
+        children.push(tree.insert_first_child(root_id));
+        children.push(tree.insert_first_child(root_id));
+        children.push(tree.insert_first_child(root_id));
+
+        let children2: Vec<_> = tree.child_id_iter(root_id).rev().collect();
+        assert_eq!(children, children2);
     }
 }

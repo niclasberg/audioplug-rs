@@ -16,21 +16,7 @@ pub enum RecomputeLayout {
     Force,
 }
 
-pub(super) fn compute_root_layout(
-    widgets: &mut Widgets,
-    root_widget_id: WidgetId,
-    window_size: Size,
-) -> Option<Rect> {
-    let available_space = taffy::Size {
-        width: taffy::AvailableSpace::Definite(window_size.width as f32),
-        height: taffy::AvailableSpace::Definite(window_size.height as f32),
-    };
-    let mut layout_context = LayoutContext::new(widgets, window_size);
-    taffy::compute_root_layout(&mut layout_context, root_widget_id.into(), available_space);
-    layout_context.region_to_invalidate
-}
-
-struct LayoutChildIter<'a> {
+pub struct LayoutChildIter<'a> {
     inner: std::slice::Iter<'a, WidgetId>,
 }
 
@@ -42,7 +28,7 @@ impl Iterator for LayoutChildIter<'_> {
     }
 }
 
-struct LayoutContext<'a> {
+pub struct LayoutContext<'a> {
     widgets: &'a mut Widgets,
     window_size: Size,
     region_to_invalidate: Option<Rect>,
@@ -55,6 +41,17 @@ impl<'a> LayoutContext<'a> {
             window_size,
             region_to_invalidate: None,
         }
+    }
+
+    pub fn compute_root_layout(&mut self, root_widget_id: WidgetId) -> Option<Rect> {
+        self.region_to_invalidate = None;
+        let available_space = taffy::Size {
+            width: taffy::AvailableSpace::Definite(self.window_size.width as f32),
+            height: taffy::AvailableSpace::Definite(self.window_size.height as f32),
+        };
+        taffy::compute_root_layout(self, root_widget_id.into(), available_space);
+        taffy::print_tree(self, root_widget_id.into());
+        self.region_to_invalidate
     }
 
     fn get_layout_style(&self, node_id: taffy::NodeId) -> LayoutStyle<'_> {
@@ -234,12 +231,8 @@ impl LayoutPartialTree for LayoutContext<'_> {
             return taffy::compute_hidden_layout(self, node_id);
         }
 
-        {
-            let widget_data = &mut self.widgets.tree[node_id.into()];
-            if widget_data.flag_is_set(WidgetFlags::NEEDS_LAYOUT) {
-                self.widgets.layout_cache.clear();
-                widget_data.clear_flag(WidgetFlags::NEEDS_LAYOUT);
-            }
+        if self.widgets.tree[node_id.into()].get_and_clear_flag(WidgetFlags::NEEDS_LAYOUT) {
+            self.widgets.layout_cache[node_id.into()].clear();
         }
 
         taffy::compute_cached_layout(self, node_id, inputs, |tree, node, inputs| {

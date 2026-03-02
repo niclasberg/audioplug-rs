@@ -5,7 +5,8 @@ use crate::{
     param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params},
     ui::{
         AnyView, AppState, View,
-        reactive::{CanCreate, CreateContext, Owner, Var},
+        prelude::CanRead,
+        reactive::{CanCreate, CreateContext, Owner, ReadScope, Var},
         style::{Length, UiRect},
     },
     views::{Column, Container, Label, ParameterSlider, Row, Stateful},
@@ -16,8 +17,20 @@ pub struct EditorContext<'a> {
 }
 
 impl<'s> CanCreate<'s> for EditorContext<'s> {
-    fn create_context(self) -> CreateContext<'s> {
+    fn create_context<'s2>(&'s2 mut self) -> CreateContext<'s2>
+    where
+        's: 's2,
+    {
         self.app_state.create_context(Owner::Root)
+    }
+}
+
+impl<'s> CanRead<'s> for EditorContext<'s> {
+    fn read_context<'s2>(&'s2 mut self) -> crate::ui::reactive::ReadContext<'s2>
+    where
+        's: 's2,
+    {
+        self.app_state.read_context(ReadScope::Untracked)
     }
 }
 

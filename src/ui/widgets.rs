@@ -12,7 +12,7 @@ use crate::{
     ui::{
         OverlayAnchor, OverlayOptions, Scene, Widget, WidgetData, WidgetFlags, WidgetId, WidgetRef,
         WindowId,
-        layout::RecomputeLayout,
+        layout::{LayoutContext, RecomputeLayout},
         overlay::OverlayContainer,
         reactive::ReactiveGraph,
         render::{GpuScene, WGPUSurface},
@@ -44,12 +44,12 @@ pub(super) struct WindowState {
 #[derive(Default)]
 pub struct Widgets {
     /// Data (e.g. parent/children, layout, position etc.) associated with each widget
-    pub(super) tree: WidgetTree,
+    pub(crate) tree: WidgetTree,
     /// Widget implementation. Should exist for each widget data.
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
     pub(super) scenes: SecondaryMap<WidgetId, Scene>,
     pub(super) layout_cache: SecondaryMap<WidgetId, taffy::Cache>,
-    windows: SlotMap<WindowId, WindowState>,
+    pub(crate) windows: SlotMap<WindowId, WindowState>,
     /// (Lazy) cache of child ids. Taffy requires random access during layout.
     child_id_cache: ChildCache,
     /// Ids of all widgets that have requested animation. Cleared during each call to [drive_animations]
@@ -328,18 +328,16 @@ impl Widgets {
     }
 
     pub fn layout_window(&mut self, window_id: WindowId, mode: RecomputeLayout) {
-        use super::layout::compute_root_layout;
-
         let window = &mut self.windows[window_id];
         let window_size = window.handle.global_bounds().size();
         let window_rect = Rect::from_origin(Point::ZERO, window_size);
         let root_id = window.root_widget;
-
         self.rebuild_children();
 
         // Need to layout root first, the overlay positions can depend on their parent positions
         if mode == RecomputeLayout::Force || self.tree.get(root_id).unwrap().needs_layout() {
-            let region_to_invalidate = compute_root_layout(self, root_id, window_size);
+            let region_to_invalidate =
+                LayoutContext::new(self, window_size).compute_root_layout(root_id);
             self.tree.update_node_origins(root_id, Point::ZERO);
             if let Some(region_to_invalidate) = region_to_invalidate {
                 self.window(window_id)
@@ -354,7 +352,8 @@ impl Widgets {
         let overlay_ids: Vec<_> = self.windows[window_id].overlays.iter().collect();
         for (i, overlay_id) in overlay_ids.into_iter().enumerate() {
             if mode == RecomputeLayout::Force || self.tree.get(overlay_id).unwrap().needs_layout() {
-                let region_to_invalidate = compute_root_layout(self, root_id, window_size);
+                let region_to_invalidate =
+                    LayoutContext::new(self, window_size).compute_root_layout(root_id);
                 let options = self
                     .window(window_id)
                     .overlays

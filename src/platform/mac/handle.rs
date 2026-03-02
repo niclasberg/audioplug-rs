@@ -101,6 +101,8 @@ impl Handle {
     }
 
     pub fn scale_factor(&self) -> ScaleFactor {
-        ScaleFactor(1.0)
+        self.view_ref()
+            .map(|view| view.scale_factor())
+            .unwrap_or_default()
     }
 }

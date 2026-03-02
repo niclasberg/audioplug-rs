@@ -65,7 +65,7 @@ impl<T: 'static> ViewProp<T> {
 impl<T: 'static> ReactiveValue for ViewProp<T> {
     type Value = T;
 
-    fn track<'a>(&self, cx: impl CanRead<'a>) {
+    fn track<'a>(&self, cx: &mut impl CanRead<'a>) {
         match self {
             Self::ReadSignal(signal) => signal.track(cx),
             Self::Computed(computed) => computed.track(cx),
@@ -73,7 +73,7 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         }
     }
 
-    fn with_ref<'a, R>(&self, cx: impl CanRead<'a>, f: impl FnOnce(&Self::Value) -> R) -> R {
+    fn with_ref<'a, R>(&self, cx: &mut impl CanRead<'a>, f: impl FnOnce(&Self::Value) -> R) -> R {
         match self {
             Self::ReadSignal(signal) => signal.with_ref(cx, f),
             Self::Computed(computed) => computed.with_ref(cx, f),
@@ -81,7 +81,7 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         }
     }
 
-    fn get<'a>(&self, cx: impl CanRead<'a>) -> T
+    fn get<'a>(&self, cx: &mut impl CanRead<'a>) -> T
     where
         T: Clone,
     {
@@ -94,7 +94,7 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
 
     fn with_ref_untracked<'a, R>(
         &self,
-        cx: impl CanRead<'a>,
+        cx: &mut impl CanRead<'a>,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
         match self {
@@ -104,7 +104,7 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         }
     }
 
-    fn get_untracked<'a>(&self, cx: impl CanRead<'a>) -> Self::Value
+    fn get_untracked<'a>(&self, cx: &mut impl CanRead<'a>) -> Self::Value
     where
         Self::Value: Clone,
     {
@@ -115,7 +115,7 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         }
     }
 
-    fn watch<'a, F>(self, cx: impl CanCreate<'a>, f: F) -> Effect
+    fn watch<'a, F>(self, cx: &mut impl CanCreate<'a>, f: F) -> Effect
     where
         F: FnMut(&mut WatchContext, &Self::Value) + 'static,
     {

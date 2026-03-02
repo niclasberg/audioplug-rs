@@ -20,7 +20,6 @@ impl<'s> EffectContext<'s> {
     fn as_watch_context(&mut self) -> WatchContext<'_> {
         WatchContext {
             app_state: self.app_state,
-            effect_id: self.effect_id,
         }
     }
 
@@ -37,24 +36,54 @@ impl<'s> EffectContext<'s> {
 }
 
 impl<'s> CanRead<'s> for EffectContext<'s> {
-    fn read_context(self) -> ReadContext<'s> {
+    fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
+    where
+        's: 's2,
+    {
         self.app_state.read_context(ReadScope::Node(self.effect_id))
     }
 }
 
 impl<'s> CanWrite<'s> for EffectContext<'s> {
-    fn write_context(self) -> WriteContext<'s> {
+    fn write_context<'s2>(&'s2 mut self) -> WriteContext<'s2>
+    where
+        's: 's2,
+    {
         self.app_state.write_context()
     }
 }
 
 pub struct WatchContext<'a> {
     pub app_state: &'a mut AppState,
-    pub effect_id: NodeId,
+}
+
+impl<'a> WatchContext<'a> {
+    pub fn widget_ref<W: Widget + ?Sized>(&self, widget_handle: WidgetHandle<W>) -> WidgetRef<W> {
+        WidgetRef::new(&self.app_state.widgets, widget_handle.id)
+    }
+
+    pub fn widget_mut<W: Widget + ?Sized>(
+        &mut self,
+        widget_handle: WidgetHandle<W>,
+    ) -> WidgetMut<W> {
+        WidgetMut::new(&mut self.app_state, widget_handle.id)
+    }
+}
+
+impl<'s> CanRead<'s> for WatchContext<'s> {
+    fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
+    where
+        's: 's2,
+    {
+        self.app_state.read_context(ReadScope::Untracked)
+    }
 }
 
 impl<'s> CanWrite<'s> for WatchContext<'s> {
-    fn write_context(self) -> WriteContext<'s> {
+    fn write_context<'s2>(&'s2 mut self) -> WriteContext<'s2>
+    where
+        's: 's2,
+    {
         self.app_state.write_context()
     }
 }
@@ -82,7 +111,10 @@ impl Effect {
         Self { id: NodeId::null() }
     }
 
-    pub fn new<'cx>(cx: impl CanCreate<'cx>, f: impl FnMut(&mut EffectContext) + 'static) -> Self {
+    pub fn new<'cx>(
+        cx: &mut impl CanCreate<'cx>,
+        f: impl FnMut(&mut EffectContext) + 'static,
+    ) -> Self {
         let id = cx.create_context().create_effect_node(
             EffectState {
                 f: Rc::new(RefCell::new(f)),
@@ -93,7 +125,7 @@ impl Effect {
     }
 
     pub fn new_with_state<'cx, T: Any>(
-        cx: impl CanCreate<'cx>,
+        cx: &mut impl CanCreate<'cx>,
         f: impl Fn(&mut EffectContext, Option<T>) -> T + 'static,
     ) -> Self {
         let mut state: Option<T> = None;
@@ -171,7 +203,7 @@ impl Effect {
     }
 
     pub fn watch<'cx, T: 'static>(
-        mut cx: impl CanCreate<'cx>,
+        cx: &mut impl CanCreate<'cx>,
         value_fn: impl Fn(&mut ReadContext) -> T + 'static,
         mut handler_fn: impl FnMut(&mut WatchContext, &T, Option<&T>) + 'static,
     ) -> Self {

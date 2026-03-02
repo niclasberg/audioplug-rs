@@ -113,7 +113,10 @@ impl<T> Clone for AnimatedVar<T> {
 impl<T> Copy for AnimatedVar<T> {}
 
 impl<T: 'static> AnimatedVar<T> {
-    pub fn new<'a>(cx: impl CanCreate<'a>, animation: impl Animation<Value = T> + 'static) -> Self {
+    pub fn new<'a>(
+        cx: &mut impl CanCreate<'a>,
+        animation: impl Animation<Value = T> + 'static,
+    ) -> Self {
         let inner = Box::new(animation);
         let state = AnimationState { inner };
         Self {
@@ -122,14 +125,14 @@ impl<T: 'static> AnimatedVar<T> {
         }
     }
 
-    pub fn spring<'a>(cx: impl CanCreate<'a>, initial_value: T, options: SpringOptions) -> Self
+    pub fn spring<'a>(cx: &mut impl CanCreate<'a>, initial_value: T, options: SpringOptions) -> Self
     where
         T: SpringPhysics + Clone + Any,
     {
         Self::new(cx, SpringAnimation::new(initial_value, options))
     }
 
-    pub fn tween<'a>(cx: impl CanCreate<'a>, initial_value: T, options: TweenOptions) -> Self
+    pub fn tween<'a>(cx: &mut impl CanCreate<'a>, initial_value: T, options: TweenOptions) -> Self
     where
         T: Lerp + Clone + Any,
     {
@@ -138,7 +141,7 @@ impl<T: 'static> AnimatedVar<T> {
 }
 
 impl<T: Any> AnimatedVar<T> {
-    pub fn set_target<'cx>(&self, cx: impl CanWrite<'cx>, value: T) {
+    pub fn set_target<'cx>(&self, cx: &mut impl CanWrite<'cx>, value: T) {
         let mut write_context = cx.write_context();
         let node = write_context.get_node_mut(self.id);
         let changed = match &mut node.node_type {
@@ -150,7 +153,7 @@ impl<T: Any> AnimatedVar<T> {
         }
     }
 
-    pub fn set_target_and_value<'cx>(&self, cx: impl CanWrite<'cx>, value: T) {
+    pub fn set_target_and_value<'cx>(&self, cx: &mut impl CanWrite<'cx>, value: T) {
         let mut cx = cx.write_context();
         let node = cx.get_node_mut(self.id);
         match &mut node.node_type {
@@ -176,11 +179,11 @@ impl<T: 'static> From<AnimatedVar<T>> for ViewProp<T> {
 impl<T: 'static> ReactiveValue for AnimatedVar<T> {
     type Value = T;
 
-    fn track<'cx>(&self, cx: impl CanRead<'cx>) {
+    fn track<'cx>(&self, cx: &mut impl CanRead<'cx>) {
         cx.read_context().track(self.id);
     }
 
-    fn with_ref<'cx, R>(&self, cx: impl CanRead<'cx>, f: impl FnOnce(&T) -> R) -> R {
+    fn with_ref<'cx, R>(&self, cx: &mut impl CanRead<'cx>, f: impl FnOnce(&T) -> R) -> R {
         let mut cx = cx.read_context();
         cx.track(self.id);
         f(get_animation_value_ref(cx, self.id)
@@ -190,7 +193,7 @@ impl<T: 'static> ReactiveValue for AnimatedVar<T> {
 
     fn with_ref_untracked<'cx, R>(
         &self,
-        cx: impl CanRead<'cx>,
+        cx: &mut impl CanRead<'cx>,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
         f(get_animation_value_ref(cx.read_context(), self.id)
@@ -198,7 +201,7 @@ impl<T: 'static> ReactiveValue for AnimatedVar<T> {
             .expect("Animation value had wrong type"))
     }
 
-    fn watch<'cx, F>(self, cx: impl CanCreate<'cx>, f: F) -> Effect
+    fn watch<'cx, F>(self, cx: &mut impl CanCreate<'cx>, f: F) -> Effect
     where
         F: FnMut(&mut WatchContext, &Self::Value) + 'static,
     {
@@ -221,14 +224,14 @@ impl<T> Copy for Animated<T> {}
 
 impl<T: 'static> Animated<T> {
     pub fn new<'cx, A: Animation<Value = T> + 'static>(
-        cx: impl CanCreate<'cx>,
+        cx: &mut impl CanCreate<'cx>,
         f_value: impl Fn(&mut ReadContext) -> T + 'static,
         f_anim: impl FnOnce(T) -> A,
     ) -> Self {
         let id = cx
             .create_context()
             .create_derived_animation_node(move |cx, id| {
-                let value = f_value(&mut cx.as_read_context(ReadScope::Node(id)));
+                let value = f_value(&mut cx.read_context().with_read_scope(ReadScope::Node(id)));
                 let inner = Box::new(f_anim(value));
                 let reset_fn = Box::new(
                     move |animation: &mut dyn AnyAnimation,
@@ -252,7 +255,7 @@ impl<T: 'static> Animated<T> {
     }
 
     pub fn spring<'cx>(
-        cx: impl CanCreate<'cx>,
+        cx: &mut impl CanCreate<'cx>,
         f: impl Fn(&mut ReadContext) -> T + 'static,
         options: SpringOptions,
     ) -> Self
@@ -265,7 +268,7 @@ impl<T: 'static> Animated<T> {
     }
 
     pub fn tween<'cx>(
-        cx: impl CanCreate<'cx>,
+        cx: &mut impl CanCreate<'cx>,
         f: impl Fn(&mut ReadContext) -> T + 'static,
         options: TweenOptions,
     ) -> Self
@@ -293,11 +296,11 @@ impl<T> From<Animated<T>> for ViewProp<T> {
 impl<T: 'static> ReactiveValue for Animated<T> {
     type Value = T;
 
-    fn track<'s>(&self, cx: impl CanRead<'s>) {
+    fn track<'s>(&self, cx: &mut impl CanRead<'s>) {
         cx.read_context().track(self.id);
     }
 
-    fn with_ref<'s, R>(&self, cx: impl CanRead<'s>, f: impl FnOnce(&T) -> R) -> R {
+    fn with_ref<'s, R>(&self, cx: &mut impl CanRead<'s>, f: impl FnOnce(&T) -> R) -> R {
         let mut cx = cx.read_context();
         cx.track(self.id);
         f(get_animation_value_ref(cx, self.id)
@@ -307,7 +310,7 @@ impl<T: 'static> ReactiveValue for Animated<T> {
 
     fn with_ref_untracked<'s, R>(
         &self,
-        cx: impl CanRead<'s>,
+        cx: &mut impl CanRead<'s>,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
         f(get_animation_value_ref(cx.read_context(), self.id)
@@ -315,7 +318,7 @@ impl<T: 'static> ReactiveValue for Animated<T> {
             .expect("AnimationFn value had wrong type"))
     }
 
-    fn watch<'s, F>(self, cx: impl CanCreate<'s>, f: F) -> Effect
+    fn watch<'s, F>(self, cx: &mut impl CanCreate<'s>, f: F) -> Effect
     where
         F: FnMut(&mut WatchContext, &Self::Value) + 'static,
     {

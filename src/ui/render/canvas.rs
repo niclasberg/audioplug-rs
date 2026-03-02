@@ -68,11 +68,11 @@ impl CanvasContext<'_> {
     }
 }
 
-impl<'a, 'b> CanRead<'a> for &'a mut CanvasContext<'b>
-where
-    'b: 'a,
-{
-    fn read_context(self) -> ReadContext<'a> {
+impl<'s> CanRead<'s> for CanvasContext<'s> {
+    fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
+    where
+        's: 's2,
+    {
         ReadContext {
             widgets: self.widgets,
             reactive_graph: self.reactive_graph,

@@ -3,9 +3,12 @@ use std::sync::atomic::AtomicUsize;
 use audioplug::{
     KeyEvent,
     core::{Color, Key},
-    ui::prelude::*,
-    ui::style::{Length, UiRect},
-    ui::{App, Window},
+    ui::{
+        App, CallbackContext, Window,
+        prelude::*,
+        reactive::CreateContext,
+        style::{Length, UiRect},
+    },
     views::*,
 };
 use rand::prelude::*;
@@ -19,7 +22,7 @@ struct Todo {
 
 static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
 impl Todo {
-    pub fn new(cx: &mut dyn CanCreate, name: &str, completed: bool) -> Self {
+    pub fn new(cx: &mut CreateContext, name: &str, completed: bool) -> Self {
         Self {
             index: NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             name: Var::new(cx, name.to_string()),
@@ -93,7 +96,7 @@ fn main() {
     app.run();
 }
 
-fn todo_view<F: Fn(&mut dyn CanWrite) + 'static>(
+fn todo_view<F: Fn(&mut CallbackContext) + 'static>(
     todo: &Todo,
     on_remove: F,
 ) -> impl View + use<F> {
