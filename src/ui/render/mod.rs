@@ -135,7 +135,13 @@ fn rebuild_scene(widgets: &mut Widgets, window_id: WindowId) {
             let node = &widgets.tree[widget_id];
             if !node.is_overlay() {
                 let rect = gpu_scene.add_rect(node.global_bounds().scale(scale_factor));
-                gpu_scene.fill_shape(rect, GpuFill::Solid(colors[color_index]));
+                gpu_scene.fill_shape(
+                    rect,
+                    GpuFill::Stroke {
+                        color: colors[color_index],
+                        width: 1.0,
+                    },
+                );
                 color_index = (color_index + 1) % colors.len();
             }
         }

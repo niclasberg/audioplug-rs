@@ -15,6 +15,10 @@ pub struct GpuShapeRef {
 #[derive(Debug, Clone)]
 pub enum GpuFill {
     Solid(Color),
+    Stroke {
+        color: Color,
+        width: f32,
+    },
     Shadow(ShadowOptions),
     LinearGradient {
         start: Vec2f,
@@ -45,10 +49,11 @@ impl GpuScene {
     const FILL_RULE_EVEN_ODD: u32 = 1 << 3;
 
     const FILL_TYPE_SOLID: u32 = 1;
-    const FILL_TYPE_DROP_SHADOW: u32 = 2;
-    const FILL_TYPE_INNER_SHADOW: u32 = 3;
-    const FILL_TYPE_LINEAR_GRADIENT: u32 = 4;
-    const FILL_TYPE_RADIAL_GRADIENT: u32 = 5;
+    const FILL_TYPE_STROKE: u32 = 2;
+    const FILL_TYPE_DROP_SHADOW: u32 = 3;
+    const FILL_TYPE_INNER_SHADOW: u32 = 4;
+    const FILL_TYPE_LINEAR_GRADIENT: u32 = 5;
+    const FILL_TYPE_RADIAL_GRADIENT: u32 = 6;
 
     pub fn new() -> Self {
         Self {
@@ -138,6 +143,7 @@ impl GpuScene {
     pub fn fill_shape(&mut self, shape_ref: GpuShapeRef, fill: GpuFill) {
         let fill_type = match fill {
             GpuFill::Solid(_) => Self::FILL_TYPE_SOLID,
+            GpuFill::Stroke { .. } => Self::FILL_TYPE_STROKE,
             GpuFill::Shadow(ShadowOptions { kind, .. }) => match kind {
                 ShadowKind::DropShadow => Self::FILL_TYPE_DROP_SHADOW,
                 ShadowKind::InnerShadow => Self::FILL_TYPE_INNER_SHADOW,
@@ -157,6 +163,16 @@ impl GpuScene {
                     (color.a * color.g).to_bits(),
                     (color.a * color.b).to_bits(),
                     color.a.to_bits(),
+                ]
+                .iter(),
+            ),
+            GpuFill::Stroke { color, width } => self.fill_ops.extend(
+                [
+                    (color.a * color.r).to_bits(),
+                    (color.a * color.g).to_bits(),
+                    (color.a * color.b).to_bits(),
+                    color.a.to_bits(),
+                    width.to_bits(),
                 ]
                 .iter(),
             ),

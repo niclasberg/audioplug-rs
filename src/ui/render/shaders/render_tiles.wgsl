@@ -16,10 +16,11 @@ const SHAPE_TYPE_MASK = 7u;
 const FILL_RULE_EVEN_ODD = 1u << 3;
 
 const FILL_TYPE_SOLID = 1u;
-const FILL_TYPE_DROP_SHADOW = 2u;
-const FILL_TYPE_INNER_SHADOW = 3u;
-const FILL_TYPE_LINEAR_GRADIENT = 4u;
-const FILL_TYPE_RADIAL_GRADIENT = 5u;
+const FILL_TYPE_STROKE = 2u;
+const FILL_TYPE_DROP_SHADOW = 3u;
+const FILL_TYPE_INNER_SHADOW = 4u;
+const FILL_TYPE_LINEAR_GRADIENT = 5u;
+const FILL_TYPE_RADIAL_GRADIENT = 6u;
 
 struct Params {
 	width: u32,
@@ -95,6 +96,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 		if (fill_type == FILL_TYPE_SOLID) {
 			color = fill_solid(&i, shape_type, index, color, pos);
+		} else if (fill_type == FILL_TYPE_STROKE) {
+			color = stroke(&i, shape_type, index, color, pos);
 		} else if (fill_type == FILL_TYPE_DROP_SHADOW || fill_type == FILL_TYPE_INNER_SHADOW) {
 			color = fill_shadow(&i, shape_type, index, color, fill_type, pos);
 		} else if (fill_type == FILL_TYPE_LINEAR_GRADIENT) {
@@ -118,6 +121,21 @@ fn fill_solid(i: ptr<function, u32>, shape_type: u32, shape_index: u32, color: v
 
 	let coverage = compute_coverage(shape_type, shape_index, pos);
 	return blend(color, fill_color, coverage);
+}
+
+fn stroke(i: ptr<function, u32>, shape_type: u32, shape_index: u32, color: vec4f, pos: vec2f) -> vec4f {
+	let stroke_color = vec4f(
+		bitcast<f32>(fills[*i]),
+		bitcast<f32>(fills[*i+1]),
+		bitcast<f32>(fills[*i+2]),
+		bitcast<f32>(fills[*i+3]),
+	);
+	let width = bitcast<f32>(fills[*i+4]);
+	*i += 5;
+
+	let signed_dist = compute_signed_dist_to_shape(shape_type, shape_index, pos);
+	let coverage = distance_to_coverage(abs(signed_dist) - width);
+	return blend(color, stroke_color, coverage);
 }
 
 fn fill_shadow(i: ptr<function, u32>, shape_type: u32, shape_index: u32, color: vec4f, shadow_type: u32, pos: vec2f) -> vec4f {
@@ -302,6 +320,38 @@ fn sd_ellipse(radii: vec2f, pos: vec2f) -> f32 {
 /// Pick the radius of the corner that is closest to pos
 fn select_rect_corner(c: vec4f, pos: vec2f) -> f32 {
 	return mix(mix(c.x, c.y, step(0, pos.x)), mix(c.w, c.z, step(0, pos.x)), step(0, pos.y));
+}
+
+fn compute_signed_dist_to_shape(shape_type: u32, index: u32, pos: vec2f) -> f32 {
+	switch (shape_type & SHAPE_TYPE_MASK) {
+		case SHAPE_TYPE_NONE: {
+			return 0.0;
+		}
+		case SHAPE_TYPE_PATH: {
+			let size = (shape_type >> 4);
+			return 0.0; // TODO
+		}
+		case SHAPE_TYPE_RECT: {
+			let rect = read_rect(index);
+			let half_size = 0.5 * (rect.bottom_right - rect.top_left);
+			let p = pos - rect.top_left - half_size;
+			return sd_rect(half_size, pos);
+		}
+		case SHAPE_TYPE_ROUNDED_RECT: {
+			let rect = read_rounded_rect(index);
+			let half_size = 0.5 * (rect.bottom_right - rect.top_left);
+			let p = pos - rect.top_left - half_size;
+			let corner_radius = select_rect_corner(rect.corner_radii, p);
+			return sd_rounded_rect(half_size, corner_radius, p);
+		}
+		case SHAPE_TYPE_ELLIPSE: {
+			let ellipse = read_ellipse(index);
+			return sd_ellipse(ellipse.radii, pos - ellipse.center);
+		}
+		default: {
+			return 0.0;
+		}
+	}
 }
 
 fn compute_blurred_coverage(shape_type: u32, index: u32, pos: vec2f, blur_radius: f32) -> f32 {
