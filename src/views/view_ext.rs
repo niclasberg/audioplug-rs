@@ -2,7 +2,7 @@ use crate::{
     KeyEvent,
     ui::{
         BuildContext, EventStatus, OverlayOptions, View, ViewProp,
-        reactive::{ReactiveValue, WriteContext},
+        reactive::{ReactiveValue, CanWrite},
     },
 };
 
@@ -12,7 +12,7 @@ pub trait ViewExt {
     fn on_key_event<F>(self, f: F) -> OnKeyEvent<Self, F>
     where
         Self: Sized,
-        F: FnMut(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static;
+        F: FnMut(&mut dyn CanWrite, KeyEvent) -> EventStatus + 'static;
     fn overlay<V2>(self, options: impl Into<ViewProp<OverlayOptions>>, v: V2) -> Overlay<Self, V2>
     where
         Self: Sized,
@@ -22,7 +22,7 @@ pub trait ViewExt {
 impl<V: View + Sized> ViewExt for V {
     fn on_key_event<F>(self, f: F) -> OnKeyEvent<Self, F>
     where
-        F: FnMut(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static,
+        F: FnMut(&mut dyn CanWrite, KeyEvent) -> EventStatus + 'static,
     {
         OnKeyEvent {
             view: self,

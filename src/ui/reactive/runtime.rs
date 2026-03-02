@@ -2,7 +2,7 @@ use super::{
     NodeId,
     animation::{AnimationState, DerivedAnimationState},
     cached::CachedState,
-    effect::{BindingState, EffectState},
+    effect::{EffectState, WatchState},
     event_channel::EventHandlerState,
     var::SignalState,
     widget_status::WidgetStatusFlags,
@@ -11,12 +11,11 @@ use crate::{
     core::{FxHashMap, FxHashSet, FxIndexSet},
     param::{AnyParameterMap, ParamRef, ParameterId},
     ui::{
-        WidgetId, Widgets,
-        reactive::LocalContext,
+        WidgetId, WidgetTree, Widgets,
         task_queue::{Task, TaskQueue},
     },
 };
-use slotmap::{SecondaryMap, SlotMap};
+use slotmap::{Key, SecondaryMap, SlotMap};
 use smallvec::SmallVec;
 use std::{
     any::Any,
@@ -29,6 +28,11 @@ use std::{
 pub struct Node {
     pub(super) node_type: NodeType,
     pub(super) state: NodeState,
+    owner: Owner,
+    /// Id of the first node that is owned by this node
+    first_child_id: NodeId,
+    /// Next node that has the same owner as this node
+    next_sibling_id: NodeId,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -55,16 +59,6 @@ pub enum ReadScope {
     Node(NodeId),
 }
 
-/*impl Node {
-    fn get_value_as<T: Any>(&self) -> Option<&T> {
-        match &self.node_type {
-            NodeType::Signal(signal) => signal.value.downcast_ref(),
-            NodeType::Memo(memo) => memo.value.as_ref().and_then(|value| value.downcast_ref()),
-            NodeType::Effect(_) => None,
-        }
-    }
-}*/
-
 #[derive(Debug, PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
 pub(super) enum NodeState {
     /// Reactive value is valid, no need to recompute
@@ -88,7 +82,7 @@ pub(super) enum NodeType {
     DerivedAnimation(DerivedAnimationState),
     // Effects (reactions)
     Effect(EffectState),
-    Binding(BindingState),
+    Binding(WatchState),
     EventHandler(EventHandlerState),
 }
 
@@ -134,13 +128,11 @@ impl DerefMut for LeasedNode {
 pub struct ReactiveGraph {
     pub(super) nodes: SlotMap<NodeId, Node>,
     pub(crate) parameters: Rc<dyn AnyParameterMap>,
-    nodes_owned_by_node: SecondaryMap<NodeId, FxHashSet<NodeId>>,
-    nodes_owned_by_widget: SecondaryMap<WidgetId, FxHashSet<NodeId>>,
-    pub(super) sources: SecondaryMap<NodeId, SmallVec<[SourceId; 4]>>,
-    pub(super) node_observers: SecondaryMap<NodeId, FxIndexSet<NodeId>>,
-    pub(super) parameter_observers: FxHashMap<ParameterId, FxIndexSet<NodeId>>,
-    pub(super) widget_observers: SecondaryMap<WidgetId, SmallVec<[(NodeId, WidgetStatusFlags); 4]>>,
-    pub(crate) node_id_buffer: VecDeque<NodeId>,
+    sources: SecondaryMap<NodeId, SmallVec<[SourceId; 4]>>,
+    node_observers: SecondaryMap<NodeId, FxIndexSet<NodeId>>,
+    parameter_observers: FxHashMap<ParameterId, FxIndexSet<NodeId>>,
+    widget_observers: SecondaryMap<WidgetId, SmallVec<[(NodeId, WidgetStatusFlags); 4]>>,
+    node_id_buffer: VecDeque<NodeId>,
     pub(super) pending_animations: FxIndexSet<NodeId>,
 }
 
@@ -158,8 +150,6 @@ impl ReactiveGraph {
             parameter_observers: parameter_subscriptions,
             widget_observers: Default::default(),
             parameters: parameter_map,
-            nodes_owned_by_node: Default::default(),
-            nodes_owned_by_widget: Default::default(),
             node_id_buffer: Default::default(),
             pending_animations: Default::default(),
         }
@@ -170,38 +160,29 @@ impl ReactiveGraph {
         node_type: NodeType,
         state: NodeState,
         owner: Owner,
+        widget_tree: &mut WidgetTree,
     ) -> NodeId {
-        let node = Node { node_type, state };
-        let id = self.nodes.insert(node);
+        let id = self.nodes.insert(Node {
+            node_type,
+            state,
+            owner,
+            first_child_id: NodeId::null(),
+            next_sibling_id: NodeId::null(),
+        });
         self.node_observers.insert(id, FxIndexSet::default());
 
-        match owner {
+        let next_sibling_id = match owner {
             Owner::Widget(widget_id) => {
-                self.nodes_owned_by_widget
-                    .entry(widget_id)
-                    .unwrap()
-                    .or_default()
-                    .insert(id);
+                std::mem::replace(&mut widget_tree[widget_id].first_owned_node_id, id)
             }
-            Owner::Node(node_id) => {
-                self.nodes_owned_by_node
-                    .entry(node_id)
-                    .unwrap()
-                    .or_default()
-                    .insert(id);
+            Owner::Node(parent_id) => {
+                std::mem::replace(&mut self.nodes[parent_id].first_child_id, id)
             }
-            Owner::Root => {}
+            Owner::Root => NodeId::null(),
         };
+        self.nodes[id].next_sibling_id = next_sibling_id;
 
         id
-    }
-
-    pub(crate) fn clear_nodes_for_widget(&mut self, widget_id: WidgetId) {
-        if let Some(bindings) = self.nodes_owned_by_widget.remove(widget_id) {
-            for node_id in bindings {
-                self.remove_node(node_id);
-            }
-        }
     }
 
     pub fn remove_node(&mut self, id: NodeId) {
@@ -227,11 +208,23 @@ impl ReactiveGraph {
             }
         }
 
-        self.nodes.remove(id).expect("Missing node");
-        if let Some(child_ids) = self.nodes_owned_by_node.remove(id) {
-            for child_id in child_ids {
-                self.remove_node(child_id);
-            }
+        // TODO Fix first_child_id for owner!
+        let node = self.nodes.remove(id).expect("Missing node");
+
+        match node.owner {
+            Owner::Widget(widget_id) => todo!(),
+            Owner::Node(node_id) => todo!(),
+            _ => {}
+        };
+
+        self.remove_all_siblings(node.first_child_id);
+    }
+
+    pub fn remove_all_siblings(&mut self, id: NodeId) {
+        let mut current = id;
+        while !current.is_null() {
+            current = self.nodes[current].next_sibling_id;
+            self.remove_node(current);
         }
     }
 
@@ -245,12 +238,6 @@ impl ReactiveGraph {
 
     pub fn get_node_mut(&mut self, node_id: NodeId) -> &mut Node {
         self.nodes.get_mut(node_id).expect("Node not found")
-    }
-
-    pub fn get_node_value_ref(&self, node_id: NodeId) -> Option<&dyn Any> {
-        self.nodes
-            .get(node_id)
-            .map(|node| NodeType::get_value_ref(&node.node_type))
     }
 
     pub fn drive_animations(&mut self, widgets: &mut Widgets, task_queue: &mut TaskQueue) {
@@ -276,10 +263,6 @@ impl ReactiveGraph {
         } else {
             false
         }
-    }
-
-    pub(super) fn request_animation(&mut self, node_id: NodeId) {
-        self.pending_animations.insert(node_id);
     }
 
     pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef<'_> {
@@ -311,7 +294,7 @@ impl ReactiveGraph {
 
     pub(crate) fn notify(
         &mut self,
-        widgets: &mut Widgets,
+        widgets: &Widgets,
         task_queue: &mut TaskQueue,
         node_id: NodeId,
     ) {
@@ -323,7 +306,7 @@ impl ReactiveGraph {
 
     fn notify_source_changed(
         &mut self,
-        widgets: &mut Widgets,
+        widgets: &Widgets,
         task_queue: &mut TaskQueue,
         mut nodes_to_notify: VecDeque<NodeId>,
     ) {
@@ -372,7 +355,7 @@ impl ReactiveGraph {
                         };
                         task_queue.push(task);
                     }
-                    NodeType::Binding(BindingState { f }) => {
+                    NodeType::Binding(WatchState { f }) => {
                         let task = Task::UpdateBinding {
                             f: Rc::downgrade(f),
                             node_id,
@@ -382,8 +365,8 @@ impl ReactiveGraph {
                     NodeType::DerivedAnimation(anim) => {
                         // Clear the sources, they will be re-populated while running the reset function
                         self.clear_node_sources(node_id);
-                        if anim.reset(node_id, &mut LocalContext::new(widgets, self)) {
-                            self.request_animation(node_id);
+                        if anim.reset(node_id, self, widgets) {
+                            self.pending_animations.insert(node_id);
                         }
                     }
                     _ => unreachable!(),
@@ -422,7 +405,7 @@ impl ReactiveGraph {
                 NodeType::Memo(memo) => {
                     // Clear the sources, they will be re-populated while running the memo function
                     self.clear_node_sources(node_id);
-                    if memo.eval(node_id, LocalContext::new(widgets, self)) {
+                    if memo.eval(node_id, self, widgets) {
                         // Memo eval returned false, meaning that it has changed.
                         for &observer_id in self.node_observers[node_id].iter() {
                             self.nodes[observer_id].state = NodeState::Dirty;
@@ -438,7 +421,7 @@ impl ReactiveGraph {
 
     pub(crate) fn notify_parameter_subscribers(
         &mut self,
-        widgets: &mut Widgets,
+        widgets: &Widgets,
         task_queue: &mut TaskQueue,
         source_id: ParameterId,
     ) {
@@ -450,7 +433,7 @@ impl ReactiveGraph {
 
     pub(crate) fn notify_widget_status_changed(
         &mut self,
-        widgets: &mut Widgets,
+        widgets: &Widgets,
         task_queue: &mut TaskQueue,
         widget_id: WidgetId,
         change_mask: WidgetStatusFlags,

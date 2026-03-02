@@ -1,7 +1,4 @@
-use super::reactive::{
-    CreateContext, LocalCreateContext, Owner, ParamContext, ReactiveContext, ReactiveContextMut,
-    ReactiveGraph, ReadContext, ReadScope, Var, WatchContext, WidgetContext, WriteContext,
-};
+use super::reactive::{CanWrite, CreateContext, ReactiveGraph, Var, WidgetContext};
 use super::{
     AnyView, BuildContext, HostHandle, View, Widget, WidgetId, WidgetMut, WidgetRef, Widgets,
     WindowId,
@@ -13,6 +10,7 @@ use super::{
     task_queue::TaskQueue,
     widgets::WidgetPos,
 };
+use crate::ui::reactive::{Owner, ReadContext, ReadScope, WriteContext};
 use crate::{
     core::WindowTheme,
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
@@ -35,11 +33,7 @@ impl AppState {
         let mut task_queue = TaskQueue::default();
         let mut widgets = Widgets::default();
         let theme_signal = Var::new(
-            &mut LocalCreateContext::new_root_context(
-                &mut widgets,
-                &mut reactive_graph,
-                &mut task_queue,
-            ),
+            CreateContext::new_root_context(&mut widgets, &mut reactive_graph, &mut task_queue),
             WindowTheme::Dark,
         );
 
@@ -74,7 +68,7 @@ impl AppState {
             return false;
         };
         param_ref.set_value_plain(value);
-        super::reactive::notify_parameter_subscribers(self, id);
+        self.write_context().notify_parameter_subscribers(id);
         self.run_effects();
         true
     }
@@ -88,7 +82,7 @@ impl AppState {
             return false;
         };
         param_ref.set_value_normalized(value);
-        super::reactive::notify_parameter_subscribers(self, id);
+        self.write_context().notify_parameter_subscribers(id);
         self.run_effects();
         true
     }
@@ -127,31 +121,21 @@ impl AppState {
 
     pub fn remove_window(&mut self, id: WindowId) {
         self.clear_mouse_capture_and_focus(self.widgets.window(id).root_widget);
-        let reactive_graph = &mut self.reactive_graph;
-        self.widgets.remove_window(id, &mut |data| {
-            reactive_graph.clear_nodes_for_widget(data.id);
-        });
+        self.widgets.remove_window(id, &mut self.reactive_graph);
     }
 
     /// Remove a widget and all of its children and associated signals
     pub fn remove_widget(&mut self, id: WidgetId) {
         self.clear_mouse_capture_and_focus(id);
-        let reactive_graph = &mut self.reactive_graph;
-        self.widgets.remove_widget(id, &mut |data| {
-            reactive_graph.clear_nodes_for_widget(data.id);
-        });
+        self.widgets.remove_widget(id, &mut self.reactive_graph);
     }
 
     pub fn replace_widget<V: View>(&mut self, id: WidgetId, view: V) {
         self.clear_mouse_capture_and_focus(id);
+        self.widgets.remove_children(id, &mut self.reactive_graph);
 
-        let reactive_graph = &mut self.reactive_graph;
-        reactive_graph.clear_nodes_for_widget(id);
-        self.widgets.remove_children(id, &mut |data| {
-            reactive_graph.clear_nodes_for_widget(data.id);
-        });
-
-        self.widgets.data.get_mut(id).unwrap().reset();
+        // Also reset taffy cache?
+        self.widgets.tree.get_mut(id).unwrap().reset();
         self.build_and_insert_widget(id, view);
     }
 
@@ -212,53 +196,43 @@ impl AppState {
         }
     }
 
-    pub fn clipboard(&self, window_id: WindowId) -> Clipboard<'_> {
-        Clipboard {
-            handle: &self.widgets.window(window_id).handle,
-        }
-    }
-}
-
-impl ReactiveContext for AppState {
-    fn reactive_graph_and_widgets(&self) -> (&ReactiveGraph, &Widgets) {
-        (&self.reactive_graph, &self.widgets)
-    }
-
-    fn reactive_graph_mut_and_widgets(&mut self) -> (&mut ReactiveGraph, &Widgets) {
-        (&mut self.reactive_graph, &mut self.widgets)
-    }
-}
-
-impl ReactiveContextMut for AppState {
-    fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
-        (
-            &mut self.reactive_graph,
-            &mut self.widgets,
-            &mut self.task_queue,
-        )
-    }
-}
-
-impl ReadContext for AppState {
-    fn scope(&self) -> ReadScope {
-        ReadScope::Untracked
-    }
-}
-
-impl WriteContext for AppState {}
-
-impl ParamContext for AppState {
-    fn host_handle(&self) -> &dyn HostHandle {
+    pub fn host_handle(&self) -> &dyn HostHandle {
         let Some(host_handle) = self.host_handle.as_ref() else {
             panic!("Host handle not set")
         };
         host_handle.as_ref()
     }
-}
 
-impl CreateContext for AppState {
-    fn owner(&self) -> Owner {
-        Owner::Root
+    pub fn clipboard(&self, window_id: WindowId) -> Clipboard<'_> {
+        Clipboard {
+            handle: &self.widgets.window(window_id).handle,
+        }
+    }
+
+    pub fn read_context(&mut self, scope: ReadScope) -> ReadContext {
+        ReadContext {
+            widgets: &self.widgets,
+            reactive_graph: &mut self.reactive_graph,
+            scope,
+        }
+    }
+
+    pub fn write_context(&mut self) -> WriteContext<'_> {
+        WriteContext {
+            widgets: &mut self.widgets,
+            reactive_graph: &mut self.reactive_graph,
+            task_queue: &mut self.task_queue,
+            host_handle: self.host_handle.as_ref().map(|h| h.as_ref()),
+        }
+    }
+
+    pub fn create_context(&mut self, owner: Owner) -> CreateContext<'_> {
+        CreateContext {
+            widgets: &mut self.widgets,
+            reactive_graph: &mut self.reactive_graph,
+            task_queue: &mut self.task_queue,
+            owner,
+        }
     }
 }
 
@@ -275,5 +249,3 @@ impl WidgetContext for AppState {
         self.replace_widget(id, view);
     }
 }
-
-impl WatchContext for AppState {}

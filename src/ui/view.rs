@@ -1,15 +1,17 @@
 use super::{
     AppState, CallbackContext, EventStatus, MouseEventContext, ViewSequence, Widget, WidgetAdapter,
-    WidgetFlags, WidgetHandle, WidgetId, WidgetPos, Widgets,
+    WidgetFlags, WidgetHandle, WidgetId, WidgetPos,
     overlay::OverlayOptions,
-    reactive::{
-        CLICKED_STATUS, CreateContext, FOCUS_STATUS, Owner, ParamContext, ReactiveContext,
-        ReactiveContextMut, ReactiveGraph, ReadContext, ReadScope, ReadSignal,
-    },
+    reactive::{CLICKED_STATUS, CanCreate, CanRead, FOCUS_STATUS, Owner, ReadScope, ReadSignal},
     style::{Style, StyleBuilder},
-    task_queue::TaskQueue,
 };
-use crate::{ MouseButton, MouseEvent};
+use crate::{
+    MouseButton, MouseEvent,
+    ui::{
+        HostHandle,
+        reactive::{CreateContext, ReadContext},
+    },
+};
 use std::marker::PhantomData;
 
 pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn Widget>>;
@@ -175,7 +177,7 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
     }
 
     pub fn set_focusable(&mut self, focusable: bool) {
-        self.app_state.widgets.data[self.id].set_or_clear_flag(WidgetFlags::FOCUSABLE, focusable);
+        self.app_state.widgets.tree[self.id].set_or_clear_flag(WidgetFlags::FOCUSABLE, focusable);
     }
 
     pub fn add_child(&mut self, view: impl View) -> WidgetId {
@@ -211,44 +213,27 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
     }
 
     pub fn set_default_style(&mut self, style: Style) {
-        self.app_state.widgets.data[self.id].style = style;
+        self.app_state.widgets.tree[self.id].style = style;
     }
 
     pub fn update_default_style(&mut self, f: impl FnOnce(&mut Style)) {
-        f(&mut self.app_state.widgets.data[self.id].style);
+        f(&mut self.app_state.widgets.tree[self.id].style);
     }
 }
 
-impl<W: Widget + ?Sized> ParamContext for BuildContext<'_, W> {
-    fn host_handle(&self) -> &dyn super::HostHandle {
-        self.app_state.host_handle()
+impl<'a, 'b, W: Widget + ?Sized> CanRead<'a> for &'a mut BuildContext<'b, W> {
+    fn read_context(self) -> ReadContext<'a> {
+        self.app_state.read_context(ReadScope::Untracked)
     }
 }
 
-impl<W: Widget + ?Sized> ReadContext for BuildContext<'_, W> {
-    fn scope(&self) -> ReadScope {
-        ReadScope::Untracked
-    }
-}
-
-impl<W: Widget + ?Sized> ReactiveContext for BuildContext<'_, W> {
-    fn reactive_graph_and_widgets(&self) -> (&ReactiveGraph, &Widgets) {
-        self.app_state.reactive_graph_and_widgets()
-    }
-
-    fn reactive_graph_mut_and_widgets(&mut self) -> (&mut ReactiveGraph, &Widgets) {
-        self.app_state.reactive_graph_mut_and_widgets()
-    }
-}
-
-impl<W: Widget + ?Sized> ReactiveContextMut for BuildContext<'_, W> {
-    fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
-        self.app_state.components_mut()
-    }
-}
-
-impl<W: Widget + ?Sized> CreateContext for BuildContext<'_, W> {
-    fn owner(&self) -> Owner {
-        Owner::Widget(self.id)
+impl<'a, 'b, W: Widget + ?Sized> CanCreate<'a> for &'a mut BuildContext<'b, W> {
+    fn create_context(self) -> CreateContext<'a> {
+        CreateContext {
+            widgets: &mut self.app_state.widgets,
+            reactive_graph: &mut self.app_state.reactive_graph,
+            task_queue: &mut self.app_state.task_queue,
+            owner: Owner::Widget(self.id),
+        }
     }
 }

@@ -1,9 +1,9 @@
-use crate::ui::reactive::WriteContext;
+use crate::ui::reactive::CanWrite;
 
 pub struct MenuItem {
     label: String,
     children: Vec<Self>,
-    action: Option<Box<dyn Fn(&mut dyn WriteContext)>>,
+    action: Option<Box<dyn Fn(&mut dyn CanWrite)>>,
 }
 
 pub struct Menu {

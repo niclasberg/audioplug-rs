@@ -1,6 +1,4 @@
-use super::reactive::{
-    Computed, CreateContext, Effect, ReactiveContext, ReactiveValue, ReadContext, ReadSignal,
-};
+use super::reactive::{CanCreate, CanRead, Computed, Effect, ReactiveValue, ReadSignal};
 use crate::{
     core::{Brush, Color, LinearGradient},
     ui::{BuildContext, Widget, WidgetMut, reactive::WatchContext},
@@ -67,7 +65,7 @@ impl<T: 'static> ViewProp<T> {
 impl<T: 'static> ReactiveValue for ViewProp<T> {
     type Value = T;
 
-    fn track(&self, cx: &mut dyn ReadContext) {
+    fn track<'a>(&self, cx: impl CanRead<'a>) {
         match self {
             Self::ReadSignal(signal) => signal.track(cx),
             Self::Computed(computed) => computed.track(cx),
@@ -75,7 +73,7 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         }
     }
 
-    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+    fn with_ref<'a, R>(&self, cx: impl CanRead<'a>, f: impl FnOnce(&Self::Value) -> R) -> R {
         match self {
             Self::ReadSignal(signal) => signal.with_ref(cx, f),
             Self::Computed(computed) => computed.with_ref(cx, f),
@@ -83,7 +81,7 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         }
     }
 
-    fn get(&self, cx: &mut dyn ReadContext) -> T
+    fn get<'a>(&self, cx: impl CanRead<'a>) -> T
     where
         T: Clone,
     {
@@ -94,9 +92,9 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         }
     }
 
-    fn with_ref_untracked<R>(
+    fn with_ref_untracked<'a, R>(
         &self,
-        cx: &mut dyn ReactiveContext,
+        cx: impl CanRead<'a>,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
         match self {
@@ -106,7 +104,7 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         }
     }
 
-    fn get_untracked(&self, cx: &mut dyn ReactiveContext) -> Self::Value
+    fn get_untracked<'a>(&self, cx: impl CanRead<'a>) -> Self::Value
     where
         Self::Value: Clone,
     {
@@ -117,9 +115,9 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         }
     }
 
-    fn watch<F>(self, cx: &mut dyn CreateContext, f: F) -> Effect
+    fn watch<'a, F>(self, cx: impl CanCreate<'a>, f: F) -> Effect
     where
-        F: FnMut(&mut dyn WatchContext, &Self::Value) + 'static,
+        F: FnMut(&mut WatchContext, &Self::Value) + 'static,
     {
         match self {
             ViewProp::ReadSignal(read_signal) => read_signal.watch(cx, f),

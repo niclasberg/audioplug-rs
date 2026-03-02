@@ -1,10 +1,13 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
 use super::{
-    CreateContext, Effect, NodeId, Owner, ReactiveContext, ReactiveValue, ReadContext, ReadSignal,
-    WriteContext, runtime::NodeType,
+    CanCreate, CanRead, CanWrite, Effect, NodeId, Owner, ReactiveValue, ReadSignal,
+    runtime::NodeType,
 };
-use crate::ui::ViewProp;
+use crate::ui::{
+    ViewProp,
+    reactive::{CreateContext, WatchContext},
+};
 
 /// A value that may change over time.
 pub struct Var<T> {
@@ -21,63 +24,59 @@ impl<T> Clone for Var<T> {
 impl<T> Copy for Var<T> {}
 
 impl<T: Any> Var<T> {
-    pub fn new(cx: &mut dyn CreateContext, value: T) -> Self {
+    pub fn new<'cx>(cx: impl CanCreate<'cx>, value: T) -> Self {
         let state = SignalState::new(value);
-        let id = cx.create_var_node(state);
+        let id = cx.create_context().create_var_node(state);
         Self {
             id,
             _marker: PhantomData,
         }
     }
 
-    pub fn new_with(
-        cx: &mut dyn CreateContext,
-        f: impl FnOnce(&mut dyn CreateContext) -> T,
-    ) -> Self {
-        let value = f(cx);
+    pub fn new_with<'cx>(cx: impl CanCreate<'cx>, f: impl FnOnce(&mut CreateContext) -> T) -> Self {
+        let mut cx = cx.create_context();
+        let value = f(&mut cx);
         Self::new(cx, value)
     }
 
     /// Set the current value, notifies subscribers
-    pub fn set(&self, cx: &mut dyn WriteContext, value: T) {
+    pub fn set<'cx>(&self, cx: impl CanWrite<'cx>, value: T) {
         self.update(cx, move |_, val| *val = value)
     }
 
     /// Set the current value, notifies subscribers
-    pub fn set_with(&self, cx: &mut dyn WriteContext, f: impl FnOnce(&mut dyn CreateContext) -> T) {
-        let new_value = f(&mut cx.with_owner(super::Owner::Node(self.id)));
+    pub fn set_with<'cx>(&self, cx: impl CanWrite<'cx>, f: impl FnOnce(&mut CreateContext) -> T) {
+        let mut cx = cx.write_context();
+        let new_value = f(&mut cx.as_create_context(super::Owner::Node(self.id)));
         self.update(cx, move |_, value| *value = new_value);
     }
 
     /// Set the current value, notifies subscribers
-    pub fn update(
-        &self,
-        cx: &mut dyn WriteContext,
-        f: impl FnOnce(&mut dyn CreateContext, &mut T),
-    ) {
-        if let Some(mut node) = cx.reactive_graph_mut().lease_node(self.id) {
+    pub fn update<'s>(&self, cx: impl CanWrite<'s>, f: impl FnOnce(&mut CreateContext, &mut T)) {
+        let mut cx = cx.write_context();
+        if let Some(mut node) = cx.reactive_graph.lease_node(self.id) {
             match node.deref_mut() {
                 NodeType::Signal(signal) => {
                     let value = signal
                         .value
                         .downcast_mut()
                         .expect("Invalid signal value type");
-                    f(&mut cx.with_owner(Owner::Node(self.id)), value);
+                    f(&mut cx.as_create_context(Owner::Node(self.id)), value);
                 }
                 _ => unreachable!(),
             }
-            cx.reactive_graph_mut().unlease_node(node);
+            cx.reactive_graph.unlease_node(node);
         }
-        super::notify(cx, self.id);
+        cx.write_context().notify(self.id);
     }
 
     pub fn as_read_signal(self) -> ReadSignal<T> {
         ReadSignal::from_node(self.id)
     }
 
-    pub fn dispose(self, cx: &mut dyn ReactiveContext) {
+    /*pub fn dispose(self, cx: &mut dyn ReactiveContext) {
         cx.reactive_graph_mut().remove_node(self.id);
-    }
+    }*/
 }
 
 impl<T: 'static> From<Var<T>> for ViewProp<T> {
@@ -89,27 +88,27 @@ impl<T: 'static> From<Var<T>> for ViewProp<T> {
 impl<T: 'static> ReactiveValue for Var<T> {
     type Value = T;
 
-    fn track(&self, cx: &mut dyn ReadContext) {
-        cx.track(self.id);
+    fn track<'a>(&self, cx: impl CanRead<'a>) {
+        cx.read_context().track(self.id);
     }
 
-    fn with_ref_untracked<R>(
+    fn with_ref_untracked<'a, R>(
         &self,
-        cx: &mut dyn super::ReactiveContext,
+        cx: impl CanRead<'a>,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
-        f(cx.reactive_graph()
+        f(cx.read_context()
             .get_node_value_ref(self.id)
             .unwrap()
             .downcast_ref()
             .expect("Signal had wrong type"))
     }
 
-    fn watch<F>(self, cx: &mut dyn CreateContext, f: F) -> Effect
+    fn watch<'cx, F>(self, cx: impl CanCreate<'cx>, f: F) -> Effect
     where
-        F: FnMut(&mut dyn super::WatchContext, &Self::Value) + 'static,
+        F: FnMut(&mut WatchContext, &Self::Value) + 'static,
     {
-        Effect::watch_node(cx, self.id, f)
+        Effect::watch_node(cx.create_context(), self.id, f)
     }
 }
 

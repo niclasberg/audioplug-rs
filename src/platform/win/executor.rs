@@ -3,7 +3,7 @@ use std::{
     future::Future,
     mem::MaybeUninit,
     ops::Deref,
-    rc::Rc,
+    rc::{Rc, Weak},
     sync::{
         Once,
         mpsc::{self, Receiver, Sender},
@@ -111,7 +111,10 @@ impl Executor {
 
         let (sender, receiver) = mpsc::channel();
 
-        let inner = Rc::new(Inner { receiver });
+        let inner = Rc::new(Inner {
+            receiver,
+            animation_callbacks: Vec::new(),
+        });
         let hwnd = unsafe {
             CreateWindowExW(
                 WINDOW_EX_STYLE::default(),
@@ -182,8 +185,8 @@ unsafe extern "system" fn wndproc(
             unsafe { SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0) };
             drop(unsafe { Rc::from_raw(inner_ptr) });
         } else if message == DRIVE_ANIMATIONS_MSG_ID {
-            for animation in inner.animation_timers {
-                (inner.callback)();
+            for animation in inner.animation_callbacks.iter() {
+                (animation.callback)();
             }
         }
     }

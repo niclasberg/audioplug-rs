@@ -8,7 +8,7 @@ use slotmap::{Key, KeyData, SlotMap, new_key_type};
 
 use crate::{
     core::{Point, Rect, RoundedRect, Shape, Size, Zero},
-    ui::Scene,
+    ui::reactive::NodeId,
 };
 
 use super::{WindowId, style::Style};
@@ -46,19 +46,22 @@ bitflags!(
     }
 );
 
+/// Data associated with each widget. The nodes form an intrusive tree,
+/// and are all stored in a WidgetDataMap which handles node creation,
+/// swapping etc. in order to ensure that link invariants are always kept.
 pub struct WidgetData {
     pub(super) id: WidgetId,
     pub(super) window_id: WindowId,
     pub(super) parent_id: WidgetId,
+    /// Id of the first child of the node (or null if )
     pub(super) first_child_id: WidgetId,
     pub(super) next_sibling_id: WidgetId,
     pub(super) prev_sibling_id: WidgetId,
+    pub(crate) first_owned_node_id: NodeId,
     pub(super) style: Style,
-    pub(super) cache: taffy::Cache,
     pub(super) layout: taffy::Layout,
     flags: Cell<WidgetFlags>,
     pub(super) origin: Point,
-    pub(super) scene: Scene,
 }
 
 impl WidgetData {
@@ -70,18 +73,16 @@ impl WidgetData {
             first_child_id: WidgetId::null(),
             next_sibling_id: id,
             prev_sibling_id: id,
+            first_owned_node_id: NodeId::null(),
             style: Default::default(),
-            cache: Default::default(),
             layout: Default::default(),
             flags: Cell::new(WidgetFlags::EMPTY),
             origin: Point::ZERO,
-            scene: Scene::default(),
         }
     }
 
     pub fn reset(&mut self) {
         self.flags.set(WidgetFlags::EMPTY);
-        self.cache.clear();
     }
 
     pub fn with_parent(mut self, parent_id: WidgetId) -> Self {
@@ -97,6 +98,10 @@ impl WidgetData {
 
     pub fn id(&self) -> WidgetId {
         self.id
+    }
+
+    pub fn has_siblings(&self) -> bool {
+        self.next_sibling_id != self.prev_sibling_id
     }
 
     /// Local bounds of the widget, relative to its parent
@@ -209,11 +214,11 @@ impl WidgetData {
 }
 
 #[derive(Default)]
-pub struct WidgetDataMap {
+pub struct WidgetTree {
     data: SlotMap<WidgetId, WidgetData>,
 }
 
-impl WidgetDataMap {
+impl WidgetTree {
     #[inline(always)]
     pub fn get(&self, id: WidgetId) -> Option<&WidgetData> {
         self.data.get(id)
@@ -228,20 +233,40 @@ impl WidgetDataMap {
         self.data.contains_key(widget_id)
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = &WidgetData> {
+        self.data.values()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut WidgetData> {
+        self.data.values_mut()
+    }
+
     /// Iterator over the ids of all siblings of a node
     pub fn sibling_id_iter(&self, widget_id: WidgetId) -> ChildIdIter<'_> {
         ChildIdIter {
-            inner: SiblingWalker::all_siblings(&self, widget_id),
-            widgets: &self,
+            inner: SiblingWalker::all_siblings(self, widget_id),
+            widgets: self,
         }
+    }
+
+    pub fn sibling_id_walker(&self, widget_id: WidgetId) -> SiblingWalker {
+        SiblingWalker::all_siblings(self, widget_id)
     }
 
     /// Iterator over the ids of all children of a node
     pub fn child_id_iter(&self, widget_id: WidgetId) -> ChildIdIter<'_> {
         ChildIdIter {
-            inner: SiblingWalker::all_children(&self, widget_id),
-            widgets: &self,
+            inner: SiblingWalker::all_children(self, widget_id),
+            widgets: self,
         }
+    }
+
+    pub fn child_id_walker(&self, widget_id: WidgetId) -> SiblingWalker {
+        SiblingWalker::all_children(self, widget_id)
+    }
+
+    pub fn dfs_walker(&self, root_id: WidgetId) -> DFSWalker {
+        DFSWalker::new(root_id)
     }
 
     /// Removes a widget without updating any sibling/parent links. Only used as an optimization when removing
@@ -395,7 +420,7 @@ impl WidgetDataMap {
     }
 }
 
-impl Index<WidgetId> for WidgetDataMap {
+impl Index<WidgetId> for WidgetTree {
     type Output = WidgetData;
 
     #[inline(always)]
@@ -404,7 +429,7 @@ impl Index<WidgetId> for WidgetDataMap {
     }
 }
 
-impl IndexMut<WidgetId> for WidgetDataMap {
+impl IndexMut<WidgetId> for WidgetTree {
     fn index_mut(&mut self, index: WidgetId) -> &mut Self::Output {
         &mut self.data[index]
     }
@@ -412,7 +437,7 @@ impl IndexMut<WidgetId> for WidgetDataMap {
 
 pub struct ChildIdIter<'a> {
     inner: SiblingWalker,
-    widgets: &'a WidgetDataMap,
+    widgets: &'a WidgetTree,
 }
 
 impl<'a> Iterator for ChildIdIter<'a> {
@@ -431,14 +456,14 @@ impl<'a> DoubleEndedIterator for ChildIdIter<'a> {
 
 // Keeps track of the current iterable range. The Widgets have to be passed on each
 // call to next_id in order to avoid borrowing problems.
-pub(super) struct SiblingWalker {
+pub struct SiblingWalker {
     first: WidgetId,
     last: WidgetId,
     done: bool,
 }
 
 impl SiblingWalker {
-    pub(super) fn all_siblings(widgets: &WidgetDataMap, first: WidgetId) -> Self {
+    fn all_siblings(widgets: &WidgetTree, first: WidgetId) -> Self {
         if first.is_null() {
             Self {
                 first: WidgetId::null(),
@@ -455,12 +480,12 @@ impl SiblingWalker {
         }
     }
 
-    pub(super) fn all_children(widgets: &WidgetDataMap, parent_id: WidgetId) -> Self {
+    fn all_children(widgets: &WidgetTree, parent_id: WidgetId) -> Self {
         let first = widgets.data[parent_id].first_child_id;
         Self::all_siblings(widgets, first)
     }
 
-    pub(super) fn next_id(&mut self, widgets: &WidgetDataMap) -> Option<WidgetId> {
+    pub fn next_id(&mut self, widgets: &WidgetTree) -> Option<WidgetId> {
         if self.done {
             None
         } else {
@@ -473,7 +498,7 @@ impl SiblingWalker {
         }
     }
 
-    pub(super) fn next_back_id(&mut self, widgets: &WidgetDataMap) -> Option<WidgetId> {
+    pub fn next_back_id(&mut self, widgets: &WidgetTree) -> Option<WidgetId> {
         if self.done {
             None
         } else {
@@ -487,35 +512,59 @@ impl SiblingWalker {
     }
 }
 
-pub struct DepthFirstWalker {
-    current: WidgetId, // Null if done
-    root: WidgetId,
+pub struct DFSWalker {
+    current_id: WidgetId, // Null if done
+    root_id: WidgetId,
+    skip_children: bool,
 }
 
-impl DepthFirstWalker {
-    pub fn new(root: WidgetId) -> Self {
+impl DFSWalker {
+    pub fn new(root_id: WidgetId) -> Self {
         Self {
-            current: root,
-            root,
+            current_id: root_id,
+            root_id,
+            skip_children: false,
         }
     }
 
-    fn next(&mut self, data_map: &WidgetDataMap) -> Option<WidgetId> {
-        if self.current.is_null() {
+    pub fn next(&mut self, data_map: &WidgetTree) -> Option<WidgetId> {
+        let current_id = self.current_id;
+        if current_id.is_null() {
             return None;
         }
 
-        let current_id = self.current;
         let current = &data_map[current_id];
-        self.current = if !current.first_child_id.is_null() {
-            current.first_child_id
-        } else if current_id != data_map[current.parent_id].first_child_id {
-            current.next_sibling_id
-        } else {
-            // Climb back until first parent with sibling, that is the new current
-            todo!()
+        let skip_children = std::mem::replace(&mut self.skip_children, false);
+        if !skip_children && !current.first_child_id.is_null() {
+            self.current_id = current.first_child_id;
+            return Some(current_id);
+        }
+
+        let mut node_id = current_id;
+        self.current_id = loop {
+            let node = &data_map[node_id];
+            let parent_id = node.parent_id;
+
+            if parent_id.is_null() {
+                break WidgetId::null();
+            }
+
+            let parent = &data_map[parent_id];
+            if node.next_sibling_id != parent.first_child_id {
+                break node.next_sibling_id;
+            }
+
+            if parent_id == self.root_id {
+                break WidgetId::null();
+            }
+
+            node_id = parent_id;
         };
 
         Some(current_id)
+    }
+
+    pub fn skip_children(&mut self) {
+        self.skip_children = true;
     }
 }

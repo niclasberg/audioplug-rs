@@ -13,8 +13,8 @@ mod view;
 mod view_prop;
 mod view_sequence;
 mod widget;
-mod widget_data;
 mod widget_ref;
+mod widget_tree;
 mod widgets;
 mod window;
 
@@ -34,8 +34,8 @@ pub use view::*;
 pub use view_prop::ViewProp;
 pub use view_sequence::*;
 pub use widget::{EventStatus, StatusChange, Widget, WidgetAdapter};
-pub use widget_data::{WidgetData, WidgetFlags, WidgetId};
 pub use widget_ref::{WidgetMut, WidgetRef};
+pub use widget_tree::{WidgetData, WidgetFlags, WidgetId, WidgetTree};
 pub use widgets::{WidgetPos, Widgets};
 #[cfg(target_os = "macos")]
 pub(crate) use window::MyHandler;

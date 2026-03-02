@@ -1,9 +1,6 @@
 use crate::{
     KeyEvent,
-    ui::{
-        BuildContext, EventContext, EventStatus, View, Widget, WidgetAdapter,
-        reactive::WriteContext,
-    },
+    ui::{BuildContext, CallbackContext, EventContext, EventStatus, View, Widget, WidgetAdapter},
 };
 
 pub struct OnKeyEvent<V, F> {
@@ -11,7 +8,7 @@ pub struct OnKeyEvent<V, F> {
     pub(super) on_key_down: F,
 }
 
-impl<V: View, F: FnMut(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static> View
+impl<V: View, F: FnMut(CallbackContext, KeyEvent) -> EventStatus + 'static> View
     for OnKeyEvent<V, F>
 {
     type Element = OnKeyEventWidget<V::Element, F>;
@@ -29,7 +26,7 @@ pub struct OnKeyEventWidget<W, F> {
     f: F,
 }
 
-impl<W: Widget, F: FnMut(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'static> WidgetAdapter
+impl<W: Widget, F: FnMut(CallbackContext, KeyEvent) -> EventStatus + 'static> WidgetAdapter
     for OnKeyEventWidget<W, F>
 {
     type Inner = W;
@@ -42,9 +39,9 @@ impl<W: Widget, F: FnMut(&mut dyn WriteContext, KeyEvent) -> EventStatus + 'stat
         &mut self.widget
     }
 
-    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
+    fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventStatus {
         self.widget
-            .key_event(event.clone(), ctx)
-            .or_else(|| (self.f)(ctx.app_state_mut(), event))
+            .key_event(event.clone(), cx)
+            .or_else(|| (self.f)(cx.as_callback_context(), event))
     }
 }

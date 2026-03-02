@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use super::{CreateContext, NodeId, ReadContext, WriteContext};
+use super::{CanCreate, CanRead, CanWrite, NodeId};
 
 #[derive(Clone, Copy)]
 pub struct Trigger {
@@ -9,19 +9,19 @@ pub struct Trigger {
 }
 
 impl Trigger {
-    pub fn new(cx: &mut dyn CreateContext) -> Self {
+    pub fn new<'cx>(cx: impl CanCreate<'cx>) -> Self {
         Self {
-            node_id: cx.create_trigger(),
+            node_id: cx.create_context().create_trigger(),
             _marker: PhantomData,
         }
     }
 
-    pub fn track(&self, cx: &mut dyn ReadContext) {
-        cx.track(self.node_id);
+    pub fn track<'cx>(&self, cx: impl CanRead<'cx>) {
+        cx.read_context().track(self.node_id);
     }
 
-    pub fn notify(&self, cx: &mut dyn WriteContext) {
-        super::notify(cx, self.node_id);
+    pub fn notify<'cx>(&self, cx: impl CanWrite<'cx>) {
+        cx.write_context().notify(self.node_id);
     }
 }
 

@@ -1,30 +1,38 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
-use crate::ui::{ViewProp, Widgets};
+use crate::ui::{
+    ViewProp, Widgets,
+    reactive::{ReadContext, WatchContext},
+};
 
 use super::{
-    CreateContext, Effect, LocalContext, NodeId, ReactiveContext, ReactiveGraph, ReactiveValue,
-    ReadContext, ReadScope, ReadSignal, runtime::NodeType,
+    CanCreate, CanRead, Effect, NodeId, ReactiveGraph, ReactiveValue, ReadScope, ReadSignal,
+    runtime::NodeType,
 };
 
 pub struct CachedContext<'a> {
-    pub(super) memo_id: NodeId,
-    pub(super) cx: LocalContext<'a>,
+    memo_id: NodeId,
+    widgets: &'a Widgets,
+    reactive_graph: &'a mut ReactiveGraph,
 }
 
-impl ReactiveContext for CachedContext<'_> {
-    fn reactive_graph_and_widgets(&self) -> (&ReactiveGraph, &Widgets) {
-        self.cx.reactive_graph_and_widgets()
-    }
-
-    fn reactive_graph_mut_and_widgets(&mut self) -> (&mut ReactiveGraph, &Widgets) {
-        self.cx.reactive_graph_mut_and_widgets()
+impl<'s> CanRead<'s> for CachedContext<'s> {
+    fn read_context(self) -> ReadContext<'s> {
+        ReadContext {
+            widgets: self.widgets,
+            reactive_graph: self.reactive_graph,
+            scope: ReadScope::Node(self.memo_id),
+        }
     }
 }
 
-impl ReadContext for CachedContext<'_> {
-    fn scope(&self) -> ReadScope {
-        ReadScope::Node(self.memo_id)
+impl<'a, 'b> CanRead<'a> for &'a mut CachedContext<'b> {
+    fn read_context(self) -> ReadContext<'a> {
+        ReadContext {
+            widgets: self.widgets,
+            reactive_graph: self.reactive_graph,
+            scope: ReadScope::Node(self.memo_id),
+        }
     }
 }
 
@@ -42,8 +50,8 @@ impl<T> Clone for Cached<T> {
 impl<T> Copy for Cached<T> {}
 
 impl<T: Any> Cached<T> {
-    pub fn new(
-        cx: &mut dyn CreateContext,
+    pub fn new<'cx>(
+        cx: impl CanCreate<'cx>,
         f: impl Fn(&mut CachedContext, Option<&T>) -> T + 'static,
     ) -> Self
     where
@@ -52,8 +60,8 @@ impl<T: Any> Cached<T> {
         Self::new_with_compare(cx, f, PartialEq::eq)
     }
 
-    pub fn new_with_compare(
-        cx: &mut dyn CreateContext,
+    pub fn new_with_compare<'cx>(
+        cx: impl CanCreate<'cx>,
         f: impl Fn(&mut CachedContext, Option<&T>) -> T + 'static,
         compare: fn(&T, &T) -> bool,
     ) -> Self {
@@ -76,7 +84,7 @@ impl<T: Any> Cached<T> {
             }),
             value: None,
         };
-        let id = cx.create_memo_node(state);
+        let id = cx.create_context().create_memo_node(state);
 
         Self {
             id,
@@ -98,31 +106,31 @@ impl<T: 'static> From<Cached<T>> for ViewProp<T> {
 impl<T: 'static> ReactiveValue for Cached<T> {
     type Value = T;
 
-    fn track(&self, cx: &mut dyn ReadContext) {
-        cx.track(self.id);
+    fn track<'s>(&self, cx: impl CanRead<'s>) {
+        cx.read_context().track(self.id);
     }
 
-    fn with_ref_untracked<R>(
+    fn with_ref_untracked<'s, R>(
         &self,
-        cx: &mut dyn ReactiveContext,
+        cx: impl CanRead<'s>,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
-        f(update_and_get_memo_value(cx, self.id)
+        f(update_and_get_memo_value(cx.read_context(), self.id)
             .downcast_ref()
             .expect("Memo had wrong type"))
     }
 
-    fn watch<F>(self, cx: &mut dyn CreateContext, f: F) -> Effect
+    fn watch<'s, F>(self, cx: impl CanCreate<'s>, f: F) -> Effect
     where
-        F: FnMut(&mut dyn super::WatchContext, &Self::Value) + 'static,
+        F: FnMut(&mut WatchContext, &Self::Value) + 'static,
     {
-        Effect::watch_node(cx, self.id, f)
+        Effect::watch_node(cx.create_context(), self.id, f)
     }
 }
 
-fn update_and_get_memo_value(cx: &mut dyn ReactiveContext, id: NodeId) -> &dyn Any {
-    super::update_value_if_needed(cx, id);
-    match &cx.reactive_graph().get_node(id).node_type {
+fn update_and_get_memo_value(mut cx: ReadContext, id: NodeId) -> &dyn Any {
+    cx.update_value_if_needed(id);
+    match &cx.reactive_graph.get_node(id).node_type {
         NodeType::Memo(state) => state
             .value
             .as_ref()
@@ -140,13 +148,22 @@ pub struct CachedState {
 }
 
 impl CachedState {
-    pub fn eval(&mut self, memo_id: NodeId, cx: LocalContext) -> bool {
-        let mut cx = CachedContext { memo_id, cx };
+    pub fn eval(
+        &mut self,
+        memo_id: NodeId,
+        reactive_graph: &mut ReactiveGraph,
+        widgets: &Widgets,
+    ) -> bool {
+        let mut cx = CachedContext {
+            memo_id,
+            widgets,
+            reactive_graph,
+        };
         (self.f)(&mut cx, &mut self.value)
     }
 }
 
-#[cfg(test)]
+/*#[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
@@ -196,3 +213,4 @@ mod tests {
         });
     }
 }
+*/

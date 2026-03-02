@@ -70,7 +70,7 @@ fn overview() -> impl View {
         let checkbox_enabled = Var::new(cx, false);
         let text = Var::new(cx, "".to_string());
         let slider_value = Var::new(cx, 100.0);
-        let checkbox_bg = AnimatedFn::tween(
+        let checkbox_bg = Animated::tween(
             cx,
             move |cx| {
                 let color = Color::MAY_GREEN;
@@ -87,7 +87,7 @@ fn overview() -> impl View {
         );
 
         let animated =
-            AnimatedFn::spring(cx, move |cx| slider_value.get(cx), SpringOptions::default());
+            Animated::spring(cx, move |cx| slider_value.get(cx), SpringOptions::default());
 
         Effect::new_with_state(cx, move |cx, cnt| {
             let cnt = cnt.unwrap_or(0);

@@ -5,13 +5,10 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use super::reactive::{
-    EffectContext, NodeId, ReactiveContext, ReactiveGraph, ReadContext, ReadScope, WatchContext,
-    WidgetContext, WriteContext,
-};
+use super::reactive::NodeId;
 use crate::ui::{
-    AnyView, AppState, Widget, WidgetId, WidgetMut, WidgetRef, Widgets,
-    reactive::{BindingFn, EffectFn, HandleEventFn, ReactiveContextMut},
+    AppState, Widget, WidgetId, WidgetMut,
+    reactive::{EffectContext, EffectFn, HandleEventFn, WatchFn},
 };
 
 #[derive(Default)]
@@ -29,7 +26,7 @@ pub enum Task {
         f: Weak<RefCell<EffectFn>>,
     },
     UpdateBinding {
-        f: Weak<RefCell<BindingFn>>,
+        f: Weak<RefCell<WatchFn>>,
         node_id: NodeId,
     },
     UpdateWidget {
@@ -47,7 +44,7 @@ impl Task {
         match self {
             Task::RunEffect { id, f } => {
                 if let Some(f) = f.upgrade() {
-                    let mut cx = EffectContextImpl {
+                    let mut cx = EffectContext {
                         effect_id: id,
                         app_state,
                     };
@@ -74,52 +71,3 @@ impl Task {
         }
     }
 }
-
-pub struct EffectContextImpl<'a> {
-    pub(super) effect_id: NodeId,
-    pub(super) app_state: &'a mut AppState,
-}
-
-impl EffectContext for EffectContextImpl<'_> {
-    fn as_watch_context(&mut self) -> &mut dyn WatchContext {
-        self.app_state
-    }
-}
-
-impl WidgetContext for EffectContextImpl<'_> {
-    fn widget_ref_dyn(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget> {
-        WidgetRef::new(&self.app_state.widgets, id)
-    }
-
-    fn widget_mut_dyn(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
-        WidgetMut::new(self.app_state, id)
-    }
-
-    fn replace_widget_dyn(&mut self, id: WidgetId, view: AnyView) {
-        self.app_state.replace_widget(id, view);
-    }
-}
-
-impl ReactiveContext for EffectContextImpl<'_> {
-    fn reactive_graph_and_widgets(&self) -> (&ReactiveGraph, &Widgets) {
-        self.app_state.reactive_graph_and_widgets()
-    }
-
-    fn reactive_graph_mut_and_widgets(&mut self) -> (&mut ReactiveGraph, &Widgets) {
-        self.app_state.reactive_graph_mut_and_widgets()
-    }
-}
-
-impl ReactiveContextMut for EffectContextImpl<'_> {
-    fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
-        self.app_state.components_mut()
-    }
-}
-
-impl ReadContext for EffectContextImpl<'_> {
-    fn scope(&self) -> ReadScope {
-        ReadScope::Node(self.effect_id)
-    }
-}
-
-impl WriteContext for EffectContextImpl<'_> {}

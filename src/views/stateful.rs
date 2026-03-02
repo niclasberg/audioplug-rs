@@ -1,10 +1,8 @@
 use crate::{
     core::WindowTheme,
     ui::{
-        AppState, TaskQueue, View, WidgetId, Widgets,
-        reactive::{
-            CreateContext, Owner, ReactiveContext, ReactiveContextMut, ReactiveGraph, ReadSignal,
-        },
+        AppState, View, WidgetId,
+        reactive::{CanCreate, Owner, ReadSignal},
     },
 };
 
@@ -19,25 +17,9 @@ impl ScopeContext<'_> {
     }
 }
 
-impl ReactiveContext for ScopeContext<'_> {
-    fn reactive_graph_and_widgets(&self) -> (&ReactiveGraph, &Widgets) {
-        self.app_state.reactive_graph_and_widgets()
-    }
-
-    fn reactive_graph_mut_and_widgets(&mut self) -> (&mut ReactiveGraph, &Widgets) {
-        self.app_state.reactive_graph_mut_and_widgets()
-    }
-}
-
-impl ReactiveContextMut for ScopeContext<'_> {
-    fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
-        self.app_state.components_mut()
-    }
-}
-
-impl CreateContext for ScopeContext<'_> {
-    fn owner(&self) -> Owner {
-        Owner::Widget(self.id)
+impl<'s> CanCreate<'s> for ScopeContext<'s> {
+    fn create_context(&'s mut self) -> crate::ui::reactive::CreateContext<'s> {
+        self.app_state.create_context(Owner::Widget(self.id))
     }
 }
 
@@ -48,7 +30,7 @@ pub struct Stateful<F> {
 impl<V, F> Stateful<F>
 where
     V: View,
-    F: FnOnce(&mut ScopeContext) -> V,
+    F: FnOnce(ScopeContext) -> V,
 {
     pub fn new(f: F) -> Self {
         Self { f }
@@ -58,12 +40,12 @@ where
 impl<V, F> View for Stateful<F>
 where
     V: View,
-    F: FnOnce(&mut ScopeContext) -> V + 'static,
+    F: FnOnce(ScopeContext) -> V + 'static,
 {
     type Element = V::Element;
 
     fn build(self, ctx: &mut crate::ui::BuildContext<Self::Element>) -> Self::Element {
-        let inner_view = (self.f)(&mut ScopeContext {
+        let inner_view = (self.f)(ScopeContext {
             id: ctx.id().id,
             app_state: ctx.app_state,
         });

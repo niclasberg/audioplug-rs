@@ -2,8 +2,9 @@ use crate::{
     core::Rect,
     ui::{
         BuildContext, RenderContext, Scene, View, Widget, WidgetId, Widgets,
-        reactive::EffectState,
-        reactive::{CreateContext, NodeId, ReactiveContext, ReactiveGraph, ReadContext, ReadScope},
+        reactive::{
+            CanCreate, CanRead, EffectState, NodeId, ReactiveGraph, ReadContext, ReadScope,
+        },
         style::LayoutMode,
     },
 };
@@ -45,7 +46,7 @@ where
         let state = EffectState::new(move |cx| {
             cx.widget_mut(widget_id).request_render();
         });
-        let effect_id = (cx as &mut dyn CreateContext).create_effect_node(state, false);
+        let effect_id = cx.create_context().create_effect_node(state, false);
 
         CanvasWidget {
             effect_id,
@@ -67,19 +68,16 @@ impl CanvasContext<'_> {
     }
 }
 
-impl ReactiveContext for CanvasContext<'_> {
-    fn reactive_graph_and_widgets(&self) -> (&ReactiveGraph, &Widgets) {
-        (&self.reactive_graph, &self.widgets)
-    }
-
-    fn reactive_graph_mut_and_widgets(&mut self) -> (&mut ReactiveGraph, &Widgets) {
-        (&mut self.reactive_graph, &self.widgets)
-    }
-}
-
-impl ReadContext for CanvasContext<'_> {
-    fn scope(&self) -> ReadScope {
-        ReadScope::Node(self.effect_id)
+impl<'a, 'b> CanRead<'a> for &'a mut CanvasContext<'b>
+where
+    'b: 'a,
+{
+    fn read_context(self) -> ReadContext<'a> {
+        ReadContext {
+            widgets: self.widgets,
+            reactive_graph: self.reactive_graph,
+            scope: ReadScope::Node(self.effect_id),
+        }
     }
 }
 

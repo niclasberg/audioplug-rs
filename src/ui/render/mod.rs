@@ -237,7 +237,7 @@ impl<'a> RenderContext<'a> {
         let mut widget = self.widgets.lease_widget(self.id).unwrap();
         let scene = widget.render(self);
         self.widgets.unlease_widget(widget);
-        self.widgets.data[self.id].scene = scene;
+        self.widgets.scenes[self.id] = scene;
         self.widgets.invalidate_widget(self.id);
     }
 }

@@ -2,12 +2,11 @@ use std::marker::PhantomData;
 
 use crate::{
     param::{AnyParameter, NormalizedValue, Parameter, ParameterId, PlainValue},
-    ui::{HostHandle, reactive::ReactiveContextMut},
+    ui::{
+        HostHandle,
+        prelude::{CanRead, CanWrite},
+    },
 };
-
-pub trait ParamContext: ReactiveContextMut {
-    fn host_handle(&self) -> &dyn HostHandle;
-}
 
 pub struct ParamSetter<P> {
     pub(super) id: ParameterId,
@@ -30,41 +29,47 @@ impl<P: AnyParameter> ParamSetter<P> {
         }
     }
 
-    pub fn info<'a>(&self, cx: &'a mut dyn ParamContext) -> &'a dyn AnyParameter {
-        cx.reactive_graph().get_parameter_ref(self.id).info()
+    pub fn info<'a>(&self, cx: impl CanRead<'a>) -> &'a dyn AnyParameter {
+        cx.read_context()
+            .reactive_graph
+            .get_parameter_ref(self.id)
+            .info()
     }
 
-    pub fn begin_edit(&self, cx: &mut dyn ParamContext) {
-        cx.host_handle().begin_edit(self.id);
+    pub fn begin_edit<'cx>(&self, cx: impl CanWrite<'cx>) {
+        cx.write_context().host_handle().begin_edit(self.id);
     }
 
-    pub fn set_value_normalized(&self, cx: &mut dyn ParamContext, value: NormalizedValue) {
-        let param_ref = cx.reactive_graph().get_parameter_ref(self.id);
+    pub fn set_value_normalized<'cx>(&self, cx: impl CanWrite<'cx>, value: NormalizedValue) {
+        let mut write_context = cx.write_context();
+        let param_ref = write_context.get_parameter_ref(self.id);
         param_ref.set_value_normalized(value);
         let info = param_ref.info();
-        cx.host_handle().perform_edit(info, value);
-        super::notify_parameter_subscribers(cx, self.id);
+        write_context.host_handle().perform_edit(info, value);
+        write_context.notify_parameter_subscribers(self.id);
     }
 
-    pub fn set_value_plain(&self, cx: &mut dyn ParamContext, value: PlainValue) {
-        let param_ref = cx.reactive_graph().get_parameter_ref(self.id);
+    pub fn set_value_plain<'cx>(&self, cx: impl CanWrite<'cx>, value: PlainValue) {
+        let mut write_context = cx.write_context();
+        let param_ref = write_context.get_parameter_ref(self.id);
         param_ref.set_value_plain(value);
         let info = param_ref.info();
         let value = info.normalize(value);
-        cx.host_handle().perform_edit(info, value);
-        super::notify_parameter_subscribers(cx, self.id);
+        write_context.host_handle().perform_edit(info, value);
+        write_context.notify_parameter_subscribers(self.id);
     }
 
-    pub fn end_edit(&self, cx: &mut impl ParamContext) {
-        cx.host_handle().end_edit(self.id);
+    pub fn end_edit<'cx>(&self, cx: impl CanWrite<'cx>) {
+        cx.write_context().host_handle().end_edit(self.id);
     }
 }
 
 impl<P: Parameter> ParamSetter<P> {
-    pub fn set_value(&self, cx: &mut dyn ParamContext, value: P::Value) {
-        let param_ref = cx.reactive_graph().get_parameter_ref(self.id);
+    pub fn set_value<'cx>(&self, cx: impl CanWrite<'cx>, value: P::Value) {
+        let mut write_context = cx.write_context();
+        let param_ref = write_context.get_parameter_ref(self.id);
         let param = P::downcast_param_ref(param_ref).expect("Parameter should have correct type");
         let value = param.normalized_value(value);
-        self.set_value_normalized(cx, value);
+        self.set_value_normalized(write_context, value);
     }
 }

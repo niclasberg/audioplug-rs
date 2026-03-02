@@ -1,22 +1,23 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{Computed, CreateContext, Effect, ReactiveContext, ReadContext, WatchContext};
+use super::{CanCreate, CanRead, Computed, Effect, WatchContext};
 use crate::ui::ViewProp;
 
 pub trait ReactiveValue: Into<ViewProp<Self::Value>> {
     type Value;
 
     /// Map the current value using `f` and subscribe to changes
-    fn with_ref<R>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
-        let ret = self.with_ref_untracked(cx, f);
-        self.track(cx);
+    fn with_ref<'s, R>(&self, cx: impl CanRead<'s>, f: impl FnOnce(&Self::Value) -> R) -> R {
+        let mut read_context = cx.read_context();
+        let ret = self.with_ref_untracked(&mut read_context, f);
+        self.track(read_context);
         ret
     }
 
-    fn track(&self, cx: &mut dyn ReadContext);
+    fn track<'s>(&self, cx: impl CanRead<'s>);
 
     /// Get the current value and subscribe to changes
-    fn get(&self, cx: &mut dyn ReadContext) -> Self::Value
+    fn get<'s>(&self, cx: impl CanRead<'s>) -> Self::Value
     where
         Self::Value: Clone,
     {
@@ -24,14 +25,14 @@ pub trait ReactiveValue: Into<ViewProp<Self::Value>> {
     }
 
     /// Map the current value using `f`
-    fn with_ref_untracked<R>(
+    fn with_ref_untracked<'s, R>(
         &self,
-        cx: &mut dyn ReactiveContext,
+        cx: impl CanRead<'s>,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R;
 
     /// Get the current value
-    fn get_untracked(&self, cx: &mut dyn ReactiveContext) -> Self::Value
+    fn get_untracked<'s>(&self, cx: impl CanRead<'s>) -> Self::Value
     where
         Self::Value: Clone,
     {
@@ -54,9 +55,9 @@ pub trait ReactiveValue: Into<ViewProp<Self::Value>> {
 
     /// Subscribe to changes to this readable. Whenever the value is updated,
     /// `f` is called.`
-    fn watch<F>(self, cx: &mut dyn CreateContext, f: F) -> Effect
+    fn watch<'s, F>(self, cx: impl CanCreate<'s>, f: F) -> Effect
     where
-        F: FnMut(&mut dyn WatchContext, &Self::Value) + 'static;
+        F: FnMut(&mut WatchContext, &Self::Value) + 'static;
 }
 
 #[derive(Clone, Copy)]
@@ -89,36 +90,36 @@ where
 {
     type Value = R;
 
-    fn track(&self, cx: &mut dyn ReadContext) {
+    fn track<'s>(&self, cx: impl CanRead<'s>) {
         self.parent.track(cx);
     }
 
-    fn with_ref<R2>(&self, cx: &mut dyn ReadContext, f: impl FnOnce(&Self::Value) -> R2) -> R2 {
+    fn with_ref<'s, R2>(&self, cx: impl CanRead<'s>, f: impl FnOnce(&Self::Value) -> R2) -> R2 {
         self.parent.with_ref(cx, |x| f(&(self.map_fn)(x)))
     }
 
-    fn get(&self, cx: &mut dyn ReadContext) -> Self::Value {
+    fn get<'s>(&self, cx: impl CanRead<'s>) -> Self::Value {
         self.parent.with_ref(cx, |x| (self.map_fn)(x))
     }
 
-    fn with_ref_untracked<R2>(
+    fn with_ref_untracked<'s, R2>(
         &self,
-        cx: &mut dyn ReactiveContext,
+        cx: impl CanRead<'s>,
         f: impl FnOnce(&Self::Value) -> R2,
     ) -> R2 {
         self.parent.with_ref_untracked(cx, |x| f(&(self.map_fn)(x)))
     }
 
-    fn get_untracked(&self, cx: &mut dyn ReactiveContext) -> Self::Value
+    fn get_untracked<'s>(&self, cx: impl CanRead<'s>) -> Self::Value
     where
         Self::Value: Clone,
     {
         self.parent.with_ref_untracked(cx, |x| (self.map_fn)(x))
     }
 
-    fn watch<F2>(self, cx: &mut dyn CreateContext, mut f: F2) -> Effect
+    fn watch<'s, F2>(self, cx: impl CanCreate<'s>, mut f: F2) -> Effect
     where
-        F2: FnMut(&mut dyn WatchContext, &Self::Value) + 'static,
+        F2: FnMut(&mut WatchContext, &Self::Value) + 'static,
     {
         self.parent.watch(cx, move |cx, value| {
             let mapped_value = (self.map_fn)(value);

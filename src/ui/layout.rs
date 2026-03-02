@@ -3,7 +3,6 @@ use std::sync::Arc;
 use super::style::{AvailableSpace, LayoutMode, ResolveInto, Style, UiRect};
 use crate::core::{Rect, Size};
 use crate::ui::Widgets;
-use crate::ui::widget_data::SiblingWalker;
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree,
     TraversePartialTree, TraverseTree,
@@ -30,6 +29,7 @@ pub(super) fn compute_root_layout(
     taffy::compute_root_layout(&mut layout_context, root_widget_id.into(), available_space);
     layout_context.region_to_invalidate
 }
+
 struct LayoutChildIter<'a> {
     inner: std::slice::Iter<'a, WidgetId>,
 }
@@ -60,7 +60,7 @@ impl<'a> LayoutContext<'a> {
     fn get_layout_style(&self, node_id: taffy::NodeId) -> LayoutStyle<'_> {
         let node_id = node_id.into();
         LayoutStyle {
-            style: &self.widgets.data[node_id].style,
+            style: &self.widgets.tree[node_id].style,
             display_style: self.widgets.widgets[node_id].layout_mode(),
             window_size: self.window_size,
         }
@@ -74,10 +74,7 @@ impl taffy::TraversePartialTree for LayoutContext<'_> {
         Self: 'b;
 
     fn child_ids(&self, parent_node_id: taffy::NodeId) -> Self::ChildIter<'_> {
-        let inner: &Vec<WidgetId> = self
-            .widgets
-            .cached_child_ids(parent_node_id.into())
-            .as_ref();
+        let inner = self.widgets.cached_child_ids(parent_node_id.into());
         LayoutChildIter {
             inner: inner.iter(),
         }
@@ -100,7 +97,7 @@ impl PrintTree for LayoutContext<'_> {
     }
 
     fn get_final_layout(&self, node_id: taffy::NodeId) -> taffy::Layout {
-        self.widgets.data[node_id.into()].layout
+        self.widgets.tree[node_id.into()].layout
     }
 }
 
@@ -153,9 +150,9 @@ impl CacheTree for LayoutContext<'_> {
         available_space: taffy::Size<taffy::AvailableSpace>,
         run_mode: taffy::RunMode,
     ) -> Option<taffy::LayoutOutput> {
-        self.widgets.data[node_id.into()]
-            .cache
-            .get(known_dimensions, available_space, run_mode)
+        let widget_id = node_id.into();
+        println!("{:?}", widget_id);
+        self.widgets.layout_cache[widget_id].get(known_dimensions, available_space, run_mode)
     }
 
     fn cache_store(
@@ -166,7 +163,7 @@ impl CacheTree for LayoutContext<'_> {
         run_mode: taffy::RunMode,
         layout_output: taffy::LayoutOutput,
     ) {
-        self.widgets.data[node_id.into()].cache.store(
+        self.widgets.layout_cache[node_id.into()].store(
             known_dimensions,
             available_space,
             run_mode,
@@ -175,7 +172,7 @@ impl CacheTree for LayoutContext<'_> {
     }
 
     fn cache_clear(&mut self, node_id: taffy::NodeId) {
-        self.widgets.data[node_id.into()].cache.clear();
+        self.widgets.layout_cache[node_id.into()].clear();
     }
 }
 
@@ -204,8 +201,8 @@ impl LayoutPartialTree for LayoutContext<'_> {
     }
 
     fn set_unrounded_layout(&mut self, node_id: taffy::NodeId, layout: &taffy::Layout) {
-        let old_bounds = self.widgets.data[node_id.into()].global_bounds();
-        let widget_data = &mut self.widgets.data[node_id.into()];
+        let old_bounds = self.widgets.tree[node_id.into()].global_bounds();
+        let widget_data = &mut self.widgets.tree[node_id.into()];
         widget_data.layout = *layout;
         let new_bounds = widget_data.global_bounds();
         if new_bounds != old_bounds {
@@ -217,9 +214,9 @@ impl LayoutPartialTree for LayoutContext<'_> {
 
             // Need to request layout for all overlays, their position
             // might depend on the bounding box of its parent
-            let mut id_iter = SiblingWalker::all_children(&self.widgets.data, node_id.into());
-            while let Some(child_id) = id_iter.next_id(&self.widgets.data) {
-                if self.widgets.data[child_id].is_overlay() {
+            let mut id_iter = self.widgets.tree.child_id_walker(node_id.into());
+            while let Some(child_id) = id_iter.next_id(&self.widgets.tree) {
+                if self.widgets.tree[child_id].is_overlay() {
                     self.widgets.request_layout(child_id);
                 }
             }
@@ -238,15 +235,15 @@ impl LayoutPartialTree for LayoutContext<'_> {
         }
 
         {
-            let widget_data = &mut self.widgets.data[node_id.into()];
+            let widget_data = &mut self.widgets.tree[node_id.into()];
             if widget_data.flag_is_set(WidgetFlags::NEEDS_LAYOUT) {
-                widget_data.cache.clear();
+                self.widgets.layout_cache.clear();
                 widget_data.clear_flag(WidgetFlags::NEEDS_LAYOUT);
             }
         }
 
         taffy::compute_cached_layout(self, node_id, inputs, |tree, node, inputs| {
-            if tree.widgets.data[node_id.into()].is_hidden() {
+            if tree.widgets.tree[node_id.into()].is_hidden() {
                 taffy::compute_hidden_layout(tree, node)
             } else {
                 let has_children = tree.child_count(node) > 0;
@@ -259,7 +256,7 @@ impl LayoutPartialTree for LayoutContext<'_> {
                     (LayoutMode::Grid(_), _) => unreachable!(),
                     (LayoutMode::Stack, _) => compute_stack_layout(tree, node_id, inputs),
                     (LayoutMode::Leaf(measure), _) => {
-                        let style = &tree.widgets.data[node.into()].style;
+                        let style = &tree.widgets.tree[node.into()].style;
                         let measure_function =
                             |known_dimensions: taffy::Size<Option<f32>>, available_space| {
                                 let available_size = known_dimensions.zip_map(

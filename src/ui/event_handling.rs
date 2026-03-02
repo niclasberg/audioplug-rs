@@ -1,19 +1,14 @@
-use super::reactive::{
-    CLICKED_STATUS, FOCUS_STATUS, ParamContext, ReactiveContext, ReactiveContextMut, ReactiveGraph,
-    ReadContext, ReadScope, WriteContext,
-};
+use super::reactive::{CLICKED_STATUS, CanRead, CanWrite, FOCUS_STATUS, ReadScope};
 use super::{
     AppState, EventStatus, WidgetFlags, WidgetId, WindowId, animation::drive_animations,
     clipboard::Clipboard, invalidate_window,
 };
+use crate::ui::reactive::{ReadContext, WriteContext};
 use crate::{
     KeyEvent, MouseEvent,
     core::{Key, Rect},
     platform::WindowEvent,
-    ui::{
-        StatusChange, TaskQueue, Widget, WidgetMut, Widgets, layout::RecomputeLayout,
-        task_queue::Task,
-    },
+    ui::{StatusChange, Widget, WidgetMut, layout::RecomputeLayout, task_queue::Task},
 };
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
@@ -34,7 +29,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                     .iter()
                     .copied()
                     .rev()
-                    .find(|id| app_state.widgets.data[*id].flag_is_set(WidgetFlags::FOCUSABLE));
+                    .find(|id| app_state.widgets.tree[*id].flag_is_set(WidgetFlags::FOCUSABLE));
 
                 set_focus_widget(app_state, window_id, new_focus_view);
             };
@@ -79,14 +74,14 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             }
             app_state.run_effects();
 
-            if event_status == EventStatus::Ignored {
-                if let KeyEvent::KeyDown { key, modifiers, .. } = key_event {
-                    match key {
-                        Key::Escape if modifiers.is_empty() => {
-                            set_mouse_capture_widget(app_state, None)
-                        }
-                        _ => {}
+            if event_status == EventStatus::Ignored
+                && let KeyEvent::KeyDown { key, modifiers, .. } = key_event
+            {
+                match key {
+                    Key::Escape if modifiers.is_empty() => {
+                        set_mouse_capture_widget(app_state, None)
                     }
+                    _ => {}
                 }
             }
         }
@@ -100,8 +95,8 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             set_mouse_capture_widget(app_state, None);
         }
         WindowEvent::ThemeChanged(theme) => {
-            let signal = app_state.theme_signal;
-            signal.set(app_state, theme);
+            //let signal = app_state.theme_signal;
+            //signal.set(&mut app_state.write_context(), theme);
         }
         WindowEvent::ScaleFactorChanged(_) => {
             let window = app_state.widgets.window_mut(window_id);
@@ -142,7 +137,9 @@ fn dispatch_focus_change(app_state: &mut AppState, widget_id: WidgetId, has_focu
     } else {
         StatusChange::FocusLost
     });
-    super::reactive::notify_widget_status_changed(app_state, widget_id, FOCUS_STATUS.mask);
+    app_state
+        .write_context()
+        .notify_widget_status_changed(widget_id, FOCUS_STATUS.mask);
     app_state.run_effects();
 }
 
@@ -186,7 +183,9 @@ fn dispatch_mouse_capture_change(
     } else {
         StatusChange::MouseCaptureLost
     });
-    super::reactive::notify_widget_status_changed(app_state, widget_id, CLICKED_STATUS.mask);
+    app_state
+        .write_context()
+        .notify_widget_status_changed(widget_id, CLICKED_STATUS.mask);
     app_state.run_effects();
 }
 
@@ -217,12 +216,12 @@ impl<'a> MouseEventContext<'a> {
     pub fn as_callback_context(&mut self) -> CallbackContext<'_> {
         CallbackContext {
             _id: self.id,
-            app_state: &mut self.app_state,
+            app_state: self.app_state,
         }
     }
 
     pub fn app_state_mut(&mut self) -> &mut AppState {
-        &mut self.app_state
+        self.app_state
     }
 
     pub fn capture_mouse(&mut self) {
@@ -355,32 +354,17 @@ pub struct CallbackContext<'a> {
     app_state: &'a mut AppState,
 }
 
-impl ParamContext for CallbackContext<'_> {
-    fn host_handle(&self) -> &dyn super::HostHandle {
-        self.app_state.host_handle()
+impl<'a, 'b> CanRead<'a> for &'a mut CallbackContext<'b>
+where
+    'b: 'a,
+{
+    fn read_context(self) -> ReadContext<'a> {
+        self.app_state.read_context(ReadScope::Untracked)
     }
 }
 
-impl ReadContext for CallbackContext<'_> {
-    fn scope(&self) -> ReadScope {
-        ReadScope::Untracked
-    }
-}
-
-impl WriteContext for CallbackContext<'_> {}
-
-impl ReactiveContext for CallbackContext<'_> {
-    fn reactive_graph_and_widgets(&self) -> (&ReactiveGraph, &Widgets) {
-        self.app_state.reactive_graph_and_widgets()
-    }
-
-    fn reactive_graph_mut_and_widgets(&mut self) -> (&mut ReactiveGraph, &Widgets) {
-        self.app_state.reactive_graph_mut_and_widgets()
-    }
-}
-
-impl ReactiveContextMut for CallbackContext<'_> {
-    fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
-        self.app_state.components_mut()
+impl<'s> CanWrite<'s> for CallbackContext<'s> {
+    fn write_context(self) -> WriteContext<'s> {
+        self.app_state.write_context()
     }
 }

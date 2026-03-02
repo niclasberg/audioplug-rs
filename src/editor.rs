@@ -4,8 +4,8 @@ use crate::{
     core::Size,
     param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params},
     ui::{
-        AnyView, AppState, TaskQueue, View, Widgets,
-        reactive::{CreateContext, Owner, ReactiveContext, ReactiveContextMut, ReactiveGraph, Var},
+        AnyView, AppState, View,
+        reactive::{CanCreate, CreateContext, Owner, Var},
         style::{Length, UiRect},
     },
     views::{Column, Container, Label, ParameterSlider, Row, Stateful},
@@ -15,25 +15,9 @@ pub struct EditorContext<'a> {
     pub(crate) app_state: &'a mut AppState,
 }
 
-impl ReactiveContext for EditorContext<'_> {
-    fn reactive_graph_and_widgets(&self) -> (&ReactiveGraph, &Widgets) {
-        self.app_state.reactive_graph_and_widgets()
-    }
-
-    fn reactive_graph_mut_and_widgets(&mut self) -> (&mut ReactiveGraph, &Widgets) {
-        self.app_state.reactive_graph_mut_and_widgets()
-    }
-}
-
-impl ReactiveContextMut for EditorContext<'_> {
-    fn components_mut(&mut self) -> (&mut ReactiveGraph, &mut Widgets, &mut TaskQueue) {
-        self.app_state.components_mut()
-    }
-}
-
-impl CreateContext for EditorContext<'_> {
-    fn owner(&self) -> Owner {
-        Owner::Root
+impl<'s> CanCreate<'s> for EditorContext<'s> {
+    fn create_context(self) -> CreateContext<'s> {
+        self.app_state.create_context(Owner::Root)
     }
 }
 

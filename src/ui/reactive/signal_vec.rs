@@ -1,10 +1,13 @@
 use std::{any::Any, marker::PhantomData};
 
 use super::{
-    CreateContext, NodeId, Owner, ReactiveContext, ReactiveValue, Trigger, WriteContext,
-    runtime::NodeType, var::SignalState,
+    CanCreate, CanWrite, NodeId, Owner, ReactiveValue, Trigger, runtime::NodeType, var::SignalState,
 };
-use crate::ui::ViewProp;
+use crate::ui::{
+    ViewProp,
+    prelude::CanRead,
+    reactive::{ReadContext, WatchContext, WriteContext},
+};
 
 #[derive(Copy, Clone)]
 pub struct SignalVec<T> {
@@ -13,58 +16,55 @@ pub struct SignalVec<T> {
 }
 
 impl<T: Any> SignalVec<T> {
-    pub fn new(cx: &mut dyn CreateContext) -> Self {
+    pub fn new<'cx>(cx: impl CanCreate<'cx>) -> Self {
         let state = SignalState::new(Inner::<T> {
             values: Vec::new(),
             triggers: Vec::new(),
             len_trigger: None,
         });
-        let id = cx.create_var_node(state);
+        let id = cx.create_context().create_var_node(state);
         Self {
             id,
             _phantom: PhantomData,
         }
     }
 
-    pub fn push(&self, cx: &mut impl WriteContext, value: T) {
-        let trigger = Trigger::new(&mut cx.with_owner(Owner::Node(self.id)));
-        self.with_inner_mut(cx, move |inner| {
+    pub fn push<'cx>(&self, cx: impl CanWrite<'cx>, value: T) {
+        let mut write_context = cx.write_context();
+        let trigger = Trigger::new(write_context.as_create_context(Owner::Node(self.id)));
+        self.with_inner_mut(&mut write_context, move |inner| {
             inner.values.push(value);
             inner.triggers.push(trigger);
         });
-        super::notify(cx, self.id);
+        write_context.notify(self.id);
     }
 
-    pub fn extend(&self, cx: &mut impl WriteContext, iter: impl IntoIterator<Item = T>) {
-        self.with_inner_mut(cx, move |inner| {
+    pub fn extend<'s>(&self, cx: impl CanWrite<'s>, iter: impl IntoIterator<Item = T>) {
+        let mut write_context = cx.write_context();
+        self.with_inner_mut(&mut write_context, move |inner| {
             inner.values.extend(iter);
         });
-        super::notify(cx, self.id);
+        write_context.notify(self.id);
     }
 
-    pub fn retain(&self, cx: &mut impl WriteContext, f: impl Fn(&T) -> bool) {
-        self.with_inner_mut(cx, move |inner| {
+    pub fn retain<'s>(&self, cx: impl CanWrite<'s>, f: impl Fn(&T) -> bool) {
+        let mut write_context = cx.write_context();
+        self.with_inner_mut(&mut write_context, move |inner| {
             inner.values.retain(f);
         });
-        super::notify(cx, self.id);
+        write_context.notify(self.id);
     }
 
-    fn with_inner<R>(&self, cx: &dyn ReactiveContext, f: impl FnOnce(&Inner<T>) -> R) -> R {
-        let graph = &cx.reactive_graph();
-        let value = match &graph.get_node(self.id).node_type {
+    fn with_inner<R>(&self, cx: ReadContext, f: impl FnOnce(&Inner<T>) -> R) -> R {
+        let value = match &cx.reactive_graph.get_node(self.id).node_type {
             NodeType::Signal(signal) => signal.value.as_ref(),
             _ => unreachable!(),
         };
         f(value.downcast_ref().expect("Signal had wrong type"))
     }
 
-    fn with_inner_mut<R>(
-        &self,
-        cx: &mut dyn WriteContext,
-        f: impl FnOnce(&mut Inner<T>) -> R,
-    ) -> R {
-        let graph = &mut cx.reactive_graph_mut();
-        let value = match &mut graph.get_node_mut(self.id).node_type {
+    fn with_inner_mut<R>(&self, cx: &mut WriteContext, f: impl FnOnce(&mut Inner<T>) -> R) -> R {
+        let value = match &mut cx.get_node_mut(self.id).node_type {
             NodeType::Signal(signal) => signal.value.as_mut(),
             _ => unreachable!(),
         };
@@ -89,26 +89,27 @@ impl<T> From<SignalVec<T>> for ViewProp<Vec<T>> {
 impl<T: Any> ReactiveValue for SignalVec<T> {
     type Value = Vec<T>;
 
-    fn track(&self, cx: &mut dyn super::ReadContext) {
-        cx.track(self.id);
+    fn track<'cx>(&self, cx: impl CanRead<'cx>) {
+        cx.read_context().track(self.id);
     }
 
-    fn with_ref<R>(&self, cx: &mut dyn super::ReadContext, f: impl FnOnce(&Self::Value) -> R) -> R {
+    fn with_ref<'cx, R>(&self, cx: impl CanRead<'cx>, f: impl FnOnce(&Self::Value) -> R) -> R {
+        let mut cx = cx.read_context();
         cx.track(self.id);
         self.with_inner(cx, move |value| f(&value.values))
     }
 
-    fn with_ref_untracked<R>(
+    fn with_ref_untracked<'cx, R>(
         &self,
-        cx: &mut dyn super::ReactiveContext,
+        cx: impl CanRead<'cx>,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
-        self.with_inner(cx, move |value| f(&value.values))
+        self.with_inner(cx.read_context(), move |value| f(&value.values))
     }
 
-    fn watch<F>(self, cx: &mut dyn CreateContext, f: F) -> super::Effect
+    fn watch<'cx, F>(self, cx: impl CanCreate<'cx>, f: F) -> super::Effect
     where
-        F: FnMut(&mut dyn super::WatchContext, &Self::Value) + 'static,
+        F: FnMut(&mut WatchContext, &Self::Value) + 'static,
     {
         todo!()
     }
@@ -130,22 +131,23 @@ impl<T: Any> From<AtIndex<SignalVec<T>, T>> for ViewProp<T> {
 impl<T: Any> ReactiveValue for AtIndex<SignalVec<T>, T> {
     type Value = T;
 
-    fn track(&self, cx: &mut dyn super::ReadContext) {
-        cx.track(self.id);
+    fn track<'cx>(&self, cx: impl CanRead<'cx>) {
+        cx.read_context().track(self.id);
     }
 
-    fn with_ref_untracked<R>(
+    fn with_ref_untracked<'cx, R>(
         &self,
-        cx: &mut dyn super::ReactiveContext,
+        cx: impl CanRead<'cx>,
         f: impl FnOnce(&Self::Value) -> R,
     ) -> R {
-        self.parent
-            .with_inner(cx, move |inner| f(inner.values.get(self.index).unwrap()))
+        self.parent.with_inner(cx.read_context(), move |inner| {
+            f(inner.values.get(self.index).unwrap())
+        })
     }
 
-    fn watch<F>(self, cx: &mut dyn CreateContext, f: F) -> super::Effect
+    fn watch<'cx, F>(self, cx: impl CanCreate<'cx>, f: F) -> super::Effect
     where
-        F: FnMut(&mut dyn super::WatchContext, &Self::Value) + 'static,
+        F: FnMut(&mut WatchContext, &Self::Value) + 'static,
     {
         todo!()
     }

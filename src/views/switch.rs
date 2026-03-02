@@ -1,6 +1,6 @@
 use crate::ui::{
     BuildContext, View,
-    reactive::{Effect, ReadContext},
+    reactive::{Effect, CanRead},
 };
 
 pub struct Switch<FValue, FView> {
@@ -11,7 +11,7 @@ pub struct Switch<FValue, FView> {
 impl<T, V, FValue, FView> Switch<FValue, FView>
 where
     T: PartialEq,
-    FValue: Fn(&mut dyn ReadContext) -> T,
+    FValue: Fn(&mut dyn CanRead) -> T,
     FView: Fn(&T) -> V,
     V: View,
 {
@@ -23,7 +23,7 @@ where
 impl<T, V, FValue, FView> View for Switch<FValue, FView>
 where
     T: PartialEq + 'static,
-    FValue: Fn(&mut dyn ReadContext) -> T + 'static,
+    FValue: Fn(&mut dyn CanRead) -> T + 'static,
     FView: Fn(&T) -> V + 'static,
     V: View,
 {

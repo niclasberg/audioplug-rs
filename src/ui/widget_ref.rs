@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     core::{Rect, diff::DiffOp},
-    ui::{WidgetHandle, WidgetPos, Widgets, widget_data::SiblingWalker},
+    ui::{WidgetHandle, WidgetPos, Widgets, widget_tree::SiblingWalker},
 };
 
 pub struct WidgetNotFound<'a, W: Widget + ?Sized>(WidgetMut<'a, W>);
@@ -32,7 +32,7 @@ impl<'a> Iterator for WidgetRefIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner
-            .next_id(&self.widgets.data)
+            .next_id(&self.widgets.tree)
             .map(|id| WidgetRef::new(self.widgets, id))
     }
 }
@@ -40,7 +40,7 @@ impl<'a> Iterator for WidgetRefIter<'a> {
 impl<'a> DoubleEndedIterator for WidgetRefIter<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.inner
-            .next_back_id(&self.widgets.data)
+            .next_back_id(&self.widgets.tree)
             .map(|id| WidgetRef::new(self.widgets, id))
     }
 }
@@ -61,7 +61,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
     }
 
     pub fn data(&self) -> &WidgetData {
-        &self.widgets.data.get(self.id).unwrap()
+        self.widgets.tree.get(self.id).unwrap()
     }
 
     pub fn local_bounds(&self) -> Rect {
@@ -90,7 +90,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
 
     pub fn child_iter(&self) -> WidgetRefIter<'_> {
         WidgetRefIter {
-            inner: SiblingWalker::all_children(&self.widgets.data, self.id),
+            inner: self.widgets.tree.child_id_walker(self.id),
             widgets: self.widgets,
         }
     }
@@ -146,8 +146,8 @@ fn for_each_child_ref_impl(
     id: WidgetId,
     f: &mut dyn FnMut(WidgetRef<'_, dyn Widget>),
 ) {
-    let mut child_iter = SiblingWalker::all_children(&widgets.data, id);
-    while let Some(child_id) = child_iter.next_id(&widgets.data) {
+    let mut child_iter = widgets.tree.child_id_walker(id);
+    while let Some(child_id) = child_iter.next_id(&widgets.tree) {
         f(WidgetRef::new(widgets, child_id))
     }
 }
@@ -168,11 +168,11 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 
     fn data(&self) -> &WidgetData {
-        self.app_state.widgets.data.get(self.id).unwrap()
+        self.app_state.widgets.tree.get(self.id).unwrap()
     }
 
     fn data_mut(&mut self) -> &mut WidgetData {
-        self.app_state.widgets.data.get_mut(self.id).unwrap()
+        self.app_state.widgets.tree.get_mut(self.id).unwrap()
     }
 
     pub fn index_of_child(&self, id: WidgetId) -> Option<usize> {
@@ -216,7 +216,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
 
     pub fn child_iter(&self) -> WidgetRefIter<'_> {
         WidgetRefIter {
-            inner: SiblingWalker::all_children(&self.app_state.widgets.data, self.id),
+            inner: self.app_state.widgets.tree.child_id_walker(self.id),
             widgets: &self.app_state.widgets,
         }
     }
@@ -231,11 +231,11 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
             id: WidgetId,
             f: &mut dyn FnMut(WidgetMut<'_, dyn Widget>),
         ) {
-            let mut child_iter = SiblingWalker::all_children(&app_state.widgets.data, id);
-            let mut current = child_iter.next_id(&app_state.widgets.data);
+            let mut child_iter = app_state.widgets.tree.child_id_walker(id);
+            let mut current = child_iter.next_id(&app_state.widgets.tree);
             while let Some(child_id) = current {
                 // This copy is needed - the widget might be removed while visited
-                let next = child_iter.next_id(&app_state.widgets.data);
+                let next = child_iter.next_id(&app_state.widgets.tree);
                 f(WidgetMut::new(app_state, child_id));
                 current = next;
             }

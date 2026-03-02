@@ -19,7 +19,7 @@ struct Todo {
 
 static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
 impl Todo {
-    pub fn new(cx: &mut dyn CreateContext, name: &str, completed: bool) -> Self {
+    pub fn new(cx: &mut dyn CanCreate, name: &str, completed: bool) -> Self {
         Self {
             index: NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             name: Var::new(cx, name.to_string()),
@@ -93,7 +93,7 @@ fn main() {
     app.run();
 }
 
-fn todo_view<F: Fn(&mut dyn WriteContext) + 'static>(
+fn todo_view<F: Fn(&mut dyn CanWrite) + 'static>(
     todo: &Todo,
     on_remove: F,
 ) -> impl View + use<F> {

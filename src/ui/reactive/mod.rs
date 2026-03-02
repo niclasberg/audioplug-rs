@@ -15,15 +15,15 @@ mod tween;
 mod var;
 mod widget_status;
 
-pub use animation::{Animated, AnimatedFn, Animation, Easing, SpringOptions, TweenOptions};
+pub use animation::{Animated, AnimatedVar, Animation, Easing, SpringOptions, TweenOptions};
 pub use cached::{Cached, CachedContext};
 pub use computed::Computed;
 pub use contexts::*;
-pub(super) use effect::{BindingFn, EffectFn, EffectState};
 pub use effect::{Effect, EffectContext, WatchContext};
+pub(super) use effect::{EffectFn, EffectState, WatchFn};
 pub(super) use event_channel::HandleEventFn;
 pub use event_channel::{EventChannel, EventReceiver, create_event_channel};
-pub use param::{ParamContext, ParamSetter};
+pub use param::ParamSetter;
 pub use reactive_value::ReactiveValue;
 pub use read_signal::ReadSignal;
 pub use runtime::{Owner, ReactiveGraph, ReadScope};
@@ -37,8 +37,7 @@ slotmap::new_key_type! {
 
 pub mod prelude {
     pub use super::{
-        Animated, AnimatedFn, Cached, Computed, CreateContext, Effect, ReactiveContext,
-        ReactiveContextMut, ReactiveValue, ReadContext, SpringOptions, Trigger, TweenOptions, Var,
-        WriteContext,
+        Animated, AnimatedVar, Cached, CanCreate, CanRead, CanWrite, Computed, Effect,
+        ReactiveValue, SpringOptions, Trigger, TweenOptions, Var,
     };
 }

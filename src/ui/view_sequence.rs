@@ -1,6 +1,6 @@
 use rustc_hash::FxBuildHasher;
 
-use super::reactive::{Effect, ReactiveValue, ReadContext};
+use super::reactive::{Effect, ReactiveValue, CanRead};
 use super::{BuildContext, View, ViewProp, Widget};
 use crate::core::{FxIndexSet, diff};
 use std::hash::Hash;
@@ -108,7 +108,7 @@ struct ViewForEach<FValues, FView> {
 
 impl<T, C, V, FValues, FView> ViewSequence for ViewForEach<FValues, FView>
 where
-    FValues: Fn(&mut dyn ReadContext) -> C + 'static,
+    FValues: Fn(&mut dyn CanRead) -> C + 'static,
     C: IntoIterator<Item = T>,
     T: PartialEq + 'static,
     FView: Fn(&T) -> V + 'static,
@@ -139,7 +139,7 @@ pub fn view_for_each<T, C, V, FValues, FView>(
     view_fn: FView,
 ) -> impl ViewSequence
 where
-    FValues: Fn(&mut dyn ReadContext) -> C + 'static,
+    FValues: Fn(&mut dyn CanRead) -> C + 'static,
     C: IntoIterator<Item = T>,
     T: PartialEq + 'static,
     FView: Fn(&T) -> V + 'static,

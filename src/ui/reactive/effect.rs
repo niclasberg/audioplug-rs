@@ -2,47 +2,71 @@ use slotmap::Key;
 
 use crate::{
     param::{ParamRef, ParameterId},
-    ui::{Widget, WidgetHandle, WidgetId, WidgetMut, WidgetRef, Widgets},
+    ui::{
+        AppState, Widget, WidgetHandle, WidgetId, WidgetMut, WidgetRef, Widgets,
+        reactive::{CreateContext, ReadContext, ReadScope, WriteContext},
+    },
 };
 
-use super::{
-    CreateContext, NodeId, ReactiveContext, ReadContext, WidgetContext, WidgetStatusFlags,
-    WriteContext,
-};
+use super::{CanCreate, CanRead, CanWrite, NodeId, WidgetStatusFlags};
 use std::{any::Any, cell::RefCell, rc::Rc};
 
-pub trait EffectContext: ReactiveContext + ReadContext + WriteContext + WidgetContext {
-    fn as_watch_context(&mut self) -> &mut dyn WatchContext;
-}
-impl dyn EffectContext + '_ {
-    pub fn widget_ref<W: Widget + ?Sized>(&self, id: WidgetHandle<W>) -> WidgetRef<'_, W> {
-        self.widget_ref_dyn(id.id).unchecked_cast()
-    }
-
-    pub fn widget_mut<W: Widget + ?Sized>(&mut self, id: WidgetHandle<W>) -> WidgetMut<'_, W> {
-        self.widget_mut_dyn(id.id).unchecked_cast()
-    }
+pub struct EffectContext<'a> {
+    pub app_state: &'a mut AppState,
+    pub effect_id: NodeId,
 }
 
-pub trait WatchContext: WriteContext + WidgetContext {}
-impl dyn WatchContext + '_ {
-    pub fn widget_ref<W: Widget + ?Sized>(&self, id: WidgetHandle<W>) -> WidgetRef<'_, W> {
-        self.widget_ref_dyn(id.id).unchecked_cast()
+impl<'s> EffectContext<'s> {
+    fn as_watch_context(&mut self) -> WatchContext<'_> {
+        WatchContext {
+            app_state: self.app_state,
+            effect_id: self.effect_id,
+        }
     }
 
-    pub fn widget_mut<W: Widget + ?Sized>(&mut self, id: WidgetHandle<W>) -> WidgetMut<'_, W> {
-        self.widget_mut_dyn(id.id).unchecked_cast()
+    pub fn widget_ref<W: Widget + ?Sized>(&self, widget_handle: WidgetHandle<W>) -> WidgetRef<W> {
+        WidgetRef::new(&self.app_state.widgets, widget_handle.id)
+    }
+
+    pub fn widget_mut<W: Widget + ?Sized>(
+        &mut self,
+        widget_handle: WidgetHandle<W>,
+    ) -> WidgetMut<W> {
+        WidgetMut::new(&mut self.app_state, widget_handle.id)
     }
 }
 
-pub type EffectFn = dyn FnMut(&mut dyn EffectContext);
+impl<'s> CanRead<'s> for EffectContext<'s> {
+    fn read_context(self) -> ReadContext<'s> {
+        self.app_state.read_context(ReadScope::Node(self.effect_id))
+    }
+}
+
+impl<'s> CanWrite<'s> for EffectContext<'s> {
+    fn write_context(self) -> WriteContext<'s> {
+        self.app_state.write_context()
+    }
+}
+
+pub struct WatchContext<'a> {
+    pub app_state: &'a mut AppState,
+    pub effect_id: NodeId,
+}
+
+impl<'s> CanWrite<'s> for WatchContext<'s> {
+    fn write_context(self) -> WriteContext<'s> {
+        self.app_state.write_context()
+    }
+}
+
+pub type EffectFn = dyn FnMut(&mut EffectContext);
 
 pub struct EffectState {
     pub(super) f: Rc<RefCell<EffectFn>>,
 }
 
 impl EffectState {
-    pub fn new(f: impl Fn(&mut dyn EffectContext) + 'static) -> Self {
+    pub fn new(f: impl Fn(&mut EffectContext) + 'static) -> Self {
         Self {
             f: Rc::new(RefCell::new(f)),
         }
@@ -58,11 +82,8 @@ impl Effect {
         Self { id: NodeId::null() }
     }
 
-    pub fn new(
-        cx: &mut dyn CreateContext,
-        f: impl FnMut(&mut dyn EffectContext) + 'static,
-    ) -> Self {
-        let id = cx.create_effect_node(
+    pub fn new<'cx>(cx: impl CanCreate<'cx>, f: impl FnMut(&mut EffectContext) + 'static) -> Self {
+        let id = cx.create_context().create_effect_node(
             EffectState {
                 f: Rc::new(RefCell::new(f)),
             },
@@ -71,14 +92,14 @@ impl Effect {
         Self { id }
     }
 
-    pub fn new_with_state<T: Any>(
-        cx: &mut dyn CreateContext,
-        f: impl Fn(&mut dyn EffectContext, Option<T>) -> T + 'static,
+    pub fn new_with_state<'cx, T: Any>(
+        cx: impl CanCreate<'cx>,
+        f: impl Fn(&mut EffectContext, Option<T>) -> T + 'static,
     ) -> Self {
         let mut state: Option<T> = None;
-        let id = cx.create_effect_node(
+        let id = cx.create_context().create_effect_node(
             EffectState {
-                f: Rc::new(RefCell::new(move |cx: &mut dyn EffectContext| {
+                f: Rc::new(RefCell::new(move |cx: &mut EffectContext| {
                     let old_state = state.take();
                     state = Some(f(cx, old_state));
                 })),
@@ -89,15 +110,15 @@ impl Effect {
     }
 
     pub(super) fn watch_parameter<T: 'static>(
-        cx: &mut dyn CreateContext,
+        mut cx: CreateContext,
         id: ParameterId,
         getter: fn(ParamRef) -> T,
-        mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
+        mut f: impl FnMut(&mut WatchContext, &T) + 'static,
     ) -> Self {
-        let id = cx.create_parameter_binding_node(
+        let id = cx.create_parameter_watcher(
             id,
-            BindingState::new(move |cx| {
-                let value = getter(cx.reactive_graph_mut().get_parameter_ref(id));
+            WatchState::new(move |cx| {
+                let value = getter(cx.app_state.reactive_graph.get_parameter_ref(id));
                 f(cx, &value);
             }),
         );
@@ -106,21 +127,23 @@ impl Effect {
     }
 
     pub(super) fn watch_node<T: 'static>(
-        cx: &mut dyn CreateContext,
+        mut cx: CreateContext,
         node_id: NodeId,
-        mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
+        mut f: impl FnMut(&mut WatchContext, &T) + 'static,
     ) -> Self {
-        let id = cx.create_node_binding_node(
+        let id = cx.create_node_watcher(
             node_id,
-            BindingState::new(move |cx| {
-                super::update_value_if_needed(cx, node_id);
-                if let Some(node) = cx.reactive_graph_mut().lease_node(node_id) {
+            WatchState::new(move |cx| {
+                cx.app_state
+                    .reactive_graph
+                    .update_cached_value_if_necessary(&cx.app_state.widgets, node_id);
+                if let Some(node) = cx.app_state.reactive_graph.lease_node(node_id) {
                     let value = node
                         .get_value_ref()
                         .downcast_ref()
                         .expect("Node should have the correct value type");
                     f(cx, value);
-                    cx.reactive_graph_mut().unlease_node(node);
+                    cx.app_state.reactive_graph.unlease_node(node);
                 }
             }),
         );
@@ -129,17 +152,17 @@ impl Effect {
     }
 
     pub(super) fn watch_widget_status<T: 'static>(
-        cx: &mut dyn CreateContext,
+        mut cx: CreateContext,
         widget: WidgetId,
         status_mask: WidgetStatusFlags,
         value_getter: fn(&Widgets, WidgetId) -> T,
-        mut f: impl FnMut(&mut dyn WatchContext, &T) + 'static,
+        mut f: impl FnMut(&mut WatchContext, &T) + 'static,
     ) -> Self {
-        let id = cx.create_widget_binding_node(
+        let id = cx.create_widget_status_watcher(
             widget,
             status_mask,
-            BindingState::new(move |cx| {
-                let value = value_getter(cx.widgets(), widget);
+            WatchState::new(move |cx| {
+                let value = value_getter(&cx.app_state.widgets, widget);
                 f(cx, &value);
             }),
         );
@@ -147,18 +170,19 @@ impl Effect {
         Self { id }
     }
 
-    pub fn watch<T: 'static>(
-        cx: &mut dyn CreateContext,
-        value_fn: impl Fn(&mut dyn ReadContext) -> T + 'static,
-        mut handler_fn: impl FnMut(&mut dyn WatchContext, &T, Option<&T>) + 'static,
+    pub fn watch<'cx, T: 'static>(
+        mut cx: impl CanCreate<'cx>,
+        value_fn: impl Fn(&mut ReadContext) -> T + 'static,
+        mut handler_fn: impl FnMut(&mut WatchContext, &T, Option<&T>) + 'static,
     ) -> Self {
         let mut current_value: Option<T> = None;
-        let id = cx.create_effect_node(
+        let id = cx.create_context().create_effect_node(
             EffectState {
-                f: Rc::new(RefCell::new(move |cx: &mut dyn EffectContext| {
+                f: Rc::new(RefCell::new(move |cx: &mut EffectContext| {
                     let old_value = current_value.take();
-                    let new_value = value_fn(cx);
-                    handler_fn(cx.as_watch_context(), &new_value, old_value.as_ref());
+                    let new_value =
+                        value_fn(&mut cx.app_state.read_context(ReadScope::Node(cx.effect_id)));
+                    handler_fn(&mut cx.as_watch_context(), &new_value, old_value.as_ref());
                     current_value = Some(new_value);
                 })),
             },
@@ -167,22 +191,16 @@ impl Effect {
 
         Self { id }
     }
-
-    pub fn dispose(self, cx: &mut dyn ReactiveContext) {
-        if !self.id.is_null() {
-            cx.reactive_graph_mut().remove_node(self.id);
-        }
-    }
 }
 
-pub type BindingFn = dyn FnMut(&mut dyn WatchContext);
+pub type WatchFn = dyn FnMut(&mut WatchContext);
 
-pub struct BindingState {
-    pub f: Rc<RefCell<BindingFn>>,
+pub struct WatchState {
+    pub f: Rc<RefCell<WatchFn>>,
 }
 
-impl BindingState {
-    pub fn new(f: impl FnMut(&mut dyn WatchContext) + 'static) -> Self {
+impl WatchState {
+    pub fn new(f: impl FnMut(&mut WatchContext) + 'static) -> Self {
         Self {
             f: Rc::new(RefCell::new(f)),
         }
