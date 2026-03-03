@@ -89,12 +89,7 @@ pub struct DerivedAnimationState {
 }
 
 impl DerivedAnimationState {
-    pub fn reset(
-        &mut self,
-        node_id: NodeId,
-        reactive_graph: &mut ReactiveGraph,
-        widgets: &Widgets,
-    ) -> bool {
+    pub fn reset(&mut self, reactive_graph: &mut ReactiveGraph, widgets: &Widgets) -> bool {
         (self.reset_fn)(&mut self.inner, reactive_graph, widgets)
     }
 }

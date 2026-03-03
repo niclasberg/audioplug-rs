@@ -23,14 +23,17 @@ impl<'s> EffectContext<'s> {
         }
     }
 
-    pub fn widget_ref<W: Widget + ?Sized>(&self, widget_handle: WidgetHandle<W>) -> WidgetRef<W> {
+    pub fn widget_ref<W: Widget + ?Sized>(
+        &self,
+        widget_handle: WidgetHandle<W>,
+    ) -> WidgetRef<'_, W> {
         WidgetRef::new(&self.app_state.widgets, widget_handle.id)
     }
 
     pub fn widget_mut<W: Widget + ?Sized>(
         &mut self,
         widget_handle: WidgetHandle<W>,
-    ) -> WidgetMut<W> {
+    ) -> WidgetMut<'_, W> {
         WidgetMut::new(&mut self.app_state, widget_handle.id)
     }
 }
@@ -58,14 +61,17 @@ pub struct WatchContext<'a> {
 }
 
 impl<'a> WatchContext<'a> {
-    pub fn widget_ref<W: Widget + ?Sized>(&self, widget_handle: WidgetHandle<W>) -> WidgetRef<W> {
+    pub fn widget_ref<W: Widget + ?Sized>(
+        &self,
+        widget_handle: WidgetHandle<W>,
+    ) -> WidgetRef<'_, W> {
         WidgetRef::new(&self.app_state.widgets, widget_handle.id)
     }
 
     pub fn widget_mut<W: Widget + ?Sized>(
         &mut self,
         widget_handle: WidgetHandle<W>,
-    ) -> WidgetMut<W> {
+    ) -> WidgetMut<'_, W> {
         WidgetMut::new(&mut self.app_state, widget_handle.id)
     }
 }

@@ -196,7 +196,7 @@ impl GpuScene {
             GpuFill::LinearGradient {
                 start,
                 end,
-                color_stops,
+                color_stops: _,
             } => self.fill_ops.extend(
                 [
                     start.x.to_bits(),
@@ -209,7 +209,7 @@ impl GpuScene {
             GpuFill::RadialGradient {
                 center,
                 radius,
-                color_stops,
+                color_stops: _,
             } => self
                 .fill_ops
                 .extend([center.x.to_bits(), center.y.to_bits(), radius.to_bits()].iter()),

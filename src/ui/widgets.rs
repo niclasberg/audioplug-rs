@@ -1,8 +1,4 @@
-use std::{
-    cell::Cell,
-    collections::VecDeque,
-    ops::{Deref, DerefMut},
-};
+use std::ops::{Deref, DerefMut};
 
 use slotmap::{Key, SecondaryMap, SlotMap};
 

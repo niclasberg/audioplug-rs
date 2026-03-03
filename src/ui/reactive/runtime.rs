@@ -366,7 +366,7 @@ impl ReactiveGraph {
                     NodeType::DerivedAnimation(anim) => {
                         // Clear the sources, they will be re-populated while running the reset function
                         self.clear_node_sources(node_id);
-                        if anim.reset(node_id, self, widgets) {
+                        if anim.reset(self, widgets) {
                             self.pending_animations.insert(node_id);
                         }
                     }
