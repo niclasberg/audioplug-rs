@@ -24,7 +24,6 @@ mod taffy_compat;
 mod text;
 mod transform;
 mod unit_point;
-mod util;
 mod vector;
 
 use std::{
