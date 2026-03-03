@@ -47,16 +47,19 @@ bitflags!(
 );
 
 /// Data associated with each widget. The nodes form an intrusive tree,
-/// and are all stored in a WidgetDataMap which handles node creation,
+/// and are all stored in the [WidgetTree] which handles node creation,
 /// swapping etc. in order to ensure that link invariants are always kept.
 pub struct WidgetData {
     pub(super) id: WidgetId,
     pub(super) window_id: WindowId,
     pub(super) parent_id: WidgetId,
-    /// Id of the first child of the node (or null if )
+    /// Id of the first child of the node (or null if childless)
     pub(super) first_child_id: WidgetId,
+    /// Id of the next sibling (or [Self::id] if no siblings)
     pub(super) next_sibling_id: WidgetId,
+    /// Id of the previous sibling (or self.id if no siblings)
     pub(super) prev_sibling_id: WidgetId,
+    /// Id of the first reactive node that this widget owns (or null if no owned nodes)
     pub(crate) first_owned_node_id: NodeId,
     pub(super) style: Style,
     pub(super) layout: taffy::Layout,

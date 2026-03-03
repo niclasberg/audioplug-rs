@@ -129,8 +129,8 @@ pub struct ReactiveGraph {
     pub(super) nodes: SlotMap<NodeId, Node>,
     pub(crate) parameters: Rc<dyn AnyParameterMap>,
     sources: SecondaryMap<NodeId, SmallVec<[SourceId; 4]>>,
-    node_observers: SecondaryMap<NodeId, FxIndexSet<NodeId>>,
-    parameter_observers: FxHashMap<ParameterId, FxIndexSet<NodeId>>,
+    node_observers: SecondaryMap<NodeId, SmallVec<[NodeId; 4]>>,
+    parameter_observers: FxHashMap<ParameterId, SmallVec<[NodeId; 4]>>,
     widget_observers: SecondaryMap<WidgetId, SmallVec<[(NodeId, WidgetStatusFlags); 4]>>,
     node_id_buffer: VecDeque<NodeId>,
     pub(super) pending_animations: FxIndexSet<NodeId>,
@@ -140,7 +140,7 @@ impl ReactiveGraph {
     pub fn new(parameter_map: Rc<dyn AnyParameterMap>) -> Self {
         let mut parameter_subscriptions = FxHashMap::default();
         for parameter_id in parameter_map.parameter_ids() {
-            parameter_subscriptions.insert(parameter_id, FxIndexSet::default());
+            parameter_subscriptions.insert(parameter_id, SmallVec::new());
         }
 
         Self {
@@ -169,7 +169,8 @@ impl ReactiveGraph {
             first_child_id: NodeId::null(),
             next_sibling_id: NodeId::null(),
         });
-        self.node_observers.insert(id, FxIndexSet::default());
+        self.sources.insert(id, SmallVec::new());
+        self.node_observers.insert(id, SmallVec::new());
 
         let next_sibling_id = match owner {
             Owner::Widget(widget_id) => {
@@ -453,8 +454,8 @@ impl ReactiveGraph {
 
     #[inline(always)]
     fn remove_source_from_observer(
-        observers: &mut SecondaryMap<NodeId, FxIndexSet<NodeId>>,
-        parameter_observers: &mut FxHashMap<ParameterId, FxIndexSet<NodeId>>,
+        observers: &mut SecondaryMap<NodeId, SmallVec<[NodeId; 4]>>,
+        parameter_observers: &mut FxHashMap<ParameterId, SmallVec<[NodeId; 4]>>,
         widget_observers: &mut SecondaryMap<WidgetId, SmallVec<[(NodeId, WidgetStatusFlags); 4]>>,
         source_id: SourceId,
         observer_id: NodeId,
@@ -464,10 +465,10 @@ impl ReactiveGraph {
                 parameter_observers
                     .get_mut(&parameter_id)
                     .expect("Missing parameter subscription")
-                    .swap_remove(&observer_id);
+                    .retain(|id| *id != observer_id);
             }
             SourceId::Node(node_id) => {
-                observers[node_id].swap_remove(&observer_id);
+                observers[node_id].retain(|id| *id != observer_id);
             }
             SourceId::Widget(widget_id) => {
                 widget_observers[widget_id].retain(|(node_id, _)| *node_id != observer_id);
@@ -490,24 +491,19 @@ impl ReactiveGraph {
     }
 
     pub fn add_parameter_subscription(&mut self, source_id: ParameterId, observer_id: NodeId) {
-        self.parameter_observers
-            .get_mut(&source_id)
-            .unwrap()
-            .insert(observer_id);
-        self.sources
-            .entry(observer_id)
-            .unwrap()
-            .or_default()
-            .push(SourceId::Parameter(source_id));
+        let observers = self.parameter_observers.get_mut(&source_id).unwrap();
+        if !observers.contains(&observer_id) {
+            observers.push(observer_id);
+            self.sources[observer_id].push(SourceId::Parameter(source_id));
+        }
     }
 
     pub fn add_node_subscription(&mut self, source_id: NodeId, observer_id: NodeId) {
-        self.node_observers[source_id].insert(observer_id);
-        self.sources
-            .entry(observer_id)
-            .unwrap()
-            .or_default()
-            .push(SourceId::Node(source_id));
+        let observers = &mut self.node_observers[source_id];
+        if !observers.contains(&observer_id) {
+            self.node_observers[source_id].push(observer_id);
+            self.sources[observer_id].push(SourceId::Node(source_id));
+        }
     }
 
     pub fn add_widget_status_subscription(
