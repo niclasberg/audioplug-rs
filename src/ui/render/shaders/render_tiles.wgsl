@@ -133,7 +133,7 @@ fn stroke(i: ptr<function, u32>, shape_type: u32, shape_index: u32, color: vec4f
 	let width = bitcast<f32>(fills[*i+4]);
 	*i += 5;
 
-	let signed_dist = compute_signed_dist_to_shape(shape_type, shape_index, pos);
+	let signed_dist = sd_shape(shape_type, shape_index, pos);
 	let coverage = distance_to_coverage(abs(signed_dist) - width);
 	return blend(color, stroke_color, coverage);
 }
@@ -284,24 +284,30 @@ fn is_point_in_rect(top_left: vec2f, bottom_right: vec2f, pos: vec2f) -> f32 {
 	return s.x * s.y;
 }
 
-/// Signed distance to a rect centered at the origin
+/// Signed distance to a rect centered at the origin (adapted 
+/// from https://iquilezles.org/articles/distfunctions2d/)
 fn sd_rect(half_size: vec2f, pos: vec2f) -> f32 {
 	let d = abs(pos) - half_size;
 	return length(max(d, vec2f(0.0))) + min(max(d.x, d.y), 0.0);
 }
 
-/// Signed distance to a rounded rect centered at the origin
+/// Signed distance to a rounded rect centered at the origin (adapted 
+/// from https://iquilezles.org/articles/distfunctions2d/)
 fn sd_rounded_rect(half_size: vec2f, radius: f32, pos: vec2f) -> f32 {
 	let q = abs(pos) - half_size + radius;
     return length(max(q, vec2f(0.0))) - radius;
 }
 
+/// Signed distance to an ellipse centered at the origin (adapted 
+/// from https://iquilezles.org/articles/ellipsedist/)
 fn sd_ellipse(radii: vec2f, pos: vec2f) -> f32 {
     // symmetry
 	let p = abs(pos);
 
     // find root with Newton solver
-    let q = radii*(p-radii);
+    let q = radii * (p - radii);
+
+	// Maybe we can use a better initial condition?
 	var w = select(0.0, PI / 2.0, q.x<q.y);
     for (var i=0; i < 5; i++ ) {
         let cs = vec2(cos(w),sin(w));
@@ -317,12 +323,12 @@ fn sd_ellipse(radii: vec2f, pos: vec2f) -> f32 {
     return select(-d, d, dot(p/radii,p/radii) > 1.0);
 }
 
-/// Pick the radius of the corner that is closest to pos
+/// Pick the radius of the corner of a rounded rectangle that is closest to pos
 fn select_rect_corner(c: vec4f, pos: vec2f) -> f32 {
 	return mix(mix(c.x, c.y, step(0, pos.x)), mix(c.w, c.z, step(0, pos.x)), step(0, pos.y));
 }
 
-fn compute_signed_dist_to_shape(shape_type: u32, index: u32, pos: vec2f) -> f32 {
+fn sd_shape(shape_type: u32, index: u32, pos: vec2f) -> f32 {
 	switch (shape_type & SHAPE_TYPE_MASK) {
 		case SHAPE_TYPE_NONE: {
 			return 0.0;

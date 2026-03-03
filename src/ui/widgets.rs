@@ -10,8 +10,7 @@ use crate::{
     core::{FxIndexSet, HAlign, Point, Rect, VAlign, Vec2, Zero},
     platform,
     ui::{
-        OverlayAnchor, OverlayOptions, Scene, Widget, WidgetData, WidgetFlags, WidgetId, WidgetRef,
-        WindowId,
+        OverlayAnchor, OverlayOptions, Scene, Widget, WidgetFlags, WidgetId, WidgetRef, WindowId,
         layout::{LayoutContext, RecomputeLayout},
         overlay::OverlayContainer,
         reactive::ReactiveGraph,
@@ -54,8 +53,6 @@ pub struct Widgets {
     child_id_cache: ChildCache,
     /// Ids of all widgets that have requested animation. Cleared during each call to [drive_animations]
     pending_animations: FxIndexSet<WidgetId>,
-    /// Temporary cache used to avoid allocations while performing traversals
-    id_buffer: Cell<VecDeque<WidgetId>>,
     /// The widget that currently has mouse capture
     pub(super) mouse_capture_widget: Option<WidgetId>,
 }
@@ -135,68 +132,34 @@ impl Widgets {
         self.request_layout(dst_id);
     }
 
-    fn internal_remove(
-        &mut self,
-        widget_id: WidgetId,
-        reactive_graph: &mut ReactiveGraph,
-    ) -> WidgetData {
-        self.child_id_cache.remove(widget_id);
-        self.scenes.remove(widget_id);
-        self.layout_cache.remove(widget_id);
-        self.widgets.remove(widget_id);
-
-        let data = self
-            .tree
-            .unchecked_remove(widget_id)
-            .expect("Widget being removed should exist");
-
-        self.windows[data.window_id].overlays.remove(widget_id);
-        reactive_graph.remove_all_siblings(data.first_owned_node_id);
-        data
-    }
-
     // Remove a widget, all its children and all owned reactive nodes
     pub(super) fn remove_widget(
         &mut self,
         widget_id: WidgetId,
         reactive_graph: &mut ReactiveGraph,
     ) {
-        let data = &self.tree[widget_id];
-        let parent_id = data.parent_id;
-        if !parent_id.is_null() {
-            let next_sibling_id = data.next_sibling_id;
-            let prev_sibling_id = data.prev_sibling_id;
-            let parent = &mut self.tree[parent_id];
-            if parent.first_child_id == widget_id {
-                parent.first_child_id = if next_sibling_id == prev_sibling_id {
-                    WidgetId::null()
-                } else {
-                    next_sibling_id
-                };
-            }
-        }
-        self.remove_children(widget_id, reactive_graph);
-        self.internal_remove(widget_id, reactive_graph);
+        self.tree.remove(widget_id, |data| {
+            self.child_id_cache.remove(data.id);
+            self.scenes.remove(data.id);
+            self.layout_cache.remove(data.id);
+            self.widgets.remove(data.id);
+            self.windows[data.window_id].overlays.remove(data.id);
+            reactive_graph.remove_all_siblings(data.first_owned_node_id);
+        });
     }
 
-    // Remove all children of a widget. The `f` function is invoked after each removed widget.
-    pub(super) fn remove_children(
-        &mut self,
-        widget_id: WidgetId,
-        reactive_graph: &mut ReactiveGraph,
-    ) {
-        let mut children_to_remove = self.id_buffer.take();
-        children_to_remove.clear();
-        children_to_remove.extend(self.child_id_iter(widget_id));
-        let data = &mut self.tree[widget_id];
-        data.first_child_id = WidgetId::null();
-
-        while let Some(child_id) = children_to_remove.pop_front() {
-            children_to_remove.extend(self.child_id_iter(child_id));
-            self.internal_remove(child_id, reactive_graph);
-        }
-
-        self.id_buffer.set(children_to_remove);
+    pub fn reset_widget(&mut self, widget_id: WidgetId, reactive_graph: &mut ReactiveGraph) {
+        self.tree.reset(widget_id, |data| {
+            self.child_id_cache.remove(data.id);
+            self.scenes.remove(data.id);
+            self.layout_cache.remove(data.id);
+            self.widgets.remove(data.id);
+            self.windows[data.window_id].overlays.remove(data.id);
+            reactive_graph.remove_all_siblings(data.first_owned_node_id);
+        });
+        // self.scenes[widget_id]; <- clear
+        self.layout_cache[widget_id].clear();
+        self.request_layout(widget_id);
     }
 
     pub(super) fn remove_window(

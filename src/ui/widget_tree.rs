@@ -275,10 +275,99 @@ impl WidgetTree {
         DFSWalker::new(root_id)
     }
 
-    /// Removes a widget without updating any sibling/parent links. Only used as an optimization when removing
-    /// a
-    pub(super) fn unchecked_remove(&mut self, id: WidgetId) -> Option<WidgetData> {
-        self.data.remove(id)
+    pub fn dfs_iter(&self, root_id: WidgetId) -> DFSIterator<'_> {
+        DFSIterator {
+            tree: &self,
+            walker: self.dfs_walker(root_id),
+        }
+    }
+
+    /// Reset a widget, removing all children and reseting its data to its default state
+    pub fn reset(&mut self, id: WidgetId, mut on_removed: impl FnMut(WidgetData)) {
+        let mut current = id;
+        loop {
+            if let Some(first_child_id) = self.pop_first_child(current) {
+                current = first_child_id;
+            } else if current == id {
+                break;
+            } else {
+                let data = self.data.remove(current).unwrap();
+                let parent_id = data.parent_id;
+                on_removed(data);
+                current = parent_id;
+            }
+        }
+        self.data[id].reset();
+    }
+
+    fn pop_first_child(&mut self, id: WidgetId) -> Option<WidgetId> {
+        let first_child_id = self.data[id].first_child_id;
+        if first_child_id.is_null() {
+            return None;
+        }
+
+        let WidgetData {
+            next_sibling_id,
+            prev_sibling_id,
+            ..
+        } = self.data[first_child_id];
+
+        if next_sibling_id == prev_sibling_id {
+            // Only child
+            self.data[id].first_child_id = WidgetId::null();
+        } else {
+            self.data[next_sibling_id].prev_sibling_id = prev_sibling_id;
+            self.data[prev_sibling_id].next_sibling_id = next_sibling_id;
+            self.data[id].first_child_id = next_sibling_id;
+        }
+
+        Some(first_child_id)
+    }
+
+    /// Removes a widget and all its children. The [on_removed] function is invoked for each widget
+    /// that is removed
+    pub fn remove(&mut self, id: WidgetId, mut on_removed: impl FnMut(WidgetData)) {
+        self.detach(id);
+
+        let mut current = id;
+        loop {
+            if let Some(first_child_id) = self.pop_first_child(current) {
+                current = first_child_id;
+            } else {
+                let data = self.data.remove(current).unwrap();
+                let parent_id = data.parent_id;
+                on_removed(data);
+                if parent_id.is_null() {
+                    return;
+                } else {
+                    current = parent_id;
+                }
+            }
+        }
+    }
+
+    /// Detaches a widget subtree from its parent and siblings, effectively making the widget into a new root
+    pub fn detach(&mut self, id: WidgetId) {
+        let WidgetData {
+            parent_id,
+            prev_sibling_id,
+            next_sibling_id,
+            ..
+        } = self.data[id];
+
+        if let Some(parent) = self.data.get_mut(parent_id) {
+            if parent.first_child_id == id {
+                parent.first_child_id = if next_sibling_id == id {
+                    WidgetId::null()
+                } else {
+                    next_sibling_id
+                };
+            }
+
+            self.data[prev_sibling_id].next_sibling_id = next_sibling_id;
+            self.data[next_sibling_id].prev_sibling_id = prev_sibling_id;
+        }
+        self.data[id].parent_id = WidgetId::null();
     }
 
     pub fn insert_root(&mut self, window_id: WindowId) -> WidgetId {
@@ -317,7 +406,6 @@ impl WidgetTree {
             prev_sibling_id,
             ..
         } = self.data[next_sibling_id];
-        // Maybe also assert that the sibling is not an overlay?
         assert!(!parent_id.is_null(), "Cannot insert before the root widget");
 
         let id = self.insert_with_parent_and_siblings(
@@ -519,6 +607,19 @@ impl SiblingWalker {
     }
 }
 
+pub struct DFSIterator<'a> {
+    tree: &'a WidgetTree,
+    walker: DFSWalker,
+}
+
+impl<'a> Iterator for DFSIterator<'a> {
+    type Item = WidgetId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.walker.next(self.tree)
+    }
+}
+
 pub struct DFSWalker {
     current_id: WidgetId, // Null if done
     root_id: WidgetId,
@@ -608,5 +709,59 @@ mod tests {
 
         let children2: Vec<_> = tree.child_id_iter(root_id).rev().collect();
         assert_eq!(children, children2);
+    }
+
+    #[test]
+    fn reset_node() {
+        {
+            let mut tree = WidgetTree::default();
+            let root_id = tree.insert_root(WindowId::null());
+            tree.reset(root_id, |_| {});
+            assert_eq!(tree.iter().count(), 1);
+        }
+
+        {
+            let mut tree = WidgetTree::default();
+            let root_id = tree.insert_root(WindowId::null());
+            let w1 = tree.insert_last_child(root_id);
+            tree.insert_last_child(w1);
+            tree.insert_last_child(w1);
+            let w2 = tree.insert_last_child(root_id);
+            let w21 = tree.insert_last_child(w2);
+            let w22 = tree.insert_last_child(w2);
+
+            let children = vec![root_id, w1, w2, w21, w22];
+            tree.reset(w1, |_| {});
+
+            let children2: Vec<_> = tree.dfs_iter(root_id).collect();
+            assert_eq!(children, children2);
+        }
+    }
+
+    #[test]
+    fn remove_node() {
+        {
+            let mut tree = WidgetTree::default();
+            let root_id = tree.insert_root(WindowId::null());
+            tree.remove(root_id, |_| {});
+            assert_eq!(tree.iter().count(), 0);
+        }
+
+        {
+            let mut tree = WidgetTree::default();
+            let root_id = tree.insert_root(WindowId::null());
+            let w1 = tree.insert_last_child(root_id);
+            tree.insert_last_child(w1);
+            tree.insert_last_child(w1);
+            let w2 = tree.insert_last_child(root_id);
+            let w21 = tree.insert_last_child(w2);
+            let w22 = tree.insert_last_child(w2);
+
+            let children = vec![root_id, w2, w21, w22];
+            tree.remove(w1, |_| {});
+
+            let children2: Vec<_> = tree.dfs_iter(root_id).collect();
+            assert_eq!(children, children2);
+        }
     }
 }

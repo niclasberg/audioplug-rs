@@ -136,10 +136,7 @@ impl AppState {
 
     pub fn replace_widget<V: View>(&mut self, id: WidgetId, view: V) {
         self.clear_mouse_capture_and_focus(id);
-        self.widgets.remove_children(id, &mut self.reactive_graph);
-
-        // Also reset taffy cache?
-        self.widgets.tree.get_mut(id).unwrap().reset();
+        self.widgets.reset_widget(id, &mut self.reactive_graph);
         self.build_and_insert_widget(id, view);
     }
 

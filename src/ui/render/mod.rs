@@ -135,7 +135,11 @@ fn rebuild_scene(widgets: &mut Widgets, window_id: WindowId) {
         while let Some(widget_id) = walker.next(&widgets.tree) {
             let node = &widgets.tree[widget_id];
             if !node.is_overlay() {
-                let rect = gpu_scene.add_rect(node.global_bounds().scale(scale_factor));
+                let rect = gpu_scene.add_rect(
+                    node.global_bounds()
+                        //.into_rounded_rect(Size::splat(3.0))
+                        .scale(scale_factor),
+                );
                 gpu_scene.fill_shape(
                     rect,
                     GpuFill::Stroke {
