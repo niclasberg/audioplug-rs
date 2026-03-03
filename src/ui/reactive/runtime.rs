@@ -208,14 +208,14 @@ impl ReactiveGraph {
             }
         }
 
-        // TODO Fix first_child_id for owner!
         let node = self.nodes.remove(id).expect("Missing node");
 
-        match node.owner {
+        // TODO Fix first_child_id for owner!
+        /*match node.owner {
             Owner::Widget(widget_id) => todo!(),
             Owner::Node(node_id) => todo!(),
             _ => {}
-        };
+        };*/
 
         self.remove_all_siblings(node.first_child_id);
     }
@@ -223,8 +223,9 @@ impl ReactiveGraph {
     pub fn remove_all_siblings(&mut self, id: NodeId) {
         let mut current = id;
         while !current.is_null() {
-            current = self.nodes[current].next_sibling_id;
+            let next = self.nodes[current].next_sibling_id;
             self.remove_node(current);
+            current = next;
         }
     }
 

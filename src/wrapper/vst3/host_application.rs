@@ -4,7 +4,6 @@ use vst3::{
     ComPtr, ComRef, Interface,
     Steinberg::{
         FUnknown,
-        Linux::IRunLoop,
         Vst::{IHostApplication, IHostApplicationTrait, IMessage, IMessageTrait},
         kResultOk,
     },
@@ -41,6 +40,7 @@ impl HostApplication {
         }
     }
 
+    #[cfg(target_os = "linux")]
     pub unsafe fn get_runloop(&self) -> Option<ComPtr<IRunLoop>> {
         self.inner.cast()
     }

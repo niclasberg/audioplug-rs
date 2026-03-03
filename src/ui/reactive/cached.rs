@@ -121,7 +121,7 @@ impl<T: 'static> ReactiveValue for Cached<T> {
     }
 }
 
-fn update_and_get_memo_value(mut cx: ReadContext, id: NodeId) -> &dyn Any {
+fn update_and_get_memo_value(mut cx: ReadContext<'_>, id: NodeId) -> &dyn Any {
     cx.update_value_if_needed(id);
     match &cx.reactive_graph.get_node(id).node_type {
         NodeType::Memo(state) => state

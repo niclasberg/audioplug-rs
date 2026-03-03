@@ -71,10 +71,10 @@ impl<T: Any> SignalVec<T> {
         let inner: &mut Inner<T> = value.downcast_mut().expect("Signal had wrong type");
         let size_before = inner.values.len();
         let result = f(inner);
-        if let Some(len_trigger) = inner.len_trigger {
-            if size_before != inner.values.len() {
-                len_trigger.notify(cx);
-            }
+        if let Some(len_trigger) = inner.len_trigger
+            && size_before != inner.values.len()
+        {
+            len_trigger.notify(cx);
         }
         result
     }

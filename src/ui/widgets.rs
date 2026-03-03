@@ -49,7 +49,7 @@ pub struct Widgets {
     pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
     pub(super) scenes: SecondaryMap<WidgetId, Scene>,
     pub(super) layout_cache: SecondaryMap<WidgetId, taffy::Cache>,
-    pub(crate) windows: SlotMap<WindowId, WindowState>,
+    pub(super) windows: SlotMap<WindowId, WindowState>,
     /// (Lazy) cache of child ids. Taffy requires random access during layout.
     child_id_cache: ChildCache,
     /// Ids of all widgets that have requested animation. Cleared during each call to [drive_animations]

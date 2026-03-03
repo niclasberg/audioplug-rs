@@ -116,6 +116,7 @@ fn rebuild_scene(widgets: &mut Widgets, window_id: WindowId) {
     let window = &mut widgets.windows[window_id];
     let scale_factor = window.handle.scale_factor().0;
     let gpu_scene = &mut window.gpu_scene;
+    gpu_scene.clear();
 
     let mut roots = vec![window.root_widget];
     roots.extend(window.overlays.iter());

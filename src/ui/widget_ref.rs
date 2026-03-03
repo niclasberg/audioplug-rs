@@ -115,14 +115,6 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
             None
         }
     }
-
-    pub(super) fn unchecked_cast<W2: 'a + Widget + ?Sized>(self) -> WidgetRef<'a, W2> {
-        WidgetRef {
-            widgets: self.widgets,
-            id: self.id,
-            _phantom: PhantomData,
-        }
-    }
 }
 
 impl Deref for WidgetRef<'_, dyn Widget> {
