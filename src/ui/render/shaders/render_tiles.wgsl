@@ -304,23 +304,27 @@ fn sd_ellipse(radii: vec2f, pos: vec2f) -> f32 {
     // symmetry
 	let p = abs(pos);
 
-    // find root with Newton solver
+    // Find the angle, w, of the point on the ellipse that is closes to pos, using Newton-Raphson
     let q = radii * (p - radii);
 
 	// Maybe we can use a better initial condition?
 	var w = select(0.0, PI / 2.0, q.x<q.y);
     for (var i=0; i < 5; i++ ) {
-        let cs = vec2(cos(w),sin(w));
-        let u = radii * vec2f( cs.x,cs.y);
-        let v = radii * vec2f(-cs.y,cs.x);
-        w = w + dot(p-u,v)/(dot(p-u,u)+dot(v,v));
+        let cs = vec2(cos(w), sin(w));
+        let u = radii * vec2f( cs.x, cs.y);
+        let v = radii * vec2f(-cs.y, cs.x);
+        w = w + dot(p - u, v) / (dot(p - u, u) + dot(v, v));
     }
     
-    // compute final point and distance
-    let d = length(p - radii * vec2f(cos(w),sin(w)));
-    
-    // return signed distance
-    return select(-d, d, dot(p/radii,p/radii) > 1.0);
+    let d = length(p - radii * vec2f(cos(w), sin(w)));
+    return select(-d, d, dot(p / radii, p / radii) > 1.0);
+}
+
+fn sd_line(a: vec2f, b: vec2f, pos: vec2f) {
+	let pa = pos - a;
+	let ba = b - a;
+	let t = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0 );
+    return length(pa - ba * t);
 }
 
 /// Pick the radius of the corner of a rounded rectangle that is closest to pos
@@ -331,11 +335,21 @@ fn select_rect_corner(c: vec4f, pos: vec2f) -> f32 {
 fn sd_shape(shape_type: u32, index: u32, pos: vec2f) -> f32 {
 	switch (shape_type & SHAPE_TYPE_MASK) {
 		case SHAPE_TYPE_NONE: {
-			return 0.0;
+			return -1.0;
 		}
 		case SHAPE_TYPE_PATH: {
 			let size = (shape_type >> 4);
-			return 0.0; // TODO
+			var winding_number = 0.0f;
+			var dist = 100000000.0f;
+			for (var i = 0u; i < size; i++) {
+				let segment = read_line_segment(index + 4*i);
+				winding_number += winding_contribution(segment.p0, segment.p1, pos);
+				dist = min(dist, sd_line(segment.p0, segment.p1, pos));
+			}
+			
+			let even_odd_fill = 1.0 - abs(1.0 - 2.0 * fract(0.5 * winding_number));
+			let non_zero_fill = clamp(abs(winding_number), 0.0, 1.0);
+			return dist * select(non_zero_fill, even_odd_fill, (shape_type & FILL_RULE_EVEN_ODD) != 0);
 		}
 		case SHAPE_TYPE_RECT: {
 			let rect = read_rect(index);
