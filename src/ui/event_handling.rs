@@ -3,7 +3,8 @@ use super::{
     AppState, EventStatus, WidgetFlags, WidgetId, WindowId, animation::drive_animations,
     clipboard::Clipboard, invalidate_window,
 };
-use crate::ui::reactive::{ReadContext, WriteContext};
+use crate::ui::reactive::{ReactiveGraph, ReadContext, WriteContext};
+use crate::ui::{HostHandle, TaskQueue, Widgets};
 use crate::{
     KeyEvent, MouseEvent,
     core::{Key, Rect},
@@ -216,12 +217,11 @@ impl<'a> MouseEventContext<'a> {
     pub fn as_callback_context(&mut self) -> CallbackContext<'_> {
         CallbackContext {
             _id: self.id,
-            app_state: self.app_state,
+            widgets: &mut self.app_state.widgets,
+            reactive_graph: &mut self.app_state.reactive_graph,
+            task_queue: &mut self.app_state.task_queue,
+            host_handle: self.app_state.host_handle.as_deref(),
         }
-    }
-
-    pub fn app_state_mut(&mut self) -> &mut AppState {
-        self.app_state
     }
 
     pub fn capture_mouse(&mut self) {
@@ -305,18 +305,13 @@ impl<'a> EventContext<'a> {
         self.app_state.widgets.widget_has_captured_mouse(self.id)
     }
 
-    pub fn app_state(&self) -> &AppState {
-        self.app_state
-    }
-
-    pub fn app_state_mut(&mut self) -> &mut AppState {
-        self.app_state
-    }
-
     pub fn as_callback_context(&mut self) -> CallbackContext<'_> {
         CallbackContext {
             _id: self.id,
-            app_state: self.app_state,
+            widgets: &mut self.app_state.widgets,
+            reactive_graph: &mut self.app_state.reactive_graph,
+            task_queue: &mut self.app_state.task_queue,
+            host_handle: self.app_state.host_handle.as_deref(),
         }
     }
 
@@ -351,7 +346,10 @@ impl<'a> EventContext<'a> {
 
 pub struct CallbackContext<'a> {
     _id: WidgetId,
-    app_state: &'a mut AppState,
+    widgets: &'a mut Widgets,
+    reactive_graph: &'a mut ReactiveGraph,
+    task_queue: &'a mut TaskQueue,
+    host_handle: Option<&'a dyn HostHandle>,
 }
 
 impl<'s> CanRead<'s> for CallbackContext<'s> {
@@ -359,7 +357,11 @@ impl<'s> CanRead<'s> for CallbackContext<'s> {
     where
         's: 's2,
     {
-        self.app_state.read_context(ReadScope::Untracked)
+        ReadContext {
+            widgets: self.widgets,
+            reactive_graph: self.reactive_graph,
+            scope: ReadScope::Untracked,
+        }
     }
 }
 
@@ -368,6 +370,11 @@ impl<'s> CanWrite<'s> for CallbackContext<'s> {
     where
         's: 's2,
     {
-        self.app_state.write_context()
+        WriteContext {
+            widgets: self.widgets,
+            reactive_graph: self.reactive_graph,
+            task_queue: self.task_queue,
+            host_handle: self.host_handle,
+        }
     }
 }

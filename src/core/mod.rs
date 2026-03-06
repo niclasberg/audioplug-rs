@@ -52,7 +52,7 @@ pub use poly::Polynomial;
 pub use rectangle::{PhysicalRect, Rect};
 pub use rounded_rectangle::RoundedRect;
 use rustc_hash::FxBuildHasher;
-pub use shape::{Shape, ShapeRef};
+pub use shape::{PrimitiveShape, Shape, ShapeRef};
 pub use size::{PhysicalSize, Size};
 pub use text::*;
 pub use transform::Transform;

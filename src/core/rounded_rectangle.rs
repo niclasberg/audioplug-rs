@@ -32,22 +32,26 @@ impl RoundedRect {
         Self::new(self.rect.offset(delta), self.corner_radius)
     }
 
-    pub fn shrink(&self, amount: f64) -> Self {
+    pub fn inflate(self, amount: f64) -> Self {
+        Self::shrink(self, -amount)
+    }
+
+    pub fn shrink(self, amount: f64) -> Self {
         Self::new(
             self.rect.shrink(amount),
             self.corner_radius - Size::new(amount, amount),
         )
     }
 
-    pub fn scale(&self, scale: f64) -> Self {
+    pub fn scale(self, scale: f64) -> Self {
         Self::new(self.rect.scale(scale), self.corner_radius.scale(scale))
     }
 
-    pub fn scale_x(&self, scale: f64) -> Self {
+    pub fn scale_x(self, scale: f64) -> Self {
         Self::new(self.rect.scale_x(scale), self.corner_radius.scale_x(scale))
     }
 
-    pub fn scale_y(&self, scale: f64) -> Self {
+    pub fn scale_y(self, scale: f64) -> Self {
         Self::new(self.rect.scale_y(scale), self.corner_radius.scale_y(scale))
     }
 }

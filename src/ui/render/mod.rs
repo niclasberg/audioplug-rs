@@ -1,7 +1,7 @@
 use crate::{
     core::{
-        Color, ColorMap, Ellipse, FillRule, Path, Point, Rect, RoundedRect, ShadowOptions, Size,
-        Vec2, Vec2f,
+        Brush, Color, ColorMap, Ellipse, FillRule, Path, Point, Rect, RoundedRect, ShadowKind,
+        ShadowOptions, Size, Vec2, Vec2f,
     },
     platform,
     ui::{Widgets, reactive::ReactiveGraph, render::gpu_scene::GpuFill},
@@ -121,33 +121,53 @@ fn rebuild_scene(widgets: &mut Widgets, window_id: WindowId) {
     let mut roots = vec![window.root_widget];
     roots.extend(window.overlays.iter());
 
-    let colors = [
-        Color::RED,
-        Color::BLACK,
-        Color::BLUE,
-        Color::ALICEBLUE,
-        Color::ASH_GREY,
-    ];
-    let mut color_index = 0;
-
     for root_id in roots {
         let mut walker = widgets.tree.dfs_walker(root_id);
         while let Some(widget_id) = walker.next(&widgets.tree) {
             let node = &widgets.tree[widget_id];
-            if !node.is_overlay() {
-                let rect = gpu_scene.add_rect(
-                    node.global_bounds()
-                        //.into_rounded_rect(Size::splat(3.0))
-                        .scale(scale_factor),
-                );
+            if node.is_overlay() || node.style.hidden {
+                continue;
+            }
+
+            let shape = node.shape().scale(scale_factor);
+            let mut inner_shape_ref = None;
+            let shadow = node.style.box_shadow;
+            if let Some(shadow) = shadow {
+                if shadow.kind == ShadowKind::DropShadow {
+                    let shape_ref = gpu_scene.add_primitive_shape(shape);
+                    gpu_scene.fill_shape(shape_ref, GpuFill::Shadow(shadow));
+                    inner_shape_ref = Some(shape_ref);
+                }
+            }
+
+            if let Some(background) = &node.style.background {
+                let shape_ref =
+                    inner_shape_ref.get_or_insert_with(|| gpu_scene.add_primitive_shape(shape));
+                let fill = match background {
+                    Brush::Solid(color) => GpuFill::Solid(*color),
+                    Brush::LinearGradient(linear_gradient) => GpuFill::LinearGradient {
+                        start: Vec2f::ZERO,
+                        end: Vec2f::ZERO,
+                        color_stops: linear_gradient.color_map.clone(),
+                    },
+                };
+                gpu_scene.fill_shape(*shape_ref, fill);
+            }
+
+            let border_color = node.style.border_color;
+            let line_width = node.layout.border.top as f64 * scale_factor;
+
+            if let Some(border_color) = node.style.border_color
+                && line_width > 0.0
+            {
+                let shape_ref = gpu_scene.add_primitive_shape(shape.inflate(line_width / 2.0));
                 gpu_scene.fill_shape(
-                    rect,
+                    shape_ref,
                     GpuFill::Stroke {
-                        color: colors[color_index],
-                        width: 1.0,
+                        color: border_color,
+                        width: line_width as _,
                     },
                 );
-                color_index = (color_index + 1) % colors.len();
             }
         }
     }

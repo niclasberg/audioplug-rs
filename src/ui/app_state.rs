@@ -22,7 +22,7 @@ pub struct AppState {
     pub(super) wgpu_instance: wgpu::Instance,
     pub(super) widgets: Widgets,
     pub(super) reactive_graph: ReactiveGraph,
-    host_handle: Option<Box<dyn HostHandle>>,
+    pub(super) host_handle: Option<Box<dyn HostHandle>>,
     pub(super) task_queue: TaskQueue,
     pub(crate) theme_signal: Var<WindowTheme>,
 }

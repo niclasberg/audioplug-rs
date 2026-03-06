@@ -7,7 +7,7 @@ use bitflags::bitflags;
 use slotmap::{Key, KeyData, SlotMap, new_key_type};
 
 use crate::{
-    core::{Point, Rect, RoundedRect, Shape, Size, Zero},
+    core::{Point, PrimitiveShape, Rect, RoundedRect, Shape, Size, Zero},
     ui::reactive::NodeId,
 };
 
@@ -213,7 +213,7 @@ impl WidgetData {
         self.flag_is_set(WidgetFlags::OVERLAY)
     }
 
-    pub fn shape(&self) -> Shape {
+    pub fn shape(&self) -> PrimitiveShape {
         if self.style.corner_radius == Size::ZERO {
             self.global_bounds().into()
         } else {

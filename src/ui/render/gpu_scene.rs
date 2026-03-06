@@ -1,5 +1,6 @@
 use crate::core::{
-    Color, ColorMap, Ellipse, FillRule, Path, Rect, RoundedRect, ShadowKind, ShadowOptions, Vec2f,
+    Color, ColorMap, Ellipse, FillRule, Path, PrimitiveShape, Rect, RoundedRect, ShadowKind,
+    ShadowOptions, Shape, Vec2f,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -111,6 +112,14 @@ impl GpuScene {
                 ellipse.radii.height as _,
             ],
         )
+    }
+
+    pub fn add_primitive_shape(&mut self, shape: PrimitiveShape) -> GpuShapeRef {
+        match shape {
+            PrimitiveShape::Rect(rect) => self.add_rect(rect),
+            PrimitiveShape::RoundedRect(rounded_rect) => self.add_rounded_rect(rounded_rect),
+            PrimitiveShape::Ellipse(ellipse) => self.add_ellipse(ellipse),
+        }
     }
 
     pub fn add_path(&mut self, path: &Path, fill_rule: FillRule) -> GpuShapeRef {

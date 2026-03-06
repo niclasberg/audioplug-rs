@@ -320,7 +320,7 @@ fn sd_ellipse(radii: vec2f, pos: vec2f) -> f32 {
     return select(-d, d, dot(p / radii, p / radii) > 1.0);
 }
 
-fn sd_line(a: vec2f, b: vec2f, pos: vec2f) {
+fn sd_line(a: vec2f, b: vec2f, pos: vec2f) -> f32 {
 	let pa = pos - a;
 	let ba = b - a;
 	let t = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0 );

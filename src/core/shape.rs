@@ -149,3 +149,50 @@ impl<'a> From<&'a Path> for ShapeRef<'a> {
         Self::Path(value)
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+pub enum PrimitiveShape {
+    Rect(Rect),
+    RoundedRect(RoundedRect),
+    Ellipse(Ellipse),
+}
+
+impl PrimitiveShape {
+    pub fn inflate(self, amount: f64) -> Self {
+        match self {
+            PrimitiveShape::Rect(rect) => Self::Rect(rect.inflate(amount)),
+            PrimitiveShape::RoundedRect(rounded_rect) => {
+                Self::RoundedRect(rounded_rect.inflate(amount))
+            }
+            PrimitiveShape::Ellipse(ellipse) => Self::Ellipse(ellipse.inflate(amount)),
+        }
+    }
+
+    pub fn scale(self, scale: f64) -> Self {
+        match self {
+            PrimitiveShape::Rect(rect) => Self::Rect(rect.scale(scale)),
+            PrimitiveShape::RoundedRect(rounded_rect) => {
+                Self::RoundedRect(rounded_rect.scale(scale))
+            }
+            PrimitiveShape::Ellipse(ellipse) => Self::Ellipse(ellipse.scale(scale)),
+        }
+    }
+}
+
+impl From<Rect> for PrimitiveShape {
+    fn from(value: Rect) -> Self {
+        Self::Rect(value)
+    }
+}
+
+impl From<RoundedRect> for PrimitiveShape {
+    fn from(value: RoundedRect) -> Self {
+        Self::RoundedRect(value)
+    }
+}
+
+impl From<Ellipse> for PrimitiveShape {
+    fn from(value: Ellipse) -> Self {
+        Self::Ellipse(value)
+    }
+}
