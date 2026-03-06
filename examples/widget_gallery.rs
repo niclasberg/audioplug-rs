@@ -77,7 +77,7 @@ fn overview() -> impl View {
                 if checkbox_enabled.get(cx) {
                     color
                 } else {
-                    color.with_alpha(0.0)
+                    color.with_alpha(0.8)
                 }
             },
             TweenOptions {

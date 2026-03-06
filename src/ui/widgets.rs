@@ -329,6 +329,8 @@ impl Widgets {
                 }
             }
         }
+
+        self.print_tree(window_id);
     }
 
     fn rebuild_children(&mut self) {
@@ -374,6 +376,23 @@ impl Widgets {
     /// Get the (cached) child ids for a widget. You must call rebuild_children before using this method.
     pub(super) fn cached_child_ids(&self, widget_id: WidgetId) -> &[WidgetId] {
         self.child_id_cache[widget_id].as_slice()
+    }
+
+    pub fn print_tree(&self, window_id: WindowId) {
+        fn _impl(this: &Widgets, root_id: WidgetId, indent: usize) {
+            println!(
+                "{} {}({:?})",
+                "-".repeat(indent),
+                this.widgets[root_id].debug_label(),
+                root_id
+            );
+            let mut walker = this.tree.child_id_walker(root_id);
+            while let Some(child_id) = walker.next_id(&this.tree) {
+                _impl(this, child_id, indent + 1);
+            }
+        }
+        let root_id = self.window(window_id).root_widget;
+        _impl(self, root_id, 0);
     }
 }
 

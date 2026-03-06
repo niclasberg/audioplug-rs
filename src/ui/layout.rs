@@ -50,7 +50,6 @@ impl<'a> LayoutContext<'a> {
             height: taffy::AvailableSpace::Definite(self.window_size.height as f32),
         };
         taffy::compute_root_layout(self, root_widget_id.into(), available_space);
-        taffy::print_tree(self, root_widget_id.into());
         self.region_to_invalidate
     }
 
@@ -148,7 +147,6 @@ impl CacheTree for LayoutContext<'_> {
         run_mode: taffy::RunMode,
     ) -> Option<taffy::LayoutOutput> {
         let widget_id = node_id.into();
-        println!("{:?}", widget_id);
         self.widgets.layout_cache[widget_id].get(known_dimensions, available_space, run_mode)
     }
 
