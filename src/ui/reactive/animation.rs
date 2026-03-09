@@ -321,7 +321,7 @@ impl<T: 'static> ReactiveValue for Animated<T> {
     }
 }
 
-fn get_animation_value_ref(cx: ReadContext, node_id: NodeId) -> &dyn Any {
+fn get_animation_value_ref(cx: ReadContext<'_>, node_id: NodeId) -> &dyn Any {
     match &cx.reactive_graph.get_node(node_id).node_type {
         NodeType::Animation(animation) => animation.inner.value_dyn(),
         NodeType::DerivedAnimation(animation) => animation.inner.value_dyn(),

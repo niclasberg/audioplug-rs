@@ -1,6 +1,6 @@
 use crate::core::{
     Color, ColorMap, Ellipse, FillRule, Path, PrimitiveShape, Rect, RoundedRect, ShadowKind,
-    ShadowOptions, Shape, Vec2f,
+    ShadowOptions, Vec2f,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

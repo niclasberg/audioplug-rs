@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     core::{Rect, diff::DiffOp},
-    ui::{WidgetHandle, WidgetPos, Widgets, widget_tree::SiblingWalker},
+    ui::{WidgetHandle, WidgetPos, Widgets, app_state::WidgetMap, widget_tree::SiblingWalker},
 };
 
 pub struct WidgetNotFound<'a, W: Widget + ?Sized>(WidgetMut<'a, W>);
@@ -24,6 +24,7 @@ impl<'a, W: Widget + ?Sized> Debug for WidgetNotFound<'a, W> {
 
 pub struct WidgetRefIter<'a> {
     widgets: &'a Widgets,
+    widget_impls: &'a WidgetMap,
     inner: SiblingWalker,
 }
 
@@ -33,7 +34,7 @@ impl<'a> Iterator for WidgetRefIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         self.inner
             .next_id(&self.widgets.tree)
-            .map(|id| WidgetRef::new(self.widgets, id))
+            .map(|id| WidgetRef::new(self.widgets, self.widget_impls, id))
     }
 }
 
@@ -41,23 +42,29 @@ impl<'a> DoubleEndedIterator for WidgetRefIter<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.inner
             .next_back_id(&self.widgets.tree)
-            .map(|id| WidgetRef::new(self.widgets, id))
+            .map(|id| WidgetRef::new(self.widgets, self.widget_impls, id))
     }
 }
 
 pub struct WidgetRef<'a, W: 'a + Widget + ?Sized> {
-    pub(super) widgets: &'a Widgets,
-    pub(super) id: WidgetId,
+    widgets: &'a Widgets,
+    widget_impls: &'a WidgetMap,
+    id: WidgetId,
     _phantom: PhantomData<&'a W>,
 }
 
 impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
-    pub(super) fn new(widgets: &'a Widgets, id: WidgetId) -> Self {
+    pub(super) fn new(widgets: &'a Widgets, widget_impls: &'a WidgetMap, id: WidgetId) -> Self {
         Self {
             widgets,
+            widget_impls,
             id,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn id(&self) -> WidgetId {
+        self.id
     }
 
     pub fn data(&self) -> &WidgetData {
@@ -81,22 +88,23 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
     }
 
     pub fn has_focus(&self) -> bool {
-        self.widgets.widget_has_focus(self.id)
+        self.widgets.has_focus(self.id)
     }
 
     pub fn has_mouse_capture(&self) -> bool {
-        self.widgets.widget_has_captured_mouse(self.id)
+        self.widgets.has_mouse_capture(self.id)
     }
 
     pub fn child_iter(&self) -> WidgetRefIter<'_> {
         WidgetRefIter {
             inner: self.widgets.tree.child_id_walker(self.id),
+            widget_impls: self.widget_impls,
             widgets: self.widgets,
         }
     }
 
     pub fn for_each_child_ref(&self, mut f: impl FnMut(WidgetRef<'_, dyn Widget>)) {
-        for_each_child_ref_impl(&self.widgets, self.id, &mut f);
+        for_each_child_ref_impl(self.widgets, self.widget_impls, self.id, &mut f);
     }
 
     pub fn parent_id(&self) -> WidgetId {
@@ -108,6 +116,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
         if !parent_id.is_null() {
             Some(WidgetRef {
                 widgets: self.widgets,
+                widget_impls: self.widget_impls,
                 id: parent_id,
                 _phantom: PhantomData,
             })
@@ -121,7 +130,7 @@ impl Deref for WidgetRef<'_, dyn Widget> {
     type Target = dyn Widget;
 
     fn deref(&self) -> &Self::Target {
-        &self.widgets.widgets[self.id]
+        &self.widget_impls[self.id]
     }
 }
 
@@ -129,18 +138,19 @@ impl<'a, W: 'a + Widget> Deref for WidgetRef<'a, W> {
     type Target = W;
 
     fn deref(&self) -> &Self::Target {
-        self.widgets.widgets[self.id].downcast_ref().unwrap()
+        self.widget_impls[self.id].downcast_ref().unwrap()
     }
 }
 
 fn for_each_child_ref_impl(
     widgets: &Widgets,
+    widget_impls: &WidgetMap,
     id: WidgetId,
     f: &mut dyn FnMut(WidgetRef<'_, dyn Widget>),
 ) {
     let mut child_iter = widgets.tree.child_id_walker(id);
     while let Some(child_id) = child_iter.next_id(&widgets.tree) {
-        f(WidgetRef::new(widgets, child_id))
+        f(WidgetRef::new(widgets, widget_impls, child_id))
     }
 }
 
@@ -210,11 +220,17 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         WidgetRefIter {
             inner: self.app_state.widgets.tree.child_id_walker(self.id),
             widgets: &self.app_state.widgets,
+            widget_impls: &self.app_state.widget_impls,
         }
     }
 
     pub fn for_each_child_ref(&self, mut f: impl FnMut(WidgetRef<'_, dyn Widget>)) {
-        for_each_child_ref_impl(&self.app_state.widgets, self.id, &mut f);
+        for_each_child_ref_impl(
+            &self.app_state.widgets,
+            &self.app_state.widget_impls,
+            self.id,
+            &mut f,
+        );
     }
 
     pub fn for_each_child_mut(&mut self, mut f: impl FnMut(WidgetMut<'_, dyn Widget>)) {
@@ -352,8 +368,8 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
 impl<'a> WidgetMut<'a, dyn Widget> {
     pub fn apply_diff_to_children<T, V: View>(
         &mut self,
-        diff: DiffOp<'_, T>,
-        view_fn: &dyn Fn(&T) -> V,
+        _diff: DiffOp<'_, T>,
+        _view_fn: &dyn Fn(&T) -> V,
     ) {
         todo!()
         /*match diff {
@@ -379,7 +395,7 @@ impl Deref for WidgetMut<'_, dyn Widget> {
     type Target = dyn Widget;
 
     fn deref(&self) -> &Self::Target {
-        &self.app_state.widgets.widgets[self.id]
+        &self.app_state.widget_impls[self.id]
     }
 }
 
@@ -387,22 +403,18 @@ impl<'a, W: 'a + Widget> Deref for WidgetMut<'a, W> {
     type Target = W;
 
     fn deref(&self) -> &Self::Target {
-        self.app_state.widgets.widgets[self.id]
-            .downcast_ref()
-            .unwrap()
+        self.app_state.widget_impls[self.id].downcast_ref().unwrap()
     }
 }
 
 impl DerefMut for WidgetMut<'_, dyn Widget> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.app_state.widgets.widgets[self.id]
+        &mut self.app_state.widget_impls[self.id]
     }
 }
 
 impl<'a, W: 'a + Widget> DerefMut for WidgetMut<'a, W> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.app_state.widgets.widgets[self.id]
-            .downcast_mut()
-            .unwrap()
+        self.app_state.widget_impls[self.id].downcast_mut().unwrap()
     }
 }

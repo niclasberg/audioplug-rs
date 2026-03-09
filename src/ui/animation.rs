@@ -7,7 +7,7 @@ use crate::{
 /// Steps all animations that have been enqueued for window.
 pub(super) fn drive_animations(app_state: &mut AppState, animation_frame: AnimationFrame) {
     for widget_id in app_state.widgets.take_requested_animations() {
-        if let Some(mut widget) = app_state.widgets.lease_widget(widget_id) {
+        if let Some(widget) = app_state.widget_impls.get_mut(widget_id) {
             widget.animation_frame(
                 animation_frame,
                 &mut AnimationContext {
@@ -15,7 +15,6 @@ pub(super) fn drive_animations(app_state: &mut AppState, animation_frame: Animat
                     widgets: &mut app_state.widgets,
                 },
             );
-            app_state.widgets.unlease_widget(widget);
         }
     }
 
@@ -33,7 +32,7 @@ pub struct AnimationContext<'a> {
 
 impl AnimationContext<'_> {
     pub fn has_focus(&self) -> bool {
-        self.widgets.widget_has_focus(self.id)
+        self.widgets.has_focus(self.id)
     }
 
     pub fn request_render(&mut self) {

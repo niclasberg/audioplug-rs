@@ -27,7 +27,11 @@ impl<'s> EffectContext<'s> {
         &self,
         widget_handle: WidgetHandle<W>,
     ) -> WidgetRef<'_, W> {
-        WidgetRef::new(&self.app_state.widgets, widget_handle.id)
+        WidgetRef::new(
+            &self.app_state.widgets,
+            &self.app_state.widget_impls,
+            widget_handle.id,
+        )
     }
 
     pub fn widget_mut<W: Widget + ?Sized>(
@@ -65,7 +69,11 @@ impl<'a> WatchContext<'a> {
         &self,
         widget_handle: WidgetHandle<W>,
     ) -> WidgetRef<'_, W> {
-        WidgetRef::new(&self.app_state.widgets, widget_handle.id)
+        WidgetRef::new(
+            &self.app_state.widgets,
+            &self.app_state.widget_impls,
+            widget_handle.id,
+        )
     }
 
     pub fn widget_mut<W: Widget + ?Sized>(
@@ -174,7 +182,7 @@ impl Effect {
             WatchState::new(move |cx| {
                 cx.app_state
                     .reactive_graph
-                    .update_cached_value_if_necessary(&cx.app_state.widgets, node_id);
+                    .update_value_if_necessary(&cx.app_state.widgets, node_id);
                 if let Some(node) = cx.app_state.reactive_graph.lease_node(node_id) {
                     let value = node
                         .get_value_ref()

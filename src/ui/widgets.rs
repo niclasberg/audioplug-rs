@@ -1,12 +1,12 @@
-use std::ops::{Deref, DerefMut};
-
 use slotmap::{Key, SecondaryMap, SlotMap};
 
 use crate::{
     core::{FxIndexSet, HAlign, Point, Rect, VAlign, Vec2, Zero},
     platform,
     ui::{
-        OverlayAnchor, OverlayOptions, Scene, Widget, WidgetFlags, WidgetId, WidgetRef, WindowId,
+        OverlayAnchor, OverlayOptions, Scene, Widget, WidgetFlags, WidgetId, WindowId,
+        app_state::WidgetMap,
+        clipboard::Clipboard,
         layout::{LayoutContext, RecomputeLayout},
         overlay::OverlayContainer,
         reactive::ReactiveGraph,
@@ -40,8 +40,6 @@ pub(super) struct WindowState {
 pub struct Widgets {
     /// Data (e.g. parent/children, layout, position etc.) associated with each widget
     pub(crate) tree: WidgetTree,
-    /// Widget implementation. Should exist for each widget data.
-    pub(super) widgets: SecondaryMap<WidgetId, Box<dyn Widget>>,
     pub(super) scenes: SecondaryMap<WidgetId, Scene>,
     pub(super) layout_cache: SecondaryMap<WidgetId, taffy::Cache>,
     pub(super) windows: SlotMap<WindowId, WindowState>,
@@ -54,10 +52,6 @@ pub struct Widgets {
 }
 
 impl Widgets {
-    pub fn get(&self, widget_id: WidgetId) -> WidgetRef<'_, dyn Widget> {
-        WidgetRef::new(self, widget_id)
-    }
-
     pub fn contains(&self, widget_id: WidgetId) -> bool {
         self.tree.contains(widget_id)
     }
@@ -99,7 +93,6 @@ impl Widgets {
     }
 
     /// Allocate a new widget which does not have an implementation.
-    /// Make sure to call [set_widget_impl] afterwards (or there will be panics later)
     pub(super) fn allocate_widget(&mut self, position: WidgetPos) -> WidgetId {
         let id = match position {
             WidgetPos::Before(widget_id) => self.tree.insert_before(widget_id),
@@ -133,24 +126,30 @@ impl Widgets {
         &mut self,
         widget_id: WidgetId,
         reactive_graph: &mut ReactiveGraph,
+        widget_impls: &mut WidgetMap,
     ) {
         self.tree.remove(widget_id, |data| {
             self.child_id_cache.remove(data.id);
             self.scenes.remove(data.id);
             self.layout_cache.remove(data.id);
-            self.widgets.remove(data.id);
             self.windows[data.window_id].overlays.remove(data.id);
+            widget_impls.remove(widget_id);
             reactive_graph.remove_all_siblings(data.first_owned_node_id);
         });
     }
 
-    pub fn reset_widget(&mut self, widget_id: WidgetId, reactive_graph: &mut ReactiveGraph) {
+    pub fn reset_widget(
+        &mut self,
+        widget_id: WidgetId,
+        reactive_graph: &mut ReactiveGraph,
+        widget_impls: &mut WidgetMap,
+    ) {
         self.tree.reset(widget_id, |data| {
             self.child_id_cache.remove(data.id);
             self.scenes.remove(data.id);
             self.layout_cache.remove(data.id);
-            self.widgets.remove(data.id);
             self.windows[data.window_id].overlays.remove(data.id);
+            widget_impls.remove(widget_id);
             reactive_graph.remove_all_siblings(data.first_owned_node_id);
         });
         // self.scenes[widget_id]; <- clear
@@ -162,9 +161,10 @@ impl Widgets {
         &mut self,
         window_id: WindowId,
         reactive_graph: &mut ReactiveGraph,
+        widget_impls: &mut WidgetMap,
     ) {
         let root_widget = self.windows[window_id].root_widget;
-        self.remove_widget(root_widget, reactive_graph);
+        self.remove_widget(root_widget, reactive_graph, widget_impls);
         self.windows.remove(window_id);
     }
 
@@ -182,8 +182,26 @@ impl Widgets {
         self.windows.get_mut(id).expect("Window handle not found")
     }
 
+    pub fn clipboard(&self, window_id: WindowId) -> Clipboard<'_> {
+        Clipboard {
+            handle: &self.window(window_id).handle,
+        }
+    }
+
+    pub fn local_bounds(&self, id: WidgetId) -> Rect {
+        self.tree[id].local_bounds()
+    }
+
+    pub fn global_bounds(&self, id: WidgetId) -> Rect {
+        self.tree[id].global_bounds()
+    }
+
+    pub fn content_bounds(&self, id: WidgetId) -> Rect {
+        self.tree[id].content_bounds()
+    }
+
     #[inline(always)]
-    pub fn get_parent(&self, widget_id: WidgetId) -> WidgetId {
+    pub fn parent(&self, widget_id: WidgetId) -> WidgetId {
         self.tree[widget_id].parent_id
     }
 
@@ -198,7 +216,7 @@ impl Widgets {
         false
     }
 
-    pub fn widget_has_focus(&self, id: WidgetId) -> bool {
+    pub fn has_focus(&self, id: WidgetId) -> bool {
         self.windows[self.tree.get(id).unwrap().window_id]
             .focus_widget
             .as_ref()
@@ -209,7 +227,7 @@ impl Widgets {
         self.windows[window_id].focus_widget
     }
 
-    pub fn widget_has_captured_mouse(&self, widget_id: WidgetId) -> bool {
+    pub fn has_mouse_capture(&self, widget_id: WidgetId) -> bool {
         self.mouse_capture_widget.is_some_and(|id| id == widget_id)
     }
 
@@ -237,28 +255,17 @@ impl Widgets {
         self.windows[window_id].handle.invalidate(bounds);
     }
 
-    pub(super) fn lease_widget(&mut self, id: WidgetId) -> Option<LeasedWidget> {
-        self.widgets.remove(id).map(|w| LeasedWidget(id, w))
-    }
-
-    pub(super) fn unlease_widget(&mut self, widget: LeasedWidget) {
-        self.widgets.insert(widget.0, widget.1);
-    }
-
     /// Gets children of a widget. The order is from the root and down the tree (draw order).
     pub(super) fn get_widgets_at(&self, window_id: WindowId, pos: Point) -> Vec<WidgetId> {
         let mut widgets = Vec::new();
 
         let window = &self.windows[window_id];
         for root_id in std::iter::once(window.root_widget).chain(window.overlays.iter()) {
-            let mut walker = self.tree.dfs_walker(root_id);
+            let mut walker = self.tree.dfs_walker_with_pruning(root_id, |data| {
+                data.global_bounds().contains(pos) && !data.is_overlay()
+            });
             while let Some(widget_id) = walker.next(&self.tree) {
-                let data = &self.tree[widget_id];
-                if data.global_bounds().contains(pos) && !data.is_overlay() {
-                    widgets.push(widget_id);
-                } else {
-                    walker.skip_children();
-                }
+                widgets.push(widget_id);
             }
         }
 
@@ -286,7 +293,12 @@ impl Widgets {
         }
     }
 
-    pub fn layout_window(&mut self, window_id: WindowId, mode: RecomputeLayout) {
+    pub fn layout_window(
+        &mut self,
+        widget_impls: &WidgetMap,
+        window_id: WindowId,
+        mode: RecomputeLayout,
+    ) {
         let window = &mut self.windows[window_id];
         let window_size = window.handle.global_bounds().size();
         let window_rect = Rect::from_origin(Point::ZERO, window_size);
@@ -296,7 +308,7 @@ impl Widgets {
         // Need to layout root first, the overlay positions can depend on their parent positions
         if mode == RecomputeLayout::Force || self.tree.get(root_id).unwrap().needs_layout() {
             let region_to_invalidate =
-                LayoutContext::new(self, window_size).compute_root_layout(root_id);
+                LayoutContext::new(self, widget_impls, window_size).compute_root_layout(root_id);
             self.tree.update_node_origins(root_id, Point::ZERO);
             if let Some(region_to_invalidate) = region_to_invalidate {
                 self.window(window_id)
@@ -311,8 +323,8 @@ impl Widgets {
         let overlay_ids: Vec<_> = self.windows[window_id].overlays.iter().collect();
         for (i, overlay_id) in overlay_ids.into_iter().enumerate() {
             if mode == RecomputeLayout::Force || self.tree.get(overlay_id).unwrap().needs_layout() {
-                let region_to_invalidate =
-                    LayoutContext::new(self, window_size).compute_root_layout(root_id);
+                let region_to_invalidate = LayoutContext::new(self, widget_impls, window_size)
+                    .compute_root_layout(root_id);
                 let options = self
                     .window(window_id)
                     .overlays
@@ -330,7 +342,7 @@ impl Widgets {
             }
         }
 
-        self.print_tree(window_id);
+        self.print_tree(widget_impls, window_id);
     }
 
     fn rebuild_children(&mut self) {
@@ -378,36 +390,20 @@ impl Widgets {
         self.child_id_cache[widget_id].as_slice()
     }
 
-    pub fn print_tree(&self, window_id: WindowId) {
-        fn _impl(this: &Widgets, root_id: WidgetId, indent: usize) {
+    pub fn print_tree(&self, widget_impls: &WidgetMap, window_id: WindowId) {
+        fn _impl(this: &Widgets, widget_impls: &WidgetMap, root_id: WidgetId, indent: usize) {
             println!(
                 "{} {}({:?})",
                 "-".repeat(indent),
-                this.widgets[root_id].debug_label(),
+                widget_impls[root_id].debug_label(),
                 root_id
             );
             let mut walker = this.tree.child_id_walker(root_id);
             while let Some(child_id) = walker.next_id(&this.tree) {
-                _impl(this, child_id, indent + 1);
+                _impl(this, widget_impls, child_id, indent + 1);
             }
         }
         let root_id = self.window(window_id).root_widget;
-        _impl(self, root_id, 0);
-    }
-}
-
-pub struct LeasedWidget(WidgetId, Box<dyn Widget>);
-
-impl Deref for LeasedWidget {
-    type Target = dyn Widget;
-
-    fn deref(&self) -> &Self::Target {
-        self.1.deref()
-    }
-}
-
-impl DerefMut for LeasedWidget {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.1.deref_mut()
+        _impl(self, widget_impls, root_id, 0);
     }
 }

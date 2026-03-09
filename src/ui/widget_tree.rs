@@ -7,7 +7,7 @@ use bitflags::bitflags;
 use slotmap::{Key, KeyData, SlotMap, new_key_type};
 
 use crate::{
-    core::{Point, PrimitiveShape, Rect, RoundedRect, Shape, Size, Zero},
+    core::{Point, PrimitiveShape, Rect, RoundedRect, Size, Zero},
     ui::reactive::NodeId,
 };
 
@@ -274,13 +274,21 @@ impl WidgetTree {
         SiblingWalker::all_children(self, widget_id)
     }
 
-    pub fn dfs_walker(&self, root_id: WidgetId) -> DFSWalker {
+    pub fn dfs_walker(&self, root_id: WidgetId) -> DFSWalker<NoPruning> {
         DFSWalker::new(root_id)
+    }
+
+    pub fn dfs_walker_with_pruning<F: Fn(&WidgetData) -> bool>(
+        &self,
+        root_id: WidgetId,
+        should_include: F,
+    ) -> DFSWalker<F> {
+        DFSWalker::new_with_pruning(self, root_id, should_include)
     }
 
     pub fn dfs_iter(&self, root_id: WidgetId) -> DFSIterator<'_> {
         DFSIterator {
-            tree: &self,
+            tree: self,
             walker: self.dfs_walker(root_id),
         }
     }
@@ -612,7 +620,7 @@ impl SiblingWalker {
 
 pub struct DFSIterator<'a> {
     tree: &'a WidgetTree,
-    walker: DFSWalker,
+    walker: DFSWalker<NoPruning>,
 }
 
 impl<'a> Iterator for DFSIterator<'a> {
@@ -623,60 +631,102 @@ impl<'a> Iterator for DFSIterator<'a> {
     }
 }
 
-pub struct DFSWalker {
-    current_id: WidgetId, // Null if done
-    root_id: WidgetId,
-    skip_children: bool,
+pub trait PrunePredicate {
+    fn should_include(&self, node: &WidgetData) -> bool;
 }
 
-impl DFSWalker {
+pub struct NoPruning;
+impl PrunePredicate for NoPruning {
+    fn should_include(&self, _node: &WidgetData) -> bool {
+        true
+    }
+}
+
+impl<F: Fn(&WidgetData) -> bool> PrunePredicate for F {
+    fn should_include(&self, node: &WidgetData) -> bool {
+        self(node)
+    }
+}
+
+pub struct DFSWalker<F> {
+    next_id: WidgetId, // Null if done
+    root_id: WidgetId,
+    prune_fn: F,
+}
+
+impl DFSWalker<NoPruning> {
     pub fn new(root_id: WidgetId) -> Self {
         Self {
-            current_id: root_id,
+            next_id: root_id,
             root_id,
-            skip_children: false,
+            prune_fn: NoPruning,
+        }
+    }
+}
+
+impl<F: PrunePredicate> DFSWalker<F> {
+    pub fn new_with_pruning(tree: &WidgetTree, root_id: WidgetId, prune_fn: F) -> Self {
+        let next_id = if prune_fn.should_include(&tree[root_id]) {
+            root_id
+        } else {
+            WidgetId::null()
+        };
+        Self {
+            next_id,
+            root_id,
+            prune_fn,
         }
     }
 
-    pub fn next(&mut self, data_map: &WidgetTree) -> Option<WidgetId> {
-        let current_id = self.current_id;
+    pub fn next(&mut self, tree: &WidgetTree) -> Option<WidgetId> {
+        let current_id = self.next_id;
         if current_id.is_null() {
             return None;
         }
 
-        let current = &data_map[current_id];
-        let skip_children = std::mem::replace(&mut self.skip_children, false);
-        if !skip_children && !current.first_child_id.is_null() {
-            self.current_id = current.first_child_id;
-            return Some(current_id);
+        let current = &tree[current_id];
+        let first_child_id = current.first_child_id;
+        if !current.first_child_id.is_null() {
+            let mut child_id = current.first_child_id;
+            loop {
+                let child = &tree[child_id];
+                if self.prune_fn.should_include(child) {
+                    self.next_id = current.first_child_id;
+                    return Some(current_id);
+                }
+
+                child_id = child.next_sibling_id;
+                if child_id == first_child_id {
+                    break;
+                }
+            }
         }
 
         let mut node_id = current_id;
-        self.current_id = loop {
-            let node = &data_map[node_id];
+        self.next_id = loop {
+            let node = &tree[node_id];
             let parent_id = node.parent_id;
 
-            if parent_id.is_null() {
+            let Some(parent) = tree.get(parent_id) else {
                 break WidgetId::null();
-            }
+            };
 
-            let parent = &data_map[parent_id];
             if node.next_sibling_id != parent.first_child_id {
-                break node.next_sibling_id;
-            }
+                if self.prune_fn.should_include(&tree[node.next_sibling_id]) {
+                    break node.next_sibling_id;
+                } else {
+                    node_id = node.next_sibling_id;
+                }
+            } else {
+                if parent_id == self.root_id {
+                    break WidgetId::null();
+                }
 
-            if parent_id == self.root_id {
-                break WidgetId::null();
+                node_id = parent_id;
             }
-
-            node_id = parent_id;
         };
 
         Some(current_id)
-    }
-
-    pub fn skip_children(&mut self) {
-        self.skip_children = true;
     }
 }
 
@@ -689,11 +739,12 @@ mod tests {
         let mut tree = WidgetTree::default();
         let root_id = tree.insert_root(WindowId::null());
 
-        let mut children = Vec::new();
-        children.push(tree.insert_last_child(root_id));
-        children.push(tree.insert_last_child(root_id));
-        children.push(tree.insert_last_child(root_id));
-        children.push(tree.insert_last_child(root_id));
+        let children = vec![
+            tree.insert_last_child(root_id),
+            tree.insert_last_child(root_id),
+            tree.insert_last_child(root_id),
+            tree.insert_last_child(root_id),
+        ];
 
         let children2: Vec<_> = tree.child_id_iter(root_id).collect();
         assert_eq!(children, children2);
@@ -704,11 +755,12 @@ mod tests {
         let mut tree = WidgetTree::default();
         let root_id = tree.insert_root(WindowId::null());
 
-        let mut children = Vec::new();
-        children.push(tree.insert_first_child(root_id));
-        children.push(tree.insert_first_child(root_id));
-        children.push(tree.insert_first_child(root_id));
-        children.push(tree.insert_first_child(root_id));
+        let children = vec![
+            tree.insert_first_child(root_id),
+            tree.insert_first_child(root_id),
+            tree.insert_first_child(root_id),
+            tree.insert_first_child(root_id),
+        ];
 
         let children2: Vec<_> = tree.child_id_iter(root_id).rev().collect();
         assert_eq!(children, children2);

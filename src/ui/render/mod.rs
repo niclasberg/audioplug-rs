@@ -1,8 +1,5 @@
 use crate::{
-    core::{
-        Brush, Color, ColorMap, Ellipse, FillRule, Path, Point, Rect, RoundedRect, ShadowKind,
-        ShadowOptions, Size, Vec2, Vec2f,
-    },
+    core::{Brush, BrushRef, Point, Rect, ShadowKind, ShapeRef, Transform, Vec2f},
     platform,
     ui::{Widgets, reactive::ReactiveGraph, render::gpu_scene::GpuFill},
 };
@@ -132,12 +129,12 @@ fn rebuild_scene(widgets: &mut Widgets, window_id: WindowId) {
             let shape = node.shape().scale(scale_factor);
             let mut inner_shape_ref = None;
             let shadow = node.style.box_shadow;
-            if let Some(shadow) = shadow {
-                if shadow.kind == ShadowKind::DropShadow {
-                    let shape_ref = gpu_scene.add_primitive_shape(shape);
-                    gpu_scene.fill_shape(shape_ref, GpuFill::Shadow(shadow));
-                    inner_shape_ref = Some(shape_ref);
-                }
+            if let Some(shadow) = shadow
+                && shadow.kind == ShadowKind::DropShadow
+            {
+                let shape_ref = gpu_scene.add_primitive_shape(shape);
+                gpu_scene.fill_shape(shape_ref, GpuFill::Shadow(shadow));
+                inner_shape_ref = Some(shape_ref);
             }
 
             if let Some(background) = &node.style.background {
@@ -154,9 +151,7 @@ fn rebuild_scene(widgets: &mut Widgets, window_id: WindowId) {
                 gpu_scene.fill_shape(*shape_ref, fill);
             }
 
-            let border_color = node.style.border_color;
             let line_width = node.layout.border.top as f64 * scale_factor;
-
             if let Some(border_color) = node.style.border_color
                 && line_width > 0.0
             {
@@ -177,47 +172,82 @@ pub struct RenderContext<'a> {
     id: WidgetId,
     pub(super) widgets: &'a mut Widgets,
     pub(super) reactive_graph: &'a mut ReactiveGraph,
+    scene: &'a mut GpuScene,
 }
 
 impl<'a> RenderContext<'a> {
-    pub(super) fn new(
-        id: WidgetId,
-        widgets: &'a mut Widgets,
-        reactive_graph: &'a mut ReactiveGraph,
-    ) -> Self {
-        Self {
-            id,
-            widgets,
-            reactive_graph,
-        }
-    }
-
     pub fn local_bounds(&self) -> Rect {
-        self.widgets.get(self.id).local_bounds()
+        self.widgets.local_bounds(self.id)
     }
 
     pub fn global_bounds(&self) -> Rect {
-        self.widgets.get(self.id).global_bounds()
+        self.widgets.global_bounds(self.id)
     }
 
     pub fn content_bounds(&self) -> Rect {
-        self.widgets.get(self.id).content_bounds()
+        self.widgets.content_bounds(self.id)
     }
 
     pub fn has_focus(&self) -> bool {
-        self.widgets.get(self.id).has_focus()
+        self.widgets.has_focus(self.id)
     }
 
     pub fn has_mouse_capture(&self) -> bool {
-        self.widgets.get(self.id).has_mouse_capture()
+        self.widgets.has_mouse_capture(self.id)
     }
 
-    fn render_current_widget(&mut self) {
-        let mut widget = self.widgets.lease_widget(self.id).unwrap();
-        let scene = widget.render(self);
-        self.widgets.unlease_widget(widget);
-        self.widgets.scenes[self.id] = scene;
-        self.widgets.invalidate_widget(self.id);
+    pub fn fill<'b>(&mut self, shape: impl Into<ShapeRef<'b>>, brush: impl Into<Brush>) {
+        //self.renderer.fill_shape(shape.into(), brush.into());
+    }
+
+    pub fn stroke<'c, 'd>(
+        &mut self,
+        shape: impl Into<ShapeRef<'c>>,
+        brush: impl Into<BrushRef<'d>>,
+        line_width: f32,
+    ) {
+        //self.renderer.stroke_shape(shape.into(), brush.into(), line_width);
+    }
+
+    pub fn draw_line<'c>(
+        &mut self,
+        p0: Point,
+        p1: Point,
+        brush: impl Into<BrushRef<'c>>,
+        line_width: f32,
+    ) {
+        //self.renderer.draw_line(p0, p1, brush.into(), line_width)
+    }
+
+    pub fn draw_lines<'c>(
+        &mut self,
+        points: &[Point],
+        brush: impl Into<BrushRef<'c>>,
+        line_width: f32,
+    ) {
+        /*let brush = brush.into();
+        for p in points.windows(2) {
+            self.renderer.draw_line(p[0], p[1], brush, line_width)
+        }*/
+    }
+
+    pub fn draw_bitmap(&mut self, source: &crate::platform::Bitmap, rect: impl Into<Rect>) {
+        //self.renderer.draw_bitmap(source, rect.into())
+    }
+
+    pub fn draw_text(&mut self, text_layout: &TextLayout, position: Point) {
+        //self.renderer.draw_text(&text_layout.0, position)
+    }
+
+    pub fn use_clip(&mut self, rect: impl Into<Rect>, f: impl FnOnce(&mut Self)) {
+        /*self.renderer.save();
+        self.renderer.clip(rect.into());
+        f(self);
+        self.renderer.restore();*/
+    }
+
+    pub fn transform(&mut self, transform: impl Into<Transform>) {
+        //self.renderer.transform(transform.into());
     }
 }
 

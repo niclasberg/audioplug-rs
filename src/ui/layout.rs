@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use super::style::{AvailableSpace, LayoutMode, ResolveInto, Style, UiRect};
 use crate::core::{Rect, Size};
-use crate::ui::Widgets;
+use crate::ui::app_state::WidgetMap;
+use crate::ui::{Widget, Widgets};
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree,
     TraversePartialTree, TraverseTree,
@@ -30,15 +31,21 @@ impl Iterator for LayoutChildIter<'_> {
 
 pub struct LayoutContext<'a> {
     widgets: &'a mut Widgets,
+    widget_impls: &'a WidgetMap,
     window_size: Size,
     region_to_invalidate: Option<Rect>,
 }
 
 impl<'a> LayoutContext<'a> {
-    pub(super) fn new(widgets: &'a mut Widgets, window_size: Size) -> Self {
+    pub(super) fn new(
+        widgets: &'a mut Widgets,
+        widget_impls: &'a WidgetMap,
+        window_size: Size,
+    ) -> Self {
         Self {
             widgets,
             window_size,
+            widget_impls,
             region_to_invalidate: None,
         }
     }
@@ -57,7 +64,7 @@ impl<'a> LayoutContext<'a> {
         let node_id = node_id.into();
         LayoutStyle {
             style: &self.widgets.tree[node_id].style,
-            display_style: self.widgets.widgets[node_id].layout_mode(),
+            display_style: self.widget_impls[node_id].layout_mode(),
             window_size: self.window_size,
         }
     }
@@ -89,7 +96,7 @@ impl TraverseTree for LayoutContext<'_> {}
 
 impl PrintTree for LayoutContext<'_> {
     fn get_debug_label(&self, node_id: taffy::NodeId) -> &'static str {
-        self.widgets.widgets[node_id.into()].debug_label()
+        self.widget_impls[node_id.into()].debug_label()
     }
 
     fn get_final_layout(&self, node_id: taffy::NodeId) -> taffy::Layout {
@@ -238,7 +245,7 @@ impl LayoutPartialTree for LayoutContext<'_> {
                 taffy::compute_hidden_layout(tree, node)
             } else {
                 let has_children = tree.child_count(node) > 0;
-                let display_style = tree.widgets.widgets[node.into()].layout_mode();
+                let display_style = tree.widget_impls[node.into()].layout_mode();
                 match (display_style, has_children) {
                     (LayoutMode::Block, true) => taffy::compute_block_layout(tree, node, inputs),
                     (LayoutMode::Flex(_), true) => {
@@ -280,17 +287,12 @@ impl LayoutPartialTree for LayoutContext<'_> {
                                 }
                             };
 
-                        let run_mode = inputs.run_mode;
-                        let output = taffy::compute_leaf_layout(
+                        taffy::compute_leaf_layout(
                             inputs,
                             &tree.get_layout_style(node_id),
                             |_val, _basis| 0.0,
                             measure_function,
-                        );
-
-                        if run_mode == taffy::RunMode::PerformLayout {}
-
-                        output
+                        )
                     }
                     (_, false) => {
                         let measure_function = |_, _| taffy::Size::ZERO;

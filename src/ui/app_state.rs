@@ -1,8 +1,8 @@
-use super::reactive::{CreateContext, ReactiveGraph, Var, WidgetContext};
+use slotmap::SecondaryMap;
+
+use super::reactive::{CreateContext, ReactiveGraph, Var};
 use super::{
-    AnyView, BuildContext, HostHandle, View, Widget, WidgetId, WidgetMut, WidgetRef, Widgets,
-    WindowId,
-    clipboard::Clipboard,
+    BuildContext, HostHandle, View, Widget, WidgetId, WidgetMut, WidgetRef, Widgets, WindowId,
     event_handling::{set_focus_widget, set_mouse_capture_widget},
     layout::RecomputeLayout,
     render::WGPUSurface,
@@ -18,8 +18,12 @@ use crate::{
 };
 use std::rc::Rc;
 
+pub type WidgetMap = SecondaryMap<WidgetId, Box<dyn Widget>>;
+
 pub struct AppState {
     pub(super) wgpu_instance: wgpu::Instance,
+    /// Widget implementation. Should exist for each widget data.
+    pub(super) widget_impls: WidgetMap,
     pub(super) widgets: Widgets,
     pub(super) reactive_graph: ReactiveGraph,
     pub(super) host_handle: Option<Box<dyn HostHandle>>,
@@ -51,6 +55,7 @@ impl AppState {
             theme_signal,
             widgets,
             task_queue,
+            widget_impls: Default::default(),
         }
     }
 
@@ -101,7 +106,7 @@ impl AppState {
         let root_widget_id = self.widgets.window(window_id).root_widget;
         self.build_and_insert_widget(root_widget_id, view);
         self.widgets
-            .layout_window(window_id, RecomputeLayout::Force);
+            .layout_window(&self.widget_impls, window_id, RecomputeLayout::Force);
         window_id
     }
 
@@ -113,7 +118,7 @@ impl AppState {
             self,
             &mut StyleBuilder::default(),
         ));
-        self.widgets.widgets.insert(id, Box::new(widget));
+        self.widget_impls.insert(id, Box::new(widget));
     }
 
     /// Add a new widget
@@ -125,18 +130,21 @@ impl AppState {
 
     pub fn remove_window(&mut self, id: WindowId) {
         self.clear_mouse_capture_and_focus(self.widgets.window(id).root_widget);
-        self.widgets.remove_window(id, &mut self.reactive_graph);
+        self.widgets
+            .remove_window(id, &mut self.reactive_graph, &mut self.widget_impls);
     }
 
     /// Remove a widget and all of its children and associated signals
     pub fn remove_widget(&mut self, id: WidgetId) {
         self.clear_mouse_capture_and_focus(id);
-        self.widgets.remove_widget(id, &mut self.reactive_graph);
+        self.widgets
+            .remove_widget(id, &mut self.reactive_graph, &mut self.widget_impls);
     }
 
     pub fn replace_widget<V: View>(&mut self, id: WidgetId, view: V) {
         self.clear_mouse_capture_and_focus(id);
-        self.widgets.reset_widget(id, &mut self.reactive_graph);
+        self.widgets
+            .reset_widget(id, &mut self.reactive_graph, &mut self.widget_impls);
         self.build_and_insert_widget(id, view);
     }
 
@@ -156,7 +164,7 @@ impl AppState {
     }
 
     pub fn widget_ref(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget> {
-        WidgetRef::new(&self.widgets, id)
+        WidgetRef::new(&self.widgets, &self.widget_impls, id)
     }
 
     pub fn widget_mut(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
@@ -167,7 +175,7 @@ impl AppState {
         self.widgets
             .window(window_id)
             .focus_widget
-            .map(|id| WidgetRef::new(&self.widgets, id))
+            .map(|id| WidgetRef::new(&self.widgets, &self.widget_impls, id))
     }
 
     pub fn focus_widget_mut(&mut self, window_id: WindowId) -> Option<WidgetMut<'_, dyn Widget>> {
@@ -193,7 +201,7 @@ impl AppState {
         let window_ids: Vec<_> = self.widgets.window_id_iter().collect();
         for window_id in window_ids {
             self.widgets
-                .layout_window(window_id, RecomputeLayout::IfNeeded);
+                .layout_window(&self.widget_impls, window_id, RecomputeLayout::IfNeeded);
         }
     }
 
@@ -202,12 +210,6 @@ impl AppState {
             panic!("Host handle not set")
         };
         host_handle.as_ref()
-    }
-
-    pub fn clipboard(&self, window_id: WindowId) -> Clipboard<'_> {
-        Clipboard {
-            handle: &self.widgets.window(window_id).handle,
-        }
     }
 
     pub fn read_context(&mut self, scope: ReadScope) -> ReadContext<'_> {
@@ -234,19 +236,5 @@ impl AppState {
             task_queue: &mut self.task_queue,
             owner,
         }
-    }
-}
-
-impl WidgetContext for AppState {
-    fn widget_ref_dyn(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget> {
-        WidgetRef::new(&self.widgets, id)
-    }
-
-    fn widget_mut_dyn(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
-        WidgetMut::new(self, id)
-    }
-
-    fn replace_widget_dyn(&mut self, id: WidgetId, view: AnyView) {
-        self.replace_widget(id, view);
     }
 }

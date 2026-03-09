@@ -3,8 +3,6 @@ use windows::Win32::UI::{
     WindowsAndMessaging::*,
 };
 
-use crate::platform::win::com::drop_com_context;
-
 pub struct Application {}
 
 impl Application {
@@ -21,6 +19,6 @@ impl Application {
                 DispatchMessageW(&msg);
             }
         }
-        drop_com_context();
+        //drop_com_context();
     }
 }

@@ -15,9 +15,11 @@ use crate::{
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
         WindowEvent::Resize { .. } => {
-            app_state
-                .widgets
-                .layout_window(window_id, RecomputeLayout::Force);
+            app_state.widgets.layout_window(
+                &app_state.widget_impls,
+                window_id,
+                RecomputeLayout::Force,
+            );
             invalidate_window(&app_state.widgets, window_id);
         }
         WindowEvent::Mouse(mouse_event) => {
@@ -36,21 +38,22 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             };
 
             let mut new_mouse_capture_widget = app_state.widgets.mouse_capture_widget;
-            if let Some(capture_view) = app_state.widgets.mouse_capture_widget {
-                let mut cx = MouseEventContext {
-                    id: capture_view,
+            if let Some(capture_widget) = app_state.widgets.mouse_capture_widget {
+                dispatch_mouse_event(
                     app_state,
-                    new_mouse_capture_widget: &mut new_mouse_capture_widget,
-                };
-                cx.dispatch(mouse_event);
+                    capture_widget,
+                    mouse_event,
+                    &mut new_mouse_capture_widget,
+                );
             } else {
                 for id in widgets_under_mouse.iter().copied().rev() {
-                    let mut cx = MouseEventContext {
-                        id,
+                    let status = dispatch_mouse_event(
                         app_state,
-                        new_mouse_capture_widget: &mut new_mouse_capture_widget,
-                    };
-                    if cx.dispatch(mouse_event) == EventStatus::Handled {
+                        id,
+                        mouse_event,
+                        &mut new_mouse_capture_widget,
+                    );
+                    if status == EventStatus::Handled {
                         break;
                     }
                 }
@@ -69,9 +72,17 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             // We start from the current focus widget, and work our way down until either
             // the event is handled, or we have reached a parentless widget
             while !slotmap::Key::is_null(&key_widget) && event_status != EventStatus::Handled {
-                let mut ctx = EventContext::new(key_widget, app_state);
-                event_status = ctx.dispatch_key_event(key_event.clone());
-                key_widget = app_state.widgets.get(key_widget).parent_id();
+                event_status = app_state.widget_impls[key_widget].key_event(
+                    key_event.clone(),
+                    &mut EventContext {
+                        id: key_widget,
+                        widgets: &mut app_state.widgets,
+                        reactive_graph: &mut app_state.reactive_graph,
+                        task_queue: &mut app_state.task_queue,
+                        host_handle: app_state.host_handle.as_deref(),
+                    },
+                );
+                key_widget = app_state.widgets.parent(key_widget);
             }
             app_state.run_effects();
 
@@ -120,7 +131,7 @@ pub fn set_focus_widget(
         );
 
         if let Some(old_focus_widget) = app_state.focus_widget(window_id) {
-            dispatch_focus_change(app_state, old_focus_widget.id, false);
+            dispatch_focus_change(app_state, old_focus_widget.id(), false);
         }
 
         app_state.widgets.window_mut(window_id).focus_widget = new_focus_widget;
@@ -132,12 +143,15 @@ pub fn set_focus_widget(
 }
 
 fn dispatch_focus_change(app_state: &mut AppState, widget_id: WidgetId, has_focus: bool) {
-    let mut ctx = EventContext::new(widget_id, app_state);
-    ctx.dispatch_status_updated(if has_focus {
-        StatusChange::FocusGained
-    } else {
-        StatusChange::FocusLost
-    });
+    dispatch_status_updated(
+        app_state,
+        widget_id,
+        if has_focus {
+            StatusChange::FocusGained
+        } else {
+            StatusChange::FocusLost
+        },
+    );
     app_state
         .write_context()
         .notify_widget_status_changed(widget_id, FOCUS_STATUS.mask);
@@ -178,49 +192,78 @@ fn dispatch_mouse_capture_change(
     widget_id: WidgetId,
     has_mouse_capture: bool,
 ) {
-    let mut ctx = EventContext::new(widget_id, app_state);
-    ctx.dispatch_status_updated(if has_mouse_capture {
-        StatusChange::MouseCaptured
-    } else {
-        StatusChange::MouseCaptureLost
-    });
+    dispatch_status_updated(
+        app_state,
+        widget_id,
+        if has_mouse_capture {
+            StatusChange::MouseCaptured
+        } else {
+            StatusChange::MouseCaptureLost
+        },
+    );
     app_state
         .write_context()
         .notify_widget_status_changed(widget_id, CLICKED_STATUS.mask);
     app_state.run_effects();
 }
 
+fn dispatch_status_updated(app_state: &mut AppState, widget_id: WidgetId, event: StatusChange) {
+    app_state.widget_impls[widget_id].status_change(
+        event,
+        &mut EventContext {
+            id: widget_id,
+            widgets: &mut app_state.widgets,
+            reactive_graph: &mut app_state.reactive_graph,
+            task_queue: &mut app_state.task_queue,
+            host_handle: app_state.host_handle.as_deref(),
+        },
+    );
+}
+
+fn dispatch_mouse_event(
+    app_state: &mut AppState,
+    widget_id: WidgetId,
+    event: MouseEvent,
+    new_mouse_capture_widget: &mut Option<WidgetId>,
+) -> EventStatus {
+    app_state.widget_impls[widget_id].mouse_event(
+        event,
+        &mut MouseEventContext {
+            id: widget_id,
+            widgets: &mut app_state.widgets,
+            reactive_graph: &mut app_state.reactive_graph,
+            task_queue: &mut app_state.task_queue,
+            host_handle: app_state.host_handle.as_deref(),
+            new_mouse_capture_widget,
+        },
+    )
+}
+
 pub struct MouseEventContext<'a> {
     id: WidgetId,
-    app_state: &'a mut AppState,
+    widgets: &'a mut Widgets,
+    reactive_graph: &'a mut ReactiveGraph,
+    task_queue: &'a mut TaskQueue,
+    host_handle: Option<&'a dyn HostHandle>,
     new_mouse_capture_widget: &'a mut Option<WidgetId>,
 }
 
 impl<'a> MouseEventContext<'a> {
-    fn dispatch(&mut self, event: MouseEvent) -> EventStatus {
-        let mut widget = self.app_state.widgets.lease_widget(self.id).unwrap();
-        let old_id = self.id;
-        let status = widget.mouse_event(event, self);
-        self.id = old_id;
-        self.app_state.widgets.unlease_widget(widget);
-        status
-    }
-
     pub fn has_focus(&self) -> bool {
-        self.app_state.widgets.widget_has_focus(self.id)
+        self.widgets.has_focus(self.id)
     }
 
     pub fn has_mouse_capture(&self) -> bool {
-        self.app_state.widgets.widget_has_captured_mouse(self.id)
+        self.widgets.has_mouse_capture(self.id)
     }
 
     pub fn as_callback_context(&mut self) -> CallbackContext<'_> {
         CallbackContext {
             _id: self.id,
-            widgets: &mut self.app_state.widgets,
-            reactive_graph: &mut self.app_state.reactive_graph,
-            task_queue: &mut self.app_state.task_queue,
-            host_handle: self.app_state.host_handle.as_deref(),
+            widgets: self.widgets,
+            reactive_graph: self.reactive_graph,
+            task_queue: self.task_queue,
+            host_handle: self.host_handle,
         }
     }
 
@@ -229,7 +272,7 @@ impl<'a> MouseEventContext<'a> {
     }
 
     pub fn release_capture(&mut self) -> bool {
-        if self.app_state.widgets.mouse_capture_widget == Some(self.id) {
+        if self.widgets.has_mouse_capture(self.id) {
             *self.new_mouse_capture_widget = None;
             true
         } else {
@@ -238,24 +281,24 @@ impl<'a> MouseEventContext<'a> {
     }
 
     pub fn request_layout(&mut self) {
-        self.app_state.widgets.request_layout(self.id);
+        self.widgets.request_layout(self.id);
     }
 
     pub fn request_render(&mut self) {
-        self.app_state.widgets.invalidate_widget(self.id);
+        self.widgets.invalidate_widget(self.id);
     }
 
     pub fn request_animation(&mut self) {
-        self.app_state.widgets.request_animation(self.id)
+        self.widgets.request_animation(self.id)
     }
 
     pub fn bounds(&self) -> Rect {
-        self.app_state.widgets.get(self.id).global_bounds()
+        self.widgets.global_bounds(self.id)
     }
 
     pub fn clipboard(&self) -> Clipboard<'_> {
-        let window_id = self.app_state.widgets.window_for_widget(self.id).id;
-        self.app_state.clipboard(window_id)
+        let window_id = self.widgets.window_for_widget(self.id).id;
+        self.widgets.clipboard(window_id)
     }
 
     pub fn defer_update<W: Widget>(
@@ -263,7 +306,7 @@ impl<'a> MouseEventContext<'a> {
         _widget: &W,
         f: impl FnOnce(WidgetMut<'_, W>) + 'static,
     ) {
-        self.app_state.task_queue.push(Task::UpdateWidget {
+        self.task_queue.push(Task::UpdateWidget {
             widget_id: self.id,
             f: Box::new(move |widget| f(widget.unchecked_cast())),
         });
@@ -272,15 +315,14 @@ impl<'a> MouseEventContext<'a> {
 
 pub struct EventContext<'a> {
     id: WidgetId,
-    app_state: &'a mut AppState,
+    widgets: &'a mut Widgets,
+    reactive_graph: &'a mut ReactiveGraph,
+    task_queue: &'a mut TaskQueue,
+    host_handle: Option<&'a dyn HostHandle>,
 }
 
 impl<'a> EventContext<'a> {
-    fn new(id: WidgetId, app_state: &'a mut AppState) -> Self {
-        Self { id, app_state }
-    }
-
-    fn dispatch_status_updated(&mut self, event: StatusChange) {
+    /*fn dispatch_status_updated(&mut self, event: StatusChange) {
         let mut widget = self.app_state.widgets.lease_widget(self.id).unwrap();
         widget.status_change(event, self);
         self.app_state.widgets.unlease_widget(widget);
@@ -291,45 +333,45 @@ impl<'a> EventContext<'a> {
         let status = widget.key_event(event, self);
         self.app_state.widgets.unlease_widget(widget);
         status
-    }
+    }*/
 
     pub fn bounds(&self) -> Rect {
-        self.app_state.widgets.get(self.id).global_bounds()
+        self.widgets.global_bounds(self.id)
     }
 
     pub fn has_focus(&self) -> bool {
-        self.app_state.widgets.widget_has_focus(self.id)
+        self.widgets.has_focus(self.id)
     }
 
     pub fn has_mouse_capture(&self) -> bool {
-        self.app_state.widgets.widget_has_captured_mouse(self.id)
+        self.widgets.has_mouse_capture(self.id)
     }
 
     pub fn as_callback_context(&mut self) -> CallbackContext<'_> {
         CallbackContext {
             _id: self.id,
-            widgets: &mut self.app_state.widgets,
-            reactive_graph: &mut self.app_state.reactive_graph,
-            task_queue: &mut self.app_state.task_queue,
-            host_handle: self.app_state.host_handle.as_deref(),
+            widgets: self.widgets,
+            reactive_graph: self.reactive_graph,
+            task_queue: self.task_queue,
+            host_handle: self.host_handle,
         }
     }
 
     pub fn request_layout(&mut self) {
-        self.app_state.widgets.request_layout(self.id);
+        self.widgets.request_layout(self.id);
     }
 
     pub fn request_animation(&mut self) {
-        self.app_state.widgets.request_animation(self.id)
+        self.widgets.request_animation(self.id)
     }
 
     pub fn request_render(&mut self) {
-        self.app_state.widgets.invalidate_widget(self.id);
+        self.widgets.invalidate_widget(self.id);
     }
 
     pub fn clipboard(&self) -> Clipboard<'_> {
-        let window_id = self.app_state.widgets.window_for_widget(self.id).id;
-        self.app_state.clipboard(window_id)
+        let window_id = self.widgets.window_for_widget(self.id).id;
+        self.widgets.clipboard(window_id)
     }
 
     pub fn defer_update<W: Widget>(
@@ -337,7 +379,7 @@ impl<'a> EventContext<'a> {
         _widget: &W,
         f: impl FnOnce(WidgetMut<'_, W>) + 'static,
     ) {
-        self.app_state.task_queue.push(Task::UpdateWidget {
+        self.task_queue.push(Task::UpdateWidget {
             widget_id: self.id,
             f: Box::new(move |widget| f(widget.unchecked_cast())),
         });

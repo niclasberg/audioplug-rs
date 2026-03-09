@@ -389,7 +389,7 @@ impl ReactiveGraph {
         if state == NodeState::Check {
             for source_id in self.sources[node_id].clone() {
                 if let SourceId::Node(source_id) = source_id {
-                    self.update_cached_value_if_necessary(widgets, source_id);
+                    self.update_value_if_necessary(widgets, source_id);
                     if self.get_node(node_id).state == NodeState::Dirty {
                         return NodeState::Dirty;
                     }
@@ -400,7 +400,7 @@ impl ReactiveGraph {
         self.get_node(node_id).state
     }
 
-    pub(super) fn update_cached_value_if_necessary(&mut self, widgets: &Widgets, node_id: NodeId) {
+    pub(super) fn update_value_if_necessary(&mut self, widgets: &Widgets, node_id: NodeId) {
         if self.update_sources_if_necessary(widgets, node_id) == NodeState::Dirty {
             let mut node_type = self.lease_node(node_id).unwrap();
             match node_type.deref_mut() {
@@ -412,6 +412,13 @@ impl ReactiveGraph {
                         for &observer_id in self.node_observers[node_id].iter() {
                             self.nodes[observer_id].state = NodeState::Dirty;
                         }
+                    }
+                }
+                NodeType::DerivedAnimation(anim) => {
+                    // Clear the sources, they will be re-populated while running the reset function
+                    self.clear_node_sources(node_id);
+                    if anim.reset(self, widgets) {
+                        self.pending_animations.insert(node_id);
                     }
                 }
                 _ => unreachable!(),

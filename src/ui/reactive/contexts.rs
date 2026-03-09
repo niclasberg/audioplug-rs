@@ -49,7 +49,7 @@ impl ReadContext<'_> {
 
     pub fn update_value_if_needed(&mut self, node_id: NodeId) {
         self.reactive_graph
-            .update_cached_value_if_necessary(self.widgets, node_id);
+            .update_value_if_necessary(self.widgets, node_id);
     }
 
     pub fn get_node_value_ref(&self, node_id: NodeId) -> Option<&dyn Any> {
@@ -269,13 +269,6 @@ impl<'s> CanRead<'s> for CreateContext<'s> {
     }
 }
 
-/// Allows access to widgets
-pub trait WidgetContext {
-    fn widget_ref_dyn(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget>;
-    fn widget_mut_dyn(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget>;
-    fn replace_widget_dyn(&mut self, id: WidgetId, view: AnyView);
-}
-
 pub struct WriteContext<'a> {
     pub(crate) widgets: &'a mut Widgets,
     pub(crate) reactive_graph: &'a mut ReactiveGraph,
@@ -290,7 +283,7 @@ impl<'a> WriteContext<'a> {
 
     pub fn notify(&mut self, node_id: NodeId) {
         self.reactive_graph
-            .notify(&self.widgets, &mut self.task_queue, node_id);
+            .notify(self.widgets, self.task_queue, node_id);
     }
 
     pub(super) fn get_node_mut(&mut self, node_id: NodeId) -> &mut Node {
