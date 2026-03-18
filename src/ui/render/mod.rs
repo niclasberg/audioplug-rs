@@ -119,13 +119,11 @@ fn rebuild_scene(widgets: &mut Widgets, window_id: WindowId) {
     roots.extend(window.overlays.iter());
 
     for root_id in roots {
-        let mut walker = widgets.tree.dfs_walker(root_id);
+        let mut walker = widgets
+            .tree
+            .dfs_walker_with_pruning(root_id, |node| !(node.is_overlay() || node.style.hidden));
         while let Some(widget_id) = walker.next(&widgets.tree) {
             let node = &widgets.tree[widget_id];
-            if node.is_overlay() || node.style.hidden {
-                continue;
-            }
-
             let shape = node.shape().scale(scale_factor);
             let mut inner_shape_ref = None;
             let shadow = node.style.box_shadow;
