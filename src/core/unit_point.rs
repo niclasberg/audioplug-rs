@@ -1,7 +1,7 @@
 use super::{Point, Rect};
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct UnitValue(f64);
+pub struct UnitValue(f32);
 
 impl UnitValue {
     pub const MIN: Self = Self(0.0);
@@ -9,21 +9,21 @@ impl UnitValue {
 }
 
 impl UnitValue {
-    pub const fn new(value: f64) -> Self {
+    pub const fn new(value: f32) -> Self {
         assert!(value >= 0.0 && value <= 1.0);
         Self(value)
     }
 
-    pub const fn new_unchecked(value: f64) -> Self {
+    pub const fn new_unchecked(value: f32) -> Self {
         Self(value)
     }
 
-    pub fn resolve(&self, min: f64, max: f64) -> f64 {
+    pub fn resolve(&self, min: f32, max: f32) -> f32 {
         min + (max - min) * self.0
     }
 }
 
-impl From<UnitValue> for f64 {
+impl From<UnitValue> for f32 {
     fn from(value: UnitValue) -> Self {
         value.0
     }
@@ -31,8 +31,8 @@ impl From<UnitValue> for f64 {
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct UnitPoint {
-    pub x: f64,
-    pub y: f64,
+    pub x: f32,
+    pub y: f32,
 }
 
 impl UnitPoint {

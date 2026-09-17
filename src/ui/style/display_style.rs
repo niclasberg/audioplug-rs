@@ -1,17 +1,17 @@
 use taffy::{AlignContent, AlignItems, FlexDirection, FlexWrap};
 
-use super::{Length, Style};
+use super::Length;
 use crate::core::Size;
 
 #[derive(Debug, Clone, Copy)]
 pub enum AvailableSpace {
-    Exact(f64),
+    Exact(f32),
     MinContent,
     MaxContent,
 }
 
 impl AvailableSpace {
-    pub fn unwrap_or(self, value: f64) -> f64 {
+    pub fn unwrap_or(self, value: f32) -> f32 {
         match self {
             Self::Exact(value) => value,
             _ => value,
@@ -19,7 +19,7 @@ impl AvailableSpace {
     }
 }
 
-impl From<AvailableSpace> for Option<f64> {
+impl From<AvailableSpace> for Option<f32> {
     fn from(val: AvailableSpace) -> Self {
         match val {
             AvailableSpace::Exact(value) => Some(value),
@@ -29,16 +29,15 @@ impl From<AvailableSpace> for Option<f64> {
 }
 
 pub trait Measure {
-    fn measure(&self, style: &Style, width: AvailableSpace, height: AvailableSpace) -> Size;
+    fn measure(&self, width: AvailableSpace, height: AvailableSpace) -> Size;
 }
 
-#[derive(Copy, Clone)]
 pub enum LayoutMode<'a> {
     Block,
     Stack,
     Flex(&'a FlexStyle),
     Grid(&'a GridStyle),
-    Leaf(&'a dyn Measure),
+    Leaf(&'a mut dyn Measure),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -70,4 +69,18 @@ impl Default for FlexStyle {
 pub struct GridStyle {
     pub column_templates: Vec<taffy::TrackSizingFunction>,
     pub row_templates: Vec<taffy::TrackSizingFunction>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DisplayStyle {
+    Block,
+    Stack,
+    Flex(FlexStyle),
+    Grid(GridStyle),
+}
+
+impl Default for DisplayStyle {
+    fn default() -> Self {
+        Self::Flex(FlexStyle::DEFAULT)
+    }
 }

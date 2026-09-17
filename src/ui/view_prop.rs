@@ -1,7 +1,10 @@
 use super::reactive::{CanCreate, CanRead, Computed, Effect, ReactiveValue, ReadSignal};
 use crate::{
-    core::{Brush, Color, LinearGradient},
-    ui::{BuildContext, Widget, WidgetMut, reactive::WatchContext},
+    core::{Paint, Color, LinearGradient},
+    ui::{
+        BuildContext, Widget, WidgetMut,
+        reactive::{ConstComputed, ReadContext, WatchContext},
+    },
 };
 
 /// Represents a value that is either varying over time (a `ReactiveValue`) or a constant
@@ -12,9 +15,18 @@ pub enum ViewProp<T> {
     Const(T),
     ReadSignal(ReadSignal<T>),
     Computed(Computed<T>),
+    ConstComputed(ConstComputed<T>),
 }
 
 impl<T: 'static> ViewProp<T> {
+    pub const fn from_value(value: T) -> Self {
+        Self::Const(value)
+    }
+
+    pub const fn from_fn(f: fn(&mut ReadContext) -> T) -> Self {
+        Self::ConstComputed(ConstComputed::new(f))
+    }
+
     pub fn get_and_bind<W: Widget + ?Sized>(
         self,
         cx: &mut BuildContext<W>,
@@ -69,6 +81,7 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         match self {
             Self::ReadSignal(signal) => signal.track(cx),
             Self::Computed(computed) => computed.track(cx),
+            Self::ConstComputed(c) => c.track(cx),
             Self::Const(_) => {}
         }
     }
@@ -77,6 +90,7 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         match self {
             Self::ReadSignal(signal) => signal.with_ref(cx, f),
             Self::Computed(computed) => computed.with_ref(cx, f),
+            Self::ConstComputed(computed) => computed.with_ref(cx, f),
             Self::Const(value) => f(value),
         }
     }
@@ -88,6 +102,7 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         match self {
             Self::ReadSignal(signal) => signal.get(cx),
             Self::Computed(computed) => computed.get(cx),
+            Self::ConstComputed(computed) => computed.get(cx),
             Self::Const(value) => value.clone(),
         }
     }
@@ -100,6 +115,7 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         match self {
             Self::ReadSignal(signal) => signal.with_ref_untracked(cx, f),
             Self::Computed(computed) => computed.with_ref_untracked(cx, f),
+            Self::ConstComputed(computed) => computed.with_ref_untracked(cx, f),
             Self::Const(value) => f(value),
         }
     }
@@ -111,6 +127,7 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         match self {
             ViewProp::ReadSignal(read_signal) => read_signal.get_untracked(cx),
             ViewProp::Computed(computed) => computed.get_untracked(cx),
+            ViewProp::ConstComputed(computed) => computed.get_untracked(cx),
             ViewProp::Const(value) => value.clone(),
         }
     }
@@ -122,6 +139,7 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         match self {
             ViewProp::ReadSignal(read_signal) => read_signal.watch(cx, f),
             ViewProp::Computed(computed) => computed.watch(cx, f),
+            ViewProp::ConstComputed(computed) => computed.watch(cx, f),
             ViewProp::Const(_) => Effect::new_empty(),
         }
     }
@@ -145,20 +163,14 @@ impl From<&str> for ViewProp<String> {
     }
 }
 
-impl From<Color> for ViewProp<Brush> {
+impl From<Color> for ViewProp<Paint> {
     fn from(value: Color) -> Self {
         Self::Const(value.into())
     }
 }
 
-impl From<LinearGradient> for ViewProp<Brush> {
+impl From<LinearGradient> for ViewProp<Paint> {
     fn from(value: LinearGradient) -> Self {
         Self::Const(value.into())
-    }
-}
-
-impl<T> From<Computed<T>> for ViewProp<T> {
-    fn from(value: Computed<T>) -> Self {
-        Self::Computed(value)
     }
 }

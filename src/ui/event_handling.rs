@@ -1,22 +1,28 @@
-use super::reactive::{CLICKED_STATUS, CanRead, CanWrite, FOCUS_STATUS, ReadScope};
+use super::reactive::{CanRead, CanWrite, ReadScope};
 use super::{
     AppState, EventStatus, WidgetFlags, WidgetId, WindowId, animation::drive_animations,
     clipboard::Clipboard, invalidate_window,
 };
-use crate::ui::reactive::{ReactiveGraph, ReadContext, WriteContext};
+use crate::event::{MouseClickEvent, MouseDragEvent};
+use crate::platform::OSMouseEvent;
+use crate::ui::reactive::{ReactiveGraph, ReadContext, WidgetStatus, WriteContext};
+use crate::ui::widgets::{Gesture, GestureState};
 use crate::ui::{HostHandle, TaskQueue, Widgets};
 use crate::{
-    KeyEvent, MouseEvent,
+    KeyEvent,
     core::{Key, Rect},
     platform::WindowEvent,
-    ui::{StatusChange, Widget, WidgetMut, layout::RecomputeLayout, task_queue::Task},
+    ui::{Widget, WidgetMut, layout::RecomputeLayout, task_queue::Task},
 };
+use crate::{MouseButton, MouseEvent};
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
         WindowEvent::Resize { .. } => {
             app_state.widgets.layout_window(
-                &app_state.widget_impls,
+                &mut app_state.widget_impls,
+                &mut app_state.font_cx,
+                &mut app_state.text_layout_cx,
                 window_id,
                 RecomputeLayout::Force,
             );
@@ -27,7 +33,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                 .widgets
                 .get_widgets_at(window_id, mouse_event.position());
 
-            if let MouseEvent::Down { .. } = mouse_event {
+            if let OSMouseEvent::Down(_) = mouse_event {
                 let new_focus_view = widgets_under_mouse
                     .iter()
                     .copied()
@@ -37,30 +43,134 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                 set_focus_widget(app_state, window_id, new_focus_view);
             };
 
-            let mut new_mouse_capture_widget = app_state.widgets.mouse_capture_widget;
-            if let Some(capture_widget) = app_state.widgets.mouse_capture_widget {
-                dispatch_mouse_event(
-                    app_state,
-                    capture_widget,
-                    mouse_event,
-                    &mut new_mouse_capture_widget,
-                );
+            if let Some(gesture) = app_state.widgets.gesture {
+                let flags = app_state.widgets.tree[gesture.target].flags();
+                match mouse_event {
+                    OSMouseEvent::Down(ev) => {
+                        dispatch_mouse_event(app_state, gesture.target, MouseEvent::Down(ev));
+                    }
+                    OSMouseEvent::Up(ev) => {
+                        if ev.button == MouseButton::LEFT {
+                            match gesture.state {
+                                GestureState::Pressed if flags.contains(WidgetFlags::CLICKABLE) => {
+                                    dispatch_mouse_event(
+                                        app_state,
+                                        gesture.target,
+                                        MouseEvent::Click(MouseClickEvent {
+                                            position: ev.position,
+                                            modifiers: ev.modifiers,
+                                        }),
+                                    );
+                                }
+                                GestureState::Dragging
+                                    if flags.contains(WidgetFlags::DRAGGABLE) =>
+                                {
+                                    dispatch_mouse_event(
+                                        app_state,
+                                        gesture.target,
+                                        MouseEvent::DragEnded,
+                                    );
+                                }
+                                _ => {}
+                            }
+                            app_state.widgets.gesture = None;
+                        }
+                    }
+                    OSMouseEvent::Move(ev) => {
+                        let mut new_gesture = gesture;
+
+                        if new_gesture.state == GestureState::Pressed
+                            && flags.contains(WidgetFlags::DRAGGABLE)
+                        {
+                            if (ev.position - new_gesture.start).length_squared() > 4.0 {
+                                new_gesture.state = GestureState::Dragging;
+                                dispatch_mouse_event(
+                                    app_state,
+                                    gesture.target,
+                                    MouseEvent::DragStarted,
+                                )
+                            }
+                        }
+
+                        if new_gesture.state == GestureState::Dragging {
+                            let delta = ev.position - new_gesture.last;
+                            dispatch_mouse_event(
+                                app_state,
+                                gesture.target,
+                                MouseEvent::DragMoved(MouseDragEvent {
+                                    position: ev.position,
+                                    modifiers: ev.modifiers,
+                                    delta,
+                                }),
+                            );
+                            new_gesture.last = ev.position;
+                        }
+
+                        app_state.widgets.gesture = Some(new_gesture);
+                    }
+                    OSMouseEvent::Wheel(mouse_wheel_event) => dispatch_mouse_event(
+                        app_state,
+                        gesture.target,
+                        MouseEvent::Wheel(mouse_wheel_event),
+                    ),
+                }
             } else {
                 for id in widgets_under_mouse.iter().copied().rev() {
-                    let status = dispatch_mouse_event(
-                        app_state,
-                        id,
-                        mouse_event,
-                        &mut new_mouse_capture_widget,
-                    );
-                    if status == EventStatus::Handled {
-                        break;
+                    let flags = app_state.widgets.tree[id].flags();
+                    match mouse_event {
+                        OSMouseEvent::Down(ev) => {
+                            if flags.contains(WidgetFlags::CLICKABLE)
+                                || flags.contains(WidgetFlags::DRAGGABLE)
+                            {
+                                dispatch_mouse_event(app_state, id, MouseEvent::Down(ev));
+
+                                if ev.button == MouseButton::LEFT {
+                                    if flags.contains(WidgetFlags::CLICKABLE) {
+                                        app_state.widgets.gesture = Some(Gesture::new(
+                                            id,
+                                            ev.position,
+                                            GestureState::Pressed,
+                                        ));
+                                    } else {
+                                        // DRAGGABLE. In this case, emit a DragStart immediately
+                                        app_state.widgets.gesture = Some(Gesture::new(
+                                            id,
+                                            ev.position,
+                                            GestureState::Dragging,
+                                        ));
+                                        dispatch_mouse_event(
+                                            app_state,
+                                            id,
+                                            MouseEvent::DragStarted,
+                                        );
+                                    }
+                                }
+
+                                break;
+                            }
+                        }
+                        OSMouseEvent::Up(mouse_up_event) => {
+                            if flags.contains(WidgetFlags::CLICKABLE)
+                                || flags.contains(WidgetFlags::DRAGGABLE)
+                            {
+                                dispatch_mouse_event(app_state, id, MouseEvent::Up(mouse_up_event));
+                                break;
+                            }
+                        }
+                        OSMouseEvent::Move(ev) => {
+                            dispatch_mouse_event(app_state, id, MouseEvent::Moved(ev));
+                            break;
+                        }
+                        OSMouseEvent::Wheel(ev) => {
+                            dispatch_mouse_event(app_state, id, MouseEvent::Wheel(ev));
+                            break;
+                        }
                     }
                 }
             }
 
             app_state.run_effects();
-            set_mouse_capture_widget(app_state, new_mouse_capture_widget);
+            //set_mouse_gesture(app_state, new_gesture);
         }
         WindowEvent::Key(key_event) => {
             let mut event_status = EventStatus::Ignored;
@@ -90,13 +200,12 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                 && let KeyEvent::KeyDown { key, modifiers, .. } = key_event
             {
                 match key {
-                    Key::Escape if modifiers.is_empty() => {
-                        set_mouse_capture_widget(app_state, None)
-                    }
+                    Key::Escape if modifiers.is_empty() => set_hovered_widget(app_state, None),
                     _ => {}
                 }
             }
         }
+        WindowEvent::Focused => {}
         WindowEvent::Unfocused => {
             set_focus_widget(app_state, window_id, None);
         }
@@ -104,7 +213,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             drive_animations(app_state, animation_frame);
         }
         WindowEvent::MouseCaptureEnded => {
-            set_mouse_capture_widget(app_state, None);
+            set_hovered_widget(app_state, None);
         }
         WindowEvent::ThemeChanged(theme) => {
             //let signal = app_state.theme_signal;
@@ -114,7 +223,16 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             let window = app_state.widgets.window_mut(window_id);
             window.wgpu_surface.is_configured = false;
         }
-        _ => {}
+        WindowEvent::MouseEnterExit(enter) => {
+            if !enter
+                && app_state
+                    .widgets
+                    .hovered_widget
+                    .is_some_and(|id| app_state.widgets.window_for_widget(id).id == window_id)
+            {
+                set_hovered_widget(app_state, None);
+            }
+        }
     };
 }
 
@@ -143,18 +261,9 @@ pub fn set_focus_widget(
 }
 
 fn dispatch_focus_change(app_state: &mut AppState, widget_id: WidgetId, has_focus: bool) {
-    dispatch_status_updated(
-        app_state,
-        widget_id,
-        if has_focus {
-            StatusChange::FocusGained
-        } else {
-            StatusChange::FocusLost
-        },
-    );
     app_state
         .write_context()
-        .notify_widget_status_changed(widget_id, FOCUS_STATUS.mask);
+        .notify_widget_status_changed(widget_id, WidgetStatus::FOCUSED.mask);
     app_state.run_effects();
 }
 
@@ -166,49 +275,30 @@ fn dispatch_focus_change(app_state: &mut AppState, widget_id: WidgetId, has_focu
     let window_id = app_state.get_window_id_for_widget(widget_id);
 }*/
 
-pub fn set_mouse_capture_widget(app_state: &mut AppState, new_capture_widget: Option<WidgetId>) {
-    if new_capture_widget != app_state.widgets.mouse_capture_widget {
-        println!(
-            "Mouse capture change {:?}, {:?}",
-            app_state.widgets.mouse_capture_widget, new_capture_widget
-        );
-        let old_capture_widget = std::mem::replace(
-            &mut app_state.widgets.mouse_capture_widget,
-            new_capture_widget,
-        );
+pub fn set_hovered_widget(app_state: &mut AppState, new_widget: Option<WidgetId>) {
+    if new_widget != app_state.widgets.hovered_widget {
+        let old_capture_widget =
+            std::mem::replace(&mut app_state.widgets.hovered_widget, new_widget);
 
         if let Some(old_mouse_capture_widget) = old_capture_widget {
-            dispatch_mouse_capture_change(app_state, old_mouse_capture_widget, false);
+            dispatch_hovered_changed(app_state, old_mouse_capture_widget);
         }
 
-        if let Some(new_capture_widget) = new_capture_widget {
-            dispatch_mouse_capture_change(app_state, new_capture_widget, true);
+        if let Some(new_capture_widget) = new_widget {
+            dispatch_hovered_changed(app_state, new_capture_widget);
         }
     }
 }
 
-fn dispatch_mouse_capture_change(
-    app_state: &mut AppState,
-    widget_id: WidgetId,
-    has_mouse_capture: bool,
-) {
-    dispatch_status_updated(
-        app_state,
-        widget_id,
-        if has_mouse_capture {
-            StatusChange::MouseCaptured
-        } else {
-            StatusChange::MouseCaptureLost
-        },
-    );
+fn dispatch_hovered_changed(app_state: &mut AppState, widget_id: WidgetId) {
     app_state
         .write_context()
-        .notify_widget_status_changed(widget_id, CLICKED_STATUS.mask);
+        .notify_widget_status_changed(widget_id, WidgetStatus::HOVERED.mask);
     app_state.run_effects();
 }
 
-fn dispatch_status_updated(app_state: &mut AppState, widget_id: WidgetId, event: StatusChange) {
-    app_state.widget_impls[widget_id].status_change(
+fn dispatch_mouse_event(app_state: &mut AppState, widget_id: WidgetId, event: MouseEvent) {
+    app_state.widget_impls[widget_id].mouse_event(
         event,
         &mut EventContext {
             id: widget_id,
@@ -217,100 +307,7 @@ fn dispatch_status_updated(app_state: &mut AppState, widget_id: WidgetId, event:
             task_queue: &mut app_state.task_queue,
             host_handle: app_state.host_handle.as_deref(),
         },
-    );
-}
-
-fn dispatch_mouse_event(
-    app_state: &mut AppState,
-    widget_id: WidgetId,
-    event: MouseEvent,
-    new_mouse_capture_widget: &mut Option<WidgetId>,
-) -> EventStatus {
-    app_state.widget_impls[widget_id].mouse_event(
-        event,
-        &mut MouseEventContext {
-            id: widget_id,
-            widgets: &mut app_state.widgets,
-            reactive_graph: &mut app_state.reactive_graph,
-            task_queue: &mut app_state.task_queue,
-            host_handle: app_state.host_handle.as_deref(),
-            new_mouse_capture_widget,
-        },
     )
-}
-
-pub struct MouseEventContext<'a> {
-    id: WidgetId,
-    widgets: &'a mut Widgets,
-    reactive_graph: &'a mut ReactiveGraph,
-    task_queue: &'a mut TaskQueue,
-    host_handle: Option<&'a dyn HostHandle>,
-    new_mouse_capture_widget: &'a mut Option<WidgetId>,
-}
-
-impl<'a> MouseEventContext<'a> {
-    pub fn has_focus(&self) -> bool {
-        self.widgets.has_focus(self.id)
-    }
-
-    pub fn has_mouse_capture(&self) -> bool {
-        self.widgets.has_mouse_capture(self.id)
-    }
-
-    pub fn as_callback_context(&mut self) -> CallbackContext<'_> {
-        CallbackContext {
-            _id: self.id,
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
-            task_queue: self.task_queue,
-            host_handle: self.host_handle,
-        }
-    }
-
-    pub fn capture_mouse(&mut self) {
-        *self.new_mouse_capture_widget = Some(self.id);
-    }
-
-    pub fn release_capture(&mut self) -> bool {
-        if self.widgets.has_mouse_capture(self.id) {
-            *self.new_mouse_capture_widget = None;
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn request_layout(&mut self) {
-        self.widgets.request_layout(self.id);
-    }
-
-    pub fn request_render(&mut self) {
-        self.widgets.invalidate_widget(self.id);
-    }
-
-    pub fn request_animation(&mut self) {
-        self.widgets.request_animation(self.id)
-    }
-
-    pub fn bounds(&self) -> Rect {
-        self.widgets.global_bounds(self.id)
-    }
-
-    pub fn clipboard(&self) -> Clipboard<'_> {
-        let window_id = self.widgets.window_for_widget(self.id).id;
-        self.widgets.clipboard(window_id)
-    }
-
-    pub fn defer_update<W: Widget>(
-        &mut self,
-        _widget: &W,
-        f: impl FnOnce(WidgetMut<'_, W>) + 'static,
-    ) {
-        self.task_queue.push(Task::UpdateWidget {
-            widget_id: self.id,
-            f: Box::new(move |widget| f(widget.unchecked_cast())),
-        });
-    }
 }
 
 pub struct EventContext<'a> {
@@ -344,16 +341,15 @@ impl<'a> EventContext<'a> {
     }
 
     pub fn has_mouse_capture(&self) -> bool {
-        self.widgets.has_mouse_capture(self.id)
+        self.widgets.is_pressed(self.id)
     }
 
-    pub fn as_callback_context(&mut self) -> CallbackContext<'_> {
-        CallbackContext {
-            _id: self.id,
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
-            task_queue: self.task_queue,
-            host_handle: self.host_handle,
+    pub fn release_gesture(&mut self) -> bool {
+        if self.widgets.is_pressed(self.id) {
+            // *self.new_mouse_capture_widget = None;
+            true
+        } else {
+            false
         }
     }
 
@@ -386,15 +382,7 @@ impl<'a> EventContext<'a> {
     }
 }
 
-pub struct CallbackContext<'a> {
-    _id: WidgetId,
-    widgets: &'a mut Widgets,
-    reactive_graph: &'a mut ReactiveGraph,
-    task_queue: &'a mut TaskQueue,
-    host_handle: Option<&'a dyn HostHandle>,
-}
-
-impl<'s> CanRead<'s> for CallbackContext<'s> {
+impl<'s> CanRead<'s> for EventContext<'s> {
     fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
     where
         's: 's2,
@@ -403,11 +391,12 @@ impl<'s> CanRead<'s> for CallbackContext<'s> {
             widgets: self.widgets,
             reactive_graph: self.reactive_graph,
             scope: ReadScope::Untracked,
+            current_widget: Some(self.id),
         }
     }
 }
 
-impl<'s> CanWrite<'s> for CallbackContext<'s> {
+impl<'s> CanWrite<'s> for EventContext<'s> {
     fn write_context<'s2>(&'s2 mut self) -> WriteContext<'s2>
     where
         's: 's2,

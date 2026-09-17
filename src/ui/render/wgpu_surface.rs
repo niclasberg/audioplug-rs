@@ -6,15 +6,16 @@ use wgpu::util::DeviceExt;
 
 use super::tiles::TILE_SIZE;
 use crate::{
-    core::{PhysicalCoord, PhysicalSize, Size, Zero},
-    ui::render::gpu_scene::GpuScene,
+    core::PhysicalSize,
+    ui::render::gpu_scene::{GpuAppearance, GpuDrawCommand, GpuScene},
 };
 
 #[repr(C)]
 #[derive(Clone, Copy, Zeroable, Pod)]
 struct Params {
-    width: u32,
-    height: u32,
+    pub width: u32,
+    pub height: u32,
+    pub draw_command_count: u32,
 }
 
 #[derive(Error, Debug)]
@@ -33,7 +34,6 @@ pub struct SurfaceState {
     pub blit_bind_group: wgpu::BindGroup,
     pub render_tiles_bind_group0: wgpu::BindGroup,
     pub output_texture: wgpu::Texture,
-    pub params_buffer: wgpu::Buffer,
     pub output_sampler: wgpu::Sampler,
     pub last_size: PhysicalSize,
 }
@@ -45,15 +45,8 @@ impl SurfaceState {
         render_tiles_program: &RenderTilesProgram,
         size: PhysicalSize,
     ) -> Self {
-        let width = size.width.0 as _;
-        let height = size.height.0 as _;
-
-        let params = Params { width, height };
-        let params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Params buffer"),
-            contents: bytemuck::bytes_of(&params),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        let width = size.width as _;
+        let height = size.height as _;
 
         let output_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Output texture sampler"),
@@ -71,14 +64,12 @@ impl SurfaceState {
         let tex_view = output_texture.create_view(&Default::default());
         let blit_bind_group = blit_program.create_bind_group(device, &tex_view, &output_sampler);
 
-        let render_tiles_bind_group0 =
-            render_tiles_program.create_bind_group0(device, &tex_view, &params_buffer);
+        let render_tiles_bind_group0 = render_tiles_program.create_bind_group0(device, &tex_view);
 
         SurfaceState {
             blit_bind_group,
             render_tiles_bind_group0,
             output_texture,
-            params_buffer,
             output_sampler,
             last_size: size,
         }
@@ -93,8 +84,8 @@ impl SurfaceState {
         size: PhysicalSize,
     ) {
         if size != self.last_size {
-            let width = size.width.0 as _;
-            let height = size.height.0 as _;
+            let width = size.width as _;
+            let height = size.height as _;
 
             self.output_texture = create_output_texture(device, width, height);
             let texture_view = self
@@ -103,13 +94,148 @@ impl SurfaceState {
             self.blit_bind_group =
                 blit_program.create_bind_group(device, &texture_view, &self.output_sampler);
             self.render_tiles_bind_group0 =
-                render_tiles_program.create_bind_group0(device, &texture_view, &self.params_buffer);
-            queue.write_buffer(
+                render_tiles_program.create_bind_group0(device, &texture_view);
+        }
+    }
+}
+
+pub struct SceneState {
+    pub render_tiles_bind_group1: wgpu::BindGroup,
+    pub params_buffer: wgpu::Buffer,
+    pub shapes_data_buffer: wgpu::Buffer,
+    pub appearances_buffer: wgpu::Buffer,
+    pub draw_commands_buffer: wgpu::Buffer,
+}
+
+impl SceneState {
+    const PARAMS_LABEL: &'static str = "Params buffer";
+    const APPEARANCES_LABEL: &'static str = "Appearances buffer";
+    const SHAPE_DATA_LABEL: &'static str = "Shape data buffer";
+    const DRAW_COMMANDS_LABEL: &'static str = "Draw commands buffer";
+
+    pub fn new(
+        device: &wgpu::Device,
+        render_tiles_program: &RenderTilesProgram,
+        size: PhysicalSize,
+        scene: &GpuScene,
+    ) -> Self {
+        let params = Params {
+            width: size.width as _,
+            height: size.height as _,
+            draw_command_count: scene.draw_commands.len() as _,
+        };
+
+        let params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(Self::PARAMS_LABEL),
+            contents: bytemuck::bytes_of(&params),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let shapes_data_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(Self::SHAPE_DATA_LABEL),
+            contents: bytemuck::cast_slice(&scene.shape_data),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let appearances_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(Self::APPEARANCES_LABEL),
+            contents: bytemuck::cast_slice(&scene.appearances),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let draw_commands_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(Self::DRAW_COMMANDS_LABEL),
+            contents: bytemuck::cast_slice(&scene.draw_commands),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let render_tiles_bind_group1 = render_tiles_program.create_bind_group1(
+            &device,
+            &params_buffer,
+            &shapes_data_buffer,
+            &appearances_buffer,
+            &draw_commands_buffer,
+        );
+
+        Self {
+            render_tiles_bind_group1,
+            params_buffer,
+            shapes_data_buffer,
+            appearances_buffer,
+            draw_commands_buffer,
+        }
+    }
+
+    fn update(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_tiles_program: &RenderTilesProgram,
+        size: PhysicalSize,
+        scene: &GpuScene,
+    ) {
+        let params = Params {
+            width: size.width as _,
+            height: size.height as _,
+            draw_command_count: scene.draw_commands.len() as _,
+        };
+        queue.write_buffer(&self.params_buffer, 0, bytemuck::bytes_of(&params));
+
+        let apperances_recreated = update_buffer(
+            device,
+            queue,
+            &mut self.appearances_buffer,
+            bytemuck::cast_slice(&scene.appearances),
+            Self::APPEARANCES_LABEL,
+        );
+
+        let shape_data_recreated = update_buffer(
+            device,
+            queue,
+            &mut self.shapes_data_buffer,
+            bytemuck::cast_slice(&scene.shape_data),
+            Self::SHAPE_DATA_LABEL,
+        );
+
+        let draw_commands_recreated = update_buffer(
+            device,
+            queue,
+            &mut self.draw_commands_buffer,
+            bytemuck::cast_slice(&scene.draw_commands),
+            Self::DRAW_COMMANDS_LABEL,
+        );
+
+        if shape_data_recreated || apperances_recreated || draw_commands_recreated {
+            self.render_tiles_bind_group1 = render_tiles_program.create_bind_group1(
+                &device,
                 &self.params_buffer,
-                0,
-                bytemuck::bytes_of(&Params { height, width }),
+                &self.shapes_data_buffer,
+                &self.appearances_buffer,
+                &self.draw_commands_buffer,
             );
         }
+    }
+}
+
+/// Update or reallocate a buffer and fill with the provided data
+/// Returns true if a new buffer was created
+fn update_buffer(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    buffer: &mut wgpu::Buffer,
+    data: &[u8],
+    label: &str,
+) -> bool {
+    if data.len() <= buffer.size() as usize {
+        queue.write_buffer(buffer, 0, data);
+        false
+    } else {
+        *buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(label),
+            contents: data,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+        true
     }
 }
 
@@ -124,10 +250,8 @@ pub struct WGPUSurface {
     pub blit_program: BlitProgram,
     // Render tiles pipeline
     pub render_tiles_program: RenderTilesProgram,
-    pub render_tiles_bind_group1: wgpu::BindGroup,
-    pub shapes_data_buffer: wgpu::Buffer,
-    pub fill_ops_buffer: wgpu::Buffer,
     pub state: Option<SurfaceState>,
+    pub scene_state: Option<SceneState>,
     pub is_configured: bool,
 }
 
@@ -178,8 +302,8 @@ impl WGPUSurface {
             .unwrap_or(wgpu::PresentMode::Fifo);
 
         let size = handle.physical_size();
-        let width = size.width.0 as u32;
-        let height = size.height.0 as u32;
+        let width = size.width as u32;
+        let height = size.height as u32;
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -192,22 +316,8 @@ impl WGPUSurface {
             view_formats: vec![],
         };
 
-        let shapes_data_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Shapes data buffer"),
-            contents: bytemuck::cast_slice(&[0]),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let fill_ops_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("FillOps buffer"),
-            contents: bytemuck::cast_slice(&GpuScene::NOOP_FILL),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
-
         let blit_program = BlitProgram::new(&device, format);
         let render_tiles_program = RenderTilesProgram::new(&device);
-        let render_tiles_bind_group1 =
-            render_tiles_program.create_bind_group1(&device, &shapes_data_buffer, &fill_ops_buffer);
 
         Ok(Self {
             surface,
@@ -218,16 +328,14 @@ impl WGPUSurface {
             surface_format: format,
             blit_program,
             render_tiles_program,
-            render_tiles_bind_group1,
-            shapes_data_buffer,
-            fill_ops_buffer,
             state: None,
+            scene_state: None,
             is_configured: false,
         })
     }
 
     pub fn configure_if_needed(&mut self, new_size: PhysicalSize) {
-        if new_size.height > PhysicalCoord::ZERO && new_size.width > PhysicalCoord::ZERO {
+        if new_size.height > 0 && new_size.width > 0 {
             let Self {
                 device,
                 queue,
@@ -238,8 +346,8 @@ impl WGPUSurface {
 
             if !self.is_configured || self.size != new_size {
                 self.size = new_size;
-                self.config.width = new_size.width.0 as _;
-                self.config.height = new_size.height.0 as _;
+                self.config.width = new_size.width as _;
+                self.config.height = new_size.height as _;
 
                 self.surface.configure(device, &self.config);
                 self.is_configured = true;
@@ -253,43 +361,22 @@ impl WGPUSurface {
     }
 
     pub fn upload_scene(&mut self, scene: &GpuScene) {
-        let fill_ops_recreated = {
-            let fill_ops = if scene.fill_ops.is_empty() {
-                &[0]
-            } else {
-                bytemuck::cast_slice(scene.fill_ops.as_slice())
-            };
-
-            update_buffer(
-                &mut self.device,
-                &mut self.queue,
-                &mut self.fill_ops_buffer,
-                fill_ops,
-                "FillOps buffer",
-            )
-        };
-
-        let shape_data_recreated = {
-            let shape_data = if scene.shape_data.is_empty() {
-                bytemuck::cast_slice(&GpuScene::NOOP_FILL)
-            } else {
-                bytemuck::cast_slice(scene.shape_data.as_slice())
-            };
-            update_buffer(
-                &mut self.device,
-                &mut self.queue,
-                &mut self.shapes_data_buffer,
-                shape_data,
-                "ShapeData buffer",
-            )
-        };
-
-        if shape_data_recreated || fill_ops_recreated {
-            self.render_tiles_bind_group1 = self.render_tiles_program.create_bind_group1(
+        assert!(!scene.is_empty());
+        if let Some(scene_state) = self.scene_state.as_mut() {
+            scene_state.update(
                 &self.device,
-                &self.shapes_data_buffer,
-                &self.fill_ops_buffer,
+                &self.queue,
+                &self.render_tiles_program,
+                self.size,
+                scene,
             );
+        } else {
+            self.scene_state = Some(SceneState::new(
+                &self.device,
+                &self.render_tiles_program,
+                self.size,
+                scene,
+            ));
         }
     }
 
@@ -297,30 +384,11 @@ impl WGPUSurface {
         self.is_configured = false;
     }
 
-    pub fn render_tiles_workgroup_count(&self) -> Size<u32> {
-        self.size.map(|x| (x.0 as u32).div_ceil(TILE_SIZE))
-    }
-}
-
-/// Update or reallocate a buffer and fill with the provided data
-/// Returns true if a new buffer was created
-fn update_buffer(
-    device: &mut wgpu::Device,
-    queue: &mut wgpu::Queue,
-    buffer: &mut wgpu::Buffer,
-    data: &[u8],
-    label: &str,
-) -> bool {
-    if data.len() < buffer.size() as usize {
-        queue.write_buffer(buffer, 0, data);
-        false
-    } else {
-        *buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some(label),
-            contents: data,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
-        true
+    pub fn render_tiles_workgroup_count(&self) -> [u32; 2] {
+        [
+            (self.size.width as u32).div_ceil(TILE_SIZE),
+            (self.size.height as u32).div_ceil(TILE_SIZE),
+        ]
     }
 }
 
@@ -438,6 +506,20 @@ impl RenderTilesProgram {
         let bind_group_layout0 =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("render_tiles bind group layout0"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::StorageTexture {
+                        access: wgpu::StorageTextureAccess::WriteOnly,
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                    },
+                    count: None,
+                }],
+            });
+        let bind_group_layout1 =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("render_tiles bind group layout1"),
                 entries: &[
                     // Params
                     wgpu::BindGroupLayoutEntry {
@@ -450,25 +532,9 @@ impl RenderTilesProgram {
                         },
                         count: None,
                     },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::StorageTexture {
-                            access: wgpu::StorageTextureAccess::WriteOnly,
-                            format: wgpu::TextureFormat::Rgba8Unorm,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                        },
-                        count: None,
-                    },
-                ],
-            });
-        let bind_group_layout1 =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("render_tiles bind group layout1"),
-                entries: &[
                     // Shape data
                     wgpu::BindGroupLayoutEntry {
-                        binding: 0,
+                        binding: 1,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -479,14 +545,29 @@ impl RenderTilesProgram {
                         },
                         count: None,
                     },
-                    // Fills
+                    // Appearances
                     wgpu::BindGroupLayoutEntry {
-                        binding: 1,
+                        binding: 2,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Storage { read_only: true },
                             has_dynamic_offset: false,
-                            min_binding_size: Some(NonZero::new(8).unwrap()),
+                            min_binding_size: Some(
+                                NonZero::new(std::mem::size_of::<GpuAppearance>() as _).unwrap(),
+                            ),
+                        },
+                        count: None,
+                    },
+                    // Draw commands
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: Some(
+                                NonZero::new(std::mem::size_of::<GpuDrawCommand>() as _).unwrap(),
+                            ),
                         },
                         count: None,
                     },
@@ -517,11 +598,28 @@ impl RenderTilesProgram {
         &self,
         device: &wgpu::Device,
         tex_view: &wgpu::TextureView,
-        params_buffer: &wgpu::Buffer,
     ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Render tiles bind group"),
             layout: &self.bind_group_layout0,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(tex_view),
+            }],
+        })
+    }
+
+    fn create_bind_group1(
+        &self,
+        device: &wgpu::Device,
+        params_buffer: &wgpu::Buffer,
+        shapes_data_buffer: &wgpu::Buffer,
+        appearances_buffer: &wgpu::Buffer,
+        draw_commands_buffer: &wgpu::Buffer,
+    ) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Render tiles bind group"),
+            layout: &self.bind_group_layout1,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -533,24 +631,6 @@ impl RenderTilesProgram {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(tex_view),
-                },
-            ],
-        })
-    }
-
-    fn create_bind_group1(
-        &self,
-        device: &wgpu::Device,
-        shapes_data_buffer: &wgpu::Buffer,
-        fill_ops_buffer: &wgpu::Buffer,
-    ) -> wgpu::BindGroup {
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Render tiles bind group"),
-            layout: &self.bind_group_layout1,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: shapes_data_buffer,
                         offset: 0,
@@ -558,9 +638,17 @@ impl RenderTilesProgram {
                     }),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 1,
+                    binding: 2,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: fill_ops_buffer,
+                        buffer: appearances_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: draw_commands_buffer,
                         offset: 0,
                         size: None,
                     }),

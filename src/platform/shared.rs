@@ -1,7 +1,8 @@
 use crate::{
-    MouseEvent,
     core::{Cursor, PhysicalSize, Point, Rect, ScaleFactor, Size, WindowTheme},
-    event::{AnimationFrame, KeyEvent},
+    event::{
+        AnimationFrame, KeyEvent, MouseDownEvent, MouseMoveEvent, MouseUpEvent, MouseWheelEvent,
+    },
     platform::Handle,
 };
 
@@ -20,12 +21,30 @@ pub enum WindowEvent {
     },
     Focused,
     Unfocused,
-    MouseEnter,
-    MouseExit,
     Animation(AnimationFrame),
-    Mouse(MouseEvent),
+    Mouse(OSMouseEvent),
     MouseCaptureEnded,
     Key(KeyEvent),
     ScaleFactorChanged(ScaleFactor),
     ThemeChanged(WindowTheme),
+    MouseEnterExit(bool),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum OSMouseEvent {
+    Down(MouseDownEvent),
+    Up(MouseUpEvent),
+    Move(MouseMoveEvent),
+    Wheel(MouseWheelEvent),
+}
+
+impl OSMouseEvent {
+    pub fn position(&self) -> Point {
+        match self {
+            OSMouseEvent::Down(e) => e.position,
+            OSMouseEvent::Up(e) => e.position,
+            OSMouseEvent::Move(e) => e.position,
+            OSMouseEvent::Wheel(e) => e.position,
+        }
+    }
 }

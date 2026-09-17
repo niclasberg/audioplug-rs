@@ -1,9 +1,9 @@
 use crate::ui::{
-    BuildContext, View, ViewProp, ViewSequence, Widget,
+    BuildContext, StyleExt, View, ViewProp, ViewSequence, ViewStyle, Widget,
     reactive::{Cached, ReactiveValue},
     style::{
-        AlignItems, FlexDirection, FlexStyle, FlexWrap, GridStyle, JustifyContent, LayoutMode,
-        Length,
+        AlignItems, DisplayStyle, FlexDirection, FlexStyle, FlexWrap, GridStyle, JustifyContent,
+        LayoutMode, Length,
     },
 };
 
@@ -11,6 +11,7 @@ pub type Row<VS> = FlexContainer<VS, true>;
 pub type Column<VS> = FlexContainer<VS, false>;
 
 pub struct FlexContainer<VS, const IS_ROW: bool> {
+    base: ViewStyle,
     view_seq: VS,
     spacing: ViewProp<Length>,
     wrap: ViewProp<FlexWrap>,
@@ -26,6 +27,7 @@ impl<VS: ViewSequence, const IS_ROW: bool> FlexContainer<VS, IS_ROW> {
             wrap: ViewProp::Const(Default::default()),
             align_items: None,
             justify_content: None,
+            base: ViewStyle::DEFAULT,
         }
     }
 
@@ -50,8 +52,8 @@ impl<VS: ViewSequence, const IS_ROW: bool> FlexContainer<VS, IS_ROW> {
     }
 
     pub fn center(mut self) -> Self {
-        self.justify_content = Some(JustifyContent::Center.into());
-        self.align_items = Some(AlignItems::Center.into());
+        self.justify_content = Some(JustifyContent::CENTER.into());
+        self.align_items = Some(AlignItems::CENTER.into());
         self
     }
 }
@@ -68,31 +70,31 @@ impl<VS> Row<VS> {
     }
 
     pub fn h_align_top(self) -> Self {
-        self.h_align(taffy::JustifyContent::Start)
+        self.h_align(taffy::JustifyContent::START)
     }
 
     pub fn h_align_center(self) -> Self {
-        self.h_align(taffy::JustifyContent::Center)
+        self.h_align(taffy::JustifyContent::CENTER)
     }
 
     pub fn h_align_bottom(self) -> Self {
-        self.h_align(taffy::JustifyContent::End)
+        self.h_align(taffy::JustifyContent::END)
     }
 
     pub fn h_align_space_around(self) -> Self {
-        self.h_align(taffy::JustifyContent::SpaceAround)
+        self.h_align(taffy::JustifyContent::SPACE_AROUND)
     }
 
     pub fn h_align_space_between(self) -> Self {
-        self.h_align(taffy::JustifyContent::SpaceBetween)
+        self.h_align(taffy::JustifyContent::SPACE_BETWEEN)
     }
 
     pub fn h_align_space_evenly(self) -> Self {
-        self.h_align(taffy::JustifyContent::SpaceEvenly)
+        self.h_align(taffy::JustifyContent::SPACE_EVENLY)
     }
 
     pub fn v_align_center(self) -> Self {
-        self.v_align(taffy::AlignItems::Center)
+        self.v_align(taffy::AlignItems::CENTER)
     }
 }
 
@@ -108,14 +110,21 @@ impl<VS> Column<VS> {
     }
 }
 
+impl<VS, const IS_ROW: bool> StyleExt for FlexContainer<VS, IS_ROW> {
+    fn style_mut(&mut self) -> &mut ViewStyle {
+        &mut self.base
+    }
+}
+
 impl<VS: ViewSequence, const IS_ROW: bool> View for FlexContainer<VS, IS_ROW> {
     type Element = ContainerWidget;
 
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
         Container {
+            base: self.base,
             view_seq: self.view_seq,
-            style: Cached::new(cx, move |cx, _| {
-                ContainerStyle::Flex(FlexStyle {
+            display_style: Cached::new(cx, move |cx, _| {
+                DisplayStyle::Flex(FlexStyle {
                     direction: if IS_ROW {
                         FlexDirection::Row
                     } else {
@@ -155,24 +164,18 @@ impl<VS: ViewSequence> Grid<VS> {
 
 pub struct GridStyleBuilder {}
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ContainerStyle {
-    Block,
-    Stack,
-    Flex(FlexStyle),
-    Grid(GridStyle),
-}
-
 pub struct Container<VS> {
+    base: ViewStyle,
     view_seq: VS,
-    style: ViewProp<ContainerStyle>,
+    display_style: ViewProp<DisplayStyle>,
 }
 
 impl<VS: ViewSequence> Container<VS> {
     pub fn new(view_seq: VS) -> Self {
         Self {
+            base: ViewStyle::DEFAULT,
             view_seq,
-            style: ViewProp::Const(ContainerStyle::Block),
+            display_style: ViewProp::Const(DisplayStyle::Block),
         }
     }
 }
@@ -182,29 +185,26 @@ impl<VS: ViewSequence> View for Container<VS> {
 
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
         cx.add_children(self.view_seq);
-        ContainerWidget {
-            container_style: self.style.get_and_bind(cx, |value, mut widget| {
-                widget.container_style = value;
-            }),
-        }
+        cx.apply_style(self.base);
+        let display_style = self.display_style.get_and_bind(cx, |value, mut widget| {
+            widget.set_display_style(value);
+        });
+        cx.set_display_style(display_style);
+
+        ContainerWidget {}
     }
 }
 
-pub struct ContainerWidget {
-    container_style: ContainerStyle,
+impl<VS> StyleExt for Container<VS> {
+    fn style_mut(&mut self) -> &mut ViewStyle {
+        &mut self.base
+    }
 }
+
+pub struct ContainerWidget;
 
 impl Widget for ContainerWidget {
     fn debug_label(&self) -> &'static str {
         "Container"
-    }
-
-    fn layout_mode(&self) -> LayoutMode<'_> {
-        match &self.container_style {
-            ContainerStyle::Block => LayoutMode::Block,
-            ContainerStyle::Stack => LayoutMode::Stack,
-            ContainerStyle::Flex(flex_style) => LayoutMode::Flex(flex_style),
-            ContainerStyle::Grid(grid_style) => LayoutMode::Grid(grid_style),
-        }
     }
 }

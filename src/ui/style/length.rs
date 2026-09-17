@@ -8,20 +8,20 @@ use super::ResolveInto;
 pub enum Length {
     Auto,
     /// Length in pixels
-    Px(f64),
+    Px(f32),
     /// Length in percent
-    Percent(f64),
+    Percent(f32),
     /// Percent of viewport height
-    Vh(f64),
+    Vh(f32),
     /// Percent of viewport width
-    Vw(f64),
+    Vw(f32),
 }
 
 impl Length {
     pub const ZERO: Self = Self::Px(0.0);
     pub const DEFAULT: Self = Self::Auto;
 
-    pub const fn from_px(value: &f64) -> Self {
+    pub const fn from_px(value: &f32) -> Self {
         Self::Px(*value)
     }
 }

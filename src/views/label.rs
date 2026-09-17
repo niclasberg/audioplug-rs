@@ -1,29 +1,19 @@
-use std::cell::RefCell;
-
-use crate::{
-    core::{Color, Size},
-    ui::{
-        BuildContext, RenderContext, Scene, TextLayout, View, ViewProp, Widget, WidgetMut,
-        style::{AvailableSpace, LayoutMode, Measure, Style},
-    },
-};
+use crate::ui::{BuildContext, StyleExt, TextExt, View, ViewProp, ViewStyle, ViewText, Widget};
 
 pub struct Label {
-    pub text: ViewProp<String>,
-    color: ViewProp<Color>,
+    style: ViewStyle,
+    text: ViewText,
 }
 
 impl Label {
     pub fn new(str: impl Into<ViewProp<String>>) -> Self {
         Self {
-            text: str.into(),
-            color: ViewProp::Const(Color::BLACK),
+            style: Default::default(),
+            text: ViewText {
+                text: Some(str.into()),
+                ..Default::default()
+            },
         }
-    }
-
-    pub fn color(mut self, color: impl Into<ViewProp<Color>>) -> Self {
-        self.color = color.into();
-        self
     }
 }
 
@@ -31,68 +21,59 @@ impl View for Label {
     type Element = TextWidget;
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
-        let text =
-            self.text
-                .get_and_bind(ctx, |value, mut widget: WidgetMut<'_, Self::Element>| {
-                    widget.text_layout.replace_with(|_text_layout| {
-                        TextLayout::new(value.as_str(), widget.color, Size::INFINITY)
-                    });
-                    widget.request_layout();
-                });
-        let color =
-            self.color
-                .get_and_bind(ctx, |value, mut widget: WidgetMut<'_, Self::Element>| {
-                    widget.request_render();
-                    let mut text_layout = widget.text_layout.borrow_mut();
-                    text_layout.set_color(value);
-                });
-
-        let text_layout = RefCell::new(TextLayout::new(text.as_str(), color, Size::INFINITY));
-        TextWidget { text_layout, color }
+        ctx.apply_style(self.style);
+        ctx.apply_text(self.text);
+        TextWidget {}
     }
 }
 
-pub struct TextWidget {
-    text_layout: RefCell<TextLayout>,
-    color: Color,
+impl StyleExt for Label {
+    fn style_mut(&mut self) -> &mut ViewStyle {
+        &mut self.style
+    }
 }
 
-impl Measure for TextWidget {
-    fn measure(&self, _style: &Style, width: AvailableSpace, height: AvailableSpace) -> Size {
+impl TextExt for Label {
+    fn text_mut(&mut self) -> &mut ViewText {
+        &mut self.text
+    }
+}
+
+pub struct TextWidget {}
+
+/*impl Measure for TextWidget {
+    fn measure(&self, available_width: AvailableSpace, height: AvailableSpace) -> Size {
         let mut text_layout = self.text_layout.borrow_mut();
+        let widths = text_layout.calculate_content_widths();
 
-        let width_constraint = match width {
-            AvailableSpace::MinContent => text_layout.min_word_width(),
-            AvailableSpace::MaxContent => f64::INFINITY,
-            AvailableSpace::Exact(width) => width,
+        let width = match available_width {
+            AvailableSpace::MinContent => widths.min,
+            AvailableSpace::MaxContent => widths.max,
+            AvailableSpace::Exact(width) => width as f32,
+        }
+        .ceil();
+
+        text_layout.break_all_lines(Some(width));
+        let height = if let AvailableSpace::Exact(height) = height {
+            height as f32
+        } else {
+            text_layout.height()
         };
-
-        let height_constraint = match height {
-            AvailableSpace::MinContent => f64::INFINITY,
-            AvailableSpace::MaxContent => f64::INFINITY,
-            AvailableSpace::Exact(height) => height,
-        };
-
-        text_layout.set_max_size(Size::new(width_constraint, height_constraint));
-        text_layout.measure()
+        Size::new(width as _, height as _)
     }
-}
+}*/
 
 impl Widget for TextWidget {
     fn debug_label(&self) -> &'static str {
         "Label"
     }
 
-    fn layout_mode(&self) -> LayoutMode<'_> {
-        LayoutMode::Leaf(self)
-    }
-
-    fn render(&mut self, ctx: &mut RenderContext) -> Scene {
+    /*fn render(&mut self, ctx: &mut RenderContext) -> Scene {
         let mut scene = Scene::new();
         let mut text_layout = self.text_layout.borrow_mut();
         let bounds = ctx.content_bounds();
-        text_layout.set_max_size(bounds.size());
+        text_layout.break_all_lines(Some(bounds.width() as _));
         scene.draw_text(&text_layout, bounds.top_left());
         scene
-    }
+    }*/
 }

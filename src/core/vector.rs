@@ -5,29 +5,109 @@ use bytemuck::{Pod, Zeroable};
 use super::{Lerp, Point, Size};
 
 #[repr(C)]
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Pod, Zeroable)]
 pub struct Vec2 {
-    pub x: f64,
-    pub y: f64,
+    pub x: f32,
+    pub y: f32,
 }
 
 impl Vec2 {
     pub const ZERO: Self = Self { x: 0.0, y: 0.0 };
     pub const X: Self = Self { x: 1.0, y: 0.0 };
     pub const Y: Self = Self { x: 0.0, y: 1.0 };
+    pub const MIN: Self = Self {
+        x: f32::MIN,
+        y: f32::MIN,
+    };
+    pub const MAX: Self = Self {
+        x: f32::MAX,
+        y: f32::MAX,
+    };
+
+    pub const fn into_point(self) -> Point {
+        Point {
+            x: self.x,
+            y: self.y,
+        }
+    }
+
+    pub const fn into_size(self) -> Size {
+        Size {
+            width: self.x,
+            height: self.y,
+        }
+    }
+
+    pub const fn dot(self, other: Self) -> f32 {
+        self.x * other.x + self.y * other.y
+    }
+
+    pub fn length(self) -> f32 {
+        self.x.hypot(self.y)
+    }
+
+    pub fn length_squared(self) -> f32 {
+        self.dot(self)
+    }
+
+    pub const fn floor(self) -> Self {
+        Self {
+            x: self.x.floor(),
+            y: self.y.floor(),
+        }
+    }
+
+    pub const fn ceil(self) -> Self {
+        Self {
+            x: self.x.ceil(),
+            y: self.y.ceil(),
+        }
+    }
+
+    pub const fn round(self) -> Self {
+        Self {
+            x: self.x.round(),
+            y: self.y.round(),
+        }
+    }
 }
 
-#[repr(C)]
-#[derive(Debug, Default, Copy, Clone, PartialEq, Pod, Zeroable)]
-pub struct Vec2f {
-    pub x: f32,
-    pub y: f32,
+impl Neg for Vec2 {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+        }
+    }
 }
 
-impl Vec2f {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0 };
-    pub const X: Self = Self { x: 1.0, y: 0.0 };
-    pub const Y: Self = Self { x: 0.0, y: 1.0 };
+impl Lerp for Vec2 {
+    fn lerp(&self, other: &Self, scalar: f64) -> Self {
+        Self {
+            x: self.x.lerp(&other.x, scalar),
+            y: self.y.lerp(&other.y, scalar),
+        }
+    }
+}
+
+impl From<Point> for Vec2 {
+    fn from(value: Point) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+        }
+    }
+}
+
+impl From<Size> for Vec2 {
+    fn from(value: Size) -> Self {
+        Self {
+            x: value.width,
+            y: value.height,
+        }
+    }
 }
 
 #[repr(C)]
@@ -78,20 +158,6 @@ macro_rules! impl_vec2_base {
                 Self { x: val, y: val }
             }
 
-            pub const fn into_point(self) -> Point<$t> {
-                Point {
-                    x: self.x,
-                    y: self.y,
-                }
-            }
-
-            pub const fn into_size(self) -> Size<$t> {
-                Size {
-                    width: self.x,
-                    height: self.y,
-                }
-            }
-
             pub fn min(self, other: Self) -> Self {
                 Self {
                     x: self.x.min(other.x),
@@ -110,24 +176,6 @@ macro_rules! impl_vec2_base {
                 Self {
                     x: self.x * val,
                     y: self.y * val,
-                }
-            }
-        }
-
-        impl From<Point<$t>> for $name {
-            fn from(value: Point<$t>) -> Self {
-                Self {
-                    x: value.x,
-                    y: value.y,
-                }
-            }
-        }
-
-        impl From<Size<$t>> for $name {
-            fn from(value: Size<$t>) -> Self {
-                Self {
-                    x: value.width,
-                    y: value.height,
                 }
             }
         }
@@ -211,80 +259,9 @@ macro_rules! impl_vec2_base {
     };
 }
 
-macro_rules! impl_vec2_float {
-    ($name: ident, $t: tt) => {
-        impl $name {
-            pub const MIN: Self = Self {
-                x: $t::MIN,
-                y: $t::MIN,
-            };
-            pub const MAX: Self = Self {
-                x: $t::MAX,
-                y: $t::MAX,
-            };
-
-            pub const fn dot(self, other: Self) -> $t {
-                self.x * other.x + self.y * other.y
-            }
-
-            pub fn length(self) -> $t {
-                self.x.hypot(self.y)
-            }
-
-            pub fn length_squared(self) -> $t {
-                self.dot(self)
-            }
-
-            pub const fn floor(self) -> Self {
-                Self {
-                    x: self.x.floor(),
-                    y: self.y.floor(),
-                }
-            }
-
-            pub const fn ceil(self) -> Self {
-                Self {
-                    x: self.x.ceil(),
-                    y: self.y.ceil(),
-                }
-            }
-
-            pub const fn round(self) -> Self {
-                Self {
-                    x: self.x.round(),
-                    y: self.y.round(),
-                }
-            }
-        }
-
-        impl Neg for $name {
-            type Output = Self;
-
-            fn neg(self) -> Self {
-                Self {
-                    x: -self.x,
-                    y: -self.y,
-                }
-            }
-        }
-
-        impl Lerp for $name {
-            fn lerp(&self, other: &Self, scalar: f64) -> Self {
-                Self {
-                    x: self.x.lerp(&other.x, scalar),
-                    y: self.y.lerp(&other.y, scalar),
-                }
-            }
-        }
-    };
-}
-
-impl_vec2_base!(Vec2, f64);
-impl_vec2_base!(Vec2f, f32);
+impl_vec2_base!(Vec2, f32);
 impl_vec2_base!(Vec2i, i32);
 impl_vec2_base!(Vec2u, u32);
-impl_vec2_float!(Vec2, f64);
-impl_vec2_float!(Vec2f, f32);
 
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, PartialEq, Pod, Zeroable)]

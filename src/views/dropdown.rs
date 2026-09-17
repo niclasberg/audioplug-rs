@@ -2,7 +2,8 @@ use crate::{
     KeyEvent, MouseButton, MouseEvent,
     core::{Align, Key},
     ui::{
-        AnyWidgetId, EventContext, EventStatus, MouseEventContext, OverlayAnchor, OverlayOptions, View, Widget, WidgetAdapter, WidgetMut
+        AnyWidgetId, EventContext, EventStatus, OverlayAnchor, OverlayOptions, View, Widget,
+        WidgetAdapter, WidgetMut,
     },
 };
 
@@ -68,36 +69,30 @@ impl<WTrigger: Widget, V: View, FMenu: Fn() -> V + 'static> WidgetAdapter
         &mut self.trigger_widget
     }
 
-    fn mouse_event(&mut self, event: MouseEvent, cx: &mut MouseEventContext) -> EventStatus {
-        match event {
-            MouseEvent::Down {
-                button: MouseButton::LEFT,
-                ..
-            } => {
-                let view = (self.menu_fn)();
-                if !self.is_dropdown_open() {
-                    cx.defer_update(self, move |mut widget| {
-                        // not sure if this second check is needed
-                        if !widget.is_dropdown_open() {
-                            let id = widget.add_overlay(
-                                view,
-                                OverlayOptions {
-                                    anchor: OverlayAnchor::OutsideParent,
-                                    align: Align::Bottom,
-                                    z_index: 50000,
-                                    ..Default::default()
-                                },
-                            );
-                            widget.overlay_id = Some(id.into_any_widget_id());
-                        }
-                    });
-                } else {
-                    cx.defer_update(self, Self::close);
-                }
-
-                EventStatus::Handled
+    fn mouse_event(&mut self, event: MouseEvent, cx: &mut EventContext) {
+        if let MouseEvent::Down(ev) = event
+            && ev.button == MouseButton::LEFT
+        {
+            let view = (self.menu_fn)();
+            if !self.is_dropdown_open() {
+                cx.defer_update(self, move |mut widget| {
+                    // not sure if this second check is needed
+                    if !widget.is_dropdown_open() {
+                        let id = widget.add_overlay(
+                            view,
+                            OverlayOptions {
+                                anchor: OverlayAnchor::OutsideParent,
+                                align: Align::Bottom,
+                                z_index: 50000,
+                                ..Default::default()
+                            },
+                        );
+                        widget.overlay_id = Some(id.into_any_widget_id());
+                    }
+                });
+            } else {
+                cx.defer_update(self, Self::close);
             }
-            _ => EventStatus::Ignored,
         }
     }
 

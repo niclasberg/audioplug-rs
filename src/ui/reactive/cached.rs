@@ -21,10 +21,12 @@ impl<'s> CanRead<'s> for CachedContext<'s> {
     where
         's: 's2,
     {
+        let current_widget = self.reactive_graph.owner_widget(self.memo_id);
         ReadContext {
             widgets: self.widgets,
             reactive_graph: self.reactive_graph,
             scope: ReadScope::Node(self.memo_id),
+            current_widget,
         }
     }
 }

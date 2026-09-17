@@ -3,17 +3,17 @@ use std::ops::{Add, Mul};
 use super::{Point, Size, Vec2};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub struct Transform<T = f64> {
-    pub m11: T,
-    pub m12: T,
-    pub m21: T,
-    pub m22: T,
-    pub tx: T,
-    pub ty: T,
+pub struct Transform {
+    pub m11: f32,
+    pub m12: f32,
+    pub m21: f32,
+    pub m22: f32,
+    pub tx: f32,
+    pub ty: f32,
 }
 
-impl<T> Transform<T> {
-    pub fn new(m11: T, m12: T, m21: T, m22: T, tx: T, ty: T) -> Self {
+impl Transform {
+    pub fn new(m11: f32, m12: f32, m21: f32, m22: f32, tx: f32, ty: f32) -> Self {
         Self {
             m11,
             m12,
@@ -30,7 +30,7 @@ impl Transform {
         Self::new(1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
     }
 
-    pub fn from_rotation(angle: f64) -> Self {
+    pub fn from_rotation(angle: f32) -> Self {
         let c = angle.cos();
         let s = angle.sin();
         Self::new(c, -s, s, c, 0.0, 0.0)
@@ -40,18 +40,15 @@ impl Transform {
         Self::new(1.0, 0.0, 0.0, 1.0, v.x, v.y)
     }
 
-    pub fn from_scale(sx: f64, sy: f64) -> Self {
+    pub fn from_scale(sx: f32, sy: f32) -> Self {
         Self::new(sx, 0.0, 0.0, sy, 0.0, 0.0)
     }
 }
 
-impl<T> Mul<Transform<T>> for Transform<T>
-where
-    T: Mul<T, Output = T> + Add<T, Output = T> + Copy,
-{
-    type Output = Transform<T>;
+impl Mul<Transform> for Transform {
+    type Output = Transform;
 
-    fn mul(self, rhs: Transform<T>) -> Self::Output {
+    fn mul(self, rhs: Transform) -> Self::Output {
         Self {
             m11: self.m11 * rhs.m11 + self.m12 * rhs.m21,
             m12: self.m11 * rhs.m12 + self.m12 * rhs.m22,

@@ -1,13 +1,11 @@
 use crate::{
     KeyEvent, MouseEvent,
     core::{Circle, Color, Key, LinearGradient, Point, Rect, RoundedRect, Size, UnitPoint},
-    event::MouseButton,
+    event::{MouseButton, MouseDownEvent, MouseDragEvent},
     param::{AnyParameter, NormalizedValue, PlainValue},
     ui::{
-        BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext, RenderContext,
-        Scene, StatusChange, View, ViewProp, Widget,
-        reactive::ParamSetter,
-        style::{AvailableSpace, LayoutMode, Length, Measure, Style},
+        BuildContext, EventContext, EventStatus, RenderContext, Scene, StyleExt, View, ViewProp,
+        ViewStyle, Widget, reactive::ParamSetter, style::Length,
     },
 };
 
@@ -20,8 +18,14 @@ enum Direction {
     Vertical,
 }
 
-type OnDragCallback = dyn Fn(&mut CallbackContext);
-type OnValueChangeCallback = dyn Fn(&mut CallbackContext, f64);
+type OnDragCallback = dyn Fn(&mut EventContext);
+type OnValueChangeCallback = dyn Fn(&mut EventContext, f64);
+
+const BASE_STYLE: ViewStyle = ViewStyle {
+    width: Some(ViewProp::Const(Length::Auto)),
+    height: Some(ViewProp::Const(Length::Px(10.0))),
+    ..ViewStyle::DEFAULT
+};
 
 pub struct Slider {
     min: f64,
@@ -31,10 +35,11 @@ pub struct Slider {
     on_drag_end: Option<Box<OnDragCallback>>,
     on_value_changed: Box<OnValueChangeCallback>,
     direction: Direction,
+    style: ViewStyle,
 }
 
 impl Slider {
-    pub fn new(value_change_fn: impl Fn(&mut CallbackContext, f64) + 'static) -> Self {
+    pub fn new(value_change_fn: impl Fn(&mut EventContext, f64) + 'static) -> Self {
         Self {
             min: 0.0,
             max: 1.0,
@@ -43,6 +48,7 @@ impl Slider {
             on_drag_end: None,
             on_value_changed: Box::new(value_change_fn),
             direction: Default::default(),
+            style: BASE_STYLE,
         }
     }
 
@@ -51,12 +57,12 @@ impl Slider {
         self
     }
 
-    pub fn on_drag_start(mut self, f: impl Fn(&mut CallbackContext) + 'static) -> Self {
+    pub fn on_drag_start(mut self, f: impl Fn(&mut EventContext) + 'static) -> Self {
         self.on_drag_start = Some(Box::new(f));
         self
     }
 
-    pub fn on_drag_end(mut self, f: impl Fn(&mut CallbackContext) + 'static) -> Self {
+    pub fn on_drag_end(mut self, f: impl Fn(&mut EventContext) + 'static) -> Self {
         self.on_drag_end = Some(Box::new(f));
         self
     }
@@ -78,10 +84,7 @@ impl View for Slider {
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         ctx.set_focusable(true);
-        ctx.set_default_style(Style {
-            size: Size::new(Length::Auto, Length::Px(10.0)),
-            ..Default::default()
-        });
+        ctx.apply_style(self.style);
 
         let position_normalized = if let Some(value) = self.value {
             let position = value.get_and_bind(ctx, move |value, mut widget| {
@@ -106,7 +109,14 @@ impl View for Slider {
     }
 }
 
+impl StyleExt for Slider {
+    fn style_mut(&mut self) -> &mut ViewStyle {
+        &mut self.style
+    }
+}
+
 pub struct ParameterSlider<P: AnyParameter> {
+    style: ViewStyle,
     editor: ParamSetter<P>,
     signal: ViewProp<NormalizedValue>,
     direction: Direction,
@@ -120,6 +130,7 @@ impl<P: AnyParameter> ParameterSlider<P> {
             editor,
             signal,
             direction: Default::default(),
+            style: BASE_STYLE,
         }
     }
 
@@ -135,13 +146,14 @@ impl<P: AnyParameter> View for ParameterSlider<P> {
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         let editor = self.editor;
         ctx.set_focusable(true);
-        ctx.set_default_style(Style {
+        ctx.apply_style(self.style);
+        /*ctx.set_default_style(Style {
             size: match self.direction {
                 Direction::Horizontal => Size::new(Length::Auto, Length::Px(10.0)),
                 Direction::Vertical => Size::new(Length::Px(10.0), Length::Auto),
             },
             ..Default::default()
-        });
+        });*/
 
         SliderWidget {
             position_normalized: self.signal.get_and_bind_mapped(
@@ -169,10 +181,15 @@ impl<P: AnyParameter> View for ParameterSlider<P> {
     }
 }
 
+impl<P: AnyParameter> StyleExt for ParameterSlider<P> {
+    fn style_mut(&mut self) -> &mut ViewStyle {
+        &mut self.style
+    }
+}
+
 pub struct SliderWidget {
     /// Normalized position, between 0 and 1
     position_normalized: f64,
-    state: State,
     min: f64,
     max: f64,
     on_drag_start: Option<Box<OnDragCallback>>,
@@ -184,25 +201,16 @@ pub struct SliderWidget {
     background_gradient: LinearGradient,
 }
 
-#[derive(Debug, PartialEq)]
-enum State {
-    Idle,
-    KnobHover,
-    Dragging,
-}
-
 impl SliderWidget {
     fn slider_position(&self, bounds: Rect) -> Point {
         let slider_bounds = self.inner_bounds(bounds);
         match self.direction {
-            Direction::Horizontal => Point {
-                x: slider_bounds.left + self.position_normalized * slider_bounds.width(),
-                y: slider_bounds.center().y,
-            },
-            Direction::Vertical => Point {
-                x: slider_bounds.center().x,
-                y: slider_bounds.top + self.position_normalized * slider_bounds.height(),
-            },
+            Direction::Horizontal => {
+                slider_bounds.get_relative_point(self.position_normalized as f32, 0.5)
+            }
+            Direction::Vertical => {
+                slider_bounds.get_relative_point(0.5, self.position_normalized as f32)
+            }
         }
     }
 
@@ -217,22 +225,23 @@ impl SliderWidget {
         Circle::new(self.slider_position(bounds), self.knob_radius(bounds))
     }
 
-    fn knob_radius(&self, bounds: Rect) -> f64 {
+    fn knob_radius(&self, bounds: Rect) -> f32 {
         bounds.height().min(bounds.width()) / 2.0
     }
 
     fn absolute_to_normalized_position(&self, position: Point, bounds: Rect) -> f64 {
-        match self.direction {
+        let normalized_position = match self.direction {
             Direction::Horizontal => {
                 ((position.x - bounds.left - 2.5) / (bounds.width() - 5.0)).clamp(0.0, 1.0)
             }
             Direction::Vertical => {
                 ((position.y - bounds.top - 2.5) / (bounds.height() - 5.0)).clamp(0.0, 1.0)
             }
-        }
+        };
+        normalized_position as f64
     }
 
-    fn set_position(&mut self, cx: &mut CallbackContext, normalized_position: f64) -> bool {
+    fn set_position(&mut self, cx: &mut EventContext, normalized_position: f64) -> bool {
         if normalized_position != self.position_normalized {
             self.position_normalized = normalized_position;
             if let Some(f) = self.on_value_changed.as_ref() {
@@ -252,7 +261,6 @@ impl Default for SliderWidget {
     fn default() -> Self {
         Self {
             position_normalized: 0.0,
-            state: State::Idle,
             min: 0.0,
             max: 1.0,
             on_drag_start: None,
@@ -284,93 +292,43 @@ impl Default for SliderWidget {
     }
 }
 
-impl Measure for SliderWidget {
-    fn measure(&self, _style: &Style, width: AvailableSpace, height: AvailableSpace) -> Size<f64> {
-        let width = match width {
-            AvailableSpace::Exact(x) => x,
-            AvailableSpace::MinContent => 5.0,
-            AvailableSpace::MaxContent => 500.0,
-        };
-        let height = height.unwrap_or(5.0);
-
-        match self.direction {
-            Direction::Horizontal => Size::new(width, height),
-            Direction::Vertical => Size::new(height, width),
-        }
-    }
-}
-
 impl Widget for SliderWidget {
     fn debug_label(&self) -> &'static str {
         "Slider"
     }
 
-    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) {
         match event {
-            MouseEvent::Down {
+            MouseEvent::Down(MouseDownEvent {
                 button, position, ..
-            } => {
-                if button == MouseButton::LEFT && self.state != State::Dragging {
+            }) => {
+                if button == MouseButton::LEFT {
                     if !self.knob_shape(ctx.bounds()).contains(position) {
                         let normalized_position =
                             self.absolute_to_normalized_position(position, ctx.bounds());
-                        if self.set_position(&mut ctx.as_callback_context(), normalized_position) {
+                        if self.set_position(ctx, normalized_position) {
                             ctx.request_render();
                         }
                     }
-                    ctx.capture_mouse();
                     ctx.request_render();
                     if let Some(f) = self.on_drag_start.as_ref() {
-                        f(&mut ctx.as_callback_context());
-                    }
-                    self.state = State::Dragging;
-                }
-                EventStatus::Handled
-            }
-            MouseEvent::Moved { position, .. } => {
-                match self.state {
-                    State::Idle => {
-                        if self.knob_shape(ctx.bounds()).contains(position) {
-                            ctx.request_render();
-                            self.state = State::KnobHover;
-                        }
-                    }
-                    State::KnobHover => {
-                        if !self.knob_shape(ctx.bounds()).contains(position) {
-                            ctx.request_render();
-                            self.state = State::Idle;
-                        }
-                    }
-                    State::Dragging => {
-                        let normalized_position =
-                            self.absolute_to_normalized_position(position, ctx.bounds());
-                        if self.set_position(&mut ctx.as_callback_context(), normalized_position) {
-                            ctx.request_render();
-                        }
+                        f(ctx);
                     }
                 }
-                EventStatus::Handled
             }
-            MouseEvent::Up {
-                button, position, ..
-            } => {
-                if button == MouseButton::LEFT {
-                    if self.state == State::Dragging
-                        && let Some(f) = self.on_drag_end.as_ref()
-                    {
-                        f(&mut ctx.as_callback_context())
-                    }
-                    ctx.release_capture();
+            MouseEvent::DragMoved(MouseDragEvent { position, .. }) => {
+                let normalized_position =
+                    self.absolute_to_normalized_position(position, ctx.bounds());
+                if self.set_position(ctx, normalized_position) {
                     ctx.request_render();
-                    self.state = if self.knob_shape(ctx.bounds()).contains(position) {
-                        State::KnobHover
-                    } else {
-                        State::Idle
-                    };
                 }
-                EventStatus::Handled
             }
-            _ => EventStatus::Ignored,
+            MouseEvent::DragEnded | MouseEvent::DragCancelled => {
+                if let Some(f) = self.on_drag_end.as_ref() {
+                    f(ctx)
+                }
+            }
+            _ => {}
         }
     }
 
@@ -379,14 +337,14 @@ impl Widget for SliderWidget {
             crate::KeyEvent::KeyDown { key, .. } => match key {
                 Key::Left | Key::Down => {
                     let new_position = (self.position_normalized - 0.1).clamp(0.0, 1.0);
-                    if self.set_position(&mut ctx.as_callback_context(), new_position) {
+                    if self.set_position(ctx, new_position) {
                         ctx.request_render();
                     }
                     EventStatus::Handled
                 }
                 Key::Right | Key::Up => {
                     let new_position = (self.position_normalized + 0.1).clamp(0.0, 1.0);
-                    if self.set_position(&mut ctx.as_callback_context(), new_position) {
+                    if self.set_position(ctx, new_position) {
                         ctx.request_render();
                     }
                     EventStatus::Handled
@@ -394,21 +352,6 @@ impl Widget for SliderWidget {
                 _ => EventStatus::Ignored,
             },
             _ => EventStatus::Ignored,
-        }
-    }
-
-    fn status_change(&mut self, event: StatusChange, ctx: &mut EventContext) {
-        match event {
-            StatusChange::FocusGained | StatusChange::FocusLost => ctx.request_render(),
-            StatusChange::MouseCaptureLost => {
-                if self.state == State::Dragging {
-                    self.state = State::Idle;
-                    if let Some(f) = self.on_drag_end.as_ref() {
-                        f(&mut ctx.as_callback_context())
-                    }
-                }
-            }
-            _ => {}
         }
     }
 
@@ -444,9 +387,5 @@ impl Widget for SliderWidget {
             self.knob_gradient_up.clone(),
         );
         scene
-    }
-
-    fn layout_mode(&self) -> LayoutMode<'_> {
-        LayoutMode::Leaf(self)
     }
 }

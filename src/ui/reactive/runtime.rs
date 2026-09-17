@@ -5,13 +5,13 @@ use super::{
     effect::{EffectState, WatchState},
     event_channel::EventHandlerState,
     var::SignalState,
-    widget_status::WidgetStatusFlags,
 };
 use crate::{
     core::{FxHashMap, FxHashSet, FxIndexSet},
     param::{AnyParameterMap, ParamRef, ParameterId},
     ui::{
         WidgetId, WidgetTree, Widgets,
+        reactive::view_status::WidgetStatusFlags,
         task_queue::{Task, TaskQueue},
     },
 };
@@ -527,5 +527,19 @@ impl ReactiveGraph {
             .unwrap()
             .or_default()
             .push(SourceId::Widget(widget_id));
+    }
+
+    pub fn widget_from_owner(&self, mut owner: Owner) -> Option<WidgetId> {
+        loop {
+            match owner {
+                Owner::Root => return None,
+                Owner::Widget(widget_id) => return Some(widget_id),
+                Owner::Node(node_id) => owner = self.nodes[node_id].owner,
+            }
+        }
+    }
+
+    pub fn owner_widget(&self, node_id: NodeId) -> Option<WidgetId> {
+        self.widget_from_owner(self.nodes[node_id].owner)
     }
 }

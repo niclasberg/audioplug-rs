@@ -1,10 +1,11 @@
+// Ideas:
+// 1. Use a BVH for paths, should speed up SDF computation
+// 2. Also use this for winding number evaluation. Or keep a separate y-binned data structure
+
 const TILE_SIZE: u32 = 16;
 
 const PI = radians(180.0);
 const TAU = radians(360.0);
-
-const SIZE_MASK = 0xFFFF;
-const FILL_MASK = (1u << 17);
 
 const SHAPE_TYPE_NONE = 0u;
 const SHAPE_TYPE_PATH = 1u;
@@ -15,16 +16,22 @@ const SHAPE_TYPE_MASK = 7u;
 
 const FILL_RULE_EVEN_ODD = 1u << 3;
 
-const FILL_TYPE_SOLID = 1u;
-const FILL_TYPE_STROKE = 2u;
-const FILL_TYPE_DROP_SHADOW = 3u;
-const FILL_TYPE_INNER_SHADOW = 4u;
-const FILL_TYPE_LINEAR_GRADIENT = 5u;
-const FILL_TYPE_RADIAL_GRADIENT = 6u;
+const FILL_FLAG = 1u;
+const STROKE_FLAG = 2u;
+const SHADOW_FLAG = 4u;
+
+const PAINT_KIND_SOLID = 1u;
+const PAINT_KIND_LINEAR_GRADIENT = 2u;
+const PAINT_KIND_RADIAL_GRADIENT = 3u;
+const PAINT_KIND_IMAGE = 4u;
+
+const SHADOW_KIND_OUTER = 1u;
+const SHADOW_KIND_INNER = 2u;
 
 struct Params {
 	width: u32,
 	height: u32,
+	draw_command_count: u32
 }
 
 struct LinearGradient {
@@ -58,17 +65,47 @@ struct Ellipse {
 	radii: vec2f,
 }
 
-@group(0) @binding(0)
-var<uniform> params: Params;
+struct Paint {
+	kind: u32,
+	data: array<u32, 7>
+}
 
-@group(0) @binding(1)
+struct Shadow {
+    kind: u32,
+    radius: f32,
+    offset: vec2f,
+    color: vec4f,
+}
+
+struct Appearance {
+	fill: Paint,
+	stroke: Paint,
+	shadow: Shadow,
+	stroke_width: f32, 
+	flags: u32,
+	_padding: vec2u,
+}
+
+struct DrawCommand {
+	shape_type: u32,
+    shape_index: u32,
+    appearance_index: u32,
+}
+
+@group(0) @binding(0)
 var output_texture: texture_storage_2d<rgba8unorm, write>;
 
 @group(1) @binding(0)
-var<storage, read> shape_data: array<f32>;
+var<uniform> params: Params;
 
 @group(1) @binding(1)
-var<storage, read> fills: array<u32>;
+var<storage, read> shape_data: array<f32>;
+
+@group(1) @binding(2)
+var<storage, read> appearances: array<Appearance>;
+
+@group(1) @binding(3)
+var<storage, read> draw_commands: array<DrawCommand>;
 
 @compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -83,153 +120,82 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 	let pos = vec2f(coord);
 
 	var color = vec4f(0.1, 0.3, 0.1, 1.0);
-	var i = 0u;
-	loop {
-		if i >= arrayLength(&fills) {
-			break;
+	
+	for (var i = 0u; i < params.draw_command_count; i++) {
+		let command = draw_commands[i];
+		let appearance = appearances[command.appearance_index];
+
+		let signed_dist = sd_shape(command.shape_type, command.shape_index, pos);
+
+		if ((appearance.flags & SHADOW_FLAG) != 0 && appearance.shadow.kind == SHADOW_KIND_OUTER) {
+			let pt = pos - appearance.shadow.offset;
+			let blur_mask = compute_blurred_coverage(command.shape_type, command.shape_index, pt, appearance.shadow.radius);
+			let shape_mask = distance_to_coverage(signed_dist);
+			let coverage = blur_mask * (1.0 - shape_mask);
+			color = blend(color, appearance.shadow.color, coverage);
 		}
 
-		let shape_type = fills[i] >> 4;
-		let fill_type = fills[i] & 0xF;
-		let index = fills[i+1];
-		i += 2;
-
-		if (fill_type == FILL_TYPE_SOLID) {
-			color = fill_solid(&i, shape_type, index, color, pos);
-		} else if (fill_type == FILL_TYPE_STROKE) {
-			color = stroke(&i, shape_type, index, color, pos);
-		} else if (fill_type == FILL_TYPE_DROP_SHADOW || fill_type == FILL_TYPE_INNER_SHADOW) {
-			color = fill_shadow(&i, shape_type, index, color, fill_type, pos);
-		} else if (fill_type == FILL_TYPE_LINEAR_GRADIENT) {
-			color = fill_linear_gradient(&i, shape_type, index, color, pos);
-		} else if (fill_type == FILL_TYPE_RADIAL_GRADIENT) {
-			color = fill_radial_gradient(&i, shape_type, index, color, pos);
+		if ((appearance.flags & FILL_FLAG) != 0) {
+			let fill_color = eval_paint(appearance.fill, pos);
+			let coverage = distance_to_coverage(signed_dist);
+			color = blend(color, fill_color, coverage);
 		}
-	};
+
+		if ((appearance.flags & STROKE_FLAG) != 0) {
+			let stroke_color = eval_paint(appearance.stroke, pos);
+			let signed_dist_stroked = abs(signed_dist) - appearance.stroke_width;
+			let coverage = distance_to_coverage(signed_dist_stroked);
+			color = blend(color, stroke_color, coverage);
+		}
+
+		if ((appearance.flags & SHADOW_FLAG) != 0 && appearance.shadow.kind == SHADOW_KIND_INNER) {
+			let pt = pos - appearance.shadow.offset;
+			let blur_mask = compute_blurred_coverage(command.shape_type, command.shape_index, pt, appearance.shadow.radius);
+			let shape_mask = distance_to_coverage(signed_dist);
+			let coverage = (1.0 - blur_mask) * shape_mask;
+			color = blend(color, appearance.shadow.color, coverage);
+		}
+	}
 
 	textureStore(output_texture, coord, color);
 }
 
-fn fill_solid(i: ptr<function, u32>, shape_type: u32, shape_index: u32, color: vec4f, pos: vec2f) -> vec4f {
-	let fill_color = vec4f(
-		bitcast<f32>(fills[*i]),
-		bitcast<f32>(fills[*i+1]),
-		bitcast<f32>(fills[*i+2]),
-		bitcast<f32>(fills[*i+3]),
-	);
-	*i += 4;
-
-	let coverage = compute_coverage(shape_type, shape_index, pos);
-	return blend(color, fill_color, coverage);
-}
-
-fn stroke(i: ptr<function, u32>, shape_type: u32, shape_index: u32, color: vec4f, pos: vec2f) -> vec4f {
-	let stroke_color = vec4f(
-		bitcast<f32>(fills[*i]),
-		bitcast<f32>(fills[*i+1]),
-		bitcast<f32>(fills[*i+2]),
-		bitcast<f32>(fills[*i+3]),
-	);
-	let width = bitcast<f32>(fills[*i+4]);
-	*i += 5;
-
-	let signed_dist = sd_shape(shape_type, shape_index, pos);
-	let coverage = distance_to_coverage(abs(signed_dist) - width);
-	return blend(color, stroke_color, coverage);
-}
-
-fn fill_shadow(i: ptr<function, u32>, shape_type: u32, shape_index: u32, color: vec4f, shadow_type: u32, pos: vec2f) -> vec4f {
-	let blur_color = vec4f(
-		bitcast<f32>(fills[*i]),
-		bitcast<f32>(fills[*i+1]),
-		bitcast<f32>(fills[*i+2]),
-		bitcast<f32>(fills[*i+3]),
-	);
-	let offset = vec2f(bitcast<f32>(fills[*i+4]), bitcast<f32>(fills[*i+5]));
-	let blur_radius = bitcast<f32>(fills[*i+6]);
-	*i += 7;
-
-	let blur_mask = compute_blurred_coverage(shape_type, shape_index, pos - offset, blur_radius);
-	let shape_mask = compute_coverage(shape_type, shape_index, pos);
-	let drop_shadow_coverage = blur_mask * (1.0 - shape_mask);
-	let inner_shadow_coverage = (1.0 - blur_mask) * shape_mask;
-	let coverage = select(inner_shadow_coverage, drop_shadow_coverage, shadow_type == FILL_TYPE_DROP_SHADOW);
-	return blend(color, blur_color, coverage);
-}
-
-fn fill_linear_gradient(i: ptr<function, u32>, shape_type: u32, shape_index: u32, color: vec4f, pos: vec2f) -> vec4f {
-	let start = vec2f(bitcast<f32>(fills[*i]), bitcast<f32>(fills[*i+1]));
-	let end = vec2f(bitcast<f32>(fills[*i+2]), bitcast<f32>(fills[*i+3]));
-	*i += 4;
-	
-	let delta = end - start;
-	let t = clamp(dot(pos - start, delta) / dot(delta, delta), 0.0, 1.0);
-	let fill_color = vec4f(t, t, t, 1.0);
-
-	let coverage = compute_coverage(shape_type, shape_index, pos);
-	return blend(color, fill_color, coverage);
-}
-
-fn fill_radial_gradient(i: ptr<function, u32>, shape_type: u32, shape_index: u32, color: vec4f, pos: vec2f) -> vec4f {
-	let center = vec2f(bitcast<f32>(fills[*i]), bitcast<f32>(fills[*i+1]));
-	let radius = max(bitcast<f32>(fills[*i+2]), 1.0e-6);
-	*i += 3;
-
-	let t = clamp(length(pos - center) / radius, 0.0, 1.0);
-	let fill_color = vec4f(t, t, t, 1.0);
-
-	let coverage = compute_coverage(shape_type, shape_index, pos);
-	return blend(color, fill_color, coverage);
+fn eval_paint(paint: Paint, pos: vec2f) -> vec4f {
+	switch (paint.kind) {
+		case PAINT_KIND_SOLID: {
+			return vec4f(
+				bitcast<f32>(paint.data[0]),
+				bitcast<f32>(paint.data[1]),
+				bitcast<f32>(paint.data[2]),
+				bitcast<f32>(paint.data[3]),
+			);
+		}
+		case PAINT_KIND_LINEAR_GRADIENT: {
+			let start = vec2f(bitcast<f32>(paint.data[0]), bitcast<f32>(paint.data[1]));
+			let end = vec2f(bitcast<f32>(paint.data[2]), bitcast<f32>(paint.data[3]));
+			let delta = end - start;
+			let t = clamp(dot(pos - start, delta) / dot(delta, delta), 0.0, 1.0);
+			// TODO: Sample from colormap LUT
+			return vec4f(t, t, t, 1.0);
+		}
+		case PAINT_KIND_RADIAL_GRADIENT: {
+			let center = vec2f(bitcast<f32>(paint.data[0]), bitcast<f32>(paint.data[1]));
+			let radius = max(bitcast<f32>(paint.data[2]), 1.0e-6);
+			let t = clamp(length(pos - center) / radius, 0.0, 1.0);
+			return vec4f(t, t, t, 1.0);
+		}
+		case PAINT_KIND_IMAGE: {
+			return vec4f(0.0f);
+		}
+		default: {
+			return vec4f(0.0f);
+		}
+	}
 }
 
 fn blend(color: vec4f, fill_color: vec4f, coverage: f32) -> vec4f {
 	let alpha = fill_color.w * coverage;
 	return (1.0 - alpha) * color + alpha * fill_color;
-}
-
-fn compute_coverage(shape_type: u32, index: u32, pos: vec2f) -> f32 {
-	switch (shape_type & SHAPE_TYPE_MASK) {
-		case SHAPE_TYPE_NONE: {
-			return 1.0;
-		}
-		case SHAPE_TYPE_PATH: {
-			let size = (shape_type >> 4);
-			var winding_number = 0.0f;
-			for (var i = 0u; i < size; i++) {
-				let segment = read_line_segment(index + 4*i);
-				winding_number += winding_contribution(segment.p0, segment.p1, pos);
-			}
-			
-			let even_odd_fill = 1.0 - abs(1.0 - 2.0 * fract(0.5 * winding_number));
-			let non_zero_fill = clamp(abs(winding_number), 0.0, 1.0);
-			return select(non_zero_fill, even_odd_fill, (shape_type & FILL_RULE_EVEN_ODD) != 0);
-		}
-		case SHAPE_TYPE_RECT: {
-			let rect = read_rect(index);
-
-			// TODO: anti-aliasing: Compute area of intersection between a unit rectangle centered at pos and the shape's rectangle
-
-			let s = step(rect.top_left, pos) - step(rect.bottom_right, pos);
-			return s.x * s.y;
-		}
-		case SHAPE_TYPE_ROUNDED_RECT: {
-			let rect = read_rounded_rect(index);
-
-			let half_size = 0.5 * (rect.bottom_right - rect.top_left);
-			let p = pos - rect.top_left - half_size;
-			let corner_radius = select_rect_corner(rect.corner_radii, p);
-			let dist = sd_rounded_rect(half_size, corner_radius, p);
-			return distance_to_coverage(dist);
-		}
-		case SHAPE_TYPE_ELLIPSE: {
-			let ellipse = read_ellipse(index);
-			let dist = sd_ellipse(ellipse.radii, pos - ellipse.center);
-			return distance_to_coverage(dist);
-		}
-		default: {
-			return 0.0;
-		}
-	}
 }
 
 fn distance_to_coverage(dist: f32) -> f32 {
@@ -262,6 +228,48 @@ fn read_ellipse(index: u32) -> Ellipse {
 		vec2f(shape_data[index], shape_data[index+1]), 
 		vec2f(shape_data[index+2], shape_data[index+3])
 	);
+}
+
+fn sd_shape(shape_type: u32, index: u32, pos: vec2f) -> f32 {
+	switch (shape_type & SHAPE_TYPE_MASK) {
+		case SHAPE_TYPE_NONE: {
+			return -1.0;
+		}
+		case SHAPE_TYPE_PATH: {
+			let size = (shape_type >> 4);
+			var winding_number = 0.0f;
+			var dist = 100000000.0f;
+			for (var i = 0u; i < size; i++) {
+				let segment = read_line_segment(index + 4*i);
+				winding_number += winding_contribution(segment.p0, segment.p1, pos);
+				dist = min(dist, sd_line(segment.p0, segment.p1, pos));
+			}
+			
+			let even_odd_fill = 1.0 - abs(1.0 - 2.0 * fract(0.5 * winding_number));
+			let non_zero_fill = clamp(abs(winding_number), 0.0, 1.0);
+			return dist * select(non_zero_fill, even_odd_fill, (shape_type & FILL_RULE_EVEN_ODD) != 0);
+		}
+		case SHAPE_TYPE_RECT: {
+			let rect = read_rect(index);
+			let half_size = 0.5 * (rect.bottom_right - rect.top_left);
+			let p = pos - rect.top_left - half_size;
+			return sd_rect(half_size, pos);
+		}
+		case SHAPE_TYPE_ROUNDED_RECT: {
+			let rect = read_rounded_rect(index);
+			let half_size = 0.5 * (rect.bottom_right - rect.top_left);
+			let p = pos - rect.top_left - half_size;
+			let corner_radius = select_rect_corner(rect.corner_radii, p);
+			return sd_rounded_rect(half_size, corner_radius, p);
+		}
+		case SHAPE_TYPE_ELLIPSE: {
+			let ellipse = read_ellipse(index);
+			return sd_ellipse(ellipse.radii, pos - ellipse.center);
+		}
+		default: {
+			return 0.0;
+		}
+	}
 }
 
 // Shoot ray in positive x direction, returns the number of path crossings
@@ -332,57 +340,22 @@ fn select_rect_corner(c: vec4f, pos: vec2f) -> f32 {
 	return mix(mix(c.x, c.y, step(0, pos.x)), mix(c.w, c.z, step(0, pos.x)), step(0, pos.y));
 }
 
-fn sd_shape(shape_type: u32, index: u32, pos: vec2f) -> f32 {
-	switch (shape_type & SHAPE_TYPE_MASK) {
-		case SHAPE_TYPE_NONE: {
-			return -1.0;
-		}
-		case SHAPE_TYPE_PATH: {
-			let size = (shape_type >> 4);
-			var winding_number = 0.0f;
-			var dist = 100000000.0f;
-			for (var i = 0u; i < size; i++) {
-				let segment = read_line_segment(index + 4*i);
-				winding_number += winding_contribution(segment.p0, segment.p1, pos);
-				dist = min(dist, sd_line(segment.p0, segment.p1, pos));
-			}
-			
-			let even_odd_fill = 1.0 - abs(1.0 - 2.0 * fract(0.5 * winding_number));
-			let non_zero_fill = clamp(abs(winding_number), 0.0, 1.0);
-			return dist * select(non_zero_fill, even_odd_fill, (shape_type & FILL_RULE_EVEN_ODD) != 0);
-		}
-		case SHAPE_TYPE_RECT: {
-			let rect = read_rect(index);
-			let half_size = 0.5 * (rect.bottom_right - rect.top_left);
-			let p = pos - rect.top_left - half_size;
-			return sd_rect(half_size, pos);
-		}
-		case SHAPE_TYPE_ROUNDED_RECT: {
-			let rect = read_rounded_rect(index);
-			let half_size = 0.5 * (rect.bottom_right - rect.top_left);
-			let p = pos - rect.top_left - half_size;
-			let corner_radius = select_rect_corner(rect.corner_radii, p);
-			return sd_rounded_rect(half_size, corner_radius, p);
-		}
-		case SHAPE_TYPE_ELLIPSE: {
-			let ellipse = read_ellipse(index);
-			return sd_ellipse(ellipse.radii, pos - ellipse.center);
-		}
-		default: {
-			return 0.0;
-		}
-	}
-}
-
 fn compute_blurred_coverage(shape_type: u32, index: u32, pos: vec2f, blur_radius: f32) -> f32 {
 	let sigma = blur_radius / 3.0;
 	switch (shape_type & SHAPE_TYPE_MASK) {
 		case SHAPE_TYPE_NONE: {
-			return 1.0;
+			return 0.0;
 		}
 		case SHAPE_TYPE_PATH: {
-			// Not supported, need to think about if it's possible to do without an 
-			// intermediate texture
+			// Not supported, need to think about how to do it.
+			// We want to evaluate the integral: 
+			//.   \int_A exp(-((x-x0)^2 + (y-y0)^2)/(2 sigma^2)) / (2 pi sigma^2) dA
+			//.   Using Green's theorem this can be turned into a path integral \int_P F.n dl = \int div(F)
+			//.   We can use: F = (exp(-y^2/(2sigma^2)/(2 sqrt(2pi)sigma) * (1-erf(x/(sqrt(2) sigma))), 0)
+			//.   Or maybe something else? Then we can use Gaussian quadrature for the integral
+			//.   Could also use Stokes theorm: \int_A FdA = \int_P Pdx + Qdy, where F = dQ/dx - dP/dy
+			//.   Can use P = 0, Q = (...) e^(-y^2) * erf(x)
+			//    Or better: (P, Q) = (1 - exp(-(x^2 + y^2)) / (2(x^2 + y^2)) * (-y, x)
 			return 0.0; 
 		}
 		// Rect and rounded rect blur functions adapted from https://madebyevan.com/shaders/fast-rounded-rectangle-shadows/

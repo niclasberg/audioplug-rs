@@ -1,12 +1,10 @@
-mod builder;
 mod display_style;
 mod image_effect;
 mod length;
 mod ui_rect;
 
-use crate::core::{Brush, Color, Cursor, ShadowOptions, Size, Zero};
-pub use builder::StyleBuilder;
-pub use display_style::{AvailableSpace, FlexStyle, GridStyle, LayoutMode, Measure};
+use crate::core::{Color, Cursor, Paint, ShadowOptions, Size, Zero};
+pub use display_style::{AvailableSpace, DisplayStyle, FlexStyle, GridStyle, LayoutMode, Measure};
 pub use image_effect::ImageEffect;
 pub use length::Length;
 pub use taffy::{
@@ -19,21 +17,15 @@ pub(crate) trait ResolveInto<T> {
     fn resolve_into(self, window_size: Size) -> T;
 }
 
-impl<U, T: ResolveInto<U>> ResolveInto<taffy::Size<U>> for Size<T> {
-    fn resolve_into(self, window_size: Size) -> taffy::Size<U> {
-        taffy::Size {
-            width: self.width.resolve_into(window_size),
-            height: self.height.resolve_into(window_size),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Style {
     pub hidden: bool,
-    pub size: Size<Length>,
-    pub min_size: Size<Length>,
-    pub max_size: Size<Length>,
+    pub width: Length,
+    pub height: Length,
+    pub min_width: Length,
+    pub min_height: Length,
+    pub max_width: Length,
+    pub max_height: Length,
     pub aspect_ratio: Option<f64>,
     pub padding: UiRect,
     pub border: Length,
@@ -42,7 +34,7 @@ pub struct Style {
     pub scrollbar_width: f64,
     pub overflow_x: Overflow,
     pub overflow_y: Overflow,
-    pub background: Option<Brush>,
+    pub background: Option<Paint>,
     pub corner_radius: Size,
     pub cursor: Option<Cursor>,
     pub border_color: Option<Color>,
@@ -57,9 +49,12 @@ impl Default for Style {
     fn default() -> Self {
         Self {
             hidden: false,
-            size: Default::default(),
-            min_size: Default::default(),
-            max_size: Default::default(),
+            width: Length::Auto,
+            height: Length::Auto,
+            min_width: Length::Auto,
+            min_height: Length::Auto,
+            max_width: Length::Auto,
+            max_height: Length::Auto,
             aspect_ratio: None,
             padding: UiRect::ZERO,
             border: Length::ZERO,

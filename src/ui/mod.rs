@@ -9,7 +9,9 @@ pub mod reactive;
 mod render;
 pub mod style;
 mod task_queue;
+mod text;
 mod view;
+mod view_ext;
 mod view_prop;
 mod view_sequence;
 mod widget;
@@ -22,18 +24,18 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 pub use animation::AnimationContext;
 pub(crate) use app_state::AppState;
-pub use event_handling::{CallbackContext, EventContext, MouseEventContext};
+pub use event_handling::EventContext;
 pub use host_handle::HostHandle;
 pub use overlay::{OverlayAnchor, OverlayOptions};
 
-pub use render::{
-    Canvas, CanvasContext, CanvasWidget, RenderContext, Scene, TextLayout, invalidate_window,
-};
+pub use render::{Canvas, CanvasContext, CanvasWidget, RenderContext, Scene, invalidate_window};
 pub use task_queue::TaskQueue;
+pub use text::{TextContext, TextExt, TextStyle, ViewText};
 pub use view::*;
+pub use view_ext::{StyleExt, ViewStyle};
 pub use view_prop::ViewProp;
 pub use view_sequence::*;
-pub use widget::{EventStatus, StatusChange, Widget, WidgetAdapter};
+pub use widget::{EventStatus, Widget, WidgetAdapter};
 pub use widget_ref::{WidgetMut, WidgetRef};
 pub use widget_tree::{WidgetData, WidgetFlags, WidgetId, WidgetTree};
 pub use widgets::{WidgetPos, Widgets};

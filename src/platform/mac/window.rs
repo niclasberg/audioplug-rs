@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
-use crate::core::{PhysicalRect, Rect, ScaleFactor};
+use crate::core::{PhysicalRect, PhysicalSize, Rect, ScaleFactor};
 use crate::platform::{Application, WindowHandler};
 use objc2::rc::{Retained, Weak};
 use objc2_app_kit::{NSBackingStoreType, NSView, NSWindow, NSWindowStyleMask};
@@ -69,7 +69,7 @@ impl Window {
     }
 
     pub fn set_logical_size(&self, rect: Rect) -> Result<(), Error> {
-        let size = CGSize::new(rect.width(), rect.height());
+        let size: CGSize = rect.size().into();
         match self {
             Window::OSWindow(_, _) => Ok(()),
             Window::AttachedToView(view) => {
@@ -85,7 +85,7 @@ impl Window {
 
     pub fn set_scale_factor(&self, _scale_factor: ScaleFactor) {}
 
-    pub fn size(&self) -> Result<Rect<i32>, Error> {
+    pub fn size(&self) -> Result<PhysicalSize, Error> {
         let frame = match self {
             Window::OSWindow(window, _) => Ok(window.frame()),
             Window::AttachedToView(view) => {
@@ -101,7 +101,7 @@ impl Window {
 
     pub fn scale_factor(&self) -> ScaleFactor {
         match self {
-            Window::OSWindow(window, _) => ScaleFactor(window.backingScaleFactor()),
+            Window::OSWindow(window, _) => ScaleFactor(window.backingScaleFactor() as _),
             Window::AttachedToView(view) => view
                 .load()
                 .map(|view| view.scale_factor())

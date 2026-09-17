@@ -5,9 +5,7 @@ use std::{
 
 use crate::{AnimationFrame, KeyEvent, MouseEvent, ui::Scene};
 
-use super::{
-    EventContext, MouseEventContext, RenderContext, animation::AnimationContext, style::LayoutMode,
-};
+use super::{EventContext, RenderContext, animation::AnimationContext};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EventStatus {
@@ -24,21 +22,9 @@ impl EventStatus {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum StatusChange {
-    FocusGained,
-    FocusLost,
-    MouseEntered,
-    MouseExited,
-    MouseCaptured,
-    MouseCaptureLost,
-}
-
 pub trait Widget: Any {
     #[allow(unused_variables)]
-    fn mouse_event(&mut self, event: MouseEvent, cx: &mut MouseEventContext) -> EventStatus {
-        EventStatus::Ignored
-    }
+    fn mouse_event(&mut self, event: MouseEvent, cx: &mut EventContext) {}
 
     /// Called when a key is pressed/released when the Widget has focus.
     ///
@@ -48,15 +34,8 @@ pub trait Widget: Any {
         EventStatus::Ignored
     }
 
-    /// Called when a status change (such as gaining/losing focus, mouse over etc.) occurs for the Widget
-    #[allow(unused_variables)]
-    fn status_change(&mut self, event: StatusChange, cx: &mut EventContext) {}
-
     #[allow(unused_variables)]
     fn animation_frame(&mut self, frame: AnimationFrame, cx: &mut AnimationContext) {}
-
-    /// Returns the layout mode (or algorithm) to be used to layout the Widget and its children
-    fn layout_mode(&self) -> LayoutMode<'_>;
 
     #[allow(unused_variables)]
     fn render(&mut self, cx: &mut RenderContext) -> Scene {
@@ -101,7 +80,7 @@ impl Widget for Box<dyn Widget> {
         self.deref().debug_label()
     }
 
-    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) {
         self.deref_mut().mouse_event(event, ctx)
     }
 
@@ -109,16 +88,8 @@ impl Widget for Box<dyn Widget> {
         self.deref_mut().key_event(event, ctx)
     }
 
-    fn status_change(&mut self, event: StatusChange, ctx: &mut EventContext) {
-        self.deref_mut().status_change(event, ctx)
-    }
-
     fn animation_frame(&mut self, frame: AnimationFrame, ctx: &mut AnimationContext) {
         self.deref_mut().animation_frame(frame, ctx);
-    }
-
-    fn layout_mode(&self) -> LayoutMode<'_> {
-        self.deref().layout_mode()
     }
 
     fn render(&mut self, ctx: &mut RenderContext) -> Scene {
@@ -140,9 +111,6 @@ pub trait WidgetAdapter: Any {
 
     fn inner(&self) -> &Self::Inner;
     fn inner_mut(&mut self) -> &mut Self::Inner;
-    fn display_style(&self) -> LayoutMode<'_> {
-        self.inner().layout_mode()
-    }
 
     fn debug_label(&self) -> &'static str {
         self.inner().debug_label()
@@ -152,16 +120,12 @@ pub trait WidgetAdapter: Any {
         self.inner_mut().render(cx)
     }
 
-    fn mouse_event(&mut self, event: MouseEvent, cx: &mut MouseEventContext) -> EventStatus {
+    fn mouse_event(&mut self, event: MouseEvent, cx: &mut EventContext) {
         self.inner_mut().mouse_event(event, cx)
     }
 
     fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventStatus {
         self.inner_mut().key_event(event, cx)
-    }
-
-    fn status_updated(&mut self, event: StatusChange, cx: &mut EventContext) {
-        self.inner_mut().status_change(event, cx);
     }
 
     fn animation_frame(&mut self, frame: AnimationFrame, cx: &mut AnimationContext) {
@@ -170,10 +134,6 @@ pub trait WidgetAdapter: Any {
 }
 
 impl<T: WidgetAdapter> Widget for T {
-    fn layout_mode(&self) -> LayoutMode<'_> {
-        self.display_style()
-    }
-
     fn debug_label(&self) -> &'static str {
         self.debug_label()
     }
@@ -182,16 +142,12 @@ impl<T: WidgetAdapter> Widget for T {
         self.render(cx)
     }
 
-    fn mouse_event(&mut self, event: MouseEvent, cx: &mut MouseEventContext) -> EventStatus {
+    fn mouse_event(&mut self, event: MouseEvent, cx: &mut EventContext) {
         self.mouse_event(event, cx)
     }
 
     fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventStatus {
         self.key_event(event, cx)
-    }
-
-    fn status_change(&mut self, event: StatusChange, cx: &mut EventContext) {
-        self.status_updated(event, cx);
     }
 
     fn animation_frame(&mut self, frame: AnimationFrame, cx: &mut AnimationContext) {

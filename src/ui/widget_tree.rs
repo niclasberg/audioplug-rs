@@ -8,7 +8,7 @@ use slotmap::{Key, KeyData, SlotMap, new_key_type};
 
 use crate::{
     core::{Point, PrimitiveShape, Rect, RoundedRect, Size, Zero},
-    ui::reactive::NodeId,
+    ui::{reactive::NodeId, style::DisplayStyle},
 };
 
 use super::{WindowId, style::Style};
@@ -40,9 +40,12 @@ bitflags!(
         // Capability flags
         const FOCUSABLE = 1 << 4;
         const OVERLAY = 1 << 5;
+        const CLICKABLE = 1 << 6;
+        const DRAGGABLE = 1 << 7;
+        const HOVERABLE = 1 << 8;
 
         // Status flags
-        const UNDER_MOUSE_CURSOR = 1 << 8;
+        const UNDER_MOUSE_CURSOR = 1 << 9;
     }
 );
 
@@ -65,6 +68,8 @@ pub struct WidgetData {
     pub(super) layout: taffy::Layout,
     flags: Cell<WidgetFlags>,
     pub(super) origin: Point,
+    /// Controls how children are laid out
+    pub display_style: DisplayStyle,
 }
 
 impl WidgetData {
@@ -81,6 +86,7 @@ impl WidgetData {
             layout: Default::default(),
             flags: Cell::new(WidgetFlags::EMPTY),
             origin: Point::ZERO,
+            display_style: Default::default(),
         }
     }
 
@@ -119,10 +125,10 @@ impl WidgetData {
 
     fn subtract_padding_and_border(&self, rect: Rect) -> Rect {
         Rect {
-            left: rect.left + (self.layout.border.left + self.layout.padding.left) as f64,
-            top: rect.top + (self.layout.border.top + self.layout.padding.top) as f64,
-            right: rect.right - (self.layout.border.right + self.layout.padding.right) as f64,
-            bottom: rect.bottom - (self.layout.border.bottom + self.layout.padding.bottom) as f64,
+            left: rect.left + (self.layout.border.left + self.layout.padding.left),
+            top: rect.top + (self.layout.border.top + self.layout.padding.top),
+            right: rect.right - (self.layout.border.right + self.layout.padding.right),
+            bottom: rect.bottom - (self.layout.border.bottom + self.layout.padding.bottom),
         }
     }
 
@@ -133,20 +139,15 @@ impl WidgetData {
 
     pub fn border(&self) -> Rect {
         Rect {
-            left: self.layout.border.left as f64,
-            top: self.layout.border.top as f64,
-            right: self.layout.border.right as f64,
-            bottom: self.layout.border.bottom as f64,
+            left: self.layout.border.left,
+            top: self.layout.border.top,
+            right: self.layout.border.right,
+            bottom: self.layout.border.bottom,
         }
     }
 
     pub fn padding(&self) -> Rect {
-        Rect {
-            left: self.layout.padding.left as f64,
-            top: self.layout.padding.top as f64,
-            right: self.layout.padding.right as f64,
-            bottom: self.layout.padding.bottom as f64,
-        }
+        self.layout.padding.into()
     }
 
     pub fn get_and_clear_flag(&self, flag: WidgetFlags) -> bool {
@@ -182,12 +183,17 @@ impl WidgetData {
         self.flags.get().contains(flag)
     }
 
+    #[inline(always)]
+    pub fn flags(&self) -> WidgetFlags {
+        self.flags.get()
+    }
+
     pub fn size(&self) -> Size {
-        self.layout.size.map(|x| x as f64).into()
+        self.layout.size.into()
     }
 
     pub fn offset(&self) -> Point {
-        self.layout.location.map(|x| x as f64).into()
+        self.layout.location.into()
     }
 
     pub fn origin(&self) -> Point {
@@ -211,6 +217,21 @@ impl WidgetData {
     #[inline(always)]
     pub fn is_overlay(&self) -> bool {
         self.flag_is_set(WidgetFlags::OVERLAY)
+    }
+
+    #[inline(always)]
+    pub fn is_clickable(&self) -> bool {
+        self.flag_is_set(WidgetFlags::CLICKABLE)
+    }
+
+    #[inline(always)]
+    pub fn is_draggable(&self) -> bool {
+        self.flag_is_set(WidgetFlags::DRAGGABLE)
+    }
+
+    #[inline(always)]
+    pub fn is_hoverable(&self) -> bool {
+        self.flag_is_set(WidgetFlags::HOVERABLE)
     }
 
     pub fn shape(&self) -> PrimitiveShape {

@@ -11,7 +11,7 @@ impl Ellipse {
         Self { center, radii }
     }
 
-    pub fn from_rectangle(rect: Rect<f64>) -> Self {
+    pub fn from_rectangle(rect: Rect) -> Self {
         Self {
             center: rect.center(),
             radii: rect.size() / 2.0,
@@ -22,11 +22,11 @@ impl Ellipse {
         Self::new(self.center + delta.into(), self.radii)
     }
 
-    pub fn scale(&self, scale: f64) -> Self {
+    pub fn scale(&self, scale: f32) -> Self {
         Self::new(self.center.scale(scale), self.radii.scale(scale))
     }
 
-    pub fn inflate(self, amount: f64) -> Self {
+    pub fn inflate(self, amount: f32) -> Self {
         Self {
             center: self.center,
             radii: self.radii + Size::splat(amount),
@@ -34,7 +34,7 @@ impl Ellipse {
     }
 
     pub fn contains(&self, pos: Point) -> bool {
-        if self.radii.width < f64::EPSILON || self.radii.height < f64::EPSILON {
+        if self.radii.width < f32::EPSILON || self.radii.height < f32::EPSILON {
             false
         } else {
             ((pos.x - self.center.x) / self.radii.width).powi(2)
@@ -51,15 +51,15 @@ impl Ellipse {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Circle {
     pub center: Point,
-    pub radius: f64,
+    pub radius: f32,
 }
 
 impl Circle {
-    pub const fn new(center: Point, radius: f64) -> Self {
+    pub const fn new(center: Point, radius: f32) -> Self {
         Self { center, radius }
     }
 
-    pub fn with_radius(mut self, radius: f64) -> Self {
+    pub fn with_radius(mut self, radius: f32) -> Self {
         self.radius = radius;
         self
     }

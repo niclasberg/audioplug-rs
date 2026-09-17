@@ -16,6 +16,4 @@ mod linux;
 pub use linux::*;
 
 mod shared;
-mod text;
-pub use shared::{WindowEvent, WindowHandler};
-pub use text::{Font, TextLayout};
+pub use shared::{OSMouseEvent, WindowEvent, WindowHandler};

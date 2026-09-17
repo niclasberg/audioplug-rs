@@ -1,6 +1,8 @@
+use bytemuck::{Pod, Zeroable};
+
 use crate::core::{
-    Color, ColorMap, Ellipse, FillRule, Path, PrimitiveShape, Rect, RoundedRect, ShadowKind,
-    ShadowOptions, Vec2f,
+    Color, Ellipse, FillRule, LinearGradient, Path, PrimitiveShape, Rect, RoundedRect, ShadowKind,
+    ShadowOptions, Vec2,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -13,29 +15,154 @@ pub struct GpuShapeRef {
     index: u32,
 }
 
-#[derive(Debug, Clone)]
-pub enum GpuFill {
-    Solid(Color),
-    Stroke {
-        color: Color,
-        width: f32,
-    },
-    Shadow(ShadowOptions),
-    LinearGradient {
-        start: Vec2f,
-        end: Vec2f,
-        color_stops: ColorMap,
-    },
-    RadialGradient {
-        center: Vec2f,
-        radius: f32,
-        color_stops: ColorMap,
-    },
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct GpuAppearanceRef(u32);
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct GpuDrawCommand {
+    pub shape_type: u32,
+    pub shape_index: u32,
+    pub appearance_index: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq, Pod, Zeroable)]
+pub struct GpuAppearance {
+    pub fill: GpuPaint,
+    pub stroke: GpuPaint,
+    pub shadow: GpuShadow,
+    // ...bevel
+    pub stroke_width: f32,
+    pub flags: u32,
+    _padding: [u32; 2],
+}
+
+impl GpuAppearance {
+    pub const FILL_FLAG: u32 = 1;
+    pub const STROKE_FLAG: u32 = 1 << 1;
+    pub const SHADOW_FLAG: u32 = 1 << 2;
+
+    pub fn new() -> Self {
+        Self {
+            fill: GpuPaint::empty(),
+            stroke: GpuPaint::empty(),
+            shadow: GpuShadow::empty(),
+            stroke_width: 0.0,
+            flags: 0,
+            _padding: [0; 2],
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.flags == 0
+    }
+
+    pub fn set_fill(&mut self, paint: GpuPaint) {
+        self.fill = paint;
+        self.flags |= Self::FILL_FLAG;
+    }
+
+    pub fn set_shadow(&mut self, shadow: GpuShadow) {
+        self.shadow = shadow;
+        self.flags |= Self::SHADOW_FLAG;
+    }
+
+    pub fn set_stroke(&mut self, paint: GpuPaint, width: f32) {
+        self.stroke = paint;
+        self.stroke_width = width;
+        self.flags |= Self::STROKE_FLAG;
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Hash, PartialEq, Pod, Zeroable)]
+pub struct GpuPaint {
+    kind: u32,
+    data: [u32; 7],
+}
+
+impl GpuPaint {
+    pub const KIND_NONE: u32 = 1;
+    pub const KIND_SOLID: u32 = 1;
+    pub const KIND_LINEAR_GRADIENT: u32 = 2;
+    pub const KIND_RADIAL_GRADIENT: u32 = 3;
+    pub const KIND_IMAGE: u32 = 4;
+
+    pub fn empty() -> Self {
+        Self {
+            kind: Self::KIND_NONE,
+            data: [0; _],
+        }
+    }
+
+    pub fn solid(color: Color) -> Self {
+        let mut data = [0; _];
+        data[..4].copy_from_slice(&color_to_bytes(color));
+        Self {
+            kind: Self::KIND_SOLID,
+            data,
+        }
+    }
+
+    pub fn linear_gradient(_: &LinearGradient) -> Self {
+        todo!()
+    }
+}
+
+impl Default for GpuPaint {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
+#[repr(C)]
+#[derive(Default, Clone, Copy, PartialEq, Pod, Zeroable)]
+pub struct GpuShadow {
+    pub kind: u32,
+    pub radius: f32,
+    pub offset: Vec2,
+    pub color: Color,
+}
+
+impl GpuShadow {
+    pub const KIND_NONE: u32 = 0;
+    pub const KIND_OUTER: u32 = 1;
+    pub const KIND_INNER: u32 = 2;
+
+    pub fn empty() -> Self {
+        Self {
+            kind: Self::KIND_NONE,
+            radius: 0.0,
+            offset: Vec2::ZERO,
+            color: Color::default(),
+        }
+    }
+}
+
+impl From<ShadowOptions> for GpuShadow {
+    fn from(value: ShadowOptions) -> Self {
+        // Pre-multiply alpha
+        let mut color = value.color;
+        color.r *= color.a;
+        color.g *= color.a;
+        color.b *= color.a;
+        Self {
+            kind: match value.kind {
+                ShadowKind::DropShadow => Self::KIND_OUTER,
+                ShadowKind::InnerShadow => Self::KIND_INNER,
+            },
+            radius: value.radius as _,
+            offset: value.offset.into(),
+            color,
+        }
+    }
 }
 
 pub struct GpuScene {
     pub shape_data: Vec<f32>,
-    pub fill_ops: Vec<u32>,
+    pub appearances: Vec<GpuAppearance>,
+    pub draw_commands: Vec<GpuDrawCommand>,
     pub gradient_lut: Vec<f32>,
 }
 
@@ -49,18 +176,12 @@ impl GpuScene {
 
     const FILL_RULE_EVEN_ODD: u32 = 1 << 3;
 
-    const FILL_TYPE_SOLID: u32 = 1;
-    const FILL_TYPE_STROKE: u32 = 2;
-    const FILL_TYPE_DROP_SHADOW: u32 = 3;
-    const FILL_TYPE_INNER_SHADOW: u32 = 4;
-    const FILL_TYPE_LINEAR_GRADIENT: u32 = 5;
-    const FILL_TYPE_RADIAL_GRADIENT: u32 = 6;
-
     pub fn new() -> Self {
         Self {
             shape_data: Vec::new(),
-            fill_ops: Vec::new(),
+            draw_commands: Vec::new(),
             gradient_lut: Vec::new(),
+            appearances: Vec::new(),
         }
     }
 
@@ -149,8 +270,23 @@ impl GpuScene {
         GpuShapeRef { shape_type, index }
     }
 
-    pub fn fill_shape(&mut self, shape_ref: GpuShapeRef, fill: GpuFill) {
-        let fill_type = match fill {
+    pub fn add_appearance(&mut self, appearance: GpuAppearance) -> GpuAppearanceRef {
+        let apperarance_ref = GpuAppearanceRef(self.appearances.len() as _);
+        self.appearances.push(appearance);
+        apperarance_ref
+    }
+
+    pub fn draw(&mut self, shape_ref: GpuShapeRef, appearance_ref: GpuAppearanceRef) {
+        assert!(shape_ref.index < self.shape_data.len() as _);
+        assert!(appearance_ref.0 < self.appearances.len() as _);
+
+        self.draw_commands.push(GpuDrawCommand {
+            shape_type: shape_ref.shape_type,
+            shape_index: shape_ref.index,
+            appearance_index: appearance_ref.0,
+        });
+
+        /*let fill_type = match fill {
             GpuFill::Solid(_) => Self::FILL_TYPE_SOLID,
             GpuFill::Stroke { .. } => Self::FILL_TYPE_STROKE,
             GpuFill::Shadow(ShadowOptions { kind, .. }) => match kind {
@@ -166,25 +302,11 @@ impl GpuScene {
         self.fill_ops.push(shape_ref.index);
 
         match fill {
-            GpuFill::Solid(color) => self.fill_ops.extend(
-                [
-                    (color.a * color.r).to_bits(),
-                    (color.a * color.g).to_bits(),
-                    (color.a * color.b).to_bits(),
-                    color.a.to_bits(),
-                ]
-                .iter(),
-            ),
-            GpuFill::Stroke { color, width } => self.fill_ops.extend(
-                [
-                    (color.a * color.r).to_bits(),
-                    (color.a * color.g).to_bits(),
-                    (color.a * color.b).to_bits(),
-                    color.a.to_bits(),
-                    width.to_bits(),
-                ]
-                .iter(),
-            ),
+            GpuFill::Solid(color) => self.fill_ops.extend(color_to_bytes(color).iter()),
+            GpuFill::Stroke { color, width } => {
+                self.fill_ops.extend(color_to_bytes(color).iter());
+                self.fill_ops.push(width.to_bits());
+            }
             GpuFill::Shadow(ShadowOptions {
                 radius,
                 offset,
@@ -222,12 +344,27 @@ impl GpuScene {
             } => self
                 .fill_ops
                 .extend([center.x.to_bits(), center.y.to_bits(), radius.to_bits()].iter()),
-        };
+        };*/
     }
 
     pub fn clear(&mut self) {
-        self.fill_ops.clear();
+        self.appearances.clear();
+        self.draw_commands.clear();
         self.shape_data.clear();
         self.gradient_lut.clear();
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.draw_commands.is_empty()
+    }
+}
+
+fn color_to_bytes(color: Color) -> [u32; 4] {
+    // Pre-multiply alpha
+    [
+        (color.a * color.r).to_bits(),
+        (color.a * color.g).to_bits(),
+        (color.a * color.b).to_bits(),
+        color.a.to_bits(),
+    ]
 }

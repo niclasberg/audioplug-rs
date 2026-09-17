@@ -1,31 +1,22 @@
+use parley::FontContext;
+
 use super::{
-    AppState, CallbackContext, EventStatus, MouseEventContext, ViewSequence, Widget, WidgetAdapter,
-    WidgetFlags, WidgetHandle, WidgetId, WidgetPos,
+    AppState, ViewSequence, Widget, WidgetFlags, WidgetHandle, WidgetId, WidgetPos,
     overlay::OverlayOptions,
-    reactive::{CLICKED_STATUS, CanCreate, CanRead, FOCUS_STATUS, Owner, ReadScope, ReadSignal},
-    style::{Style, StyleBuilder},
+    reactive::{CanCreate, CanRead, Owner, ReadScope},
 };
 use crate::{
-    MouseButton, MouseEvent,
-    ui::reactive::{CreateContext, ReadContext},
+    core::TextLayoutContext,
+    ui::{
+        ViewProp, ViewStyle, ViewText, WidgetData,
+        reactive::{CreateContext, ReadContext},
+        style::{DisplayStyle, Style},
+        text::{TextContext, TextData},
+    },
 };
 use std::marker::PhantomData;
 
 pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn Widget>>;
-
-pub struct ViewSignals {
-    pub focused: ReadSignal<bool>,
-    pub clicked: ReadSignal<bool>,
-}
-
-impl ViewSignals {
-    pub fn new(widget_id: WidgetId) -> Self {
-        Self {
-            focused: FOCUS_STATUS.into_read_signal(widget_id),
-            clicked: CLICKED_STATUS.into_read_signal(widget_id),
-        }
-    }
-}
 
 pub trait View: 'static {
     type Element: Widget + 'static;
@@ -37,28 +28,6 @@ pub trait View: 'static {
         Self: Sized + 'static,
     {
         Box::new(move |ctx| Box::new(ctx.build_inner(self)))
-    }
-
-    fn on_click<F>(self, f: F) -> impl View
-    where
-        Self: Sized,
-        F: Fn(&mut CallbackContext) + 'static,
-    {
-        OnClick {
-            parent_view: self,
-            on_click_fn: f,
-        }
-    }
-
-    fn style<F>(self, builder_fn: F) -> impl View
-    where
-        Self: Sized,
-        F: FnOnce(&mut StyleBuilder, ViewSignals) + 'static,
-    {
-        Styled {
-            view: self,
-            builder_fn,
-        }
     }
 }
 
@@ -74,97 +43,17 @@ impl View for AnyView {
     }
 }
 
-pub struct OnClick<V, F> {
-    parent_view: V,
-    on_click_fn: F,
-}
-
-impl<V: View, F: Fn(&mut CallbackContext) + 'static> View for OnClick<V, F> {
-    type Element = OnClickWidget<V::Element, F>;
-
-    fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
-        let parent = cx.build_inner(self.parent_view);
-        OnClickWidget {
-            parent,
-            on_click_fn: self.on_click_fn,
-        }
-    }
-}
-
-pub struct OnClickWidget<W, F> {
-    parent: W,
-    on_click_fn: F,
-}
-
-impl<W: Widget, F: Fn(&mut CallbackContext) + 'static> WidgetAdapter for OnClickWidget<W, F> {
-    type Inner = W;
-
-    fn inner(&self) -> &Self::Inner {
-        &self.parent
-    }
-
-    fn inner_mut(&mut self) -> &mut Self::Inner {
-        &mut self.parent
-    }
-
-    fn mouse_event(&mut self, event: MouseEvent, cx: &mut MouseEventContext) -> EventStatus {
-        match event {
-            MouseEvent::Down {
-                button: MouseButton::LEFT,
-                position,
-                ..
-            } if cx.bounds().contains(position) => {
-                cx.capture_mouse();
-                EventStatus::Handled
-            }
-            MouseEvent::Up {
-                button: MouseButton::LEFT,
-                position,
-                ..
-            } if cx.has_mouse_capture() => {
-                cx.release_capture();
-                if cx.bounds().contains(position) {
-                    (self.on_click_fn)(&mut cx.as_callback_context());
-                }
-                EventStatus::Handled
-            }
-            _ => self.parent.mouse_event(event, cx),
-        }
-    }
-}
-
-pub struct Styled<V, F> {
-    pub(super) view: V,
-    pub(super) builder_fn: F,
-}
-
-impl<V: View, F: FnOnce(&mut StyleBuilder, ViewSignals) + 'static> View for Styled<V, F> {
-    type Element = V::Element;
-
-    fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
-        let widget = self.view.build(cx);
-        cx.apply_style(self.builder_fn);
-        widget
-    }
-}
-
 pub struct BuildContext<'a, W: Widget + ?Sized> {
     id: WidgetId,
     pub(crate) app_state: &'a mut AppState,
-    pub(super) style_builder: &'a mut StyleBuilder,
     _phantom: PhantomData<W>,
 }
 
 impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
-    pub fn new(
-        id: WidgetId,
-        app_state: &'a mut AppState,
-        style_builder: &'a mut StyleBuilder,
-    ) -> Self {
+    pub fn new(id: WidgetId, app_state: &'a mut AppState) -> Self {
         Self {
             id,
             app_state,
-            style_builder,
             _phantom: PhantomData,
         }
     }
@@ -173,8 +62,27 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
         WidgetHandle::new(self.id)
     }
 
+    fn widget_data_mut(&mut self) -> &mut WidgetData {
+        &mut self.app_state.widgets.tree[self.id]
+    }
+
     pub fn set_focusable(&mut self, focusable: bool) {
-        self.app_state.widgets.tree[self.id].set_or_clear_flag(WidgetFlags::FOCUSABLE, focusable);
+        self.widget_data_mut()
+            .set_or_clear_flag(WidgetFlags::FOCUSABLE, focusable);
+    }
+
+    pub fn set_clickable(&mut self, clickable: bool) {
+        self.widget_data_mut()
+            .set_or_clear_flag(WidgetFlags::CLICKABLE, clickable);
+    }
+
+    pub fn set_draggable(&mut self, draggable: bool) {
+        self.widget_data_mut()
+            .set_or_clear_flag(WidgetFlags::DRAGGABLE, draggable);
+    }
+
+    pub fn set_display_style(&mut self, display_style: DisplayStyle) {
+        self.widget_data_mut().display_style = display_style;
     }
 
     pub fn add_child(&mut self, view: impl View) -> WidgetId {
@@ -186,7 +94,6 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
         view_sequence.build_seq(&mut BuildContext {
             id: self.id,
             app_state: self.app_state,
-            style_builder: self.style_builder,
             _phantom: PhantomData,
         });
     }
@@ -196,25 +103,121 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
             .add_widget(view, WidgetPos::Overlay(self.id, options))
     }
 
+    pub fn apply_style(&mut self, style: ViewStyle) {
+        fn _inner(cx: &mut BuildContext<dyn Widget>, style: ViewStyle) {
+            apply_layout_style(style.aspect_ratio, cx, |value, style| {
+                style.aspect_ratio = Some(value);
+            });
+            apply_render_style(style.background, cx, |value, style| {
+                style.background = Some(value);
+            });
+            apply_layout_style(style.border, cx, |value, style| {
+                style.border = value;
+            });
+            apply_layout_style(style.corner_radius, cx, |value, style| {
+                style.corner_radius = value;
+            });
+            apply_layout_style(style.height, cx, |value, style| {
+                style.height = value;
+            });
+            apply_layout_style(style.hidden, cx, |value, style| {
+                style.hidden = value;
+            });
+            apply_layout_style(style.min_height, cx, |value, style| {
+                style.min_height = value;
+            });
+            apply_layout_style(style.min_width, cx, |value, style| {
+                style.min_width = value;
+            });
+            apply_layout_style(style.max_height, cx, |value, style| {
+                style.max_height = value;
+            });
+            apply_layout_style(style.max_width, cx, |value, style| {
+                style.max_width = value;
+            });
+            apply_layout_style(style.padding, cx, |value, style| {
+                style.padding = value;
+            });
+            apply_layout_style(style.width, cx, |value, style| {
+                style.width = value;
+            });
+            apply_render_style(style.border_color, cx, |value, style| {
+                style.border_color = Some(value);
+            });
+            apply_layout_style(style.align_self, cx, |value, style| {
+                style.align_self = Some(value);
+            });
+            apply_layout_style(style.flex_grow, cx, |value, style| style.flex_grow = value);
+            apply_layout_style(style.flex_shrink, cx, |value, style| {
+                style.flex_shrink = value
+            });
+            apply_render_style(style.box_shadow, cx, |value, style| {
+                style.box_shadow = Some(value);
+            })
+        }
+        let mut cx = BuildContext {
+            id: self.id,
+            app_state: self.app_state,
+            _phantom: PhantomData,
+        };
+        _inner(&mut cx, style);
+    }
+
+    pub fn apply_text(&mut self, text: ViewText) {
+        let mut text_data = TextData::new();
+        let value = if let Some(value) = text.text {
+            value.get_and_bind(self, |value, mut widget| {
+                widget.update_text(|t| t.set_text(value));
+                widget.request_layout();
+            })
+        } else {
+            "".to_string()
+        };
+        text_data.set_text(value);
+        self.app_state.widgets.texts.insert(self.id, text_data);
+    }
+
     pub(crate) fn build_inner<V: View>(&mut self, view: V) -> V::Element {
         view.build(&mut BuildContext {
             id: self.id,
             app_state: self.app_state,
-            style_builder: self.style_builder,
             _phantom: PhantomData,
         })
     }
 
-    pub fn apply_style(&mut self, style_fn: impl FnOnce(&mut StyleBuilder, ViewSignals)) {
-        style_fn(self.style_builder, ViewSignals::new(self.id));
+    pub fn text_context(&mut self) -> TextContext<'_> {
+        TextContext::new(
+            &mut self.app_state.font_cx,
+            &mut self.app_state.text_layout_cx,
+        )
     }
+}
 
-    pub fn set_default_style(&mut self, style: Style) {
-        self.app_state.widgets.tree[self.id].style = style;
+fn apply_layout_style<T: Clone + 'static>(
+    accessor: Option<ViewProp<T>>,
+    cx: &mut BuildContext<dyn Widget>,
+    apply_fn: fn(T, &mut Style),
+) {
+    if let Some(accessor) = accessor {
+        let value = accessor.get_and_bind(cx, move |value, mut widget| {
+            widget.update_style(|style| apply_fn(value, style));
+            widget.request_layout();
+        });
+        apply_fn(value, &mut cx.widget_data_mut().style)
     }
+}
 
-    pub fn update_default_style(&mut self, f: impl FnOnce(&mut Style)) {
-        f(&mut self.app_state.widgets.tree[self.id].style);
+fn apply_render_style<T: Clone + 'static>(
+    accessor: Option<ViewProp<T>>,
+    cx: &mut BuildContext<dyn Widget>,
+    apply_fn: fn(T, &mut Style),
+) {
+    if let Some(accessor) = accessor {
+        let value = accessor.get_and_bind(cx, move |value, mut widget| {
+            widget.update_style(|style| apply_fn(value, style));
+            widget.request_render();
+        });
+        apply_fn(value, &mut cx.widget_data_mut().style)
     }
 }
 
@@ -223,7 +226,8 @@ impl<'a, W: Widget + ?Sized> CanRead<'a> for BuildContext<'a, W> {
     where
         'a: 's2,
     {
-        self.app_state.read_context(ReadScope::Untracked)
+        self.app_state
+            .read_context(ReadScope::Untracked, Some(self.id))
     }
 }
 

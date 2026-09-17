@@ -11,7 +11,13 @@ use super::{
 };
 use crate::{
     core::{Rect, diff::DiffOp},
-    ui::{WidgetHandle, WidgetPos, Widgets, app_state::WidgetMap, widget_tree::SiblingWalker},
+    ui::{
+        WidgetHandle, WidgetPos, Widgets,
+        app_state::WidgetMap,
+        style::{DisplayStyle, Length},
+        text::TextData,
+        widget_tree::SiblingWalker,
+    },
 };
 
 pub struct WidgetNotFound<'a, W: Widget + ?Sized>(WidgetMut<'a, W>);
@@ -92,7 +98,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
     }
 
     pub fn has_mouse_capture(&self) -> bool {
-        self.widgets.has_mouse_capture(self.id)
+        self.widgets.is_pressed(self.id)
     }
 
     pub fn child_iter(&self) -> WidgetRefIter<'_> {
@@ -299,10 +305,9 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         self.app_state.widgets.swap_widgets(self.id, widget_id);
     }
 
-    /*pub fn remove_child(&mut self, i: usize) {
-        let child_id = self.data().children[i];
-        self.remove_child_by_id(child_id);
-    }
+    pub fn set_value(&mut self, value: WidgetPropValue) {}
+
+    /*
 
     pub fn remove_child_by_id(&mut self, child_id: WidgetId) {
         invalidate_widget(self.app_state, child_id);
@@ -352,12 +357,19 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         f(&mut self.data_mut().style);
     }
 
-    pub fn style(&self) -> &Style {
-        &self.data().style
+    pub fn update_text(&mut self, f: impl FnOnce(&mut TextData)) {
+        if let Some(text_data) = self.app_state.widgets.texts.get_mut(self.id) {
+            f(text_data)
+        }
     }
 
-    pub fn style_mut(&mut self) -> &mut Style {
-        &mut self.data_mut().style
+    pub fn set_display_style(&mut self, display_style: DisplayStyle) {
+        self.data_mut().display_style = display_style;
+        self.app_state.widgets.request_layout(self.id);
+    }
+
+    pub fn style(&self) -> &Style {
+        &self.data().style
     }
 
     pub(super) fn unchecked_cast<W2: 'a + Widget + ?Sized>(self) -> WidgetMut<'a, W2> {
@@ -418,3 +430,10 @@ impl<'a, W: 'a + Widget> DerefMut for WidgetMut<'a, W> {
         self.app_state.widget_impls[self.id].downcast_mut().unwrap()
     }
 }
+
+pub enum WidgetPropValue {
+    Height(Length),
+    Width(Length),
+}
+
+impl WidgetPropValue {}

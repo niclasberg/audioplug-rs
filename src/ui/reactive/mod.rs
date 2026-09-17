@@ -13,11 +13,11 @@ mod spring;
 mod trigger;
 mod tween;
 mod var;
-mod widget_status;
+mod view_status;
 
 pub use animation::{Animated, AnimatedVar, Animation, Easing, SpringOptions, TweenOptions};
 pub use cached::{Cached, CachedContext};
-pub use computed::Computed;
+pub use computed::{Computed, ConstComputed};
 pub use contexts::*;
 pub use effect::{Effect, EffectContext, WatchContext};
 pub(super) use effect::{EffectFn, EffectState, WatchFn};
@@ -29,7 +29,7 @@ pub use read_signal::ReadSignal;
 pub use runtime::{Owner, ReactiveGraph, ReadScope};
 pub use trigger::Trigger;
 pub use var::Var;
-pub use widget_status::{CLICKED_STATUS, FOCUS_STATUS, WidgetStatusFlags};
+pub use view_status::{WidgetStatus, WidgetStatusFlags};
 
 slotmap::new_key_type! {
     pub struct NodeId;

@@ -1,36 +1,35 @@
-use crate::core::{Color, Point, Rect, Size, Transform, Vec2};
+use crate::core::{Color, Point, Rect, Size, Vec2};
 use objc2_core_foundation::{
-    CFIndex, CFRange, CFRetained, CFString, CFStringBuiltInEncodings, CGAffineTransform, CGPoint,
-    CGRect, CGSize,
+    CFIndex, CFRange, CFRetained, CFString, CFStringBuiltInEncodings, CGPoint, CGRect, CGSize,
 };
 use objc2_core_graphics::CGColor;
 
 impl Into<CGPoint> for Point {
     fn into(self) -> CGPoint {
         CGPoint {
-            x: self.x,
-            y: self.y,
+            x: self.x as _,
+            y: self.y as _,
         }
     }
 }
 
 impl From<CGPoint> for Point {
     fn from(value: CGPoint) -> Self {
-        Point::new(value.x, value.y)
+        Point::new(value.x as _, value.y as _)
     }
 }
 
 impl From<CGPoint> for Vec2 {
     fn from(value: CGPoint) -> Self {
-        Vec2::new(value.x, value.y)
+        Vec2::new(value.x as _, value.y as _)
     }
 }
 
 impl Into<CGSize> for Size {
     fn into(self) -> CGSize {
         CGSize {
-            width: self.width,
-            height: self.height,
+            width: self.width as _,
+            height: self.height as _,
         }
     }
 }
@@ -38,15 +37,18 @@ impl Into<CGSize> for Size {
 impl Into<CGSize> for Vec2 {
     fn into(self) -> CGSize {
         CGSize {
-            width: self.x,
-            height: self.y,
+            width: self.x as _,
+            height: self.y as _,
         }
     }
 }
 
 impl From<CGSize> for Size {
     fn from(value: CGSize) -> Self {
-        Size::new(value.width, value.height)
+        Size {
+            width: value.width as _,
+            height: value.height as _,
+        }
     }
 }
 
@@ -62,32 +64,6 @@ impl Into<CGRect> for Rect {
 impl From<CGRect> for Rect {
     fn from(value: CGRect) -> Self {
         Rect::from_origin(value.origin.into(), value.size.into())
-    }
-}
-
-impl From<Transform> for CGAffineTransform {
-    fn from(value: Transform) -> Self {
-        CGAffineTransform {
-            a: value.m11,
-            b: value.m12,
-            c: value.m21,
-            d: value.m22,
-            tx: value.tx,
-            ty: value.ty,
-        }
-    }
-}
-
-impl From<CGAffineTransform> for Transform {
-    fn from(value: CGAffineTransform) -> Self {
-        Transform {
-            m11: value.a,
-            m12: value.b,
-            m21: value.c,
-            m22: value.d,
-            tx: value.tx,
-            ty: value.ty,
-        }
     }
 }
 

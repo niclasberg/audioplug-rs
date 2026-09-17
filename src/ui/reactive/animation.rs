@@ -223,6 +223,8 @@ impl<T: 'static> Animated<T> {
         f_value: impl Fn(&mut ReadContext) -> T + 'static,
         f_anim: impl FnOnce(T) -> A,
     ) -> Self {
+        let create_cx = cx.create_context();
+        let current_widget = create_cx.owning_widget();
         let id = cx
             .create_context()
             .create_derived_animation_node(move |cx, id| {
@@ -236,6 +238,7 @@ impl<T: 'static> Animated<T> {
                             widgets,
                             reactive_graph,
                             scope: ReadScope::Node(id),
+                            current_widget,
                         };
                         animation.set_target_dyn(&f_value(&mut cx))
                     },

@@ -4,7 +4,7 @@ use audioplug::{
     KeyEvent,
     core::{Color, Key},
     ui::{
-        App, CallbackContext, Window,
+        App, EventContext, StyleExt, Window,
         prelude::*,
         reactive::CreateContext,
         style::{Length, UiRect},
@@ -61,12 +61,12 @@ fn main() {
                         EventStatus::Ignored
                     }),
                 Row::new((
-                    Button::new_with_label("Shuffle").on_click(move |cx| {
+                    Button::new_with_label("Shuffle", move |cx| {
                         todos.update(cx, move |_, items| {
                             items.shuffle(&mut rand::rng());
                         });
                     }),
-                    Button::new_with_label("Sort").on_click(move |cx| {
+                    Button::new_with_label("Sort", move |cx| {
                         todos.update(cx, move |cx, items| {
                             items.sort_by_key(|item| item.name.get_untracked(cx));
                         });
@@ -86,35 +86,26 @@ fn main() {
                     },
                 )),
             )))
-            .style(|s, _| {
-                s.width(Length::Vw(100.0))
-                    .height(Length::Vh(100.0))
-                    .background(Color::WHEAT);
-            })
+            .width(Length::Vw(100.0))
+            .height(Length::Vh(100.0))
+            .background(Color::WHEAT)
         }),
     );
     app.run();
 }
 
-fn todo_view<F: Fn(&mut CallbackContext) + 'static>(
-    todo: &Todo,
-    on_remove: F,
-) -> impl View + use<F> {
+fn todo_view<F: Fn(&mut EventContext) + 'static>(todo: &Todo, on_remove: F) -> impl View + use<F> {
     let completed = todo.completed;
     Row::new((
         Checkbox::new()
             .checked(todo.completed)
             .on_click(move |cx| completed.update(cx, |_, value| *value = !*value)),
-        Label::new(todo.name).style(|style, _| {
-            style.flex_grow(1.0);
-        }),
-        Button::new(Label::new("Remove")).on_click(move |cx| on_remove(cx)),
+        Label::new(todo.name).flex_grow(1.0),
+        Button::new_with_label("Remove", move |cx| on_remove(cx)),
     ))
     .v_align_center()
     .spacing(Length::Px(5.0))
-    .style(move |s, _| {
-        s.background(completed.map(|&c| if c { Color::GREEN } else { Color::RED }.into()))
-            .padding(UiRect::all_px(5.0))
-            .width(Length::Percent(100.0));
-    })
+    .background(completed.map(|&c| if c { Color::GREEN } else { Color::RED }.into()))
+    .padding(UiRect::all_px(5.0))
+    .width(Length::Percent(100.0))
 }

@@ -13,10 +13,13 @@ use objc2_foundation::{MainThreadMarker, NSDate, NSNotificationCenter, NSRect, N
 use super::Handle;
 use crate::AnimationFrame;
 use crate::core::{PhysicalCoord, PhysicalSize, Point, ScaleFactor, Vec2};
-use crate::event::{KeyEvent, MouseButton, MouseEvent};
+use crate::event::{
+    KeyEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, MouseWheelEvent,
+};
 use crate::platform::WindowEvent;
 use crate::platform::WindowHandler;
 use crate::platform::mac::keyboard::{get_modifiers, key_from_code};
+use crate::platform::shared::OSMouseEvent;
 
 pub struct Ivars {
     handler: RefCell<Box<dyn WindowHandler>>,
@@ -33,7 +36,7 @@ pub struct Ivars {
 define_class!(
     #[unsafe(super(NSView, NSResponder, NSObject))]
     #[thread_kind = MainThreadOnly]
-    #[name = super::class_names::VIEW_CLASS_NAME]
+    #[name = concat!(env!("AUDIOPLUG_OBJC_NAMESPACE"), "_View")]
     #[ivars = Ivars]
     pub struct View;
 
@@ -59,7 +62,7 @@ define_class!(
                 let click_count = event.clickCount();
                 let modifiers = get_modifiers(event.modifierFlags());
                 self.dispatch_event(WindowEvent::Mouse(
-                    MouseEvent::Down { button, position, modifiers, is_double_click: click_count >= 2 }
+                    OSMouseEvent::Down(MouseDownEvent{ button, position, modifiers, is_double_click: click_count >= 2 })
                 ))
             }
         }
@@ -69,7 +72,7 @@ define_class!(
             if let (Some(button), Some(position)) = (mouse_button(event), self.mouse_position(event)) {
                 let modifiers = get_modifiers(event.modifierFlags());
                 self.dispatch_event(WindowEvent::Mouse(
-                    MouseEvent::Up { button, position, modifiers }
+                    OSMouseEvent::Up(MouseUpEvent { button, position, modifiers })
                 ))
             }
         }
@@ -79,7 +82,7 @@ define_class!(
             if let Some(position) = self.mouse_position(event) {
                 let modifiers = get_modifiers(event.modifierFlags());
                 self.dispatch_event(WindowEvent::Mouse(
-                    MouseEvent::Moved { position, modifiers }
+                    OSMouseEvent::Move(MouseMoveEvent { position, modifiers })
                 ))
             }
         }
@@ -89,7 +92,7 @@ define_class!(
             if let Some(position) = self.mouse_position(event) {
                 let modifiers = get_modifiers(event.modifierFlags());
                 self.dispatch_event(WindowEvent::Mouse(
-                    MouseEvent::Moved { position, modifiers }
+                    OSMouseEvent::Move(MouseMoveEvent { position, modifiers })
                 ))
             }
         }
@@ -103,11 +106,11 @@ define_class!(
                 let delta_x = event.scrollingDeltaX();
                 let delta_y = event.scrollingDeltaY();
                 self.dispatch_event(WindowEvent::Mouse(
-                    MouseEvent::Wheel {
-                        delta: Vec2 { x: delta_x / 15.0, y: delta_y / 15.0 },
+                    OSMouseEvent::Wheel(MouseWheelEvent {
+                        delta: Vec2 { x: (delta_x / 15.0) as f32, y: (delta_y / 15.0) as f32},
                         position,
                         modifiers
-                    }
+                    })
                 ))
             }
         }
@@ -261,9 +264,7 @@ impl View {
         {
             None
         } else {
-            let x = pos.x;
-            let y = pos.y;
-            Some(Point::new(x, y))
+            Some(Point::new(pos.x as _, pos.y as _))
         }
     }
 
@@ -271,8 +272,8 @@ impl View {
         let logical_rect = self.visibleRect();
         let physical_rect = self.convertRectToBacking(logical_rect);
         PhysicalSize::new(
-            PhysicalCoord(physical_rect.size.width.ceil() as _),
-            PhysicalCoord(physical_rect.size.height.ceil() as _),
+            physical_rect.size.width.ceil() as _,
+            physical_rect.size.height.ceil() as _,
         )
     }
 
@@ -281,7 +282,7 @@ impl View {
             .window()
             .expect("View must be installed in a window")
             .backingScaleFactor();
-        ScaleFactor(scale_factor)
+        ScaleFactor(scale_factor as f32)
     }
 }
 

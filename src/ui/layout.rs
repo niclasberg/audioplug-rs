@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
-use super::style::{AvailableSpace, LayoutMode, ResolveInto, Style, UiRect};
+use super::style::{ResolveInto, Style, UiRect};
 use crate::core::{Rect, Size};
 use crate::ui::app_state::WidgetMap;
+use crate::ui::style::DisplayStyle;
+use crate::ui::text::TextContext;
 use crate::ui::{Widget, Widgets};
 use taffy::{
-    CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutPartialTree, PrintTree,
-    TraversePartialTree, TraverseTree,
+    CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutInput, LayoutOutput,
+    LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree,
 };
 
 use super::{WidgetFlags, WidgetId};
@@ -31,22 +33,25 @@ impl Iterator for LayoutChildIter<'_> {
 
 pub struct LayoutContext<'a> {
     widgets: &'a mut Widgets,
-    widget_impls: &'a WidgetMap,
+    widget_impls: &'a mut WidgetMap,
     window_size: Size,
     region_to_invalidate: Option<Rect>,
+    text_cx: TextContext<'a>,
 }
 
 impl<'a> LayoutContext<'a> {
     pub(super) fn new(
         widgets: &'a mut Widgets,
-        widget_impls: &'a WidgetMap,
+        widget_impls: &'a mut WidgetMap,
         window_size: Size,
+        text_cx: TextContext<'a>,
     ) -> Self {
         Self {
             widgets,
             window_size,
             widget_impls,
             region_to_invalidate: None,
+            text_cx,
         }
     }
 
@@ -64,7 +69,7 @@ impl<'a> LayoutContext<'a> {
         let node_id = node_id.into();
         LayoutStyle {
             style: &self.widgets.tree[node_id].style,
-            display_style: self.widget_impls[node_id].layout_mode(),
+            display_style: &self.widgets.tree[node_id].display_style,
             window_size: self.window_size,
         }
     }
@@ -146,31 +151,18 @@ impl LayoutFlexboxContainer for LayoutContext<'_> {
 }
 
 impl CacheTree for LayoutContext<'_> {
-    fn cache_get(
-        &self,
-        node_id: taffy::NodeId,
-        known_dimensions: taffy::Size<Option<f32>>,
-        available_space: taffy::Size<taffy::AvailableSpace>,
-        run_mode: taffy::RunMode,
-    ) -> Option<taffy::LayoutOutput> {
+    fn cache_get(&mut self, node_id: taffy::NodeId, input: &LayoutInput) -> Option<LayoutOutput> {
         let widget_id = node_id.into();
-        self.widgets.layout_cache[widget_id].get(known_dimensions, available_space, run_mode)
+        self.widgets.layout_cache[widget_id].get(input)
     }
 
     fn cache_store(
         &mut self,
         node_id: taffy::NodeId,
-        known_dimensions: taffy::Size<Option<f32>>,
-        available_space: taffy::Size<taffy::AvailableSpace>,
-        run_mode: taffy::RunMode,
-        layout_output: taffy::LayoutOutput,
+        input: &LayoutInput,
+        output: taffy::LayoutOutput,
     ) {
-        self.widgets.layout_cache[node_id.into()].store(
-            known_dimensions,
-            available_space,
-            run_mode,
-            layout_output,
-        )
+        self.widgets.layout_cache[node_id.into()].store(input, output)
     }
 
     fn cache_clear(&mut self, node_id: taffy::NodeId) {
@@ -241,20 +233,21 @@ impl LayoutPartialTree for LayoutContext<'_> {
         }
 
         taffy::compute_cached_layout(self, node_id, inputs, |tree, node, inputs| {
-            if tree.widgets.tree[node_id.into()].is_hidden() {
+            let widget_id = node_id.into();
+            if tree.widgets.tree[widget_id].is_hidden() {
                 taffy::compute_hidden_layout(tree, node)
             } else {
                 let has_children = tree.child_count(node) > 0;
-                let display_style = tree.widget_impls[node.into()].layout_mode();
-                match (display_style, has_children) {
-                    (LayoutMode::Block, true) => taffy::compute_block_layout(tree, node, inputs),
-                    (LayoutMode::Flex(_), true) => {
+                match (&tree.widgets.tree[widget_id].display_style, has_children) {
+                    (DisplayStyle::Block, true) => {
+                        taffy::compute_block_layout(tree, node, inputs, None)
+                    }
+                    (DisplayStyle::Flex(_), true) => {
                         taffy::compute_flexbox_layout(tree, node, inputs)
                     }
-                    (LayoutMode::Grid(_), _) => unreachable!(),
-                    (LayoutMode::Stack, _) => compute_stack_layout(tree, node_id, inputs),
-                    (LayoutMode::Leaf(measure), _) => {
-                        let style = &tree.widgets.tree[node.into()].style;
+                    (DisplayStyle::Grid(_), true) => unreachable!(),
+                    (DisplayStyle::Stack, _) => compute_stack_layout(tree, node_id, inputs),
+                    /*(LayoutMode::Leaf(measure), _) => {
                         let measure_function =
                             |known_dimensions: taffy::Size<Option<f32>>, available_space| {
                                 let available_size = known_dimensions.zip_map(
@@ -276,11 +269,8 @@ impl LayoutPartialTree for LayoutContext<'_> {
                                     },
                                 );
 
-                                let size = measure.measure(
-                                    style,
-                                    available_size.width,
-                                    available_size.height,
-                                );
+                                let size =
+                                    measure.measure(available_size.width, available_size.height);
                                 taffy::Size {
                                     width: size.width as _,
                                     height: size.height as _,
@@ -293,12 +283,29 @@ impl LayoutPartialTree for LayoutContext<'_> {
                             |_val, _basis| 0.0,
                             measure_function,
                         )
-                    }
+                    }*/
                     (_, false) => {
-                        let measure_function = |_, _| taffy::Size::ZERO;
+                        let measure_function =
+                            |known_dimensions: taffy::Size<Option<f32>>, available_space| {
+                                if let Some(text) = tree.widgets.texts.get_mut(widget_id) {
+                                    text.measure(
+                                        &mut tree.text_cx,
+                                        available_space,
+                                        known_dimensions,
+                                    )
+                                } else {
+                                    taffy::Size::ZERO
+                                }
+                            };
+                        let layout_style = LayoutStyle {
+                            style: &tree.widgets.tree[widget_id].style,
+                            display_style: &tree.widgets.tree[widget_id].display_style,
+                            window_size: tree.window_size,
+                        };
+
                         taffy::compute_leaf_layout(
                             inputs,
-                            &tree.get_layout_style(node_id),
+                            &layout_style,
                             |_val, _basis| 0.0,
                             measure_function,
                         )
@@ -320,7 +327,7 @@ fn compute_stack_layout(
 /// Style used during layout
 pub struct LayoutStyle<'a> {
     pub(crate) style: &'a Style,
-    pub(crate) display_style: LayoutMode<'a>,
+    pub(crate) display_style: &'a DisplayStyle,
     pub(crate) window_size: Size,
 }
 
@@ -338,7 +345,7 @@ impl taffy::CoreStyle for LayoutStyle<'_> {
     }
 
     fn is_block(&self) -> bool {
-        matches!(self.display_style, LayoutMode::Block)
+        matches!(self.display_style, DisplayStyle::Block)
     }
 
     fn box_sizing(&self) -> taffy::BoxSizing {
@@ -365,15 +372,24 @@ impl taffy::CoreStyle for LayoutStyle<'_> {
     }
 
     fn size(&self) -> taffy::Size<taffy::Dimension> {
-        self.style.size.resolve_into(self.window_size)
+        taffy::Size {
+            width: self.style.width.resolve_into(self.window_size),
+            height: self.style.height.resolve_into(self.window_size),
+        }
     }
 
-    fn min_size(&self) -> taffy::Size<taffy::Dimension> {
-        self.style.min_size.resolve_into(self.window_size)
+    fn min_size(&self) -> taffy::Size<taffy::LengthPercentageAuto> {
+        taffy::Size {
+            width: self.style.min_width.resolve_into(self.window_size),
+            height: self.style.min_height.resolve_into(self.window_size),
+        }
     }
 
-    fn max_size(&self) -> taffy::Size<taffy::Dimension> {
-        self.style.max_size.resolve_into(self.window_size)
+    fn max_size(&self) -> taffy::Size<taffy::LengthPercentageAuto> {
+        taffy::Size {
+            width: self.style.max_width.resolve_into(self.window_size),
+            height: self.style.max_height.resolve_into(self.window_size),
+        }
     }
 
     fn aspect_ratio(&self) -> Option<f32> {
@@ -396,21 +412,21 @@ impl taffy::CoreStyle for LayoutStyle<'_> {
 impl taffy::FlexboxContainerStyle for LayoutStyle<'_> {
     fn flex_direction(&self) -> taffy::FlexDirection {
         match &self.display_style {
-            LayoutMode::Flex(flex) => flex.direction,
+            DisplayStyle::Flex(flex) => flex.direction,
             _ => TAFFY_DEFAULT_STYLE.flex_direction,
         }
     }
 
     fn flex_wrap(&self) -> taffy::FlexWrap {
         match &self.display_style {
-            LayoutMode::Flex(flex) => flex.wrap,
+            DisplayStyle::Flex(flex) => flex.wrap,
             _ => TAFFY_DEFAULT_STYLE.flex_wrap,
         }
     }
 
     fn gap(&self) -> taffy::Size<taffy::LengthPercentage> {
         match &self.display_style {
-            LayoutMode::Flex(flex) => taffy::Size {
+            DisplayStyle::Flex(flex) => taffy::Size {
                 width: flex.gap.resolve_into(self.window_size),
                 height: flex.gap.resolve_into(self.window_size),
             },
@@ -420,14 +436,14 @@ impl taffy::FlexboxContainerStyle for LayoutStyle<'_> {
 
     fn align_content(&self) -> Option<taffy::AlignContent> {
         match &self.display_style {
-            LayoutMode::Flex(flex) => flex.align_content,
+            DisplayStyle::Flex(flex) => flex.align_content,
             _ => TAFFY_DEFAULT_STYLE.align_content,
         }
     }
 
     fn align_items(&self) -> Option<taffy::AlignItems> {
         match &self.display_style {
-            LayoutMode::Flex(flex) => flex.align_items,
+            DisplayStyle::Flex(flex) => flex.align_items,
             _ => TAFFY_DEFAULT_STYLE.align_items,
         }
     }

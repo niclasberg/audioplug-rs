@@ -40,4 +40,8 @@ impl Default for FontOptions {
     }
 }
 
-pub struct TextLayout {}
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct TextBrush;
+
+pub type TextLayoutContext = parley::LayoutContext<TextBrush>;
+pub type TextLayout = parley::Layout<TextBrush>;

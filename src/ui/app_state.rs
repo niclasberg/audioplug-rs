@@ -1,15 +1,16 @@
+use parley::FontContext;
 use slotmap::SecondaryMap;
 
 use super::reactive::{CreateContext, ReactiveGraph, Var};
 use super::{
     BuildContext, HostHandle, View, Widget, WidgetId, WidgetMut, WidgetRef, Widgets, WindowId,
-    event_handling::{set_focus_widget, set_mouse_capture_widget},
+    event_handling::{set_focus_widget, set_hovered_widget},
     layout::RecomputeLayout,
     render::WGPUSurface,
-    style::StyleBuilder,
     task_queue::TaskQueue,
     widgets::WidgetPos,
 };
+use crate::core::TextLayoutContext;
 use crate::ui::reactive::{Owner, ReadContext, ReadScope, WriteContext};
 use crate::{
     core::WindowTheme,
@@ -22,6 +23,8 @@ pub type WidgetMap = SecondaryMap<WidgetId, Box<dyn Widget>>;
 
 pub struct AppState {
     pub(super) wgpu_instance: wgpu::Instance,
+    pub(super) font_cx: parley::FontContext,
+    pub(super) text_layout_cx: TextLayoutContext,
     /// Widget implementation. Should exist for each widget data.
     pub(super) widget_impls: WidgetMap,
     pub(super) widgets: Widgets,
@@ -50,6 +53,8 @@ impl AppState {
                 backends: wgpu::Backends::PRIMARY,
                 ..Default::default()
             }),
+            font_cx: FontContext::new(),
+            text_layout_cx: TextLayoutContext::new(),
             reactive_graph,
             host_handle: None,
             theme_signal,
@@ -105,19 +110,18 @@ impl AppState {
         let window_id = self.widgets.allocate_window(handle, wgpu_surface);
         let root_widget_id = self.widgets.window(window_id).root_widget;
         self.build_and_insert_widget(root_widget_id, view);
-        self.widgets
-            .layout_window(&self.widget_impls, window_id, RecomputeLayout::Force);
+        self.widgets.layout_window(
+            &mut self.widget_impls,
+            &mut self.font_cx,
+            &mut self.text_layout_cx,
+            window_id,
+            RecomputeLayout::Force,
+        );
         window_id
     }
 
     fn build_and_insert_widget<V: View>(&mut self, id: WidgetId, view: V) {
-        let mut styles = StyleBuilder::default();
-        let widget = view.build(&mut BuildContext::new(id, self, &mut styles));
-        styles.apply_styles(&mut BuildContext::new(
-            id,
-            self,
-            &mut StyleBuilder::default(),
-        ));
+        let widget = view.build(&mut BuildContext::new(id, self));
         self.widget_impls.insert(id, Box::new(widget));
     }
 
@@ -149,10 +153,10 @@ impl AppState {
     }
 
     fn clear_mouse_capture_and_focus(&mut self, id: WidgetId) {
-        if let Some(mouse_capture_widget) = self.widgets.mouse_capture_widget
-            && (mouse_capture_widget == id || self.widgets.has_parent(mouse_capture_widget, id))
+        if let Some(hovered_widget) = self.widgets.hovered_widget
+            && (hovered_widget == id || self.widgets.has_parent(hovered_widget, id))
         {
-            set_mouse_capture_widget(self, None);
+            set_hovered_widget(self, None);
         }
 
         let window_id = self.widgets.window_for_widget(id).id;
@@ -200,8 +204,13 @@ impl AppState {
         // Layout if needed
         let window_ids: Vec<_> = self.widgets.window_id_iter().collect();
         for window_id in window_ids {
-            self.widgets
-                .layout_window(&self.widget_impls, window_id, RecomputeLayout::IfNeeded);
+            self.widgets.layout_window(
+                &mut self.widget_impls,
+                &mut self.font_cx,
+                &mut self.text_layout_cx,
+                window_id,
+                RecomputeLayout::IfNeeded,
+            );
         }
     }
 
@@ -212,11 +221,16 @@ impl AppState {
         host_handle.as_ref()
     }
 
-    pub fn read_context(&mut self, scope: ReadScope) -> ReadContext<'_> {
+    pub fn read_context(
+        &mut self,
+        scope: ReadScope,
+        current_widget: Option<WidgetId>,
+    ) -> ReadContext<'_> {
         ReadContext {
             widgets: &self.widgets,
             reactive_graph: &mut self.reactive_graph,
             scope,
+            current_widget,
         }
     }
 

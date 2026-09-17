@@ -1,8 +1,8 @@
-use audioplug::core::{Align, Brush, Color, ShadowKind, ShadowOptions, Size, Vec2};
-use audioplug::ui::prelude::*;
+use audioplug::core::{Color, Paint, ShadowKind, ShadowOptions, Size, Vec2};
 use audioplug::ui::reactive::{SpringOptions, TweenOptions};
-use audioplug::ui::style::{ImageEffect, Length, UiRect};
-use audioplug::ui::{App, Window};
+use audioplug::ui::style::{Length, UiRect};
+use audioplug::ui::{App, TextExt, Window};
+use audioplug::ui::{StyleExt, prelude::*};
 use audioplug::views::*;
 use std::path::Path;
 use std::time::Duration;
@@ -30,9 +30,7 @@ fn main() {
                     menu_button("Overview", tab, Tab::Overview),
                     menu_button("Buttons", tab, Tab::Buttons),
                 ))
-                .style(|style, _| {
-                    style.margin(UiRect::right_px(5.0));
-                }),
+                .margin(UiRect::right_px(5.0)),
                 Switch::new(
                     move |cx| tab.get(cx),
                     move |tab| match tab {
@@ -41,9 +39,8 @@ fn main() {
                     },
                 ),
             ))
-            .style(|s, _| {
-                s.background(Color::EARTH_YELLOW).width(Length::Vw(100.0));
-            })
+            .background(Color::EARTH_YELLOW)
+            .width(Length::Vw(100.0))
         }),
     );
 
@@ -51,17 +48,20 @@ fn main() {
 }
 
 fn menu_button(label: &str, tab_signal: Var<Tab>, tab: Tab) -> impl View {
-    Button::new(Label::new(label))
-        .on_click(move |cx| tab_signal.set(cx, tab))
-        .style(move |style, _| {
-            style.background(tab_signal.map(move |current_tab| {
-                if *current_tab == tab {
-                    Color::EARTH_YELLOW.tint(0.2)
-                } else {
-                    Color::EARTH_YELLOW
-                }
-                .into()
-            }));
+    Button::new_with_label(label, move |cx| tab_signal.set(cx, tab))
+        .background(tab_signal.map(move |current_tab| {
+            if *current_tab == tab {
+                Color::EARTH_YELLOW.tint(0.2)
+            } else {
+                Color::EARTH_YELLOW
+            }
+            .into()
+        }))
+        .box_shadow(ShadowOptions {
+            radius: 5.0,
+            offset: Vec2::splat(5.0),
+            color: Color::BLACK.with_alpha(0.5),
+            kind: ShadowKind::DropShadow,
         })
 }
 
@@ -112,19 +112,14 @@ fn overview() -> impl View {
                     animated.get(cx)
                 )
             }))
-            .style(|s, _| {
-                s.border(Length::Px(2.0), Color::GRAY90)
-                    .corner_radius(Size::new(2.0, 2.0))
-                    .effects(vec![ImageEffect::GaussianBlur { radius: 10.0 }]);
-            }),
+            .border(Length::Px(2.0), Color::GRAY90)
+            .corner_radius(Size::new(2.0, 2.0)),
             Row::new((
                 Label::new("Slider"),
                 Slider::new(move |cx, value| slider_value.set(cx, value))
                     .range(1.0, 500.0)
                     .value(slider_value)
-                    .style(|s, _| {
-                        s.height(Length::Px(25.0));
-                    }),
+                    .height(Length::Px(25.0)),
             ))
             .spacing(Length::Px(5.0))
             .v_align_center(),
@@ -133,9 +128,7 @@ fn overview() -> impl View {
                 Label::new("Checkbox"),
                 Checkbox::new()
                     .checked(checkbox_enabled)
-                    .style(move |s, _| {
-                        s.background(checkbox_bg.map(|c| Brush::Solid(*c)));
-                    }),
+                    .background(checkbox_bg.map(|c| Paint::Solid(*c))),
             ))
             .v_align_center()
             .spacing(Length::Px(5.0)),
@@ -148,22 +141,20 @@ fn overview() -> impl View {
                         Label::new("Eat banana"),
                     ))
                     .spacing(Length::Px(2.5))
-                    .style(|s, _| {
-                        s.corner_radius(Size::splat(5.0))
-                            .background(Color::EARTH_YELLOW)
-                            .box_shadow(ShadowOptions {
-                                radius: 5.0,
-                                ..Default::default()
-                            })
-                            .padding(UiRect::all_px(5.0));
+                    .corner_radius(Size::splat(5.0))
+                    .background(Color::EARTH_YELLOW)
+                    .box_shadow(ShadowOptions {
+                        radius: 5.0,
+                        ..Default::default()
                     })
+                    .padding(UiRect::all_px(5.0))
                 }),
             ))
             .v_align_center()
             .spacing(Length::Px(5.0)),
             Row::new((
                 Label::new("Button"),
-                Button::new(Label::new("Filled")).on_click(move |cx| {
+                Button::new_with_label("Filled", move |cx| {
                     checkbox_enabled.update(cx, |_, enabled| *enabled = !*enabled);
                 }),
             ))
@@ -172,28 +163,24 @@ fn overview() -> impl View {
             Row::new((
                 Label::new("Image"),
                 Image::from_file(Path::new("./ferris.png"))
-                    .style(move |style, _| {
-                        style
-                            .max_width(Length::Px(200.0))
-                            .height(animated.map(Length::from_px))
-                            .corner_radius(Size::splat(7.0))
-                            .box_shadow(ShadowOptions {
-                                radius: 10.0,
-                                offset: Vec2::splat(2.0),
-                                color: Color::BLACK.with_alpha(0.3),
-                                kind: ShadowKind::InnerShadow,
-                            });
-                    })
-                    .overlay(
-                        OverlayOptions {
-                            align: Align::Bottom,
-                            anchor: OverlayAnchor::OutsideParent,
-                            ..Default::default()
-                        },
-                        Button::new(Label::new("Filled!!!")).on_click(move |cx| {
-                            checkbox_enabled.update(cx, |_, enabled| *enabled = !*enabled);
-                        }),
-                    ),
+                    .max_width(Length::Px(200.0))
+                    .height(animated.map(|a| Length::Px(*a as f32)))
+                    .corner_radius(Size::splat(7.0))
+                    .box_shadow(ShadowOptions {
+                        radius: 10.0,
+                        offset: Vec2::splat(2.0),
+                        color: Color::BLACK.with_alpha(0.3),
+                        kind: ShadowKind::InnerShadow,
+                    }), /*.overlay(
+                            OverlayOptions {
+                                align: Align::Bottom,
+                                anchor: OverlayAnchor::OutsideParent,
+                                ..Default::default()
+                            },
+                            Button::new_with_label("Filled!!!", move |cx| {
+                                checkbox_enabled.update(cx, |_, enabled| *enabled = !*enabled);
+                            }),
+                        ), */
             ))
             .v_align_center(),
             Row::new((

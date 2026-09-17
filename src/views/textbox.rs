@@ -1,31 +1,36 @@
 use crate::MouseEvent;
-use crate::core::{Color, Cursor, Key, Modifiers, Rect, Size};
-use crate::event::{KeyEvent, MouseButton};
+use crate::core::{Color, Cursor, Key, Modifiers, Size, TextLayout};
+use crate::event::{KeyEvent, MouseButton, MouseDownEvent, MouseDragEvent};
 use crate::ui::{
-    AnimationContext, BuildContext, EventContext, EventStatus, MouseEventContext, RenderContext,
-    StatusChange, TextLayout, View, ViewProp, Widget,
-    style::{AvailableSpace, LayoutMode, Length, Measure, Style, UiRect},
+    AnimationContext, BuildContext, EventContext, EventStatus, RenderContext, View, ViewProp,
+    Widget,
+    style::{Length, UiRect},
 };
-use crate::ui::{CallbackContext, Scene};
+use crate::ui::{Scene, ViewStyle};
 use std::ops::Range;
 use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 
-type InputChangedFn = dyn Fn(&mut CallbackContext, &str);
+type InputChangedFn = dyn Fn(&mut EventContext, &str);
 
 pub struct TextBox {
     width: f64,
     input_changed_fn: Box<InputChangedFn>,
     value: Option<ViewProp<String>>,
     placeholder: Option<ViewProp<String>>,
+    style: ViewStyle,
 }
 
 impl TextBox {
-    pub fn new(input_changed_fn: impl Fn(&mut CallbackContext, &str) + 'static) -> Self {
+    pub fn new(input_changed_fn: impl Fn(&mut EventContext, &str) + 'static) -> Self {
         Self {
             width: 100.0,
             input_changed_fn: Box::new(input_changed_fn),
             value: None,
             placeholder: None,
+            style: ViewStyle::default()
+                .padding(UiRect::all(Length::Px(2.0)))
+                .border_width(Length::Px(1.0))
+                .cursor(Cursor::IBeam),
         }
     }
 
@@ -45,15 +50,9 @@ impl View for TextBox {
 
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
         cx.set_focusable(true);
+        cx.apply_style(self.style);
 
-        cx.set_default_style(Style {
-            padding: UiRect::all(Length::Px(2.0)),
-            border: Length::Px(1.0),
-            cursor: Some(Cursor::IBeam),
-            ..Default::default()
-        });
-
-        let text_layout = if let Some(value) = self.value {
+        let value = if let Some(value) = self.value {
             let text = value.get_and_bind(cx, |value, mut widget| {
                 if value != widget.value {
                     widget.value = value;
@@ -61,10 +60,16 @@ impl View for TextBox {
                     widget.request_render();
                 }
             });
-            TextLayout::new(&text, Color::BLACK, Size::INFINITY)
+            text
         } else {
-            TextLayout::new("", Color::BLACK, Size::INFINITY)
+            "".to_owned()
         };
+
+        let text_cx = cx.text_context();
+        let text_layout = text_cx
+            .layout_cx
+            .ranged_builder(text_cx.font_cx, &value, 1.0, false)
+            .build(&value);
 
         TextBoxWidget {
             width: self.width,
@@ -74,7 +79,6 @@ impl View for TextBox {
             position: 0,
             selection_start: None,
             last_cursor_timestamp: 0.0,
-            is_mouse_selecting: false,
             input_changed_fn: self.input_changed_fn,
         }
     }
@@ -88,7 +92,6 @@ pub struct TextBoxWidget {
     position: usize,
     selection_start: Option<usize>,
     last_cursor_timestamp: f64,
-    is_mouse_selecting: bool,
     input_changed_fn: Box<InputChangedFn>,
 }
 
@@ -322,18 +325,11 @@ impl TextBoxWidget {
             self.selection_start = None;
         }
 
-        self.text_layout = TextLayout::new(self.value.as_str(), Color::BLACK, Size::INFINITY);
+        //self.text_layout = TextLayout::new(self.value.as_str(), Color::BLACK, Size::INFINITY);
     }
 }
 
 const CURSOR_DELAY_SECONDS: f64 = 0.5;
-
-impl Measure for TextBoxWidget {
-    fn measure(&self, _style: &Style, _width: AvailableSpace, _height: AvailableSpace) -> Size {
-        let size = self.text_layout.measure();
-        Size::new(self.width, size.height)
-    }
-}
 
 impl Widget for TextBoxWidget {
     fn debug_label(&self) -> &'static str {
@@ -344,7 +340,7 @@ impl Widget for TextBoxWidget {
         let rebuild_text_layout = |this: &mut Self, ctx: &mut EventContext| {
             this.rebuild_text_layout();
             ctx.request_render();
-            (this.input_changed_fn)(&mut ctx.as_callback_context(), &this.value);
+            (this.input_changed_fn)(ctx, &this.value);
         };
 
         match event {
@@ -432,59 +428,36 @@ impl Widget for TextBoxWidget {
         }
     }
 
-    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) {
         match event {
-            MouseEvent::Down {
+            MouseEvent::Down(MouseDownEvent {
                 button: MouseButton::LEFT,
                 position,
                 is_double_click,
                 ..
-            } => {
+            }) => {
+                let point = position - ctx.bounds().top_left().into_vec2();
+                let new_cursor =
+                    parley::Cursor::from_point(&self.text_layout, point.x as _, point.y as _);
                 if is_double_click {
-                    let text_index = self
-                        .text_layout
-                        .text_index_at_point(position - ctx.bounds().top_left().into_vec2());
-                    if let Some(text_index) = text_index
-                        && self.select_word_at(text_index)
-                    {
+                    if self.select_word_at(new_cursor.index()) {
                         ctx.request_render();
                     }
                 } else {
-                    ctx.capture_mouse();
-                    if let Some(new_cursor) = self
-                        .text_layout
-                        .text_index_at_point(position - ctx.bounds().top_left().into_vec2())
-                    {
-                        self.is_mouse_selecting = true;
-                        if self.set_caret_position(new_cursor, false) {
-                            ctx.request_render();
-                        }
-                    }
-                }
-                EventStatus::Handled
-            }
-            MouseEvent::Up {
-                button: MouseButton::LEFT,
-                ..
-            } => {
-                self.is_mouse_selecting = false;
-                ctx.release_capture();
-                EventStatus::Handled
-            }
-            MouseEvent::Moved { position, .. } => {
-                if self.is_mouse_selecting {
-                    let new_cursor = self
-                        .text_layout
-                        .text_index_at_point(position - ctx.bounds().top_left().into_vec2());
-                    if let Some(new_cursor) = new_cursor
-                        && self.set_caret_position(new_cursor, true)
-                    {
+                    if self.set_caret_position(new_cursor.index(), false) {
                         ctx.request_render();
                     }
                 }
-                EventStatus::Handled
             }
-            _ => EventStatus::Ignored,
+            MouseEvent::DragMoved(MouseDragEvent { position, .. }) => {
+                let point = position - ctx.bounds().top_left().into_vec2();
+                let new_cursor =
+                    parley::Cursor::from_point(&self.text_layout, point.x as _, point.y as _);
+                if self.set_caret_position(new_cursor.index(), true) {
+                    ctx.request_render();
+                }
+            }
+            _ => {}
         }
     }
 
@@ -496,21 +469,6 @@ impl Widget for TextBoxWidget {
                 self.last_cursor_timestamp = frame.timestamp;
             }
             ctx.request_animation();
-        }
-    }
-
-    fn status_change(&mut self, event: StatusChange, ctx: &mut EventContext) {
-        match event {
-            StatusChange::FocusGained => {
-                ctx.request_animation();
-                ctx.request_render();
-            }
-            StatusChange::FocusLost => {
-                self.cursor_on = false;
-                self.clear_selection();
-                ctx.request_render();
-            }
-            _ => {}
         }
     }
 
@@ -527,7 +485,7 @@ impl Widget for TextBoxWidget {
 
         let text_bounds = ctx.content_bounds();
         scene.use_clip(text_bounds, |scene| {
-            if let Some(selection) = self.selection() {
+            /*if let Some(selection) = self.selection() {
                 let left = self.text_layout.point_at_text_index(selection.start);
                 let right = self.text_layout.point_at_text_index(selection.end);
                 let rect = Rect::from_points(
@@ -535,11 +493,11 @@ impl Widget for TextBoxWidget {
                     text_bounds.bottom_left() + right.into_vec2(),
                 );
                 scene.fill(rect, Color::from_rgb8(68, 85, 90));
-            }
+            }*/
 
             scene.draw_text(&self.text_layout, text_bounds.top_left());
 
-            if ctx.has_focus() && self.cursor_on {
+            /*if ctx.has_focus() && self.cursor_on {
                 let cursor_point = self
                     .text_layout
                     .point_at_text_index(self.position)
@@ -547,12 +505,8 @@ impl Widget for TextBoxWidget {
                 let p0 = text_bounds.bottom_left() + cursor_point;
                 let p1 = text_bounds.top_left() + cursor_point;
                 scene.draw_line(p0, p1, Color::BLACK, 1.0);
-            }
+            }*/
         });
         scene
-    }
-
-    fn layout_mode(&self) -> LayoutMode<'_> {
-        LayoutMode::Leaf(self)
     }
 }

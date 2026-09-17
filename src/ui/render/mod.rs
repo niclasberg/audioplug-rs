@@ -1,7 +1,10 @@
 use crate::{
-    core::{Brush, BrushRef, Point, Rect, ShadowKind, ShapeRef, Transform, Vec2f},
-    platform,
-    ui::{Widgets, reactive::ReactiveGraph, render::gpu_scene::GpuFill},
+    core::{BrushRef, Color, ImageData, Paint, Point, Rect, ShapeRef, TextLayout, Transform},
+    ui::{
+        WidgetData, Widgets,
+        reactive::ReactiveGraph,
+        render::gpu_scene::{GpuAppearance, GpuPaint},
+    },
 };
 
 mod canvas;
@@ -16,7 +19,6 @@ pub use scene::Scene;
 pub use wgpu_surface::WGPUSurface;
 
 use super::{WidgetId, WindowId};
-pub use platform::TextLayout;
 
 pub fn invalidate_window(widgets: &Widgets, window_id: WindowId) {
     let handle = &widgets.window(window_id).handle;
@@ -50,20 +52,26 @@ pub fn paint_window(widgets: &mut Widgets, window_id: WindowId, dirty_rect: Rect
         .create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("AudioPlug command encoder"),
         });
-    wgpu_surface.upload_scene(&window.gpu_scene);
 
-    let dims = wgpu_surface.render_tiles_workgroup_count();
-    let state = wgpu_surface.state.as_mut().unwrap();
+    if !window.gpu_scene.is_empty() {
+        wgpu_surface.upload_scene(&window.gpu_scene);
 
-    {
-        let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
-        compute_pass.set_pipeline(&wgpu_surface.render_tiles_program.pipeline);
-        compute_pass.set_bind_group(0, &state.render_tiles_bind_group0, &[]);
-        compute_pass.set_bind_group(1, &wgpu_surface.render_tiles_bind_group1, &[]);
-        compute_pass.dispatch_workgroups(dims.width, dims.height, 1);
+        let [dims_x, dims_y] = wgpu_surface.render_tiles_workgroup_count();
+        let scene_state = wgpu_surface.scene_state.as_mut().unwrap();
+        let surface_state = wgpu_surface.state.as_mut().unwrap();
+
+        {
+            let mut compute_pass =
+                encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
+            compute_pass.set_pipeline(&wgpu_surface.render_tiles_program.pipeline);
+            compute_pass.set_bind_group(0, &surface_state.render_tiles_bind_group0, &[]);
+            compute_pass.set_bind_group(1, &scene_state.render_tiles_bind_group1, &[]);
+            compute_pass.dispatch_workgroups(dims_x, dims_y, 1);
+        }
     }
 
     {
+        let surface_state = wgpu_surface.state.as_mut().unwrap();
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -83,7 +91,7 @@ pub fn paint_window(widgets: &mut Widgets, window_id: WindowId, dirty_rect: Rect
 
         // Blit the texture to the render target
         render_pass.set_pipeline(&wgpu_surface.blit_program.pipeline);
-        render_pass.set_bind_group(0, &state.blit_bind_group, &[]);
+        render_pass.set_bind_group(0, &surface_state.blit_bind_group, &[]);
         render_pass.draw(0..3, 0..1);
     }
 
@@ -124,45 +132,40 @@ fn rebuild_scene(widgets: &mut Widgets, window_id: WindowId) {
             .dfs_walker_with_pruning(root_id, |node| !(node.is_overlay() || node.style.hidden));
         while let Some(widget_id) = walker.next(&widgets.tree) {
             let node = &widgets.tree[widget_id];
-            let shape = node.shape().scale(scale_factor);
-            let mut inner_shape_ref = None;
-            let shadow = node.style.box_shadow;
-            if let Some(shadow) = shadow
-                && shadow.kind == ShadowKind::DropShadow
-            {
-                let shape_ref = gpu_scene.add_primitive_shape(shape);
-                gpu_scene.fill_shape(shape_ref, GpuFill::Shadow(shadow));
-                inner_shape_ref = Some(shape_ref);
-            }
-
-            if let Some(background) = &node.style.background {
-                let shape_ref =
-                    inner_shape_ref.get_or_insert_with(|| gpu_scene.add_primitive_shape(shape));
-                let fill = match background {
-                    Brush::Solid(color) => GpuFill::Solid(*color),
-                    Brush::LinearGradient(linear_gradient) => GpuFill::LinearGradient {
-                        start: Vec2f::ZERO,
-                        end: Vec2f::ZERO,
-                        color_stops: linear_gradient.color_map.clone(),
-                    },
-                };
-                gpu_scene.fill_shape(*shape_ref, fill);
-            }
-
-            let line_width = node.layout.border.top as f64 * scale_factor;
-            if let Some(border_color) = node.style.border_color
-                && line_width > 0.0
-            {
-                let shape_ref = gpu_scene.add_primitive_shape(shape.inflate(line_width / 2.0));
-                gpu_scene.fill_shape(
-                    shape_ref,
-                    GpuFill::Stroke {
-                        color: border_color,
-                        width: line_width as _,
-                    },
-                );
-            }
+            render_node_background(node, gpu_scene, scale_factor);
         }
+    }
+}
+
+fn render_node_background(node: &WidgetData, gpu_scene: &mut GpuScene, scale_factor: f32) {
+    let mut appearance = GpuAppearance::new();
+    if let Some(shadow) = node.style.box_shadow {
+        appearance.set_shadow(shadow.into());
+    }
+
+    if let Some(background) = &node.style.background {
+        let paint = match background {
+            Paint::Solid(color) => GpuPaint::solid(*color),
+            Paint::LinearGradient(linear_gradient) => GpuPaint::linear_gradient(linear_gradient),
+        };
+        appearance.set_fill(paint);
+    }
+
+    let line_width = node.layout.border.top * scale_factor;
+    if let Some(border_color) = node.style.border_color
+        && line_width > 0.0
+    {
+        let paint = GpuPaint::solid(border_color);
+        appearance.set_stroke(paint, line_width);
+    } else {
+        appearance.set_stroke(GpuPaint::solid(Color::BLACK), 1.0);
+    }
+
+    if !appearance.is_empty() {
+        let shape = node.shape().scale(scale_factor);
+        let shape_ref = gpu_scene.add_primitive_shape(shape);
+        let appearance_ref = gpu_scene.add_appearance(appearance);
+        gpu_scene.draw(shape_ref, appearance_ref);
     }
 }
 
@@ -191,10 +194,10 @@ impl<'a> RenderContext<'a> {
     }
 
     pub fn has_mouse_capture(&self) -> bool {
-        self.widgets.has_mouse_capture(self.id)
+        self.widgets.is_pressed(self.id)
     }
 
-    pub fn fill<'b>(&mut self, shape: impl Into<ShapeRef<'b>>, brush: impl Into<Brush>) {
+    pub fn fill<'b>(&mut self, shape: impl Into<ShapeRef<'b>>, brush: impl Into<Paint>) {
         //self.renderer.fill_shape(shape.into(), brush.into());
     }
 
@@ -229,7 +232,7 @@ impl<'a> RenderContext<'a> {
         }*/
     }
 
-    pub fn draw_bitmap(&mut self, source: &crate::platform::Bitmap, rect: impl Into<Rect>) {
+    pub fn draw_bitmap(&mut self, source: &ImageData, rect: impl Into<Rect>) {
         //self.renderer.draw_bitmap(source, rect.into())
     }
 

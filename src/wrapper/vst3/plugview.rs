@@ -1,9 +1,9 @@
 use raw_window_handle::RawWindowHandle;
-#[cfg(target_os = "linux")]
-use vst3::Steinberg::IWaylandFrame;
 use std::cell::RefCell;
 use std::ffi::{CStr, c_void};
 use std::rc::Rc;
+#[cfg(target_os = "linux")]
+use vst3::Steinberg::IWaylandFrame;
 use vst3::Steinberg::{
     FIDString, IPlugFrame, IPlugView, IPlugViewContentScaleSupport,
     IPlugViewContentScaleSupportTrait, IPlugViewTrait, TBool, ViewRect, char16, kInvalidArgument,
@@ -19,7 +19,7 @@ use crate::ui::{AppState, Window};
 struct PlugFrame {
     plugin: ComPtr<IPlugFrame>,
     #[cfg(target_os = "linux")]
-    wayland: Option<ComPtr<IWaylandFrame>>
+    wayland: Option<ComPtr<IWaylandFrame>>,
 }
 
 impl PlugFrame {
@@ -27,7 +27,7 @@ impl PlugFrame {
         Self {
             plugin: plug_frame.to_com_ptr(),
             #[cfg(target_os = "linux")]
-            wayland: plug_frame.cast()
+            wayland: plug_frame.cast(),
         }
     }
 }
@@ -106,7 +106,7 @@ impl<E: Editor> IPlugViewTrait for PlugView<E> {
                 #[cfg(target_os = "windows")]
                 if type_ == PLATFORM_TYPE_HWND {
                     use {raw_window_handle::Win32WindowHandle, std::num::NonZeroIsize};
-                    let Some(window) = NonZeroIsize::new(parent as isize) else { 
+                    let Some(window) = NonZeroIsize::new(parent as isize) else {
                         return kInvalidArgument;
                     };
                     RawWindowHandle::Win32(Win32WindowHandle::new(window))
@@ -263,7 +263,7 @@ impl<E: Editor> IPlugViewTrait for PlugView<E> {
 impl<E: Editor> IPlugViewContentScaleSupportTrait for PlugView<E> {
     unsafe fn setContentScaleFactor(&self, scale_factor: f32) -> tresult {
         if let Some(window) = self.window.borrow().as_ref() {
-            window.set_scale_factor(ScaleFactor(scale_factor as f64));
+            window.set_scale_factor(ScaleFactor(scale_factor));
             kResultOk
         } else {
             kResultFalse

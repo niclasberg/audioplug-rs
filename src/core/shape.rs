@@ -27,8 +27,8 @@ impl Shape {
         Shape::Ellipse(Ellipse::new(center, radii))
     }
 
-    pub const fn circle(center: Point, radius: f64) -> Self {
-        Shape::Ellipse(Ellipse::new(center, Size::new(radius, radius)))
+    pub const fn circle(center: Point, radius: f32) -> Self {
+        Shape::Ellipse(Ellipse::new(center, Size::splat(radius)))
     }
 
     pub fn offset(&self, delta: impl Into<Vec2>) -> Self {
@@ -158,7 +158,7 @@ pub enum PrimitiveShape {
 }
 
 impl PrimitiveShape {
-    pub fn inflate(self, amount: f64) -> Self {
+    pub fn inflate(self, amount: f32) -> Self {
         match self {
             PrimitiveShape::Rect(rect) => Self::Rect(rect.inflate(amount)),
             PrimitiveShape::RoundedRect(rounded_rect) => {
@@ -168,7 +168,7 @@ impl PrimitiveShape {
         }
     }
 
-    pub fn scale(self, scale: f64) -> Self {
+    pub fn scale(self, scale: f32) -> Self {
         match self {
             PrimitiveShape::Rect(rect) => Self::Rect(rect.scale(scale)),
             PrimitiveShape::RoundedRect(rounded_rect) => {

@@ -3,57 +3,49 @@ use std::{
     ops::{Add, AddAssign, Sub, SubAssign},
 };
 
-use crate::core::{PhysicalCoord, ScaleFactor, Zero};
+use crate::core::{ScaleFactor, Zero};
 
 use super::{Lerp, Size, SpringPhysics, Vec2};
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct Point<T = f64> {
-    pub x: T,
-    pub y: T,
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
+pub struct Point {
+    pub x: f32,
+    pub y: f32,
 }
 
-impl<T> Point<T> {
-    pub const fn new(x: T, y: T) -> Self {
+impl Point {
+    pub const fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
 
     /// Create a Point with both `x` and `y` set to `v`
     #[inline]
     #[must_use]
-    pub fn splat(v: T) -> Self
-    where
-        T: Clone,
-    {
-        Self { x: v.clone(), y: v }
+    pub fn splat(v: f32) -> Self {
+        Self { x: v, y: v }
     }
 
-    pub fn map<U>(self, f: impl Fn(T) -> U) -> Point<U> {
+    pub fn map(self, f: impl Fn(f32) -> f32) -> Point {
         Point {
             x: f(self.x),
             y: f(self.y),
         }
     }
 
-    pub fn map_x(self, f: impl Fn(T) -> T) -> Self {
+    pub fn map_x(self, f: impl Fn(f32) -> f32) -> Self {
         Self {
             x: f(self.x),
             y: self.y,
         }
     }
 
-    pub fn map_y(self, f: impl Fn(T) -> T) -> Self {
+    pub fn map_y(self, f: impl Fn(f32) -> f32) -> Self {
         Self {
             x: self.x,
             y: f(self.y),
         }
     }
-}
 
-impl<T> Point<T>
-where
-    T: PartialOrd + Copy,
-{
     pub fn max(&self, other: &Self) -> Self {
         Self {
             x: if self.x > other.x { self.x } else { other.x },
@@ -63,34 +55,32 @@ where
 
     pub fn min(&self, other: &Self) -> Self {
         Self {
-            x: if self.x < other.x { self.x } else { other.x },
-            y: if self.y < other.y { self.y } else { other.y },
+            x: self.x.min(other.x),
+            y: self.y.min(other.y),
         }
     }
 
-    pub fn max_element(self) -> T {
-        if self.x > self.y { self.x } else { self.y }
+    pub fn max_element(self) -> f32 {
+        self.x.max(self.y)
     }
 
-    pub fn min_element(&self) -> T {
-        if self.x < self.y { self.x } else { self.y }
+    pub fn min_element(&self) -> f32 {
+        self.x.min(self.y)
     }
-}
 
-impl Point<f64> {
     pub fn zero() -> Self {
-        Self { x: 0f64, y: 0f64 }
+        Self { x: 0.0, y: 0.0 }
     }
 
-    pub fn scale(self, s: f64) -> Self {
+    pub fn scale(self, s: f32) -> Self {
         Self::new(self.x * s, self.y * s)
     }
 
-    pub fn scale_x(self, s: f64) -> Self {
+    pub fn scale_x(self, s: f32) -> Self {
         Self::new(self.x * s, self.y)
     }
 
-    pub fn scale_y(self, s: f64) -> Self {
+    pub fn scale_y(self, s: f32) -> Self {
         Self::new(self.x, self.y * s)
     }
 
@@ -107,48 +97,17 @@ impl Point<f64> {
     }
 }
 
-pub type PhysicalPoint = Point<PhysicalCoord>;
-impl PhysicalPoint {
-    pub fn into_logical(self, scale_factor: ScaleFactor) -> Point {
-        Point::new(
-            self.x.0 as f64 * scale_factor.0,
-            self.y.0 as f64 * scale_factor.0,
-        )
-    }
+impl Zero for Point {
+    const ZERO: Self = Self { x: 0.0, y: 0.0 };
 }
 
-impl<T: Zero> Zero for Point<T> {
-    const ZERO: Self = Self {
-        x: T::ZERO,
-        y: T::ZERO,
-    };
-}
-
-impl<T: Display> Display for Point<T> {
+impl Display for Point {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({}, {}))", self.x, self.y)
     }
 }
 
-impl From<Point<i32>> for Point<f64> {
-    fn from(value: Point<i32>) -> Self {
-        Self {
-            x: value.x as f64,
-            y: value.y as f64,
-        }
-    }
-}
-
-impl From<Point<f64>> for Point<f32> {
-    fn from(value: Point<f64>) -> Self {
-        Self {
-            x: value.x as _,
-            y: value.y as _,
-        }
-    }
-}
-
-impl<T, U: Into<T>> From<[U; 2]> for Point<T> {
+impl<U: Into<f32>> From<[U; 2]> for Point {
     fn from([x, y]: [U; 2]) -> Self {
         Self {
             x: x.into(),
@@ -157,7 +116,7 @@ impl<T, U: Into<T>> From<[U; 2]> for Point<T> {
     }
 }
 
-impl<T, U: Into<T>> From<(U, U)> for Point<T> {
+impl<U: Into<f32>> From<(U, U)> for Point {
     fn from((x, y): (U, U)) -> Self {
         Self {
             x: x.into(),
@@ -166,10 +125,10 @@ impl<T, U: Into<T>> From<(U, U)> for Point<T> {
     }
 }
 
-impl<T: Add<Output = T>> Add<Size<T>> for Point<T> {
+impl Add<Size> for Point {
     type Output = Self;
 
-    fn add(self, rhs: Size<T>) -> Self::Output {
+    fn add(self, rhs: Size) -> Self::Output {
         Self {
             x: self.x + rhs.width,
             y: self.y + rhs.height,
@@ -195,10 +154,10 @@ impl AddAssign<Vec2> for Point {
     }
 }
 
-impl<T: Sub<Output = T>> Sub<Size<T>> for Point<T> {
+impl Sub<Size> for Point {
     type Output = Self;
 
-    fn sub(self, rhs: Size<T>) -> Self::Output {
+    fn sub(self, rhs: Size) -> Self::Output {
         Self {
             x: self.x - rhs.width,
             y: self.y - rhs.height,
@@ -235,16 +194,7 @@ impl SubAssign<Vec2> for Point {
     }
 }
 
-impl<T: Default> Default for Point<T> {
-    fn default() -> Self {
-        Self {
-            x: Default::default(),
-            y: Default::default(),
-        }
-    }
-}
-
-impl<T: Lerp> Lerp for Point<T> {
+impl Lerp for Point {
     fn lerp(&self, other: &Self, scalar: f64) -> Self {
         Self {
             x: self.x.lerp(&other.x, scalar),
@@ -253,7 +203,7 @@ impl<T: Lerp> Lerp for Point<T> {
     }
 }
 
-impl<T: SpringPhysics> SpringPhysics for Point<T> {
+impl SpringPhysics for Point {
     fn distance_squared_to(&self, other: &Self) -> f64 {
         self.x.distance_squared_to(&other.x) + self.y.distance_squared_to(&other.y)
     }
@@ -273,27 +223,39 @@ impl<T: SpringPhysics> SpringPhysics for Point<T> {
 }
 
 #[derive(Default)]
-pub struct PartialPoint<T> {
-    pub x: Option<T>,
-    pub y: Option<T>,
+pub struct PartialPoint {
+    pub x: Option<f32>,
+    pub y: Option<f32>,
 }
 
-impl<T> PartialPoint<T> {
+impl PartialPoint {
     pub fn empty() -> Self {
         Self { x: None, y: None }
     }
 
-    pub fn splat(x: Option<T>) -> Self
-    where
-        T: Clone,
-    {
-        Self { x: x.clone(), y: x }
+    pub fn splat(x: Option<f32>) -> Self {
+        Self { x: x, y: x }
     }
 
-    pub fn unwrap_or(self, default: Point<T>) -> Point<T> {
+    pub fn unwrap_or(self, default: Point) -> Point {
         Point {
             x: self.x.unwrap_or(default.x),
             y: self.y.unwrap_or(default.y),
         }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Default, PartialEq)]
+pub struct PhysicalPoint {
+    pub x: i32,
+    pub y: i32,
+}
+
+impl PhysicalPoint {
+    pub fn into_logical(self, scale_factor: ScaleFactor) -> Point {
+        Point::new(
+            self.x as f32 * scale_factor.0,
+            self.y as f32 * scale_factor.0,
+        )
     }
 }

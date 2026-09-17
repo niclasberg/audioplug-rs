@@ -3,18 +3,18 @@ use std::fmt::Debug;
 use crate::core::{Color, LinearGradient};
 
 #[derive(Debug, Clone)]
-pub enum Brush {
+pub enum Paint {
     Solid(Color),
     LinearGradient(LinearGradient),
 }
 
-impl From<Color> for Brush {
+impl From<Color> for Paint {
     fn from(value: Color) -> Self {
         Self::Solid(value)
     }
 }
 
-impl From<LinearGradient> for Brush {
+impl From<LinearGradient> for Paint {
     fn from(value: LinearGradient) -> Self {
         Self::LinearGradient(value)
     }
@@ -26,11 +26,11 @@ pub enum BrushRef<'a> {
     LinearGradient(&'a LinearGradient),
 }
 
-impl<'a> From<&'a Brush> for BrushRef<'a> {
-    fn from(value: &'a Brush) -> Self {
+impl<'a> From<&'a Paint> for BrushRef<'a> {
+    fn from(value: &'a Paint) -> Self {
         match value {
-            Brush::Solid(color) => Self::Solid(*color),
-            Brush::LinearGradient(linear_gradient) => Self::LinearGradient(linear_gradient),
+            Paint::Solid(color) => Self::Solid(*color),
+            Paint::LinearGradient(linear_gradient) => Self::LinearGradient(linear_gradient),
         }
     }
 }

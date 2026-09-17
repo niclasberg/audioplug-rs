@@ -1,41 +1,50 @@
 use std::path::Path;
 
 use crate::{
-    core::{Color, Size},
-    platform,
+    core::{Color, ImageData, Size, Zero},
     ui::{
-        Scene, View, Widget,
-        style::{AvailableSpace, LayoutMode, Measure, Style},
+        RenderContext, Scene, StyleExt, View, ViewStyle, Widget,
+        style::{AvailableSpace, LayoutMode, Length, Measure, Style},
     },
 };
 
 pub struct Image {
-    source: Option<platform::Bitmap>,
+    style: ViewStyle,
+    data: Option<ImageData>,
 }
 
 impl Image {
     pub fn from_file(path: &Path) -> Self {
-        let source = platform::Bitmap::from_file(path).ok();
-        Self { source }
+        let data = ImageData::from_file(path).ok();
+
+        Self {
+            data,
+            style: ViewStyle::default(),
+        }
     }
 }
 
 impl View for Image {
     type Element = ImageWidget;
 
-    fn build(self, _cx: &mut crate::ui::BuildContext<Self::Element>) -> Self::Element {
-        ImageWidget {
-            source: self.source,
-        }
+    fn build(self, cx: &mut crate::ui::BuildContext<Self::Element>) -> Self::Element {
+        cx.apply_style(self.style);
+        ImageWidget { source: self.data }
+    }
+}
+
+impl StyleExt for Image {
+    fn style_mut(&mut self) -> &mut ViewStyle {
+        &mut self.style
     }
 }
 
 pub struct ImageWidget {
-    source: Option<platform::Bitmap>,
+    source: Option<ImageData>,
 }
 
 impl Measure for ImageWidget {
-    fn measure(&self, _style: &Style, width: AvailableSpace, height: AvailableSpace) -> Size {
+    fn measure(&self, width: AvailableSpace, height: AvailableSpace) -> Size {
         let image_size = self
             .source
             .as_ref()
@@ -72,11 +81,7 @@ impl Widget for ImageWidget {
         "Image"
     }
 
-    fn layout_mode(&self) -> LayoutMode<'_> {
-        LayoutMode::Leaf(self)
-    }
-
-    fn render(&mut self, ctx: &mut crate::ui::RenderContext) -> Scene {
+    fn render(&mut self, ctx: &mut RenderContext) -> Scene {
         let mut scene = Scene::new();
         if let Some(source) = &self.source {
             scene.draw_bitmap(source, ctx.content_bounds())

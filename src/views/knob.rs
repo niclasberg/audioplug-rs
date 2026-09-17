@@ -1,20 +1,19 @@
 use crate::{
     MouseButton, MouseEvent,
-    core::{Circle, Color, Modifiers, Point, Rect, Size, Vec2},
+    core::{Circle, Color, Modifiers, Point, Rect, Vec2},
+    event::{MouseDownEvent, MouseDragEvent, MouseWheelEvent},
     param::{AnyParameter, NormalizedValue, PlainValue},
     ui::{
-        BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext, RenderContext,
-        Scene, StatusChange, View, ViewProp, Widget,
+        BuildContext, EventContext, RenderContext, Scene, View, ViewProp, Widget,
         reactive::ParamSetter,
-        style::{AvailableSpace, LayoutMode, Measure, Style},
     },
 };
 
 use super::util::{denormalize_value, round_to_steps};
 
-type DragStartFn = dyn Fn(&mut CallbackContext);
-type DragEndFn = dyn Fn(&mut CallbackContext);
-type ValueChangedFn = dyn Fn(&mut CallbackContext, f64);
+type DragStartFn = dyn Fn(&mut EventContext);
+type DragEndFn = dyn Fn(&mut EventContext);
+type ValueChangedFn = dyn Fn(&mut EventContext, f64);
 
 pub struct Knob {
     min: f64,
@@ -62,7 +61,6 @@ impl View for Knob {
         cx.set_focusable(true);
         KnobWidget {
             normalized_value: 0.0,
-            last_mouse_pos: None,
             on_drag_start: self.on_drag_start,
             on_drag_end: self.on_drag_end,
             on_value_changed: self.on_value_changed,
@@ -117,7 +115,6 @@ pub struct KnobWidget {
     max: f64,
     steps: usize,
     normalized_value: f64,
-    last_mouse_pos: Option<Point>,
     on_drag_start: Option<Box<DragStartFn>>,
     on_drag_end: Option<Box<DragEndFn>>,
     on_value_changed: Option<Box<ValueChangedFn>>,
@@ -130,7 +127,6 @@ impl Default for KnobWidget {
             max: 1.0,
             steps: 0,
             normalized_value: 0.0,
-            last_mouse_pos: None,
             on_drag_start: None,
             on_drag_end: None,
             on_value_changed: None,
@@ -162,98 +158,60 @@ impl KnobWidget {
     }
 }
 
-impl Measure for KnobWidget {
-    fn measure(&self, _style: &Style, width: AvailableSpace, height: AvailableSpace) -> Size {
-        Size::new(width.unwrap_or(20.0), height.unwrap_or(20.0))
-    }
-}
-
 impl Widget for KnobWidget {
-    fn layout_mode(&self) -> LayoutMode<'_> {
-        LayoutMode::Leaf(self)
-    }
-
     fn debug_label(&self) -> &'static str {
         "Knob"
     }
 
-    fn mouse_event(&mut self, event: MouseEvent, cx: &mut MouseEventContext) -> EventStatus {
+    fn mouse_event(&mut self, event: MouseEvent, cx: &mut EventContext) {
         match event {
-            MouseEvent::Down {
-                button, position, ..
-            } if button == MouseButton::LEFT && self.is_inside_knob(cx.bounds(), position) => {
-                cx.capture_mouse();
+            MouseEvent::Down(MouseDownEvent { button, .. }) if button == MouseButton::LEFT => {
                 cx.request_render();
-                self.last_mouse_pos = Some(position);
                 if let Some(on_drag_start) = &self.on_drag_start {
-                    on_drag_start(&mut cx.as_callback_context());
+                    on_drag_start(cx);
                 }
-                EventStatus::Handled
             }
-            MouseEvent::Up { button, .. }
-                if button == MouseButton::LEFT && cx.has_mouse_capture() =>
-            {
-                cx.release_capture();
-                EventStatus::Handled
-            }
-            MouseEvent::Moved {
-                position,
-                modifiers,
-            } => {
-                if let Some(last_position) = self.last_mouse_pos {
-                    let delta_y = position.y - last_position.y;
-                    let delta_value = if modifiers.contains(Modifiers::SHIFT) {
-                        delta_y * 0.001
-                    } else {
-                        delta_y * 0.01
-                    };
-
-                    let new_value = round_to_steps(
-                        self.steps,
-                        (self.normalized_value - delta_value).clamp(0.0, 1.0),
-                    );
-                    if new_value != self.normalized_value {
-                        self.normalized_value = new_value;
-                        cx.request_render();
-                        if let Some(on_value_changed) = &self.on_value_changed {
-                            on_value_changed(
-                                &mut cx.as_callback_context(),
-                                denormalize_value(self.min, self.max, new_value),
-                            );
-                        }
-                        self.last_mouse_pos = Some(position);
-                    }
+            MouseEvent::DragEnded | MouseEvent::DragCancelled => {
+                if let Some(on_drag_end) = &self.on_drag_end {
+                    on_drag_end(cx);
                 }
-
-                EventStatus::Handled
             }
-            MouseEvent::Wheel { delta, .. } => {
+            MouseEvent::DragMoved(MouseDragEvent {
+                delta, modifiers, ..
+            }) => {
+                let delta_value = if modifiers.contains(Modifiers::SHIFT) {
+                    delta.y * 0.001
+                } else {
+                    delta.y * 0.01
+                };
+
                 let new_value = round_to_steps(
                     self.steps,
-                    (self.normalized_value - 0.2 * delta.y).clamp(0.0, 1.0),
+                    (self.normalized_value - delta_value as f64).clamp(0.0, 1.0),
                 );
                 if new_value != self.normalized_value {
                     self.normalized_value = new_value;
                     cx.request_render();
                     if let Some(on_value_changed) = &self.on_value_changed {
-                        on_value_changed(
-                            &mut cx.as_callback_context(),
-                            denormalize_value(self.min, self.max, new_value),
-                        );
+                        on_value_changed(cx, denormalize_value(self.min, self.max, new_value));
                     }
                 }
-                EventStatus::Handled
             }
-            _ => EventStatus::Ignored,
-        }
-    }
-
-    fn status_change(&mut self, event: StatusChange, cx: &mut EventContext) {
-        if event == StatusChange::MouseCaptureLost {
-            self.last_mouse_pos = None;
-            if let Some(on_drag_end) = &self.on_drag_end {
-                on_drag_end(&mut cx.as_callback_context());
+            MouseEvent::Wheel(MouseWheelEvent { delta, .. }) => {
+                let delta_y = delta.y as f64;
+                let new_value = round_to_steps(
+                    self.steps,
+                    (self.normalized_value - 0.2 * delta_y).clamp(0.0, 1.0),
+                );
+                if new_value != self.normalized_value {
+                    self.normalized_value = new_value;
+                    cx.request_render();
+                    if let Some(on_value_changed) = &self.on_value_changed {
+                        on_value_changed(cx, denormalize_value(self.min, self.max, new_value));
+                    }
+                }
             }
+            _ => {}
         }
     }
 
@@ -262,7 +220,7 @@ impl Widget for KnobWidget {
         let bounds = cx.content_bounds();
         let shape = self.shape(bounds);
 
-        let angle = self.current_angle();
+        let angle = self.current_angle() as f32;
         let dot_pos = shape.center + Vec2::new(angle.cos(), angle.sin()).scale(0.7 * shape.radius);
         scene.fill(shape, Color::GREEN);
         scene.fill(Circle::new(dot_pos, 0.15 * shape.radius), Color::BLACK);

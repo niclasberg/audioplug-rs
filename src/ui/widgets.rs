@@ -1,7 +1,8 @@
+use parley::FontContext;
 use slotmap::{Key, SecondaryMap, SlotMap};
 
 use crate::{
-    core::{FxIndexSet, HAlign, Point, Rect, VAlign, Vec2, Zero},
+    core::{FxIndexSet, HAlign, Point, Rect, TextLayoutContext, VAlign, Vec2, Zero},
     platform,
     ui::{
         OverlayAnchor, OverlayOptions, Scene, Widget, WidgetFlags, WidgetId, WindowId,
@@ -11,6 +12,7 @@ use crate::{
         overlay::OverlayContainer,
         reactive::ReactiveGraph,
         render::{GpuScene, WGPUSurface},
+        text::{TextContext, TextData},
         widget_tree::{ChildIdIter, WidgetTree},
     },
 };
@@ -36,19 +38,47 @@ pub(super) struct WindowState {
     pub(super) overlays: OverlayContainer,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct Gesture {
+    pub target: WidgetId,
+    pub start: Point,
+    pub last: Point,
+    pub state: GestureState,
+}
+
+impl Gesture {
+    pub fn new(target: WidgetId, start: Point, state: GestureState) -> Self {
+        Self {
+            target,
+            start,
+            last: start,
+            state,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GestureState {
+    Pressed,
+    Dragging,
+}
+
 #[derive(Default)]
 pub struct Widgets {
     /// Data (e.g. parent/children, layout, position etc.) associated with each widget
     pub(crate) tree: WidgetTree,
     pub(super) scenes: SecondaryMap<WidgetId, Scene>,
     pub(super) layout_cache: SecondaryMap<WidgetId, taffy::Cache>,
+    pub(super) texts: SecondaryMap<WidgetId, TextData>,
     pub(super) windows: SlotMap<WindowId, WindowState>,
     /// (Lazy) cache of child ids. Taffy requires random access during layout.
     child_id_cache: ChildCache,
     /// Ids of all widgets that have requested animation. Cleared during each call to [drive_animations]
     pending_animations: FxIndexSet<WidgetId>,
-    /// The widget that currently has mouse capture
-    pub(super) mouse_capture_widget: Option<WidgetId>,
+    /// The current hovered widget, if any
+    pub(super) hovered_widget: Option<WidgetId>,
+    /// The current active mouse gesture, if any
+    pub(super) gesture: Option<Gesture>,
 }
 
 impl Widgets {
@@ -132,6 +162,7 @@ impl Widgets {
             self.child_id_cache.remove(data.id);
             self.scenes.remove(data.id);
             self.layout_cache.remove(data.id);
+            self.texts.remove(data.id);
             self.windows[data.window_id].overlays.remove(data.id);
             widget_impls.remove(widget_id);
             reactive_graph.remove_all_siblings(data.first_owned_node_id);
@@ -148,6 +179,7 @@ impl Widgets {
             self.child_id_cache.remove(data.id);
             self.scenes.remove(data.id);
             self.layout_cache.remove(data.id);
+            self.texts.remove(data.id);
             self.windows[data.window_id].overlays.remove(data.id);
             widget_impls.remove(widget_id);
             reactive_graph.remove_all_siblings(data.first_owned_node_id);
@@ -227,8 +259,15 @@ impl Widgets {
         self.windows[window_id].focus_widget
     }
 
-    pub fn has_mouse_capture(&self, widget_id: WidgetId) -> bool {
-        self.mouse_capture_widget.is_some_and(|id| id == widget_id)
+    pub fn is_pressed(&self, widget_id: WidgetId) -> bool {
+        self.gesture
+            .as_ref()
+            .is_some_and(|gesture| gesture.target == widget_id)
+    }
+
+    pub fn is_hovered(&self, widget_id: WidgetId) -> bool {
+        self.hovered_widget
+            .is_some_and(|hovered_widget_id| hovered_widget_id == widget_id)
     }
 
     pub(crate) fn request_animation(&mut self, widget_id: WidgetId) {
@@ -295,7 +334,9 @@ impl Widgets {
 
     pub fn layout_window(
         &mut self,
-        widget_impls: &WidgetMap,
+        widget_impls: &mut WidgetMap,
+        font_cx: &mut FontContext,
+        layout_cx: &mut TextLayoutContext,
         window_id: WindowId,
         mode: RecomputeLayout,
     ) {
@@ -307,8 +348,13 @@ impl Widgets {
 
         // Need to layout root first, the overlay positions can depend on their parent positions
         if mode == RecomputeLayout::Force || self.tree.get(root_id).unwrap().needs_layout() {
-            let region_to_invalidate =
-                LayoutContext::new(self, widget_impls, window_size).compute_root_layout(root_id);
+            let region_to_invalidate = LayoutContext::new(
+                self,
+                widget_impls,
+                window_size,
+                TextContext::new(font_cx, layout_cx),
+            )
+            .compute_root_layout(root_id);
             self.tree.update_node_origins(root_id, Point::ZERO);
             if let Some(region_to_invalidate) = region_to_invalidate {
                 self.window(window_id)
@@ -323,8 +369,13 @@ impl Widgets {
         let overlay_ids: Vec<_> = self.windows[window_id].overlays.iter().collect();
         for (i, overlay_id) in overlay_ids.into_iter().enumerate() {
             if mode == RecomputeLayout::Force || self.tree.get(overlay_id).unwrap().needs_layout() {
-                let region_to_invalidate = LayoutContext::new(self, widget_impls, window_size)
-                    .compute_root_layout(root_id);
+                let region_to_invalidate = LayoutContext::new(
+                    self,
+                    widget_impls,
+                    window_size,
+                    TextContext::new(font_cx, layout_cx),
+                )
+                .compute_root_layout(root_id);
                 let options = self
                     .window(window_id)
                     .overlays
@@ -393,10 +444,11 @@ impl Widgets {
     pub fn print_tree(&self, widget_impls: &WidgetMap, window_id: WindowId) {
         fn _impl(this: &Widgets, widget_impls: &WidgetMap, root_id: WidgetId, indent: usize) {
             println!(
-                "{} {}({:?})",
+                "{} {}({:?}), {:?}",
                 "-".repeat(indent),
                 widget_impls[root_id].debug_label(),
-                root_id
+                root_id,
+                this.tree[root_id].global_bounds()
             );
             let mut walker = this.tree.child_id_walker(root_id);
             while let Some(child_id) = walker.next_id(&this.tree) {

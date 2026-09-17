@@ -54,14 +54,18 @@ impl Task {
             }
             Task::UpdateBinding { f, node_id } => {
                 if let Some(f) = f.upgrade() {
-                    (RefCell::borrow_mut(&f))(&mut WatchContext { app_state });
+                    (RefCell::borrow_mut(&f))(&mut WatchContext {
+                        app_state,
+                        effect_id: node_id,
+                    });
                     app_state.reactive_graph.mark_node_as_clean(node_id);
                 }
             }
             Task::HandleEvent { f, event } => {
-                if let Some(f) = f.upgrade() {
+                /*if let Some(f) = f.upgrade() {
                     f(&mut WatchContext { app_state }, &event);
-                }
+                }*/
+                todo!()
             }
             Task::UpdateWidget { widget_id, f } => {
                 if app_state.widgets.contains(widget_id) {

@@ -1,3 +1,5 @@
+use crate::core::Size;
+
 use super::{Length, ResolveInto};
 
 /// Type used to define padding, margin and border
@@ -33,11 +35,11 @@ impl UiRect {
         }
     }
 
-    pub const fn all_px(value: f64) -> Self {
+    pub const fn all_px(value: f32) -> Self {
         Self::all(Length::Px(value))
     }
 
-    pub const fn all_percent(value: f64) -> Self {
+    pub const fn all_percent(value: f32) -> Self {
         Self::all(Length::Percent(value))
     }
 
@@ -48,11 +50,11 @@ impl UiRect {
         }
     }
 
-    pub const fn left_px(value: f64) -> Self {
+    pub const fn left_px(value: f32) -> Self {
         Self::left(Length::Px(value))
     }
 
-    pub const fn left_percent(value: f64) -> Self {
+    pub const fn left_percent(value: f32) -> Self {
         Self::left(Length::Percent(value))
     }
 
@@ -63,11 +65,11 @@ impl UiRect {
         }
     }
 
-    pub const fn right_px(value: f64) -> Self {
+    pub const fn right_px(value: f32) -> Self {
         Self::right(Length::Px(value))
     }
 
-    pub const fn right_percent(value: f64) -> Self {
+    pub const fn right_percent(value: f32) -> Self {
         Self::right(Length::Percent(value))
     }
 
@@ -78,11 +80,11 @@ impl UiRect {
         }
     }
 
-    pub const fn top_px(value: f64) -> Self {
+    pub const fn top_px(value: f32) -> Self {
         Self::top(Length::Px(value))
     }
 
-    pub const fn top_percent(value: f64) -> Self {
+    pub const fn top_percent(value: f32) -> Self {
         Self::top(Length::Percent(value))
     }
 
@@ -93,11 +95,11 @@ impl UiRect {
         }
     }
 
-    pub const fn bottom_px(value: f64) -> Self {
+    pub const fn bottom_px(value: f32) -> Self {
         Self::bottom(Length::Px(value))
     }
 
-    pub const fn bottom_percent(value: f64) -> Self {
+    pub const fn bottom_percent(value: f32) -> Self {
         Self::bottom(Length::Percent(value))
     }
 }
@@ -112,7 +114,7 @@ impl<T> ResolveInto<taffy::Rect<T>> for UiRect
 where
     Length: ResolveInto<T>,
 {
-    fn resolve_into(self, window_size: crate::core::Size) -> taffy::Rect<T> {
+    fn resolve_into(self, window_size: Size) -> taffy::Rect<T> {
         taffy::Rect {
             left: self.left.resolve_into(window_size),
             right: self.right.resolve_into(window_size),

@@ -3,8 +3,8 @@ use std::{any::Any, rc::Rc};
 use crate::{
     param::{ParamRef, ParameterId},
     ui::{
-        AnyView, HostHandle, Widget, WidgetId, WidgetMut, WidgetRef, Widgets,
-        reactive::runtime::Node,
+        HostHandle, WidgetId, Widgets,
+        reactive::{WidgetStatusFlags, runtime::Node},
         task_queue::{Task, TaskQueue},
     },
 };
@@ -16,13 +16,13 @@ use super::{
     effect::WatchState,
     runtime::{NodeState, NodeType, Owner},
     var::SignalState,
-    widget_status::WidgetStatusFlags,
 };
 
 pub struct ReadContext<'a> {
     pub(crate) widgets: &'a Widgets,
     pub(crate) reactive_graph: &'a mut ReactiveGraph,
     pub(crate) scope: ReadScope,
+    pub(crate) current_widget: Option<WidgetId>,
 }
 
 impl ReadContext<'_> {
@@ -40,8 +40,9 @@ impl ReadContext<'_> {
         }
     }
 
-    pub fn track_widget_status(&mut self, widget_id: WidgetId, status_mask: WidgetStatusFlags) {
+    pub fn track_widget_status(&mut self, status_mask: WidgetStatusFlags) {
         if let ReadScope::Node(node_id) = self.scope {
+            let widget_id = self.current_widget.expect("View status can only be evaluated if bound to a view property or from a view-owned Cached value or effect");
             self.reactive_graph
                 .add_widget_status_subscription(widget_id, status_mask, node_id);
         }
@@ -67,6 +68,7 @@ impl ReadContext<'_> {
             widgets: self.widgets,
             reactive_graph: self.reactive_graph,
             scope,
+            current_widget: self.current_widget,
         }
     }
 }
@@ -87,6 +89,7 @@ impl<'s> CanRead<'s> for ReadContext<'s> {
             widgets: self.widgets,
             reactive_graph: self.reactive_graph,
             scope: self.scope,
+            current_widget: self.current_widget,
         }
     }
 }
@@ -233,6 +236,10 @@ impl<'a> CreateContext<'a> {
             &mut self.widgets.tree,
         )
     }
+
+    pub(crate) fn owning_widget(&self) -> Option<WidgetId> {
+        self.reactive_graph.widget_from_owner(self.owner)
+    }
 }
 
 /// Contexts implementing `CanCreate` allows reactive elements to be created.
@@ -261,10 +268,12 @@ impl<'s> CanRead<'s> for CreateContext<'s> {
     where
         's: 's2,
     {
+        let current_widget = self.owning_widget();
         ReadContext {
             widgets: self.widgets,
             reactive_graph: self.reactive_graph,
             scope: ReadScope::Untracked,
+            current_widget,
         }
     }
 }
@@ -330,7 +339,7 @@ impl<'a> WriteContext<'a> {
 }
 
 /// Allows writing to reactive nodes
-pub trait CanWrite<'s>: CanRead<'s> {
+pub trait CanWrite<'s> {
     fn write_context<'s2>(&'s2 mut self) -> WriteContext<'s2>
     where
         's: 's2;
@@ -351,7 +360,7 @@ impl<'s> CanWrite<'s> for WriteContext<'s> {
 }
 
 // Allow untracked reads while writing
-impl<'s> CanRead<'s> for WriteContext<'s> {
+/*impl<'s> CanRead<'s> for WriteContext<'s> {
     fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
     where
         's: 's2,
@@ -362,4 +371,4 @@ impl<'s> CanRead<'s> for WriteContext<'s> {
             scope: ReadScope::Untracked,
         }
     }
-}
+}*/

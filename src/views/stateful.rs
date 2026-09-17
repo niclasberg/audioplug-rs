@@ -32,7 +32,8 @@ impl<'s> CanRead<'s> for ScopeContext<'s> {
     where
         's: 's2,
     {
-        self.app_state.read_context(ReadScope::Untracked)
+        self.app_state
+            .read_context(ReadScope::Untracked, Some(self.id))
     }
 }
 

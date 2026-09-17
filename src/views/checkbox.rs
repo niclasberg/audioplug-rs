@@ -1,16 +1,17 @@
 use crate::{
-    KeyEvent, MouseButton, MouseEvent,
+    KeyEvent, MouseEvent,
     core::{Color, Key, Rect, Size, Zero},
     ui::{
-        BuildContext, CallbackContext, EventContext, EventStatus, MouseEventContext, RenderContext,
-        Scene, View, ViewProp, Widget,
+        BuildContext, EventContext, EventStatus, RenderContext, Scene, StyleExt, View, ViewProp,
+        ViewStyle, Widget,
         style::{AvailableSpace, LayoutMode, Length, Measure, Style, UiRect},
     },
 };
 
-type OnClickFn = dyn Fn(&mut CallbackContext);
+type OnClickFn = dyn Fn(&mut EventContext);
 
 pub struct Checkbox {
+    style: ViewStyle,
     checked: Option<ViewProp<bool>>,
     enabled: ViewProp<bool>,
     click_fn: Option<Box<OnClickFn>>,
@@ -22,6 +23,16 @@ impl Checkbox {
             checked: None,
             enabled: ViewProp::Const(true),
             click_fn: None,
+            style: ViewStyle {
+                width: Some(ViewProp::Const(Length::Px(12.0))),
+                height: Some(ViewProp::Const(Length::Px(12.0))),
+                border: Some(ViewProp::Const(Length::Px(1.0))),
+                border_color: Some(ViewProp::Const(Color::BLACK)),
+                aspect_ratio: Some(ViewProp::Const(1.0)),
+                corner_radius: Some(ViewProp::Const(Size::splat(3.0))),
+                padding: Some(ViewProp::Const(UiRect::all_px(0.5))),
+                ..ViewStyle::DEFAULT
+            },
         }
     }
 
@@ -32,6 +43,11 @@ impl Checkbox {
 
     pub fn enabled(mut self, val: impl Into<ViewProp<bool>>) -> Self {
         self.enabled = val.into();
+        self
+    }
+
+    pub fn on_click(mut self, f: impl Fn(&mut EventContext) + 'static) -> Self {
+        self.click_fn.replace(Box::new(f));
         self
     }
 }
@@ -46,16 +62,8 @@ impl View for Checkbox {
     type Element = CheckboxWidget;
 
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
-        cx.set_default_style(Style {
-            size: Size::new(Length::Px(12.0), Length::Px(12.0)),
-            border: Length::Px(1.0),
-            border_color: Some(Color::BLACK),
-            aspect_ratio: Some(1.0),
-            corner_radius: Size::splat(3.0),
-            padding: UiRect::all_px(0.5),
-            ..Default::default()
-        });
         cx.set_focusable(true);
+        cx.apply_style(self.style);
         CheckboxWidget {
             checked: self
                 .checked
@@ -73,14 +81,11 @@ impl View for Checkbox {
             click_fn: self.click_fn,
         }
     }
+}
 
-    fn on_click<F>(mut self, f: F) -> impl View
-    where
-        Self: Sized,
-        F: Fn(&mut CallbackContext) + 'static,
-    {
-        self.click_fn = Some(Box::new(f));
-        self
+impl StyleExt for Checkbox {
+    fn style_mut(&mut self) -> &mut ViewStyle {
+        &mut self.style
     }
 }
 
@@ -91,43 +96,16 @@ pub struct CheckboxWidget {
     click_fn: Option<Box<OnClickFn>>,
 }
 
-impl Measure for CheckboxWidget {
-    fn measure(&self, _: &Style, width: AvailableSpace, height: AvailableSpace) -> Size<f64> {
-        if let (Some(width), Some(height)) = (width.into(), height.into()) {
-            Size::new(width, height)
-        } else {
-            Size::ZERO
-        }
-    }
-}
-
 impl Widget for CheckboxWidget {
     fn debug_label(&self) -> &'static str {
         "Checkbox"
     }
 
-    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut MouseEventContext) -> EventStatus {
-        match event {
-            MouseEvent::Down { button, .. } => {
-                if button == MouseButton::LEFT {
-                    ctx.capture_mouse();
-                }
-                EventStatus::Handled
+    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) {
+        if let MouseEvent::Click(_) = event {
+            if let Some(f) = self.click_fn.as_mut() {
+                f(ctx);
             }
-            MouseEvent::Up {
-                button: MouseButton::LEFT,
-                position,
-                ..
-            } => {
-                if ctx.release_capture()
-                    && ctx.bounds().contains(position)
-                    && let Some(f) = self.click_fn.as_mut()
-                {
-                    f(&mut ctx.as_callback_context());
-                }
-                EventStatus::Handled
-            }
-            _ => EventStatus::Ignored,
         }
     }
 
@@ -137,16 +115,12 @@ impl Widget for CheckboxWidget {
                 key: Key::Enter, ..
             } => {
                 if let Some(f) = self.click_fn.as_mut() {
-                    f(&mut ctx.as_callback_context());
+                    f(ctx);
                 }
                 EventStatus::Handled
             }
             _ => EventStatus::Ignored,
         }
-    }
-
-    fn layout_mode(&self) -> LayoutMode<'_> {
-        LayoutMode::Leaf(self)
     }
 
     fn render(&mut self, ctx: &mut RenderContext) -> Scene {

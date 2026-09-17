@@ -28,7 +28,7 @@ pub enum PathSegment {
 
 impl PathSegment {
     /// Evaluate the position at `t`
-    pub fn eval(&self, t: f64) -> Point {
+    pub fn eval(&self, t: f32) -> Point {
         match self {
             PathSegment::Line(line) => line.eval(t),
             PathSegment::QuadBezier(quad_bezier) => quad_bezier.eval(t),
@@ -37,7 +37,7 @@ impl PathSegment {
     }
 
     /// Split the path segment at `t` into two separate segments.
-    pub fn split(&self, t: f64) -> (Self, Self) {
+    pub fn split(&self, t: f32) -> (Self, Self) {
         match self {
             PathSegment::Line(line) => {
                 let (left, right) = line.split(t);
@@ -207,11 +207,11 @@ impl Line {
         }
     }
 
-    pub fn eval(&self, t: f64) -> Point {
+    pub fn eval(&self, t: f32) -> Point {
         eval_line(self.p0, self.p1, t)
     }
 
-    pub fn closest_point_t(&self, pos: Point) -> f64 {
+    pub fn closest_point_t(&self, pos: Point) -> f32 {
         (pos - self.p0).dot(self.p1 - self.p0).clamp(0.0, 1.0)
     }
 
@@ -219,15 +219,15 @@ impl Line {
         self.eval(self.closest_point_t(pos))
     }
 
-    pub fn distance_squared(&self, pos: Point) -> f64 {
+    pub fn distance_squared(&self, pos: Point) -> f32 {
         (self.closest_point(pos) - pos).length_squared()
     }
 
-    pub fn distance(&self, pos: Point) -> f64 {
+    pub fn distance(&self, pos: Point) -> f32 {
         (self.closest_point(pos) - pos).length()
     }
 
-    pub fn split(&self, t: f64) -> (Self, Self) {
+    pub fn split(&self, t: f32) -> (Self, Self) {
         let pos_split = eval_line(self.p0, self.p1, t);
         let line1 = Self {
             p0: self.p0,
@@ -302,26 +302,29 @@ impl Line {
 }
 
 #[inline(always)]
-const fn eval_line(p0: Point, p1: Point, t: f64) -> Point {
-    Point::new((1.0 - t) * p0.x + t * p1.x, (1.0 - t) * p0.y + t * p1.y)
+const fn eval_line(p0: Point, p1: Point, t: f32) -> Point {
+    Point {
+        x: (1.0 - t) * p0.x + t * p1.x,
+        y: (1.0 - t) * p0.y + t * p1.y,
+    }
 }
 
 #[inline(always)]
-const fn eval_quad(p0: Point, p1: Point, p2: Point, t: f64) -> Point {
+const fn eval_quad(p0: Point, p1: Point, p2: Point, t: f32) -> Point {
     let u = 1.0 - t;
-    Point::new(
-        u * u * p0.x + 2.0 * u * t * p1.x + t * t * p2.x,
-        u * u * p0.y + 2.0 * u * t * p1.y + t * t * p2.y,
-    )
+    Point {
+        x: u * u * p0.x + 2.0 * u * t * p1.x + t * t * p2.x,
+        y: u * u * p0.y + 2.0 * u * t * p1.y + t * t * p2.y,
+    }
 }
 
 #[inline(always)]
-const fn eval_cubic(p0: Point, p1: Point, p2: Point, p3: Point, t: f64) -> Point {
+const fn eval_cubic(p0: Point, p1: Point, p2: Point, p3: Point, t: f32) -> Point {
     let u = 1.0 - t;
-    Point::new(
-        u * u * u * p0.x + 3.0 * t * u * u * p1.x + 3.0 * t * t * u * p2.x + t * t * t * p3.x,
-        u * u * u * p0.y + 3.0 * t * u * u * p1.y + 3.0 * t * t * u * p2.y + t * t * t * p3.y,
-    )
+    Point {
+        x: u * u * u * p0.x + 3.0 * t * u * u * p1.x + 3.0 * t * t * u * p2.x + t * t * t * p3.x,
+        y: u * u * u * p0.y + 3.0 * t * u * u * p1.y + 3.0 * t * t * u * p2.y + t * t * t * p3.y,
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -351,13 +354,13 @@ impl QuadBezier {
         )
     }
 
-    pub fn eval(&self, t: f64) -> Point {
+    pub fn eval(&self, t: f32) -> Point {
         eval_quad(self.p0, self.p1, self.p2, t)
     }
 
     /// Finds the `t` value (in range 0 to 1), such that the
     /// distance to `pos` is minimal.
-    pub fn closest_point_t(&self, pos: Point) -> f64 {
+    pub fn closest_point_t(&self, pos: Point) -> f32 {
         // Distance squared is d(t) = |p(t) - pos|^2 = dot(p(t)-pos, p(t)-pos)
         // with derivative: d' = dot(p(t)-pos, p'(t))
         // Now, p(t) = at^2 + bt + c, and p'(t) = 2at + b, where
@@ -372,7 +375,7 @@ impl QuadBezier {
         0.0
     }
 
-    pub fn split(&self, t: f64) -> (Self, Self) {
+    pub fn split(&self, t: f32) -> (Self, Self) {
         let pos_split = eval_quad(self.p0, self.p1, self.p2, t);
         let quad1 = Self {
             p0: self.p0,
@@ -470,11 +473,11 @@ impl CanonicalQuad {
         let dist_squared = Quartic::new([
             1.0,
             0.0,
-            1.0 - 2.0 * p.y,
-            -2.0 * p.x,
+            1.0 - 2.0 * p.y as f64,
+            -2.0 * p.x as f64,
             p.distance_squared_to(&p),
         ]);
-        let derivative = DepressedCubic::new(0.5 - p.y, -0.5 * p.x);
+        let derivative = DepressedCubic::new(0.5 - p.y as f64, -0.5 * p.x as f64);
         let extremas = derivative.solve(self.x0..self.x2, 1.0e-8);
 
         let mut min_dist_squared = f64::min(
@@ -489,7 +492,7 @@ impl CanonicalQuad {
 }
 
 #[inline(always)]
-fn weighted_point_sum<const N: usize>(point_weights: [(f64, Point); N]) -> Point {
+fn weighted_point_sum<const N: usize>(point_weights: [(f32, Point); N]) -> Point {
     point_weights
         .iter()
         .copied()
@@ -520,11 +523,11 @@ pub struct CubicBezier {
 }
 
 impl CubicBezier {
-    pub fn eval(&self, t: f64) -> Point {
+    pub fn eval(&self, t: f32) -> Point {
         eval_cubic(self.p0, self.p1, self.p2, self.p3, t)
     }
 
-    pub fn split(&self, t: f64) -> (Self, Self) {
+    pub fn split(&self, t: f32) -> (Self, Self) {
         let split_pos = eval_cubic(self.p0, self.p1, self.p2, self.p3, t);
         let cubic1 = Self {
             p0: self.p0,

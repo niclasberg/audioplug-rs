@@ -1,11 +1,10 @@
 use crate::{
     core::Rect,
     ui::{
-        BuildContext, RenderContext, Scene, View, Widget, WidgetId, Widgets,
+        BuildContext, RenderContext, Scene, StyleExt, View, ViewStyle, Widget, WidgetId, Widgets,
         reactive::{
             CanCreate, CanRead, EffectState, NodeId, ReactiveGraph, ReadContext, ReadScope,
         },
-        style::LayoutMode,
     },
 };
 
@@ -13,6 +12,7 @@ type CanvasRenderFn = dyn FnMut(&mut CanvasContext) -> Scene;
 
 /// View that allows custom rendering.
 pub struct Canvas<FRender> {
+    style: ViewStyle,
     f_render: FRender,
 }
 
@@ -31,7 +31,10 @@ where
     /// })
     /// ```
     pub fn new(f_render: FRender) -> Self {
-        Self { f_render }
+        Self {
+            f_render,
+            style: Default::default(),
+        }
     }
 }
 
@@ -52,6 +55,12 @@ where
             effect_id,
             f_render: Box::new(self.f_render),
         }
+    }
+}
+
+impl<FRender> StyleExt for Canvas<FRender> {
+    fn style_mut(&mut self) -> &mut ViewStyle {
+        &mut self.style
     }
 }
 
@@ -77,6 +86,7 @@ impl<'s> CanRead<'s> for CanvasContext<'s> {
             widgets: self.widgets,
             reactive_graph: self.reactive_graph,
             scope: ReadScope::Node(self.effect_id),
+            current_widget: Some(self.widget_id),
         }
     }
 }
@@ -87,10 +97,6 @@ pub struct CanvasWidget {
 }
 
 impl Widget for CanvasWidget {
-    fn layout_mode(&self) -> LayoutMode<'_> {
-        LayoutMode::Block
-    }
-
     fn debug_label(&self) -> &'static str {
         "Canvas"
     }

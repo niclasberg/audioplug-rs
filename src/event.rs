@@ -10,78 +10,56 @@ pub enum MouseButton {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MouseEvent {
-    Down {
-        button: MouseButton,
-        position: Point,
-        modifiers: Modifiers,
-        is_double_click: bool,
-    },
-    Up {
-        button: MouseButton,
-        position: Point,
-        modifiers: Modifiers,
-    },
-    Moved {
-        position: Point,
-        modifiers: Modifiers,
-    },
-    Wheel {
-        delta: Vec2,
-        position: Point,
-        modifiers: Modifiers,
-    },
+    Down(MouseDownEvent),
+    Up(MouseUpEvent),
+    Click(MouseClickEvent),
+    Moved(MouseMoveEvent),
+    DragStarted,
+    DragMoved(MouseDragEvent),
+    DragEnded,
+    DragCancelled,
+    Wheel(MouseWheelEvent),
 }
 
-impl MouseEvent {
-    pub fn with_offset(&self, offset: Vec2) -> Self {
-        match *self {
-            MouseEvent::Down {
-                button,
-                position,
-                modifiers,
-                is_double_click,
-            } => MouseEvent::Down {
-                button,
-                position: position - offset,
-                modifiers,
-                is_double_click,
-            },
-            MouseEvent::Up {
-                button,
-                position,
-                modifiers,
-            } => MouseEvent::Up {
-                button,
-                position: position - offset,
-                modifiers,
-            },
-            MouseEvent::Moved {
-                position,
-                modifiers,
-            } => MouseEvent::Moved {
-                position: position - offset,
-                modifiers,
-            },
-            MouseEvent::Wheel {
-                delta,
-                position,
-                modifiers,
-            } => MouseEvent::Wheel {
-                delta,
-                position: position - offset,
-                modifiers,
-            },
-        }
-    }
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MouseDownEvent {
+    pub button: MouseButton,
+    pub position: Point,
+    pub modifiers: Modifiers,
+    pub is_double_click: bool,
+}
 
-    pub fn position(&self) -> Point {
-        match self {
-            MouseEvent::Down { position, .. } => *position,
-            MouseEvent::Up { position, .. } => *position,
-            MouseEvent::Moved { position, .. } => *position,
-            MouseEvent::Wheel { position, .. } => *position,
-        }
-    }
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MouseUpEvent {
+    pub button: MouseButton,
+    pub position: Point,
+    pub modifiers: Modifiers,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MouseMoveEvent {
+    pub position: Point,
+    pub modifiers: Modifiers,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MouseDragEvent {
+    pub position: Point,
+    pub modifiers: Modifiers,
+    pub delta: Vec2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MouseClickEvent {
+    pub position: Point,
+    pub modifiers: Modifiers,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MouseWheelEvent {
+    pub delta: Vec2,
+    pub position: Point,
+    pub modifiers: Modifiers,
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq)]

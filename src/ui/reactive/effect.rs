@@ -3,12 +3,12 @@ use slotmap::Key;
 use crate::{
     param::{ParamRef, ParameterId},
     ui::{
-        AppState, Widget, WidgetHandle, WidgetId, WidgetMut, WidgetRef, Widgets,
-        reactive::{CreateContext, ReadContext, ReadScope, WriteContext},
+        AppState, Widget, WidgetHandle, WidgetId, WidgetMut, WidgetRef,
+        reactive::{CreateContext, ReadContext, ReadScope, WidgetStatus, WriteContext},
     },
 };
 
-use super::{CanCreate, CanRead, CanWrite, NodeId, WidgetStatusFlags};
+use super::{CanCreate, CanRead, CanWrite, NodeId};
 use std::{any::Any, cell::RefCell, rc::Rc};
 
 pub struct EffectContext<'a> {
@@ -20,6 +20,7 @@ impl<'s> EffectContext<'s> {
     fn as_watch_context(&mut self) -> WatchContext<'_> {
         WatchContext {
             app_state: self.app_state,
+            effect_id: self.effect_id,
         }
     }
 
@@ -47,7 +48,9 @@ impl<'s> CanRead<'s> for EffectContext<'s> {
     where
         's: 's2,
     {
-        self.app_state.read_context(ReadScope::Node(self.effect_id))
+        let widget = self.app_state.reactive_graph.owner_widget(self.effect_id);
+        self.app_state
+            .read_context(ReadScope::Node(self.effect_id), widget)
     }
 }
 
@@ -61,6 +64,7 @@ impl<'s> CanWrite<'s> for EffectContext<'s> {
 }
 
 pub struct WatchContext<'a> {
+    pub effect_id: NodeId,
     pub app_state: &'a mut AppState,
 }
 
@@ -89,7 +93,8 @@ impl<'s> CanRead<'s> for WatchContext<'s> {
     where
         's: 's2,
     {
-        self.app_state.read_context(ReadScope::Untracked)
+        let widget = self.app_state.reactive_graph.owner_widget(self.effect_id);
+        self.app_state.read_context(ReadScope::Untracked, widget)
     }
 }
 
@@ -200,15 +205,14 @@ impl Effect {
     pub(super) fn watch_widget_status<T: 'static>(
         mut cx: CreateContext,
         widget: WidgetId,
-        status_mask: WidgetStatusFlags,
-        value_getter: fn(&Widgets, WidgetId) -> T,
+        status: WidgetStatus<T>,
         mut f: impl FnMut(&mut WatchContext, &T) + 'static,
     ) -> Self {
         let id = cx.create_widget_status_watcher(
             widget,
-            status_mask,
+            status.mask,
             WatchState::new(move |cx| {
-                let value = value_getter(&cx.app_state.widgets, widget);
+                let value = (status.getter)(&cx.app_state.widgets, widget);
                 f(cx, &value);
             }),
         );
@@ -226,8 +230,7 @@ impl Effect {
             EffectState {
                 f: Rc::new(RefCell::new(move |cx: &mut EffectContext| {
                     let old_value = current_value.take();
-                    let new_value =
-                        value_fn(&mut cx.app_state.read_context(ReadScope::Node(cx.effect_id)));
+                    let new_value = value_fn(&mut cx.read_context());
                     handler_fn(&mut cx.as_watch_context(), &new_value, old_value.as_ref());
                     current_value = Some(new_value);
                 })),

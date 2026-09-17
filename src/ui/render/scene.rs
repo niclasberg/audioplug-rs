@@ -1,12 +1,12 @@
 use crate::{
-    core::{Brush, BrushRef, Path, Point, Rect, Shape, ShapeRef, Transform},
-    ui::{TextLayout, render::gpu_scene::GpuScene},
+    core::{Paint, BrushRef, ImageData, Point, Rect, Shape, ShapeRef, TextLayout, Transform},
+    ui::render::gpu_scene::GpuScene,
 };
 
 pub struct PathId(u32);
 
 pub enum Command {
-    Fill { shape: Shape, brush: Brush },
+    Fill { shape: Shape, brush: Paint },
     Stroke { shape: Shape },
     Clip { shape: Shape },
 }
@@ -22,7 +22,7 @@ impl Scene {
         }
     }
 
-    pub fn fill(&mut self, shape: impl Into<Shape>, brush: impl Into<Brush>) {
+    pub fn fill(&mut self, shape: impl Into<Shape>, brush: impl Into<Paint>) {
         //self.renderer.fill_shape(shape.into(), brush.into());
     }
 
@@ -57,7 +57,7 @@ impl Scene {
         }*/
     }
 
-    pub fn draw_bitmap(&mut self, source: &crate::platform::Bitmap, rect: impl Into<Rect>) {
+    pub fn draw_bitmap(&mut self, source: &ImageData, rect: impl Into<Rect>) {
         //self.renderer.draw_bitmap(source, rect.into())
     }
 

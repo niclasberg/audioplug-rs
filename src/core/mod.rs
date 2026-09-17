@@ -35,7 +35,7 @@ use std::{
 pub use alignment::{Align, HAlign, VAlign};
 pub use axis::Axis;
 pub use border::Border;
-pub use brush::{Brush, BrushRef};
+pub use brush::{BrushRef, Paint};
 pub use color::Color;
 pub use constraint::*;
 pub use corner::{Corner, Corners};
@@ -43,11 +43,12 @@ pub use cursor::Cursor;
 pub use edge::{Edge, Edges};
 pub use ellipse::{Circle, Ellipse};
 pub use gradient::*;
+pub use image::ImageData;
 use indexmap::{IndexMap, IndexSet};
 pub use interpolation::{Lerp, SpringPhysics, SpringProperties};
 pub use keyboard::{Key, Modifiers};
 pub use path::{CubicBezier, FillRule, Line, Path, PathElement, PathSegment, QuadBezier};
-pub use point::{PartialPoint, PhysicalPoint, Point};
+pub use point::{PartialPoint, Point};
 pub use poly::Polynomial;
 pub use rectangle::{PhysicalRect, Rect};
 pub use rounded_rectangle::RoundedRect;
@@ -57,7 +58,7 @@ pub use size::{PhysicalSize, Size};
 pub use text::*;
 pub use transform::Transform;
 pub use unit_point::UnitPoint;
-pub use vector::{Vec2, Vec2f, Vec2i, Vec2u, Vec3f, Vec4f};
+pub use vector::{Vec2, Vec2i, Vec2u, Vec3f, Vec4f};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WindowTheme {
@@ -138,7 +139,7 @@ impl Sub for PhysicalCoord {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct ScaleFactor(pub f64);
+pub struct ScaleFactor(pub f32);
 
 impl Display for ScaleFactor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
