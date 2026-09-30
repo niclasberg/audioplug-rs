@@ -1,8 +1,10 @@
 use std::fmt::Debug;
+use std::ops::Mul;
 
 use bytemuck::{Pod, Zeroable};
 
 use crate::core::{RoundedRect, ScaleFactor};
+use crate::core::{TranslateScale, Zero};
 
 use super::Point;
 use super::Size;
@@ -27,21 +29,13 @@ impl Rect {
 
     #[inline]
     pub fn from_points(x0: Point, x1: Point) -> Self {
-        let (left, right) = if x0.x < x1.x {
-            (x0.x, x1.x)
-        } else {
-            (x1.x, x0.x)
-        };
-        let (top, bottom) = if x0.y < x1.y {
-            (x0.y, x1.y)
-        } else {
-            (x1.y, x0.y)
-        };
+        let min = x0.min(x1);
+        let max = x0.max(x1);
         Self {
-            left,
-            top,
-            right,
-            bottom,
+            left: min.x,
+            top: min.y,
+            right: max.x,
+            bottom: max.y,
         }
     }
 
@@ -60,6 +54,15 @@ impl Rect {
             top,
             right: left + width,
             bottom: top + height,
+        }
+    }
+
+    pub fn from_union(rects: &[Self]) -> Self {
+        let mut it = rects.iter();
+        if let Some(first) = it.next().copied() {
+            it.fold(first, |res, rect| res.union(rect))
+        } else {
+            Self::EMPTY
         }
     }
 
@@ -191,7 +194,7 @@ impl Rect {
             left: center.x - half_width,
             top: center.y - half_height,
             right: center.x + half_width,
-            bottom: center.y + half_width,
+            bottom: center.y + half_height,
         }
     }
 
@@ -254,20 +257,44 @@ impl Rect {
     }
 
     pub fn union(&self, other: &Self) -> Self {
-        let left = self.left.min(other.left);
-        let right = self.right.max(other.right);
-        let top = self.top.min(other.top);
-        let bottom = self.bottom.max(other.bottom);
+        match (self.size() == Size::ZERO, other.size() == Size::ZERO) {
+            (true, true) => Self::EMPTY,
+            (true, false) => *other,
+            (false, true) => *self,
+            (false, false) => {
+                let left = self.left.min(other.left);
+                let right = self.right.max(other.right);
+                let top = self.top.min(other.top);
+                let bottom = self.bottom.max(other.bottom);
+                Self {
+                    left,
+                    top,
+                    right,
+                    bottom,
+                }
+            }
+        }
+    }
+
+    pub fn expand_to_include(&self, point: Point) -> Self {
         Self {
-            left,
-            top,
-            right,
-            bottom,
+            left: self.left.min(point.x),
+            top: self.top.min(point.y),
+            right: self.right.max(point.x),
+            bottom: self.bottom.max(point.y),
         }
     }
 
     pub fn into_rounded_rect(self, corner_radius: Size) -> RoundedRect {
         RoundedRect::new(self, corner_radius)
+    }
+}
+
+impl Mul<Rect> for TranslateScale {
+    type Output = Rect;
+
+    fn mul(self, rhs: Rect) -> Self::Output {
+        Rect::from_points(self * rhs.top_left(), self * rhs.bottom_right())
     }
 }
 

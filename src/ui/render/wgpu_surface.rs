@@ -6,8 +6,8 @@ use wgpu::util::DeviceExt;
 
 use super::tiles::TILE_SIZE;
 use crate::{
-    core::PhysicalSize,
-    ui::render::gpu_scene::{GpuAppearance, GpuDrawCommand, GpuScene},
+    core::{PhysicalSize, Rect},
+    ui::render::scene::{GpuAppearance, GpuDrawCommand, GpuPathSegment, GpuScene},
 };
 
 #[repr(C)]
@@ -78,7 +78,6 @@ impl SurfaceState {
     pub fn resize_if_needed(
         &mut self,
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
         blit_program: &BlitProgram,
         render_tiles_program: &RenderTilesProgram,
         size: PhysicalSize,
@@ -103,6 +102,8 @@ pub struct SceneState {
     pub render_tiles_bind_group1: wgpu::BindGroup,
     pub params_buffer: wgpu::Buffer,
     pub shapes_data_buffer: wgpu::Buffer,
+    pub segments_buffer: wgpu::Buffer,
+    pub segment_bounds_buffer: wgpu::Buffer,
     pub appearances_buffer: wgpu::Buffer,
     pub draw_commands_buffer: wgpu::Buffer,
 }
@@ -111,6 +112,8 @@ impl SceneState {
     const PARAMS_LABEL: &'static str = "Params buffer";
     const APPEARANCES_LABEL: &'static str = "Appearances buffer";
     const SHAPE_DATA_LABEL: &'static str = "Shape data buffer";
+    const SEGMENTS_LABEL: &'static str = "Segments buffer";
+    const SEGMENT_BOUNDS_LABEL: &'static str = "Segment bounds buffer";
     const DRAW_COMMANDS_LABEL: &'static str = "Draw commands buffer";
 
     pub fn new(
@@ -149,10 +152,32 @@ impl SceneState {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
+        let segments_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(Self::SEGMENTS_LABEL),
+            contents: bytemuck::cast_slice(if scene.segments.is_empty() {
+                &[GpuPathSegment::EMPTY]
+            } else {
+                &scene.segments
+            }),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let segment_bounds_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(Self::SEGMENT_BOUNDS_LABEL),
+            contents: bytemuck::cast_slice(if scene.segment_bounds.is_empty() {
+                &[Rect::EMPTY]
+            } else {
+                &scene.segment_bounds
+            }),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
         let render_tiles_bind_group1 = render_tiles_program.create_bind_group1(
             &device,
             &params_buffer,
             &shapes_data_buffer,
+            &segments_buffer,
+            &segment_bounds_buffer,
             &appearances_buffer,
             &draw_commands_buffer,
         );
@@ -162,6 +187,8 @@ impl SceneState {
             params_buffer,
             shapes_data_buffer,
             appearances_buffer,
+            segments_buffer,
+            segment_bounds_buffer,
             draw_commands_buffer,
         }
     }
@@ -205,11 +232,44 @@ impl SceneState {
             Self::DRAW_COMMANDS_LABEL,
         );
 
-        if shape_data_recreated || apperances_recreated || draw_commands_recreated {
+        let segments_recreated = update_buffer(
+            device,
+            queue,
+            &mut self.segments_buffer,
+            bytemuck::cast_slice(if scene.segments.is_empty() {
+                &[GpuPathSegment::EMPTY]
+            } else {
+                &scene.segments
+            }),
+            Self::SEGMENTS_LABEL,
+        );
+
+        let segment_bounds_recreated = update_buffer(
+            device,
+            queue,
+            &mut self.segment_bounds_buffer,
+            bytemuck::cast_slice(if scene.segment_bounds.is_empty() {
+                &[Rect::EMPTY]
+            } else {
+                &scene.segment_bounds
+            }),
+            Self::DRAW_COMMANDS_LABEL,
+        );
+
+        println!("Number of segments: {}", scene.segments.len());
+
+        if shape_data_recreated
+            || apperances_recreated
+            || draw_commands_recreated
+            || segments_recreated
+            || segment_bounds_recreated
+        {
             self.render_tiles_bind_group1 = render_tiles_program.create_bind_group1(
                 &device,
                 &self.params_buffer,
                 &self.shapes_data_buffer,
+                &self.segments_buffer,
+                &self.segment_bounds_buffer,
                 &self.appearances_buffer,
                 &self.draw_commands_buffer,
             );
@@ -338,7 +398,6 @@ impl WGPUSurface {
         if new_size.height > 0 && new_size.width > 0 {
             let Self {
                 device,
-                queue,
                 blit_program,
                 render_tiles_program,
                 ..
@@ -356,7 +415,7 @@ impl WGPUSurface {
             let state = self.state.get_or_insert_with(|| {
                 SurfaceState::new(device, blit_program, render_tiles_program, new_size)
             });
-            state.resize_if_needed(device, queue, blit_program, render_tiles_program, new_size);
+            state.resize_if_needed(device, blit_program, render_tiles_program, new_size);
         }
     }
 
@@ -545,9 +604,35 @@ impl RenderTilesProgram {
                         },
                         count: None,
                     },
-                    // Appearances
+                    // Segments
                     wgpu::BindGroupLayoutEntry {
                         binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: Some(
+                                NonZero::new(std::mem::size_of::<GpuPathSegment>() as _).unwrap(),
+                            ),
+                        },
+                        count: None,
+                    },
+                    // Segment bounds
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: Some(
+                                NonZero::new(std::mem::size_of::<Rect>() as _).unwrap(),
+                            ),
+                        },
+                        count: None,
+                    },
+                    // Appearances
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -560,7 +645,7 @@ impl RenderTilesProgram {
                     },
                     // Draw commands
                     wgpu::BindGroupLayoutEntry {
-                        binding: 3,
+                        binding: 5,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -614,6 +699,8 @@ impl RenderTilesProgram {
         device: &wgpu::Device,
         params_buffer: &wgpu::Buffer,
         shapes_data_buffer: &wgpu::Buffer,
+        segments_buffer: &wgpu::Buffer,
+        segment_bounds_buffer: &wgpu::Buffer,
         appearances_buffer: &wgpu::Buffer,
         draw_commands_buffer: &wgpu::Buffer,
     ) -> wgpu::BindGroup {
@@ -640,13 +727,29 @@ impl RenderTilesProgram {
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: appearances_buffer,
+                        buffer: segments_buffer,
                         offset: 0,
                         size: None,
                     }),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: segment_bounds_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: appearances_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: draw_commands_buffer,
                         offset: 0,

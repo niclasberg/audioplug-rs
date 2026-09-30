@@ -1,9 +1,9 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{CanCreate, CanRead, Computed, Effect, WatchContext};
-use crate::ui::ViewProp;
+use super::{CanCreate, CanRead, Computed, Effect, EffectContext};
+use crate::ui::Prop;
 
-pub trait ReactiveValue: Into<ViewProp<Self::Value>> {
+pub trait ReactiveValue: Into<Prop<Self::Value>> {
     type Value;
 
     /// Map the current value using `f` and subscribe to changes
@@ -56,7 +56,7 @@ pub trait ReactiveValue: Into<ViewProp<Self::Value>> {
     /// `f` is called.`
     fn watch<'s, F>(self, cx: &mut impl CanCreate<'s>, f: F) -> Effect
     where
-        F: FnMut(&mut WatchContext, &Self::Value) + 'static;
+        F: FnMut(&mut EffectContext, &Self::Value) + 'static;
 }
 
 #[derive(Clone, Copy)]
@@ -66,7 +66,7 @@ pub struct Mapped<S, T, R, F> {
     _marker: PhantomData<fn(&T) -> R>,
 }
 
-impl<S, T, R, F> From<Mapped<S, T, R, F>> for ViewProp<R>
+impl<S, T, R, F> From<Mapped<S, T, R, F>> for Prop<R>
 where
     T: 'static,
     R: 'static,
@@ -122,7 +122,7 @@ where
 
     fn watch<'s, F2>(self, cx: &mut impl CanCreate<'s>, mut f: F2) -> Effect
     where
-        F2: FnMut(&mut WatchContext, &Self::Value) + 'static,
+        F2: FnMut(&mut EffectContext, &Self::Value) + 'static,
     {
         self.parent.watch(cx, move |cx, value| {
             let mapped_value = (self.map_fn)(value);

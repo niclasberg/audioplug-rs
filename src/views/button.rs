@@ -3,7 +3,7 @@ use crate::{
     core::{Color, Key, Paint},
     event::KeyEvent,
     ui::{
-        BuildContext, EventContext, EventStatus, StyleExt, View, ViewProp, ViewStyle, Widget,
+        BuildContext, EventContext, EventResult, StyleExt, View, Prop, ViewStyle, Widget,
         reactive::{ReactiveValue, WidgetStatus},
         style::UiRect,
     },
@@ -43,7 +43,7 @@ impl<V: View> Button<V> {
 
 impl Button<Label> {
     pub fn new_with_label(
-        text: impl Into<ViewProp<String>>,
+        text: impl Into<Prop<String>>,
         click_fn: impl FnMut(&mut EventContext) + 'static,
     ) -> Self {
         Self {
@@ -90,15 +90,15 @@ impl Widget for ButtonWidget {
         }
     }
 
-    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
+    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventResult {
         match event {
             KeyEvent::KeyDown {
                 key: Key::Enter, ..
             } => {
                 (self.click_fn)(ctx);
-                EventStatus::Handled
+                EventResult::Stop
             }
-            _ => EventStatus::Ignored,
+            _ => EventResult::Continue,
         }
     }
 }

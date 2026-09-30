@@ -56,9 +56,9 @@ fn main() {
                                 text_input.set(cx, "".to_string());
                             }
 
-                            return EventStatus::Handled;
+                            return EventResult::Stop;
                         }
-                        EventStatus::Ignored
+                        EventResult::Continue
                     }),
                 Row::new((
                     Button::new_with_label("Shuffle", move |cx| {

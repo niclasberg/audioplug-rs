@@ -2,7 +2,7 @@ use crate::{
     KeyEvent, MouseButton, MouseEvent,
     core::{Align, Key},
     ui::{
-        AnyWidgetId, EventContext, EventStatus, OverlayAnchor, OverlayOptions, View, Widget,
+        AnyWidgetId, EventContext, EventResult, OverlayAnchor, OverlayOptions, View, Widget,
         WidgetAdapter, WidgetMut,
     },
 };
@@ -96,19 +96,19 @@ impl<WTrigger: Widget, V: View, FMenu: Fn() -> V + 'static> WidgetAdapter
         }
     }
 
-    fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventStatus {
+    fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventResult {
         match event {
             KeyEvent::KeyDown {
                 key: Key::Escape, ..
             } => {
                 if self.is_dropdown_open() {
                     cx.defer_update(self, Self::close);
-                    EventStatus::Handled
+                    EventResult::Stop
                 } else {
-                    EventStatus::Ignored
+                    EventResult::Continue
                 }
             }
-            _ => EventStatus::Ignored,
+            _ => EventResult::Continue,
         }
     }
 }

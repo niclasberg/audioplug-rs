@@ -31,20 +31,20 @@ impl Iterator for LayoutChildIter<'_> {
     }
 }
 
-pub struct LayoutContext<'a> {
+pub struct LayoutContext<'a, 'b> {
     widgets: &'a mut Widgets,
     widget_impls: &'a mut WidgetMap,
     window_size: Size,
     region_to_invalidate: Option<Rect>,
-    text_cx: TextContext<'a>,
+    text_cx: &'a mut TextContext<'b>,
 }
 
-impl<'a> LayoutContext<'a> {
+impl<'a, 'b> LayoutContext<'a, 'b> {
     pub(super) fn new(
         widgets: &'a mut Widgets,
         widget_impls: &'a mut WidgetMap,
         window_size: Size,
-        text_cx: TextContext<'a>,
+        text_cx: &'a mut TextContext<'b>,
     ) -> Self {
         Self {
             widgets,
@@ -75,7 +75,7 @@ impl<'a> LayoutContext<'a> {
     }
 }
 
-impl taffy::TraversePartialTree for LayoutContext<'_> {
+impl taffy::TraversePartialTree for LayoutContext<'_, '_> {
     type ChildIter<'b>
         = LayoutChildIter<'b>
     where
@@ -97,9 +97,9 @@ impl taffy::TraversePartialTree for LayoutContext<'_> {
     }
 }
 
-impl TraverseTree for LayoutContext<'_> {}
+impl TraverseTree for LayoutContext<'_, '_> {}
 
-impl PrintTree for LayoutContext<'_> {
+impl PrintTree for LayoutContext<'_, '_> {
     fn get_debug_label(&self, node_id: taffy::NodeId) -> &'static str {
         self.widget_impls[node_id.into()].debug_label()
     }
@@ -109,7 +109,7 @@ impl PrintTree for LayoutContext<'_> {
     }
 }
 
-impl LayoutBlockContainer for LayoutContext<'_> {
+impl LayoutBlockContainer for LayoutContext<'_, '_> {
     type BlockContainerStyle<'b>
         = LayoutStyle<'b>
     where
@@ -128,7 +128,7 @@ impl LayoutBlockContainer for LayoutContext<'_> {
     }
 }
 
-impl LayoutFlexboxContainer for LayoutContext<'_> {
+impl LayoutFlexboxContainer for LayoutContext<'_, '_> {
     type FlexboxContainerStyle<'b>
         = LayoutStyle<'b>
     where
@@ -150,7 +150,7 @@ impl LayoutFlexboxContainer for LayoutContext<'_> {
     }
 }
 
-impl CacheTree for LayoutContext<'_> {
+impl CacheTree for LayoutContext<'_, '_> {
     fn cache_get(&mut self, node_id: taffy::NodeId, input: &LayoutInput) -> Option<LayoutOutput> {
         let widget_id = node_id.into();
         self.widgets.layout_cache[widget_id].get(input)
@@ -183,7 +183,7 @@ impl CacheTree for LayoutContext<'_> {
     }
 }*/
 
-impl LayoutPartialTree for LayoutContext<'_> {
+impl LayoutPartialTree for LayoutContext<'_, '_> {
     type CoreContainerStyle<'b>
         = LayoutStyle<'b>
     where

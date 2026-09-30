@@ -5,14 +5,15 @@ use crate::{
     core::{FxIndexSet, HAlign, Point, Rect, TextLayoutContext, VAlign, Vec2, Zero},
     platform,
     ui::{
-        OverlayAnchor, OverlayOptions, Scene, Widget, WidgetFlags, WidgetId, WindowId,
+        OverlayAnchor, OverlayOptions, Widget, WidgetFlags, WidgetId, WindowId,
         app_state::WidgetMap,
         clipboard::Clipboard,
         layout::{LayoutContext, RecomputeLayout},
         overlay::OverlayContainer,
-        reactive::ReactiveGraph,
+        reactive::{ReactiveGraph, ReactiveValue, ReadContext, ReadScope},
         render::{GpuScene, WGPUSurface},
         text::{TextContext, TextData},
+        widget_prop::WidgetProp,
         widget_tree::{ChildIdIter, WidgetTree},
     },
 };
@@ -67,7 +68,6 @@ pub enum GestureState {
 pub struct Widgets {
     /// Data (e.g. parent/children, layout, position etc.) associated with each widget
     pub(crate) tree: WidgetTree,
-    pub(super) scenes: SecondaryMap<WidgetId, Scene>,
     pub(super) layout_cache: SecondaryMap<WidgetId, taffy::Cache>,
     pub(super) texts: SecondaryMap<WidgetId, TextData>,
     pub(super) windows: SlotMap<WindowId, WindowState>,
@@ -109,7 +109,6 @@ impl Widgets {
             let root_widget = self.tree.insert_root(window_id);
             self.child_id_cache.insert(root_widget, Vec::new());
             self.layout_cache.insert(root_widget, Default::default());
-            self.scenes.insert(root_widget, Default::default());
             WindowState {
                 id: window_id,
                 handle,
@@ -141,7 +140,6 @@ impl Widgets {
         };
         self.child_id_cache.insert(id, Vec::new());
         self.layout_cache.insert(id, Default::default());
-        self.scenes.insert(id, Default::default());
         id
     }
 
@@ -160,7 +158,6 @@ impl Widgets {
     ) {
         self.tree.remove(widget_id, |data| {
             self.child_id_cache.remove(data.id);
-            self.scenes.remove(data.id);
             self.layout_cache.remove(data.id);
             self.texts.remove(data.id);
             self.windows[data.window_id].overlays.remove(data.id);
@@ -177,7 +174,6 @@ impl Widgets {
     ) {
         self.tree.reset(widget_id, |data| {
             self.child_id_cache.remove(data.id);
-            self.scenes.remove(data.id);
             self.layout_cache.remove(data.id);
             self.texts.remove(data.id);
             self.windows[data.window_id].overlays.remove(data.id);
@@ -310,6 +306,60 @@ impl Widgets {
 
         widgets
     }
+
+    pub fn apply_widget_prop(
+        &mut self,
+        reactive_graph: &mut ReactiveGraph,
+        widget_id: WidgetId,
+        prop: &WidgetProp,
+        read_scope: ReadScope,
+    ) {
+        let mut read_context = ReadContext {
+            widgets: self,
+            reactive_graph,
+            scope: read_scope,
+            current_widget: Some(widget_id),
+        };
+        match prop {
+            WidgetProp::Hidden(prop) => {
+                let value = prop.get(&mut read_context);
+                self.tree[widget_id].style.hidden = value;
+                self.request_layout(widget_id);
+            }
+            WidgetProp::Padding(prop) => {
+                let value = prop.get(&mut read_context);
+                self.tree[widget_id].style.padding = value;
+                self.request_layout(widget_id);
+            }
+            WidgetProp::Width(prop) => todo!(),
+            WidgetProp::Height(prop) => todo!(),
+            WidgetProp::MinWidth(prop) => todo!(),
+            WidgetProp::MinHeight(prop) => todo!(),
+            WidgetProp::MaxWidth(prop) => todo!(),
+            WidgetProp::MaxHeight(prop) => todo!(),
+            WidgetProp::AspectRatio(prop) => todo!(),
+            WidgetProp::Border(prop) => todo!(),
+            WidgetProp::Margin(prop) => todo!(),
+            WidgetProp::Inset(prop) => todo!(),
+            WidgetProp::Background(prop) => todo!(),
+            WidgetProp::CornerRadius(prop) => todo!(),
+            WidgetProp::BorderColor(prop) => todo!(),
+            WidgetProp::JustifySelf(prop) => todo!(),
+            WidgetProp::AlignSelf(prop) => todo!(),
+            WidgetProp::BoxShadow(prop) => todo!(),
+            WidgetProp::FlexGrow(prop) => todo!(),
+            WidgetProp::FlexShrink(prop) => todo!(),
+            WidgetProp::Cursor(prop) => todo!(),
+        }
+    }
+
+    pub fn bind_widget_prop(
+        &mut self,
+        reactive_graph: &mut ReactiveGraph,
+        widget_id: WidgetId,
+        prop: WidgetProp,
+    ) {
+    }
 }
 
 // Layout
@@ -335,8 +385,7 @@ impl Widgets {
     pub fn layout_window(
         &mut self,
         widget_impls: &mut WidgetMap,
-        font_cx: &mut FontContext,
-        layout_cx: &mut TextLayoutContext,
+        text_context: &mut TextContext,
         window_id: WindowId,
         mode: RecomputeLayout,
     ) {
@@ -348,13 +397,9 @@ impl Widgets {
 
         // Need to layout root first, the overlay positions can depend on their parent positions
         if mode == RecomputeLayout::Force || self.tree.get(root_id).unwrap().needs_layout() {
-            let region_to_invalidate = LayoutContext::new(
-                self,
-                widget_impls,
-                window_size,
-                TextContext::new(font_cx, layout_cx),
-            )
-            .compute_root_layout(root_id);
+            let region_to_invalidate =
+                LayoutContext::new(self, widget_impls, window_size, text_context)
+                    .compute_root_layout(root_id);
             self.tree.update_node_origins(root_id, Point::ZERO);
             if let Some(region_to_invalidate) = region_to_invalidate {
                 self.window(window_id)
@@ -369,13 +414,9 @@ impl Widgets {
         let overlay_ids: Vec<_> = self.windows[window_id].overlays.iter().collect();
         for (i, overlay_id) in overlay_ids.into_iter().enumerate() {
             if mode == RecomputeLayout::Force || self.tree.get(overlay_id).unwrap().needs_layout() {
-                let region_to_invalidate = LayoutContext::new(
-                    self,
-                    widget_impls,
-                    window_size,
-                    TextContext::new(font_cx, layout_cx),
-                )
-                .compute_root_layout(root_id);
+                let region_to_invalidate =
+                    LayoutContext::new(self, widget_impls, window_size, text_context)
+                        .compute_root_layout(root_id);
                 let options = self
                     .window(window_id)
                     .overlays
@@ -393,7 +434,7 @@ impl Widgets {
             }
         }
 
-        self.print_tree(widget_impls, window_id);
+        //self.print_tree(widget_impls, window_id);
     }
 
     fn rebuild_children(&mut self) {

@@ -1,7 +1,7 @@
 use rustc_hash::FxBuildHasher;
 
 use super::reactive::{Effect, ReactiveValue, CanRead};
-use super::{BuildContext, View, ViewProp, Widget};
+use super::{BuildContext, View, Prop, Widget};
 use crate::core::{FxIndexSet, diff};
 use std::hash::Hash;
 
@@ -65,12 +65,12 @@ impl<const N: usize, V: View> ViewSequence for [V; N] {
 }
 
 pub struct IndexedViewSeq<F> {
-    count: ViewProp<usize>,
+    count: Prop<usize>,
     view_factory: F,
 }
 
 impl<V: View, F: Fn(usize) -> V> IndexedViewSeq<F> {
-    pub fn new(count: impl Into<ViewProp<usize>>, view_factory: F) -> Self {
+    pub fn new(count: impl Into<Prop<usize>>, view_factory: F) -> Self {
         Self {
             count: count.into(),
             view_factory,

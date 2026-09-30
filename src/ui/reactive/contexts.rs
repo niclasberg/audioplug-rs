@@ -1,10 +1,13 @@
-use std::{any::Any, rc::Rc};
+use std::any::Any;
 
 use crate::{
     param::{ParamRef, ParameterId},
     ui::{
         HostHandle, WidgetId, Widgets,
-        reactive::{WidgetStatusFlags, runtime::Node},
+        reactive::{
+            EffectFn, WidgetStatusFlags,
+            runtime::{Node, Source},
+        },
         task_queue::{Task, TaskQueue},
     },
 };
@@ -13,7 +16,6 @@ use super::{
     EffectState, NodeId, ReactiveGraph, ReadScope,
     animation::{AnimationState, DerivedAnimationState},
     cached::CachedState,
-    effect::WatchState,
     runtime::{NodeState, NodeType, Owner},
     var::SignalState,
 };
@@ -29,14 +31,14 @@ impl ReadContext<'_> {
     pub fn track(&mut self, source_id: NodeId) {
         if let ReadScope::Node(node_id) = self.scope {
             self.reactive_graph
-                .add_node_subscription(source_id, node_id);
+                .add_subscription(Source::Node(source_id), node_id);
         }
     }
 
     pub fn track_parameter(&mut self, source_id: ParameterId) {
         if let ReadScope::Node(node_id) = self.scope {
             self.reactive_graph
-                .add_parameter_subscription(source_id, node_id);
+                .add_subscription(Source::Parameter(source_id), node_id);
         }
     }
 
@@ -44,7 +46,7 @@ impl ReadContext<'_> {
         if let ReadScope::Node(node_id) = self.scope {
             let widget_id = self.current_widget.expect("View status can only be evaluated if bound to a view property or from a view-owned Cached value or effect");
             self.reactive_graph
-                .add_widget_status_subscription(widget_id, status_mask, node_id);
+                .add_subscription(Source::Widget(widget_id, status_mask), node_id);
         }
     }
 
@@ -133,16 +135,18 @@ impl<'a> CreateContext<'a> {
         )
     }
 
-    pub(crate) fn create_effect_node(&mut self, state: EffectState, run_effect: bool) -> NodeId {
-        let f = Rc::downgrade(&state.f);
+    pub(crate) fn create_effect_node(&mut self, f: Box<EffectFn>, run_effect: bool) -> NodeId {
         let id = self.reactive_graph.create_node(
-            NodeType::Effect(state),
+            NodeType::Effect(EffectState::EffectFn {
+                f,
+                dynamic_sources: true,
+            }),
             NodeState::Dirty,
             self.owner,
             &mut self.widgets.tree,
         );
         if run_effect {
-            self.task_queue.push(Task::RunEffect { id, f });
+            self.task_queue.push(Task::RunEffect { id });
         }
         id
     }
@@ -156,48 +160,18 @@ impl<'a> CreateContext<'a> {
         )
     }
 
-    pub(crate) fn create_node_watcher(&mut self, source: NodeId, state: WatchState) -> NodeId {
+    pub(crate) fn create_watcher(&mut self, source: Source, f: Box<EffectFn>) -> NodeId {
         let graph = &mut self.reactive_graph;
         let id = graph.create_node(
-            NodeType::Binding(state),
+            NodeType::Effect(EffectState::EffectFn {
+                f,
+                dynamic_sources: false,
+            }),
             NodeState::Clean,
             self.owner,
             &mut self.widgets.tree,
         );
-        graph.add_node_subscription(source, id);
-        id
-    }
-
-    pub(crate) fn create_parameter_watcher(
-        &mut self,
-        source: ParameterId,
-        state: WatchState,
-    ) -> NodeId {
-        let graph = &mut self.reactive_graph;
-        let id = graph.create_node(
-            NodeType::Binding(state),
-            NodeState::Clean,
-            self.owner,
-            &mut self.widgets.tree,
-        );
-        graph.add_parameter_subscription(source, id);
-        id
-    }
-
-    pub(crate) fn create_widget_status_watcher(
-        &mut self,
-        widget: WidgetId,
-        status_mask: WidgetStatusFlags,
-        state: WatchState,
-    ) -> NodeId {
-        let graph = &mut self.reactive_graph;
-        let id = graph.create_node(
-            NodeType::Binding(state),
-            NodeState::Clean,
-            self.owner,
-            &mut self.widgets.tree,
-        );
-        graph.add_widget_status_subscription(widget, status_mask, id);
+        graph.add_subscription(source, id);
         id
     }
 
@@ -262,7 +236,8 @@ impl<'s> CanCreate<'s> for CreateContext<'s> {
         }
     }
 }
-// Allow untracked reads while writing
+
+// Allow untracked reads while creating
 impl<'s> CanRead<'s> for CreateContext<'s> {
     fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
     where

@@ -1,30 +1,22 @@
 use super::reactive::{CanCreate, CanRead, Computed, Effect, ReactiveValue, ReadSignal};
 use crate::{
-    core::{Paint, Color, LinearGradient},
-    ui::{
-        BuildContext, Widget, WidgetMut,
-        reactive::{ConstComputed, ReadContext, WatchContext},
-    },
+    core::{Color, LinearGradient, Paint},
+    ui::{BuildContext, Widget, WidgetMut, reactive::EffectContext},
 };
 
 /// Represents a value that is either varying over time (a `ReactiveValue`) or a constant
 ///
 /// Commonly used as input to views.
 #[derive(Clone)]
-pub enum ViewProp<T> {
+pub enum Prop<T> {
     Const(T),
     ReadSignal(ReadSignal<T>),
     Computed(Computed<T>),
-    ConstComputed(ConstComputed<T>),
 }
 
-impl<T: 'static> ViewProp<T> {
+impl<T: 'static> Prop<T> {
     pub const fn from_value(value: T) -> Self {
         Self::Const(value)
-    }
-
-    pub const fn from_fn(f: fn(&mut ReadContext) -> T) -> Self {
-        Self::ConstComputed(ConstComputed::new(f))
     }
 
     pub fn get_and_bind<W: Widget + ?Sized>(
@@ -74,14 +66,13 @@ impl<T: 'static> ViewProp<T> {
     }
 }
 
-impl<T: 'static> ReactiveValue for ViewProp<T> {
+impl<T: 'static> ReactiveValue for Prop<T> {
     type Value = T;
 
     fn track<'a>(&self, cx: &mut impl CanRead<'a>) {
         match self {
             Self::ReadSignal(signal) => signal.track(cx),
             Self::Computed(computed) => computed.track(cx),
-            Self::ConstComputed(c) => c.track(cx),
             Self::Const(_) => {}
         }
     }
@@ -90,7 +81,6 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         match self {
             Self::ReadSignal(signal) => signal.with_ref(cx, f),
             Self::Computed(computed) => computed.with_ref(cx, f),
-            Self::ConstComputed(computed) => computed.with_ref(cx, f),
             Self::Const(value) => f(value),
         }
     }
@@ -102,7 +92,6 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         match self {
             Self::ReadSignal(signal) => signal.get(cx),
             Self::Computed(computed) => computed.get(cx),
-            Self::ConstComputed(computed) => computed.get(cx),
             Self::Const(value) => value.clone(),
         }
     }
@@ -115,7 +104,6 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         match self {
             Self::ReadSignal(signal) => signal.with_ref_untracked(cx, f),
             Self::Computed(computed) => computed.with_ref_untracked(cx, f),
-            Self::ConstComputed(computed) => computed.with_ref_untracked(cx, f),
             Self::Const(value) => f(value),
         }
     }
@@ -125,51 +113,49 @@ impl<T: 'static> ReactiveValue for ViewProp<T> {
         Self::Value: Clone,
     {
         match self {
-            ViewProp::ReadSignal(read_signal) => read_signal.get_untracked(cx),
-            ViewProp::Computed(computed) => computed.get_untracked(cx),
-            ViewProp::ConstComputed(computed) => computed.get_untracked(cx),
-            ViewProp::Const(value) => value.clone(),
+            Prop::ReadSignal(read_signal) => read_signal.get_untracked(cx),
+            Prop::Computed(computed) => computed.get_untracked(cx),
+            Prop::Const(value) => value.clone(),
         }
     }
 
     fn watch<'a, F>(self, cx: &mut impl CanCreate<'a>, f: F) -> Effect
     where
-        F: FnMut(&mut WatchContext, &Self::Value) + 'static,
+        F: FnMut(&mut EffectContext, &Self::Value) + 'static,
     {
         match self {
-            ViewProp::ReadSignal(read_signal) => read_signal.watch(cx, f),
-            ViewProp::Computed(computed) => computed.watch(cx, f),
-            ViewProp::ConstComputed(computed) => computed.watch(cx, f),
-            ViewProp::Const(_) => Effect::new_empty(),
+            Prop::ReadSignal(read_signal) => read_signal.watch(cx, f),
+            Prop::Computed(computed) => computed.watch(cx, f),
+            Prop::Const(_) => Effect::new_empty(),
         }
     }
 }
 
-impl<T: Default> Default for ViewProp<T> {
+impl<T: Default> Default for Prop<T> {
     fn default() -> Self {
         Self::Const(T::default())
     }
 }
 
-impl<T> From<T> for ViewProp<T> {
+impl<T> From<T> for Prop<T> {
     fn from(value: T) -> Self {
         Self::Const(value)
     }
 }
 
-impl From<&str> for ViewProp<String> {
+impl From<&str> for Prop<String> {
     fn from(value: &str) -> Self {
         Self::Const(value.to_string())
     }
 }
 
-impl From<Color> for ViewProp<Paint> {
+impl From<Color> for Prop<Paint> {
     fn from(value: Color) -> Self {
         Self::Const(value.into())
     }
 }
 
-impl From<LinearGradient> for ViewProp<Paint> {
+impl From<LinearGradient> for Prop<Paint> {
     fn from(value: LinearGradient) -> Self {
         Self::Const(value.into())
     }

@@ -3,11 +3,14 @@ use std::{
     ops::{Add, AddAssign, Sub, SubAssign},
 };
 
+use bytemuck::{Pod, Zeroable};
+
 use crate::core::{ScaleFactor, Zero};
 
 use super::{Lerp, Size, SpringPhysics, Vec2};
 
-#[derive(Debug, Default, Copy, Clone, PartialEq)]
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Pod, Zeroable)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
@@ -46,14 +49,14 @@ impl Point {
         }
     }
 
-    pub fn max(&self, other: &Self) -> Self {
+    pub fn max(&self, other: Self) -> Self {
         Self {
-            x: if self.x > other.x { self.x } else { other.x },
-            y: if self.y > other.y { self.y } else { other.y },
+            x: self.x.max(other.x),
+            y: self.y.max(other.y),
         }
     }
 
-    pub fn min(&self, other: &Self) -> Self {
+    pub fn min(&self, other: Self) -> Self {
         Self {
             x: self.x.min(other.x),
             y: self.y.min(other.y),

@@ -3,34 +3,34 @@ use taffy::{AlignSelf, JustifySelf};
 use crate::{
     core::{Color, Cursor, Paint, ShadowOptions, Size},
     ui::{
-        ViewProp,
-        reactive::ReadContext,
+        Prop,
+        reactive::{Computed, ReadContext},
         style::{Length, UiRect},
     },
 };
 
 pub struct ViewStyle {
-    pub(crate) hidden: Option<ViewProp<bool>>,
-    pub(crate) padding: Option<ViewProp<UiRect>>,
-    pub(crate) width: Option<ViewProp<Length>>,
-    pub(crate) height: Option<ViewProp<Length>>,
-    pub(crate) min_width: Option<ViewProp<Length>>,
-    pub(crate) min_height: Option<ViewProp<Length>>,
-    pub(crate) max_width: Option<ViewProp<Length>>,
-    pub(crate) max_height: Option<ViewProp<Length>>,
-    pub(crate) aspect_ratio: Option<ViewProp<f64>>,
-    pub(crate) border: Option<ViewProp<Length>>,
-    pub(crate) margin: Option<ViewProp<UiRect>>,
-    pub(crate) inset: Option<ViewProp<UiRect>>,
-    pub(crate) background: Option<ViewProp<Paint>>,
-    pub(crate) corner_radius: Option<ViewProp<Size>>,
-    pub(crate) border_color: Option<ViewProp<Color>>,
-    pub(crate) justify_self: Option<ViewProp<JustifySelf>>,
-    pub(crate) align_self: Option<ViewProp<AlignSelf>>,
-    pub(crate) box_shadow: Option<ViewProp<ShadowOptions>>,
-    pub(crate) flex_grow: Option<ViewProp<f32>>,
-    pub(crate) flex_shrink: Option<ViewProp<f32>>,
-    pub(crate) cursor: Option<ViewProp<Cursor>>,
+    pub(crate) hidden: Option<Prop<bool>>,
+    pub(crate) padding: Option<Prop<UiRect>>,
+    pub(crate) width: Option<Prop<Length>>,
+    pub(crate) height: Option<Prop<Length>>,
+    pub(crate) min_width: Option<Prop<Length>>,
+    pub(crate) min_height: Option<Prop<Length>>,
+    pub(crate) max_width: Option<Prop<Length>>,
+    pub(crate) max_height: Option<Prop<Length>>,
+    pub(crate) aspect_ratio: Option<Prop<f64>>,
+    pub(crate) border: Option<Prop<Length>>,
+    pub(crate) margin: Option<Prop<UiRect>>,
+    pub(crate) inset: Option<Prop<UiRect>>,
+    pub(crate) background: Option<Prop<Paint>>,
+    pub(crate) corner_radius: Option<Prop<Size>>,
+    pub(crate) border_color: Option<Prop<Color>>,
+    pub(crate) justify_self: Option<Prop<JustifySelf>>,
+    pub(crate) align_self: Option<Prop<AlignSelf>>,
+    pub(crate) box_shadow: Option<Prop<ShadowOptions>>,
+    pub(crate) flex_grow: Option<Prop<f32>>,
+    pub(crate) flex_shrink: Option<Prop<f32>>,
+    pub(crate) cursor: Option<Prop<Cursor>>,
 }
 
 impl ViewStyle {
@@ -59,12 +59,12 @@ impl ViewStyle {
     };
 
     pub fn hidden(mut self, value: bool) -> Self {
-        self.hidden.replace(ViewProp::Const(value));
+        self.hidden.replace(Prop::Const(value));
         self
     }
 
     pub fn padding(mut self, value: UiRect) -> Self {
-        self.padding.replace(ViewProp::Const(value));
+        self.padding.replace(Prop::Const(value));
         self
     }
 
@@ -74,12 +74,12 @@ impl ViewStyle {
     }
 
     pub fn background_fn(mut self, f: fn(&mut ReadContext) -> Paint) -> Self {
-        self.background.replace(ViewProp::from_fn(f));
+        self.background.replace(Computed::new(f).into());
         self
     }
 
     pub fn margin(mut self, value: UiRect) -> Self {
-        self.margin.replace(ViewProp::Const(value));
+        self.margin.replace(Prop::Const(value));
         self
     }
 
@@ -93,7 +93,7 @@ impl ViewStyle {
         self
     }
 
-    pub fn min_width(mut self, value: impl Into<ViewProp<Length>>) -> Self {
+    pub fn min_width(mut self, value: impl Into<Prop<Length>>) -> Self {
         self.min_width.replace(value.into());
         self
     }
@@ -114,21 +114,21 @@ impl ViewStyle {
     }
 
     pub fn corner_radius(mut self, value: Size) -> Self {
-        self.corner_radius.replace(ViewProp::Const(value));
+        self.corner_radius.replace(Prop::Const(value));
         self
     }
 
     pub fn border_width(mut self, value: Length) -> Self {
-        self.border.replace(ViewProp::Const(value));
+        self.border.replace(Prop::Const(value));
         self
     }
 
     pub fn border_color(mut self, value: Color) -> Self {
-        self.border_color.replace(ViewProp::Const(value));
+        self.border_color.replace(Prop::Const(value));
         self
     }
 
-    pub fn align_self(mut self, value: impl Into<ViewProp<AlignSelf>>) -> Self {
+    pub fn align_self(mut self, value: impl Into<Prop<AlignSelf>>) -> Self {
         self.align_self.replace(value.into());
         self
     }
@@ -144,12 +144,12 @@ impl ViewStyle {
     }
 
     pub fn shadow(mut self, value: ShadowOptions) -> Self {
-        self.box_shadow = Some(ViewProp::Const(value));
+        self.box_shadow = Some(Prop::Const(value));
         self
     }
 
     pub fn cursor(mut self, value: Cursor) -> Self {
-        self.cursor = Some(ViewProp::Const(value));
+        self.cursor = Some(Prop::Const(value));
         self
     }
 }
@@ -167,87 +167,83 @@ pub trait StyleExt: Sized {
         *self.style_mut() = style;
     }
 
-    fn hidden(mut self, value: impl Into<ViewProp<bool>>) -> Self {
+    fn hidden(mut self, value: impl Into<Prop<bool>>) -> Self {
         self.style_mut().hidden = Some(value.into());
         self
     }
 
-    fn padding(mut self, value: impl Into<ViewProp<UiRect>>) -> Self {
+    fn padding(mut self, value: impl Into<Prop<UiRect>>) -> Self {
         self.style_mut().padding = Some(value.into());
         self
     }
 
-    fn margin(mut self, value: impl Into<ViewProp<UiRect>>) -> Self {
+    fn margin(mut self, value: impl Into<Prop<UiRect>>) -> Self {
         self.style_mut().margin = Some(value.into());
         self
     }
 
-    fn height(mut self, value: impl Into<ViewProp<Length>>) -> Self {
+    fn height(mut self, value: impl Into<Prop<Length>>) -> Self {
         self.style_mut().height = Some(value.into());
         self
     }
 
-    fn width(mut self, value: impl Into<ViewProp<Length>>) -> Self {
+    fn width(mut self, value: impl Into<Prop<Length>>) -> Self {
         self.style_mut().width = Some(value.into());
         self
     }
 
-    fn min_width(mut self, value: impl Into<ViewProp<Length>>) -> Self {
+    fn min_width(mut self, value: impl Into<Prop<Length>>) -> Self {
         self.style_mut().min_width = Some(value.into());
         self
     }
 
-    fn max_width(mut self, value: impl Into<ViewProp<Length>>) -> Self {
+    fn max_width(mut self, value: impl Into<Prop<Length>>) -> Self {
         self.style_mut().max_width = Some(value.into());
         self
     }
 
-    fn min_height(mut self, value: impl Into<ViewProp<Length>>) -> Self {
+    fn min_height(mut self, value: impl Into<Prop<Length>>) -> Self {
         self.style_mut().min_height = Some(value.into());
         self
     }
 
-    fn max_height(mut self, value: impl Into<ViewProp<Length>>) -> Self {
+    fn max_height(mut self, value: impl Into<Prop<Length>>) -> Self {
         self.style_mut().max_height = Some(value.into());
         self
     }
 
-    fn background(mut self, value: impl Into<ViewProp<Paint>>) -> Self {
+    fn background(mut self, value: impl Into<Prop<Paint>>) -> Self {
         self.style_mut().background = Some(value.into());
         self
     }
 
-    fn corner_radius(mut self, value: impl Into<ViewProp<Size>>) -> Self {
+    fn corner_radius(mut self, value: impl Into<Prop<Size>>) -> Self {
         self.style_mut().corner_radius = Some(value.into());
         self
     }
 
-    fn border(
-        mut self,
-        value: impl Into<ViewProp<Length>>,
-        color: impl Into<ViewProp<Color>>,
-    ) -> Self {
+    fn border(mut self, value: impl Into<Prop<Length>>, color: impl Into<Prop<Color>>) -> Self {
         self.style_mut().border = Some(value.into());
         self.style_mut().border_color = Some(color.into());
         self
     }
 
-    fn align_self(mut self, value: impl Into<ViewProp<AlignSelf>>) -> Self {
+    fn align_self(mut self, value: impl Into<Prop<AlignSelf>>) -> Self {
         self.style_mut().align_self = Some(value.into());
         self
     }
 
-    fn flex_grow(mut self, value: impl Into<ViewProp<f32>>) -> Self {
+    fn flex_grow(mut self, value: impl Into<Prop<f32>>) -> Self {
         self.style_mut().flex_grow = Some(value.into());
         self
     }
 
-    fn flex_shrink(mut self, value: impl Into<ViewProp<f32>>) -> Self {
+    fn flex_shrink(mut self, value: impl Into<Prop<f32>>) -> Self {
         self.style_mut().flex_shrink = Some(value.into());
         self
     }
 
-    fn box_shadow(mut self, value: impl Into<ViewProp<ShadowOptions>>) -> Self {
+    fn box_shadow(mut self, value: impl Into<Prop<ShadowOptions>>) -> Self {
         self.style_mut().box_shadow = Some(value.into());
         self
     }

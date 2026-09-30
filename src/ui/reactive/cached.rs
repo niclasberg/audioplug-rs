@@ -1,8 +1,8 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
 use crate::ui::{
-    ViewProp, Widgets,
-    reactive::{ReadContext, WatchContext},
+    Prop, Widgets,
+    reactive::{EffectContext, ReadContext},
 };
 
 use super::{
@@ -92,7 +92,7 @@ impl<T: Any> Cached<T> {
     }
 }
 
-impl<T: 'static> From<Cached<T>> for ViewProp<T> {
+impl<T: 'static> From<Cached<T>> for Prop<T> {
     fn from(value: Cached<T>) -> Self {
         Self::ReadSignal(value.as_read_signal())
     }
@@ -117,7 +117,7 @@ impl<T: 'static> ReactiveValue for Cached<T> {
 
     fn watch<'s, F>(self, cx: &mut impl CanCreate<'s>, f: F) -> Effect
     where
-        F: FnMut(&mut WatchContext, &Self::Value) + 'static,
+        F: FnMut(&mut EffectContext, &Self::Value) + 'static,
     {
         Effect::watch_node(cx.create_context(), self.id, f)
     }

@@ -1,10 +1,13 @@
 mod animation;
 mod app_state;
 mod clipboard;
+mod event_handler;
 mod event_handling;
 mod host_handle;
 mod layout;
 mod overlay;
+mod path;
+mod prop;
 pub mod reactive;
 mod render;
 pub mod style;
@@ -12,9 +15,9 @@ mod task_queue;
 mod text;
 mod view;
 mod view_ext;
-mod view_prop;
 mod view_sequence;
 mod widget;
+mod widget_prop;
 mod widget_ref;
 mod widget_tree;
 mod widgets;
@@ -28,14 +31,14 @@ pub use event_handling::EventContext;
 pub use host_handle::HostHandle;
 pub use overlay::{OverlayAnchor, OverlayOptions};
 
-pub use render::{Canvas, CanvasContext, CanvasWidget, RenderContext, Scene, invalidate_window};
+pub use prop::Prop;
+pub use render::{Canvas, CanvasWidget, RenderContext, invalidate_window};
 pub use task_queue::TaskQueue;
 pub use text::{TextContext, TextExt, TextStyle, ViewText};
 pub use view::*;
 pub use view_ext::{StyleExt, ViewStyle};
-pub use view_prop::ViewProp;
 pub use view_sequence::*;
-pub use widget::{EventStatus, Widget, WidgetAdapter};
+pub use widget::{EventResult, Widget, WidgetAdapter};
 pub use widget_ref::{WidgetMut, WidgetRef};
 pub use widget_tree::{WidgetData, WidgetFlags, WidgetId, WidgetTree};
 pub use widgets::{WidgetPos, Widgets};
@@ -112,7 +115,7 @@ impl Default for App {
 pub mod prelude {
     pub use super::reactive::prelude::*;
     pub use super::{
-        BuildContext, EventStatus, IndexedViewSeq, OverlayAnchor, OverlayOptions, ReactiveValueExt,
+        BuildContext, EventResult, IndexedViewSeq, OverlayAnchor, OverlayOptions, ReactiveValueExt,
         View, ViewSequence, Widget, view_for_each,
     };
 }

@@ -1,12 +1,12 @@
 use crate::MouseEvent;
-use crate::core::{Color, Cursor, Key, Modifiers, Size, TextLayout};
+use crate::core::{Color, Cursor, Key, Modifiers, TextLayout};
 use crate::event::{KeyEvent, MouseButton, MouseDownEvent, MouseDragEvent};
+use crate::ui::ViewStyle;
 use crate::ui::{
-    AnimationContext, BuildContext, EventContext, EventStatus, RenderContext, View, ViewProp,
+    AnimationContext, BuildContext, EventContext, EventResult, RenderContext, View, Prop,
     Widget,
     style::{Length, UiRect},
 };
-use crate::ui::{Scene, ViewStyle};
 use std::ops::Range;
 use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 
@@ -15,8 +15,8 @@ type InputChangedFn = dyn Fn(&mut EventContext, &str);
 pub struct TextBox {
     width: f64,
     input_changed_fn: Box<InputChangedFn>,
-    value: Option<ViewProp<String>>,
-    placeholder: Option<ViewProp<String>>,
+    value: Option<Prop<String>>,
+    placeholder: Option<Prop<String>>,
     style: ViewStyle,
 }
 
@@ -34,12 +34,12 @@ impl TextBox {
         }
     }
 
-    pub fn value(mut self, value: impl Into<ViewProp<String>>) -> Self {
+    pub fn value(mut self, value: impl Into<Prop<String>>) -> Self {
         self.value = Some(value.into());
         self
     }
 
-    pub fn placeholder(mut self, value: impl Into<ViewProp<String>>) -> Self {
+    pub fn placeholder(mut self, value: impl Into<Prop<String>>) -> Self {
         self.placeholder = Some(value.into());
         self
     }
@@ -336,7 +336,7 @@ impl Widget for TextBoxWidget {
         "TextBox"
     }
 
-    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
+    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventResult {
         let rebuild_text_layout = |this: &mut Self, ctx: &mut EventContext| {
             this.rebuild_text_layout();
             ctx.request_render();
@@ -354,77 +354,77 @@ impl Widget for TextBoxWidget {
                     if self.remove_word_left() {
                         rebuild_text_layout(self, ctx);
                     }
-                    EventStatus::Handled
+                    EventResult::Stop
                 }
                 (Key::BackSpace, _) => {
                     if self.remove_left() {
                         rebuild_text_layout(self, ctx);
                     }
-                    EventStatus::Handled
+                    EventResult::Stop
                 }
                 (Key::Delete, _) if modifiers.contains(Modifiers::CONTROL) => {
                     if self.remove_word_right() {
                         rebuild_text_layout(self, ctx);
                     }
-                    EventStatus::Handled
+                    EventResult::Stop
                 }
                 (Key::Delete, _) => {
                     if self.remove_right() {
                         rebuild_text_layout(self, ctx);
                     }
-                    EventStatus::Handled
+                    EventResult::Stop
                 }
                 (Key::Left, _) if modifiers.contains(Modifiers::CONTROL) => {
                     if self.move_word_left(modifiers.contains(Modifiers::SHIFT)) {
                         ctx.request_render();
                     }
-                    EventStatus::Handled
+                    EventResult::Stop
                 }
                 (Key::Left, _) => {
                     if self.move_left(modifiers.contains(Modifiers::SHIFT)) {
                         ctx.request_render();
                     }
-                    EventStatus::Handled
+                    EventResult::Stop
                 }
                 (Key::Right, _) if modifiers.contains(Modifiers::CONTROL) => {
                     if self.move_word_right(modifiers.contains(Modifiers::SHIFT)) {
                         ctx.request_render();
                     }
-                    EventStatus::Handled
+                    EventResult::Stop
                 }
                 (Key::Right, _) => {
                     if self.move_right(modifiers.contains(Modifiers::SHIFT)) {
                         ctx.request_render();
                     }
-                    EventStatus::Handled
+                    EventResult::Stop
                 }
                 (Key::C, _) if modifiers == Modifiers::CONTROL => {
                     if let Some(selected_text) = self.selected_text() {
                         ctx.clipboard().set_text(selected_text);
                     }
-                    EventStatus::Handled
+                    EventResult::Stop
                 }
                 (Key::V, _) if modifiers == Modifiers::CONTROL => {
                     if let Some(text_to_insert) = ctx.clipboard().get_text() {
                         self.insert(text_to_insert.as_str());
                         rebuild_text_layout(self, ctx);
                     }
-                    EventStatus::Handled
+                    EventResult::Stop
                 }
-                (Key::X, _) if modifiers == Modifiers::CONTROL => EventStatus::Handled,
+                (Key::X, _) if modifiers == Modifiers::CONTROL => EventResult::Stop,
                 (Key::Tab, _)
                 | (Key::Escape, _)
                 | (Key::Enter, _)
                 | (Key::Up, _)
-                | (Key::Down, _) => EventStatus::Ignored,
+                | (Key::Down, _) => EventResult::Continue,
                 (_, Some(str)) if !modifiers.contains(Modifiers::CONTROL) => {
                     self.insert(str.as_str());
                     rebuild_text_layout(self, ctx);
-                    EventStatus::Handled
+                    EventResult::Stop
                 }
-                _ => EventStatus::Ignored,
+                _ => EventResult::Continue,
             },
-            _ => EventStatus::Ignored,
+            _ => EventResult::Continue,
         }
     }
 
@@ -472,19 +472,9 @@ impl Widget for TextBoxWidget {
         }
     }
 
-    fn render(&mut self, ctx: &mut RenderContext) -> Scene {
-        let mut scene = Scene::new();
-        let bounds = ctx.global_bounds();
-
-        let stroke_color = if ctx.has_focus() {
-            Color::RED
-        } else {
-            Color::from_rgb(0.3, 0.3, 0.3)
-        };
-        scene.stroke(bounds.shrink(1.0), stroke_color, 1.0);
-
-        let text_bounds = ctx.content_bounds();
-        scene.use_clip(text_bounds, |scene| {
+    fn render(&mut self, cx: &mut RenderContext) {
+        let text_bounds = cx.bounds();
+        cx.use_clip(text_bounds, |cx| {
             /*if let Some(selection) = self.selection() {
                 let left = self.text_layout.point_at_text_index(selection.start);
                 let right = self.text_layout.point_at_text_index(selection.end);
@@ -495,7 +485,7 @@ impl Widget for TextBoxWidget {
                 scene.fill(rect, Color::from_rgb8(68, 85, 90));
             }*/
 
-            scene.draw_text(&self.text_layout, text_bounds.top_left());
+            cx.draw_text(&self.text_layout, text_bounds.top_left());
 
             /*if ctx.has_focus() && self.cursor_on {
                 let cursor_point = self
@@ -507,6 +497,5 @@ impl Widget for TextBoxWidget {
                 scene.draw_line(p0, p1, Color::BLACK, 1.0);
             }*/
         });
-        scene
     }
 }

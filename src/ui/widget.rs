@@ -3,21 +3,21 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crate::{AnimationFrame, KeyEvent, MouseEvent, ui::Scene};
+use crate::{AnimationFrame, KeyEvent, MouseEvent};
 
 use super::{EventContext, RenderContext, animation::AnimationContext};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EventStatus {
-    Handled,
-    Ignored,
+pub enum EventResult {
+    Stop,
+    Continue,
 }
 
-impl EventStatus {
+impl EventResult {
     pub fn or_else(self, f: impl FnOnce() -> Self) -> Self {
         match self {
-            Self::Handled => Self::Handled,
-            Self::Ignored => f(),
+            Self::Stop => Self::Stop,
+            Self::Continue => f(),
         }
     }
 }
@@ -30,17 +30,15 @@ pub trait Widget: Any {
     ///
     /// Note: In order to be able to receive key events, the widget must be marked as focusable.  
     #[allow(unused_variables)]
-    fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventStatus {
-        EventStatus::Ignored
+    fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventResult {
+        EventResult::Continue
     }
 
     #[allow(unused_variables)]
     fn animation_frame(&mut self, frame: AnimationFrame, cx: &mut AnimationContext) {}
 
     #[allow(unused_variables)]
-    fn render(&mut self, cx: &mut RenderContext) -> Scene {
-        Scene::new()
-    }
+    fn render(&mut self, cx: &mut RenderContext) {}
 
     /// Widgets that wrap another widget (like background, styled etc) need to implement this method and return the
     /// wrapped widget in order for downcasting to work properly.
@@ -84,7 +82,7 @@ impl Widget for Box<dyn Widget> {
         self.deref_mut().mouse_event(event, ctx)
     }
 
-    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
+    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventResult {
         self.deref_mut().key_event(event, ctx)
     }
 
@@ -92,7 +90,7 @@ impl Widget for Box<dyn Widget> {
         self.deref_mut().animation_frame(frame, ctx);
     }
 
-    fn render(&mut self, ctx: &mut RenderContext) -> Scene {
+    fn render(&mut self, ctx: &mut RenderContext) {
         self.deref_mut().render(ctx)
     }
 
@@ -116,7 +114,7 @@ pub trait WidgetAdapter: Any {
         self.inner().debug_label()
     }
 
-    fn render(&mut self, cx: &mut RenderContext) -> Scene {
+    fn render(&mut self, cx: &mut RenderContext) {
         self.inner_mut().render(cx)
     }
 
@@ -124,7 +122,7 @@ pub trait WidgetAdapter: Any {
         self.inner_mut().mouse_event(event, cx)
     }
 
-    fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventStatus {
+    fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventResult {
         self.inner_mut().key_event(event, cx)
     }
 
@@ -138,7 +136,7 @@ impl<T: WidgetAdapter> Widget for T {
         self.debug_label()
     }
 
-    fn render(&mut self, cx: &mut RenderContext) -> Scene {
+    fn render(&mut self, cx: &mut RenderContext) {
         self.render(cx)
     }
 
@@ -146,7 +144,7 @@ impl<T: WidgetAdapter> Widget for T {
         self.mouse_event(event, cx)
     }
 
-    fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventStatus {
+    fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventResult {
         self.key_event(event, cx)
     }
 

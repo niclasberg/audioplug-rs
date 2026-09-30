@@ -1,13 +1,13 @@
 use super::reactive::{CanRead, CanWrite, ReadScope};
 use super::{
-    AppState, EventStatus, WidgetFlags, WidgetId, WindowId, animation::drive_animations,
+    AppState, EventResult, WidgetFlags, WidgetId, WindowId, animation::drive_animations,
     clipboard::Clipboard, invalidate_window,
 };
 use crate::event::{MouseClickEvent, MouseDragEvent};
 use crate::platform::OSMouseEvent;
 use crate::ui::reactive::{ReactiveGraph, ReadContext, WidgetStatus, WriteContext};
 use crate::ui::widgets::{Gesture, GestureState};
-use crate::ui::{HostHandle, TaskQueue, Widgets};
+use crate::ui::{HostHandle, TaskQueue, TextContext, Widgets};
 use crate::{
     KeyEvent,
     core::{Key, Rect},
@@ -21,8 +21,11 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         WindowEvent::Resize { .. } => {
             app_state.widgets.layout_window(
                 &mut app_state.widget_impls,
-                &mut app_state.font_cx,
-                &mut app_state.text_layout_cx,
+                &mut TextContext::new(
+                    &mut app_state.font_cx,
+                    &mut app_state.text_layout_cx,
+                    &mut app_state.glyph_cache,
+                ),
                 window_id,
                 RecomputeLayout::Force,
             );
@@ -173,7 +176,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             //set_mouse_gesture(app_state, new_gesture);
         }
         WindowEvent::Key(key_event) => {
-            let mut event_status = EventStatus::Ignored;
+            let mut event_status = EventResult::Continue;
             let mut key_widget = app_state
                 .widgets
                 .focus_widget_id(window_id)
@@ -181,7 +184,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
 
             // We start from the current focus widget, and work our way down until either
             // the event is handled, or we have reached a parentless widget
-            while !slotmap::Key::is_null(&key_widget) && event_status != EventStatus::Handled {
+            while !slotmap::Key::is_null(&key_widget) && event_status != EventResult::Stop {
                 event_status = app_state.widget_impls[key_widget].key_event(
                     key_event.clone(),
                     &mut EventContext {
@@ -196,7 +199,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             }
             app_state.run_effects();
 
-            if event_status == EventStatus::Ignored
+            if event_status == EventResult::Continue
                 && let KeyEvent::KeyDown { key, modifiers, .. } = key_event
             {
                 match key {

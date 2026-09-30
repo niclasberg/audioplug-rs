@@ -11,7 +11,9 @@ use super::{
     widgets::WidgetPos,
 };
 use crate::core::TextLayoutContext;
+use crate::ui::TextContext;
 use crate::ui::reactive::{Owner, ReadContext, ReadScope, WriteContext};
+use crate::ui::render::GlyphCache;
 use crate::{
     core::WindowTheme,
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
@@ -25,6 +27,7 @@ pub struct AppState {
     pub(super) wgpu_instance: wgpu::Instance,
     pub(super) font_cx: parley::FontContext,
     pub(super) text_layout_cx: TextLayoutContext,
+    pub(super) glyph_cache: GlyphCache,
     /// Widget implementation. Should exist for each widget data.
     pub(super) widget_impls: WidgetMap,
     pub(super) widgets: Widgets,
@@ -55,6 +58,7 @@ impl AppState {
             }),
             font_cx: FontContext::new(),
             text_layout_cx: TextLayoutContext::new(),
+            glyph_cache: GlyphCache::new(),
             reactive_graph,
             host_handle: None,
             theme_signal,
@@ -112,8 +116,11 @@ impl AppState {
         self.build_and_insert_widget(root_widget_id, view);
         self.widgets.layout_window(
             &mut self.widget_impls,
-            &mut self.font_cx,
-            &mut self.text_layout_cx,
+            &mut TextContext::new(
+                &mut self.font_cx,
+                &mut self.text_layout_cx,
+                &mut self.glyph_cache,
+            ),
             window_id,
             RecomputeLayout::Force,
         );
@@ -206,8 +213,11 @@ impl AppState {
         for window_id in window_ids {
             self.widgets.layout_window(
                 &mut self.widget_impls,
-                &mut self.font_cx,
-                &mut self.text_layout_cx,
+                &mut TextContext::new(
+                    &mut self.font_cx,
+                    &mut self.text_layout_cx,
+                    &mut self.glyph_cache,
+                ),
                 window_id,
                 RecomputeLayout::IfNeeded,
             );

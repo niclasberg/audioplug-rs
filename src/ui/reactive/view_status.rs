@@ -1,6 +1,6 @@
 use crate::ui::{
-    ViewProp, WidgetId, Widgets,
-    reactive::{CanCreate, CanRead, Effect, ReactiveValue, ReadSignal, WatchContext},
+    Prop, WidgetId, Widgets,
+    reactive::{CanCreate, CanRead, Effect, EffectContext, ReactiveValue, ReadSignal},
 };
 use bitflags::bitflags;
 
@@ -43,9 +43,9 @@ impl WidgetStatus<bool> {
     };
 }
 
-impl<T> From<WidgetStatus<T>> for ViewProp<T> {
+impl<T> From<WidgetStatus<T>> for Prop<T> {
     fn from(value: WidgetStatus<T>) -> Self {
-        ViewProp::ReadSignal(ReadSignal::from_widget_status(value))
+        Prop::ReadSignal(ReadSignal::from_widget_status(value))
     }
 }
 
@@ -72,7 +72,7 @@ impl<T: 'static> ReactiveValue for WidgetStatus<T> {
 
     fn watch<'s, F>(self, cx: &mut impl CanCreate<'s>, f: F) -> Effect
     where
-        F: FnMut(&mut WatchContext, &Self::Value) + 'static,
+        F: FnMut(&mut EffectContext, &Self::Value) + 'static,
     {
         let create_cx = cx.create_context();
         let widget_id = create_cx

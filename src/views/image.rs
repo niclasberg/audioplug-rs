@@ -1,10 +1,10 @@
 use std::path::Path;
 
 use crate::{
-    core::{Color, ImageData, Size, Zero},
+    core::{Color, ImageData, Size},
     ui::{
-        RenderContext, Scene, StyleExt, View, ViewStyle, Widget,
-        style::{AvailableSpace, LayoutMode, Length, Measure, Style},
+        RenderContext, StyleExt, View, ViewStyle, Widget,
+        style::{AvailableSpace, Measure},
     },
 };
 
@@ -81,13 +81,11 @@ impl Widget for ImageWidget {
         "Image"
     }
 
-    fn render(&mut self, ctx: &mut RenderContext) -> Scene {
-        let mut scene = Scene::new();
+    fn render(&mut self, cx: &mut RenderContext) {
         if let Some(source) = &self.source {
-            scene.draw_bitmap(source, ctx.content_bounds())
+            cx.draw_bitmap(source, cx.bounds())
         } else {
-            scene.fill(ctx.content_bounds(), Color::RED)
+            cx.fill(cx.bounds(), Color::RED)
         }
-        scene
     }
 }

@@ -1,21 +1,25 @@
 use crate::{
-    core::{BrushRef, Color, ImageData, Paint, Point, Rect, ShapeRef, TextLayout, Transform},
+    core::{
+        FillRule, ImageData, Paint, PaintRef, PathBuilder, PathSegment, Point, Rect, ScaleFactor,
+        Shape, TextLayout, Transform, TranslateScale,
+    },
     ui::{
-        WidgetData, Widgets,
-        reactive::ReactiveGraph,
-        render::gpu_scene::{GpuAppearance, GpuPaint},
+        TextContext, WidgetData, Widgets,
+        app_state::WidgetMap,
+        reactive::{CanRead, ReactiveGraph, ReadContext, ReadScope},
+        render::scene::{GpuAppearance, GpuPaint},
     },
 };
 
 mod canvas;
-mod gpu_scene;
+mod glyph_cache;
 mod gradient_cache;
 mod scene;
 mod tiles;
 mod wgpu_surface;
-pub use canvas::{Canvas, CanvasContext, CanvasWidget};
-pub use gpu_scene::GpuScene;
-pub use scene::Scene;
+pub use canvas::{Canvas, CanvasWidget};
+pub use glyph_cache::GlyphCache;
+pub use scene::GpuScene;
 pub use wgpu_surface::WGPUSurface;
 
 use super::{WidgetId, WindowId};
@@ -25,8 +29,15 @@ pub fn invalidate_window(widgets: &Widgets, window_id: WindowId) {
     handle.invalidate_window()
 }
 
-pub fn paint_window(widgets: &mut Widgets, window_id: WindowId, dirty_rect: Rect) {
-    rebuild_scene(widgets, window_id);
+pub fn paint_window(
+    widgets: &mut Widgets,
+    text_cx: &mut TextContext,
+    reactive_graph: &mut ReactiveGraph,
+    widget_map: &mut WidgetMap,
+    window_id: WindowId,
+    dirty_rect: Rect,
+) {
+    rebuild_scene(widgets, text_cx, reactive_graph, widget_map, window_id);
     let window = widgets.window_mut(window_id);
     let wgpu_surface = &mut window.wgpu_surface;
 
@@ -53,6 +64,9 @@ pub fn paint_window(widgets: &mut Widgets, window_id: WindowId, dirty_rect: Rect
             label: Some("AudioPlug command encoder"),
         });
 
+    // There's no point in running the compute shader if there's nothing to render...
+    // But maybe we need to clear the texture?
+    // Could run an "empty" shader instead of the blit shader, to just clear
     if !window.gpu_scene.is_empty() {
         wgpu_surface.upload_scene(&window.gpu_scene);
 
@@ -117,30 +131,59 @@ pub fn paint_window(widgets: &mut Widgets, window_id: WindowId, dirty_rect: Rect
          */
 }
 
-fn rebuild_scene(widgets: &mut Widgets, window_id: WindowId) {
+fn rebuild_scene(
+    widgets: &mut Widgets,
+    text_cx: &mut TextContext,
+    reactive_graph: &mut ReactiveGraph,
+    widget_map: &mut WidgetMap,
+    window_id: WindowId,
+) {
     let window = &mut widgets.windows[window_id];
-    let scale_factor = window.handle.scale_factor().0;
-    let gpu_scene = &mut window.gpu_scene;
+    let scale_factor = window.handle.scale_factor();
+    let mut gpu_scene = std::mem::take(&mut window.gpu_scene);
     gpu_scene.clear();
 
     let mut roots = vec![window.root_widget];
     roots.extend(window.overlays.iter());
+
+    let mut path_segment_buffer = Vec::new();
 
     for root_id in roots {
         let mut walker = widgets
             .tree
             .dfs_walker_with_pruning(root_id, |node| !(node.is_overlay() || node.style.hidden));
         while let Some(widget_id) = walker.next(&widgets.tree) {
-            let node = &widgets.tree[widget_id];
-            render_node_background(node, gpu_scene, scale_factor);
+            let bounds = widgets.tree[widget_id].content_bounds();
+            render_node_background(&widgets.tree[widget_id], &mut gpu_scene, scale_factor);
+
+            widget_map[widget_id].render(&mut RenderContext {
+                id: widget_id,
+                widgets,
+                reactive_graph,
+                read_scope: ReadScope::Untracked,
+                scene: &mut gpu_scene,
+                path_segment_buffer: &mut path_segment_buffer,
+                scale_factor,
+            });
+
+            if let Some(text) = widgets.texts.get_mut(widget_id) {
+                let layout = text.get_or_create_layout(text_cx);
+                layout.break_all_lines(Some(bounds.width()));
+                gpu_scene.draw_text(bounds.top_left(), layout, text_cx.glyph_cache, scale_factor);
+            }
         }
     }
+
+    drop(std::mem::replace(
+        &mut widgets.windows[window_id].gpu_scene,
+        gpu_scene,
+    ));
 }
 
-fn render_node_background(node: &WidgetData, gpu_scene: &mut GpuScene, scale_factor: f32) {
+fn render_node_background(node: &WidgetData, gpu_scene: &mut GpuScene, scale_factor: ScaleFactor) {
     let mut appearance = GpuAppearance::new();
     if let Some(shadow) = node.style.box_shadow {
-        appearance.set_shadow(shadow.into());
+        appearance.set_shadow(shadow, scale_factor);
     }
 
     if let Some(background) = &node.style.background {
@@ -151,41 +194,33 @@ fn render_node_background(node: &WidgetData, gpu_scene: &mut GpuScene, scale_fac
         appearance.set_fill(paint);
     }
 
-    let line_width = node.layout.border.top * scale_factor;
+    let line_width = node.layout.border.top * scale_factor.0;
     if let Some(border_color) = node.style.border_color
         && line_width > 0.0
     {
         let paint = GpuPaint::solid(border_color);
         appearance.set_stroke(paint, line_width);
-    } else {
-        appearance.set_stroke(GpuPaint::solid(Color::BLACK), 1.0);
     }
 
     if !appearance.is_empty() {
-        let shape = node.shape().scale(scale_factor);
-        let shape_ref = gpu_scene.add_primitive_shape(shape);
+        let shape_ref = gpu_scene.add_shape(node.shape(), scale_factor);
         let appearance_ref = gpu_scene.add_appearance(appearance);
-        gpu_scene.draw(shape_ref, appearance_ref);
+        gpu_scene.draw(shape_ref, appearance_ref, TranslateScale::identity());
     }
 }
 
 pub struct RenderContext<'a> {
-    id: WidgetId,
+    pub(super) id: WidgetId,
     pub(super) widgets: &'a mut Widgets,
     pub(super) reactive_graph: &'a mut ReactiveGraph,
-    scene: &'a mut GpuScene,
+    pub(super) read_scope: ReadScope,
+    pub(super) path_segment_buffer: &'a mut Vec<PathSegment>,
+    pub(super) scene: &'a mut GpuScene,
+    pub(super) scale_factor: ScaleFactor,
 }
 
 impl<'a> RenderContext<'a> {
-    pub fn local_bounds(&self) -> Rect {
-        self.widgets.local_bounds(self.id)
-    }
-
-    pub fn global_bounds(&self) -> Rect {
-        self.widgets.global_bounds(self.id)
-    }
-
-    pub fn content_bounds(&self) -> Rect {
+    pub fn bounds(&self) -> Rect {
         self.widgets.content_bounds(self.id)
     }
 
@@ -197,39 +232,102 @@ impl<'a> RenderContext<'a> {
         self.widgets.is_pressed(self.id)
     }
 
-    pub fn fill<'b>(&mut self, shape: impl Into<ShapeRef<'b>>, brush: impl Into<Paint>) {
-        //self.renderer.fill_shape(shape.into(), brush.into());
+    pub fn fill_path(
+        &mut self,
+        mut build_path: impl FnMut(&mut PathBuilder),
+        brush: impl Into<Paint>,
+        fill_rule: FillRule,
+    ) {
+        self.path_segment_buffer.clear();
+        build_path(&mut PathBuilder::new(self.path_segment_buffer));
+        let shape_ref = self.scene.add_path(
+            &self.path_segment_buffer,
+            fill_rule,
+            TranslateScale::scale(self.scale_factor.0),
+        );
+        let mut appearance = GpuAppearance::new();
+        appearance.set_fill(GpuPaint::from(brush.into()));
+        let appearance_ref = self.scene.add_appearance(appearance);
+        self.scene
+            .draw(shape_ref, appearance_ref, TranslateScale::identity());
     }
 
-    pub fn stroke<'c, 'd>(
+    pub fn stroke_path(
         &mut self,
-        shape: impl Into<ShapeRef<'c>>,
-        brush: impl Into<BrushRef<'d>>,
+        mut build_path: impl FnMut(&mut PathBuilder),
+        brush: impl Into<Paint>,
         line_width: f32,
     ) {
-        //self.renderer.stroke_shape(shape.into(), brush.into(), line_width);
+        self.path_segment_buffer.clear();
+        build_path(&mut PathBuilder::new(self.path_segment_buffer));
+        let shape_ref = self.scene.add_path(
+            &self.path_segment_buffer,
+            FillRule::NonZero,
+            TranslateScale::scale(self.scale_factor.0),
+        );
+        let mut appearance = GpuAppearance::new();
+        appearance.set_stroke(
+            GpuPaint::from(brush.into()),
+            line_width * self.scale_factor.0,
+        );
+        let appearance_ref = self.scene.add_appearance(appearance);
+        self.scene
+            .draw(shape_ref, appearance_ref, TranslateScale::identity());
+    }
+
+    pub fn fill(&mut self, shape: impl Into<Shape>, brush: impl Into<Paint>) {
+        let shape_ref = self.scene.add_shape(shape.into(), self.scale_factor);
+        let mut appearance = GpuAppearance::new();
+        appearance.set_fill(GpuPaint::from(brush.into()));
+        let appearance_ref = self.scene.add_appearance(appearance);
+        self.scene
+            .draw(shape_ref, appearance_ref, TranslateScale::identity());
+    }
+
+    pub fn stroke<'d>(
+        &mut self,
+        shape: impl Into<Shape>,
+        brush: impl Into<PaintRef<'d>>,
+        line_width: f32,
+    ) {
+        let shape_ref = self.scene.add_shape(shape.into(), self.scale_factor);
+        let mut appearance = GpuAppearance::new();
+        appearance.set_stroke(GpuPaint::from(brush.into()), line_width);
+        let appearance_ref = self.scene.add_appearance(appearance);
+        self.scene
+            .draw(shape_ref, appearance_ref, TranslateScale::identity());
     }
 
     pub fn draw_line<'c>(
         &mut self,
         p0: Point,
         p1: Point,
-        brush: impl Into<BrushRef<'c>>,
+        brush: impl Into<Paint>,
         line_width: f32,
     ) {
-        //self.renderer.draw_line(p0, p1, brush.into(), line_width)
+        self.stroke_path(
+            |path| {
+                path.move_to(p0).line_to(p1);
+            },
+            brush.into(),
+            line_width,
+        );
     }
 
-    pub fn draw_lines<'c>(
-        &mut self,
-        points: &[Point],
-        brush: impl Into<BrushRef<'c>>,
-        line_width: f32,
-    ) {
-        /*let brush = brush.into();
-        for p in points.windows(2) {
-            self.renderer.draw_line(p[0], p[1], brush, line_width)
-        }*/
+    pub fn draw_lines<'c>(&mut self, points: &[Point], brush: impl Into<Paint>, line_width: f32) {
+        if points.len() > 1 {
+            self.stroke_path(
+                |mut path| {
+                    let mut it = points.iter().copied();
+                    path = path.move_to(it.next().unwrap());
+                    for point in it {
+                        path = path.line_to(point);
+                    }
+                },
+                brush.into(),
+                line_width,
+            );
+        }
     }
 
     pub fn draw_bitmap(&mut self, source: &ImageData, rect: impl Into<Rect>) {
@@ -249,6 +347,20 @@ impl<'a> RenderContext<'a> {
 
     pub fn transform(&mut self, transform: impl Into<Transform>) {
         //self.renderer.transform(transform.into());
+    }
+}
+
+impl<'s> CanRead<'s> for RenderContext<'s> {
+    fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
+    where
+        's: 's2,
+    {
+        ReadContext {
+            widgets: self.widgets,
+            reactive_graph: self.reactive_graph,
+            scope: self.read_scope,
+            current_widget: Some(self.id),
+        }
     }
 }
 

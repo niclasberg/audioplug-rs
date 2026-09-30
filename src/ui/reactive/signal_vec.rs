@@ -4,9 +4,9 @@ use super::{
     CanCreate, CanWrite, NodeId, Owner, ReactiveValue, Trigger, runtime::NodeType, var::SignalState,
 };
 use crate::ui::{
-    ViewProp,
+    Prop,
     prelude::CanRead,
-    reactive::{ReadContext, WatchContext, WriteContext},
+    reactive::{EffectContext, ReadContext, WriteContext},
 };
 
 #[derive(Copy, Clone)]
@@ -80,7 +80,7 @@ impl<T: Any> SignalVec<T> {
     }
 }
 
-impl<T> From<SignalVec<T>> for ViewProp<Vec<T>> {
+impl<T> From<SignalVec<T>> for Prop<Vec<T>> {
     fn from(value: SignalVec<T>) -> Self {
         todo!()
     }
@@ -109,7 +109,7 @@ impl<T: Any> ReactiveValue for SignalVec<T> {
 
     fn watch<'cx, F>(self, cx: &mut impl CanCreate<'cx>, f: F) -> super::Effect
     where
-        F: FnMut(&mut WatchContext, &Self::Value) + 'static,
+        F: FnMut(&mut EffectContext, &Self::Value) + 'static,
     {
         todo!()
     }
@@ -122,7 +122,7 @@ pub struct AtIndex<Parent, T> {
     _phantom2: PhantomData<*const T>,
 }
 
-impl<T: Any> From<AtIndex<SignalVec<T>, T>> for ViewProp<T> {
+impl<T: Any> From<AtIndex<SignalVec<T>, T>> for Prop<T> {
     fn from(value: AtIndex<SignalVec<T>, T>) -> Self {
         todo!()
     }
@@ -147,7 +147,7 @@ impl<T: Any> ReactiveValue for AtIndex<SignalVec<T>, T> {
 
     fn watch<'cx, F>(self, cx: &mut impl CanCreate<'cx>, f: F) -> super::Effect
     where
-        F: FnMut(&mut WatchContext, &Self::Value) + 'static,
+        F: FnMut(&mut EffectContext, &Self::Value) + 'static,
     {
         todo!()
     }

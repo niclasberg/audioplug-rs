@@ -1,10 +1,10 @@
 use audioplug::{
-    core::{Color, Path, ShadowOptions, Size, Vec2},
+    core::{Color, FillRule, ShadowOptions, Size, Vec2},
     param::{AnyParameter, FloatParameter},
     ui::{
         prelude::*,
         style::{AlignItems, Length, UiRect},
-        Canvas, Scene, StyleExt, View,
+        Canvas, StyleExt, View,
     },
     views::{Checkbox, Column, Label, ParameterKnob, ParameterSlider, Row},
     Editor, EditorContext,
@@ -148,23 +148,25 @@ fn envelope_graph(
     Canvas::new(move |cx| {
         let bounds = cx.bounds();
         let s_width = 0.2;
+        let s_level = s.get(cx) as f32;
         let a_d_r_width = (1.0 - s_width) / max_env_time;
         let a_end = a.get(cx) * a_d_r_width;
         let d_end = a_end + d.get(cx) * a_d_r_width;
         let s_end = d_end + s_width;
         let r_end = s_end + r.get(cx) * a_d_r_width;
 
-        let geometry = Path::new()
-            .move_to(bounds.get_relative_point(0.0, 1.0))
-            .line_to(bounds.get_relative_point(a_end as _, 0.0))
-            .line_to(bounds.get_relative_point(d_end as _, 1.0 - s.get(cx) as f32))
-            .line_to(bounds.get_relative_point(s_end as _, 1.0 - s.get(cx) as f32))
-            .line_to(bounds.get_relative_point(r_end as _, 1.0))
-            .close_path();
-
-        let mut scene = Scene::new();
-        scene.fill(geometry, Color::BLACK);
-        scene
+        cx.fill_path(
+            |path| {
+                path.move_to(bounds.get_relative_point(0.0, 1.0))
+                    .line_to(bounds.get_relative_point(a_end as _, 0.0))
+                    .line_to(bounds.get_relative_point(d_end as _, 1.0 - s_level))
+                    .line_to(bounds.get_relative_point(s_end as _, 1.0 - s_level))
+                    .line_to(bounds.get_relative_point(r_end as _, 1.0))
+                    .close_path();
+            },
+            Color::BLACK,
+            FillRule::EvenOdd,
+        );
     })
     .background(Color::WHITE.with_alpha(0.2))
     .padding(UiRect::all_px(2.0))

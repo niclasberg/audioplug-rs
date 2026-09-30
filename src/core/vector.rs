@@ -70,6 +70,20 @@ impl Vec2 {
             y: self.y.round(),
         }
     }
+
+    pub const fn clamp(self, min: f32, max: f32) -> Self {
+        Self {
+            x: self.x.clamp(min, max),
+            y: self.y.clamp(min, max),
+        }
+    }
+
+    pub const fn abs(self) -> Self {
+        Self {
+            x: self.x.abs(),
+            y: self.y.abs(),
+        }
+    }
 }
 
 impl Neg for Vec2 {
@@ -170,6 +184,10 @@ macro_rules! impl_vec2_base {
                     x: self.x.max(other.x),
                     y: self.y.max(other.y),
                 }
+            }
+
+            pub fn max_element(self) -> $t {
+                self.x.max(self.y)
             }
 
             pub const fn scale(self, val: $t) -> Self {

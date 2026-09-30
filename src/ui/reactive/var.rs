@@ -5,8 +5,8 @@ use super::{
     runtime::NodeType,
 };
 use crate::ui::{
-    ViewProp,
-    reactive::{CreateContext, WatchContext},
+    Prop,
+    reactive::{CreateContext, EffectContext},
 };
 
 /// A value that may change over time.
@@ -90,9 +90,9 @@ impl<T: Any> Var<T> {
     }*/
 }
 
-impl<T: 'static> From<Var<T>> for ViewProp<T> {
+impl<T: 'static> From<Var<T>> for Prop<T> {
     fn from(value: Var<T>) -> Self {
-        ViewProp::ReadSignal(value.as_read_signal())
+        Prop::ReadSignal(value.as_read_signal())
     }
 }
 
@@ -117,7 +117,7 @@ impl<T: 'static> ReactiveValue for Var<T> {
 
     fn watch<'cx, F>(self, cx: &mut impl CanCreate<'cx>, f: F) -> Effect
     where
-        F: FnMut(&mut WatchContext, &Self::Value) + 'static,
+        F: FnMut(&mut EffectContext, &Self::Value) + 'static,
     {
         Effect::watch_node(cx.create_context(), self.id, f)
     }

@@ -8,7 +8,7 @@ use super::{
 use crate::{
     core::TextLayoutContext,
     ui::{
-        ViewProp, ViewStyle, ViewText, WidgetData,
+        Prop, ViewStyle, ViewText, WidgetData,
         reactive::{CreateContext, ReadContext},
         style::{DisplayStyle, Style},
         text::{TextContext, TextData},
@@ -189,12 +189,13 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
         TextContext::new(
             &mut self.app_state.font_cx,
             &mut self.app_state.text_layout_cx,
+            &mut self.app_state.glyph_cache,
         )
     }
 }
 
 fn apply_layout_style<T: Clone + 'static>(
-    accessor: Option<ViewProp<T>>,
+    accessor: Option<Prop<T>>,
     cx: &mut BuildContext<dyn Widget>,
     apply_fn: fn(T, &mut Style),
 ) {
@@ -208,7 +209,7 @@ fn apply_layout_style<T: Clone + 'static>(
 }
 
 fn apply_render_style<T: Clone + 'static>(
-    accessor: Option<ViewProp<T>>,
+    accessor: Option<Prop<T>>,
     cx: &mut BuildContext<dyn Widget>,
     apply_fn: fn(T, &mut Style),
 ) {

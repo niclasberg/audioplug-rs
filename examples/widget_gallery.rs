@@ -48,21 +48,16 @@ fn main() {
 }
 
 fn menu_button(label: &str, tab_signal: Var<Tab>, tab: Tab) -> impl View {
-    Button::new_with_label(label, move |cx| tab_signal.set(cx, tab))
-        .background(tab_signal.map(move |current_tab| {
+    Button::new_with_label(label, move |cx| tab_signal.set(cx, tab)).background(tab_signal.map(
+        move |current_tab| {
             if *current_tab == tab {
                 Color::EARTH_YELLOW.tint(0.2)
             } else {
                 Color::EARTH_YELLOW
             }
             .into()
-        }))
-        .box_shadow(ShadowOptions {
-            radius: 5.0,
-            offset: Vec2::splat(5.0),
-            color: Color::BLACK.with_alpha(0.5),
-            kind: ShadowKind::DropShadow,
-        })
+        },
+    ))
 }
 
 fn overview() -> impl View {
@@ -119,7 +114,8 @@ fn overview() -> impl View {
                 Slider::new(move |cx, value| slider_value.set(cx, value))
                     .range(1.0, 500.0)
                     .value(slider_value)
-                    .height(Length::Px(25.0)),
+                    .height(Length::Px(25.0))
+                    .flex_grow(1.0),
             ))
             .spacing(Length::Px(5.0))
             .v_align_center(),

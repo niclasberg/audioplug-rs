@@ -13,12 +13,12 @@ members = [ "examples/gain", "examples/synth", "xtask"]
 arrayvec = "0.7.8"
 async-task = "4.7.1"
 atomic_refcell = "0.1.14"
-bitflags = "2.13.1"
+bitflags = "2.13.2"
 bytemuck = { version = "1.25.2", features = ["derive"]}
 clap-sys = "0.5.0"
 env_logger = "0.11.11"
 image = "0.25.10"
-indexmap = "2.13.0"
+indexmap = "2.14.2"
 log = "0.4.34"
 midi-consts = "0.1.0"
 num = { version = "0.4.3" }
@@ -28,12 +28,13 @@ raw-window-handle = "0.6.2"
 rtrb = "0.4.0"
 rustc-hash = "2.1.3"
 serde = "1.0.229"
+skrifa = "0.47.0"
 slotmap = "1.1.1"
-smallvec = "1.16.0"
+smallvec = "1.16.2"
 taffy = "0.14.0"
-thiserror = "2.0.20"
+thiserror = "2.0.21"
 unicode-segmentation = "1.13.3"
-uuid = { version = "1.26.0", features = ["v4"] }
+uuid = { version = "1.26.1", features = ["v4"] }
 vst3 = "0.3.0"
 wgpu = "28.0.0"
 

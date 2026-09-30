@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::ops::DerefMut;
 use std::rc::Rc;
 
 use pollster::FutureExt;
@@ -7,6 +8,7 @@ use raw_window_handle::RawWindowHandle;
 use super::{App, AppState, View, WindowId};
 use crate::core::{Cursor, PhysicalRect, Point, Rect, ScaleFactor};
 use crate::platform::{self, WindowEvent};
+use crate::ui::TextContext;
 use crate::ui::render::WGPUSurface;
 
 enum WindowState<V> {
@@ -75,7 +77,15 @@ impl<V: View> platform::WindowHandler for MyHandler<V> {
 
     fn paint(&mut self, dirty_rect: Rect) {
         let mut app_state = self.app_state.borrow_mut();
-        super::render::paint_window(&mut app_state.widgets, self.state.window_id(), dirty_rect)
+        let aa = app_state.deref_mut();
+        super::render::paint_window(
+            &mut aa.widgets,
+            &mut TextContext::new(&mut aa.font_cx, &mut aa.text_layout_cx, &mut aa.glyph_cache),
+            &mut aa.reactive_graph,
+            &mut aa.widget_impls,
+            self.state.window_id(),
+            dirty_rect,
+        )
     }
 
     fn get_cursor(&self, pos: Point) -> Option<Cursor> {

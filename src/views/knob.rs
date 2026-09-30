@@ -3,10 +3,7 @@ use crate::{
     core::{Circle, Color, Modifiers, Point, Rect, Vec2},
     event::{MouseDownEvent, MouseDragEvent, MouseWheelEvent},
     param::{AnyParameter, NormalizedValue, PlainValue},
-    ui::{
-        BuildContext, EventContext, RenderContext, Scene, View, ViewProp, Widget,
-        reactive::ParamSetter,
-    },
+    ui::{BuildContext, EventContext, Prop, RenderContext, View, Widget, reactive::ParamSetter},
 };
 
 use super::util::{denormalize_value, round_to_steps};
@@ -18,7 +15,7 @@ type ValueChangedFn = dyn Fn(&mut EventContext, f64);
 pub struct Knob {
     min: f64,
     max: f64,
-    value: Option<ViewProp<f64>>,
+    value: Option<Prop<f64>>,
     on_drag_start: Option<Box<DragStartFn>>,
     on_drag_end: Option<Box<DragEndFn>>,
     on_value_changed: Option<Box<ValueChangedFn>>,
@@ -42,7 +39,7 @@ impl Knob {
         self
     }
 
-    pub fn value(mut self, value: impl Into<ViewProp<f64>>) -> Self {
+    pub fn value(mut self, value: impl Into<Prop<f64>>) -> Self {
         self.value = Some(value.into());
         self
     }
@@ -71,7 +68,7 @@ impl View for Knob {
 
 pub struct ParameterKnob<P> {
     editor: ParamSetter<P>,
-    signal: ViewProp<NormalizedValue>,
+    signal: Prop<NormalizedValue>,
 }
 
 impl<P: AnyParameter> ParameterKnob<P> {
@@ -215,15 +212,13 @@ impl Widget for KnobWidget {
         }
     }
 
-    fn render(&mut self, cx: &mut RenderContext) -> Scene {
-        let mut scene = Scene::new();
-        let bounds = cx.content_bounds();
+    fn render(&mut self, cx: &mut RenderContext) {
+        let bounds = cx.bounds();
         let shape = self.shape(bounds);
 
         let angle = self.current_angle() as f32;
         let dot_pos = shape.center + Vec2::new(angle.cos(), angle.sin()).scale(0.7 * shape.radius);
-        scene.fill(shape, Color::GREEN);
-        scene.fill(Circle::new(dot_pos, 0.15 * shape.radius), Color::BLACK);
-        scene
+        cx.fill(shape, Color::GREEN);
+        cx.fill(Circle::new(dot_pos, 0.15 * shape.radius), Color::BLACK);
     }
 }

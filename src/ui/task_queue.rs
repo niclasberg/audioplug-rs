@@ -1,14 +1,14 @@
 use std::{
     any::Any,
-    cell::RefCell,
     collections::VecDeque,
+    ops::DerefMut,
     rc::{Rc, Weak},
 };
 
 use super::reactive::NodeId;
 use crate::ui::{
     AppState, Widget, WidgetId, WidgetMut,
-    reactive::{EffectContext, EffectFn, HandleEventFn, WatchContext, WatchFn},
+    reactive::{EffectContext, EffectState, HandleEventFn, runtime::NodeType},
 };
 
 #[derive(Default)]
@@ -23,11 +23,6 @@ impl TaskQueue {
 pub enum Task {
     RunEffect {
         id: NodeId,
-        f: Weak<RefCell<EffectFn>>,
-    },
-    UpdateBinding {
-        f: Weak<RefCell<WatchFn>>,
-        node_id: NodeId,
     },
     UpdateWidget {
         widget_id: WidgetId,
@@ -42,23 +37,44 @@ pub enum Task {
 impl Task {
     pub(super) fn run(self, app_state: &mut AppState) {
         match self {
-            Task::RunEffect { id, f } => {
-                if let Some(f) = f.upgrade() {
-                    let mut cx = EffectContext {
-                        effect_id: id,
-                        app_state,
+            Task::RunEffect { id } => {
+                if let Some(mut node) = app_state.reactive_graph.lease_node(id) {
+                    let NodeType::Effect(effect_state) = node.deref_mut() else {
+                        unreachable!()
                     };
-                    (RefCell::borrow_mut(&f))(&mut cx);
+
+                    match effect_state {
+                        EffectState::EffectFn { f, dynamic_sources } => f(&mut EffectContext {
+                            effect_id: id,
+                            app_state,
+                            track_reads: *dynamic_sources,
+                        }),
+                        EffectState::WidgetPropBinding {
+                            widget_id,
+                            prop,
+                            read_scope,
+                        } => {
+                            // Widget might have been removed
+                            if !app_state.widgets.contains(*widget_id) {
+                                return;
+                            }
+
+                            // Effect node might have been removed
+                            if !app_state.reactive_graph.contains(id) {
+                                return;
+                            }
+
+                            app_state.widgets.apply_widget_prop(
+                                &mut app_state.reactive_graph,
+                                *widget_id,
+                                prop,
+                                *read_scope,
+                            );
+                        }
+                    }
+
+                    app_state.reactive_graph.unlease_node(node);
                     app_state.reactive_graph.mark_node_as_clean(id);
-                }
-            }
-            Task::UpdateBinding { f, node_id } => {
-                if let Some(f) = f.upgrade() {
-                    (RefCell::borrow_mut(&f))(&mut WatchContext {
-                        app_state,
-                        effect_id: node_id,
-                    });
-                    app_state.reactive_graph.mark_node_as_clean(node_id);
                 }
             }
             Task::HandleEvent { f, event } => {

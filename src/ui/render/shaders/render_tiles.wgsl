@@ -14,6 +14,10 @@ const SHAPE_TYPE_ROUNDED_RECT = 3u;
 const SHAPE_TYPE_ELLIPSE = 4u;
 const SHAPE_TYPE_MASK = 7u;
 
+const SEGMENT_KIND_LINE = 0u;
+const SEGMENT_KIND_QUAD_BEZ = 1u;
+const SEGMENT_KIND_CUBIC_BEZ = 2u;
+
 const FILL_RULE_EVEN_ODD = 1u << 3;
 
 const FILL_FLAG = 1u;
@@ -47,6 +51,16 @@ struct RadialGradient {
 struct LineSegment {
 	p0: vec2f,
 	p1: vec2f,
+}
+
+struct PathSegment {
+    start: vec2f,
+    end: vec2f,
+    control1: vec2f,
+    control2: vec2f,
+    kind: u32,
+    /// Padding needed to fullfill wgsl alignment requirements
+    _padding: u32,
 }
 
 struct Rect {
@@ -83,13 +97,17 @@ struct Appearance {
 	shadow: Shadow,
 	stroke_width: f32, 
 	flags: u32,
-	_padding: vec2u,
+	margin: f32,
+	_padding: u32,
 }
 
 struct DrawCommand {
 	shape_type: u32,
     shape_index: u32,
     appearance_index: u32,
+	scale: f32,
+	translation: vec2f,
+	bounds: Rect
 }
 
 @group(0) @binding(0)
@@ -102,10 +120,20 @@ var<uniform> params: Params;
 var<storage, read> shape_data: array<f32>;
 
 @group(1) @binding(2)
-var<storage, read> appearances: array<Appearance>;
+var<storage, read> segments: array<PathSegment>;
 
 @group(1) @binding(3)
+var<storage, read> segment_bounds: array<Rect>;
+
+@group(1) @binding(4)
+var<storage, read> appearances: array<Appearance>;
+
+@group(1) @binding(5)
 var<storage, read> draw_commands: array<DrawCommand>;
+
+const MAX_TILE_DRAW_COMMANDS = 256u;
+var<workgroup> tile_draw_commands: array<u32, MAX_TILE_DRAW_COMMANDS>;
+var<workgroup> tile_command_count: atomic<u32>;
 
 @compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -123,9 +151,15 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 	
 	for (var i = 0u; i < params.draw_command_count; i++) {
 		let command = draw_commands[i];
-		let appearance = appearances[command.appearance_index];
 
-		let signed_dist = sd_shape(command.shape_type, command.shape_index, pos);
+		if !is_point_in_rect(command.bounds, pos) {
+			continue;
+		}
+
+		let appearance = appearances[command.appearance_index];
+		let shape_pos = (pos - command.translation) / command.scale;
+
+		let signed_dist = command.scale * sd_shape(command.shape_type, command.shape_index, shape_pos, appearance.margin / command.scale);
 
 		if ((appearance.flags & SHADOW_FLAG) != 0 && appearance.shadow.kind == SHADOW_KIND_OUTER) {
 			let pt = pos - appearance.shadow.offset;
@@ -143,7 +177,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 		if ((appearance.flags & STROKE_FLAG) != 0) {
 			let stroke_color = eval_paint(appearance.stroke, pos);
-			let signed_dist_stroked = abs(signed_dist) - appearance.stroke_width;
+			let signed_dist_stroked = abs(signed_dist) - appearance.stroke_width * 0.5;
 			let coverage = distance_to_coverage(signed_dist_stroked);
 			color = blend(color, stroke_color, coverage);
 		}
@@ -230,7 +264,7 @@ fn read_ellipse(index: u32) -> Ellipse {
 	);
 }
 
-fn sd_shape(shape_type: u32, index: u32, pos: vec2f) -> f32 {
+fn sd_shape(shape_type: u32, index: u32, pos: vec2f, max_dist: f32) -> f32 {
 	switch (shape_type & SHAPE_TYPE_MASK) {
 		case SHAPE_TYPE_NONE: {
 			return -1.0;
@@ -238,22 +272,38 @@ fn sd_shape(shape_type: u32, index: u32, pos: vec2f) -> f32 {
 		case SHAPE_TYPE_PATH: {
 			let size = (shape_type >> 4);
 			var winding_number = 0.0f;
-			var dist = 100000000.0f;
+			var dist = max_dist;
 			for (var i = 0u; i < size; i++) {
-				let segment = read_line_segment(index + 4*i);
-				winding_number += winding_contribution(segment.p0, segment.p1, pos);
-				dist = min(dist, sd_line(segment.p0, segment.p1, pos));
+				let bounds = segment_bounds[index + i];
+				let segment = segments[index + i];
+				if rect_dist_less_than(bounds, pos, dist) {
+					switch (segment.kind) {
+						case SEGMENT_KIND_LINE: {
+							dist = min(dist, sd_line(segment.start, segment.end, pos));
+						}
+						case SEGMENT_KIND_QUAD_BEZ: {
+							dist = min(dist, sd_quad_bezier(segment.start, segment.control1, segment.end, pos));
+						}
+						default: {
+
+						}
+					}
+				}
+
+				winding_number += winding_contribution(segment.start, segment.end, pos);
 			}
 			
-			let even_odd_fill = 1.0 - abs(1.0 - 2.0 * fract(0.5 * winding_number));
-			let non_zero_fill = clamp(abs(winding_number), 0.0, 1.0);
-			return dist * select(non_zero_fill, even_odd_fill, (shape_type & FILL_RULE_EVEN_ODD) != 0);
+			let is_inside = select(
+				abs(winding_number) > 0.0, 
+				(u32(abs(winding_number)) & 1u) != 0u, 
+				(shape_type & FILL_RULE_EVEN_ODD) != 0u);
+			return select(-dist, dist, is_inside);
 		}
 		case SHAPE_TYPE_RECT: {
 			let rect = read_rect(index);
 			let half_size = 0.5 * (rect.bottom_right - rect.top_left);
 			let p = pos - rect.top_left - half_size;
-			return sd_rect(half_size, pos);
+			return sd_rect(half_size, p);
 		}
 		case SHAPE_TYPE_ROUNDED_RECT: {
 			let rect = read_rounded_rect(index);
@@ -272,6 +322,16 @@ fn sd_shape(shape_type: u32, index: u32, pos: vec2f) -> f32 {
 	}
 }
 
+/// Returns 1.0 if pos is inside the rect, 0.0 otherwise
+fn is_point_in_rect(r: Rect, pos: vec2f) -> bool {
+	return all(pos >= r.top_left) && all(pos <= r.bottom_right);
+}
+
+fn rect_dist_less_than(r: Rect, pos: vec2f, dist: f32) -> bool {
+    let d = max(max(r.top_left - pos, pos - r.bottom_right), vec2f(0.0));
+    return dot(d, d) < dist * dist;
+}
+
 // Shoot ray in positive x direction, returns the number of path crossings
 fn winding_contribution(p0: vec2<f32>, p1: vec2<f32>, pos: vec2<f32>) -> f32 {
 	let delta = p1 - p0;
@@ -286,10 +346,8 @@ fn cross(u: vec2<f32>, v: vec2<f32>) -> f32 {
     return u.x * v.y - u.y * v.x;
 }
 
-/// Returns 1.0 if pos is inside the rect, 0.0 otherwise
-fn is_point_in_rect(top_left: vec2f, bottom_right: vec2f, pos: vec2f) -> f32 {
-	let s = step(top_left, pos) - step(bottom_right, pos);
-	return s.x * s.y;
+fn dot2(u: vec2<f32>) -> f32 {
+    return dot(u, u);
 }
 
 /// Signed distance to a rect centered at the origin (adapted 
@@ -316,7 +374,7 @@ fn sd_ellipse(radii: vec2f, pos: vec2f) -> f32 {
     let q = radii * (p - radii);
 
 	// Maybe we can use a better initial condition?
-	var w = select(0.0, PI / 2.0, q.x<q.y);
+	var w = select(0.0, PI / 2.0, q.x < q.y);
     for (var i=0; i < 5; i++ ) {
         let cs = vec2(cos(w), sin(w));
         let u = radii * vec2f( cs.x, cs.y);
@@ -334,6 +392,169 @@ fn sd_line(a: vec2f, b: vec2f, pos: vec2f) -> f32 {
 	let t = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0 );
     return length(pa - ba * t);
 }
+
+fn sd_quad_bezier(p0: vec2f, p1: vec2f, p2: vec2f, pos: vec2f) -> f32 {
+	// Want to solve:
+	// 	0 = 2|a|^2 t^3 + 3dot(a, b) t^2 + (2dot(c - pos, a) + |b|^2) + dot(c-pos, b)
+	// Where a = p0 - 2*p1 + p2, b = -2*p0 + 2*p1, c = p0
+	let a = p0 - 2.0 * p1 + p2;
+	let b = -2.0 * p0 + 2.0 * p1;
+	let c = p0 - pos;
+
+	let k0 = 2.0 * dot(a, a);
+	let k1 = 3.0 * dot(a, b);
+	let k2 = (2.0 * dot(c, a) + dot(b, b));
+	let k3 = dot(c, b);
+
+	let roots = solve_cubic(k0, k1, k2, k3);
+	// The maxima always occurs at one of the two first roots
+	let t1 = clamp(roots.roots[0], 0.0, 1.0);
+	let dist1 = dot2(c + (b + a * t1) * t1);
+	let t2 = clamp(roots.roots[1], 0.0, 1.0);
+	let dist2 = dot2(c + (b + a * t2) * t2);
+	if dist1 < dist2 {
+		return sqrt(dist1);
+	} else {
+		return sqrt(dist2);
+	}
+}
+
+struct CubicRoots {
+	roots: array<f32, 3>,
+	count: u32
+}
+
+/// Solve a polynomial x^3 + ax^2 + bx + c = 0
+fn solve_normalized_cubic(a: f32, b: f32, c: f32) -> CubicRoots {
+	// Apply transformation x = y - a/3, turning the equation 
+	// into a Depressed cubic on the form:
+	//   y^3 + py + q = 0
+	let p = b - a * a / 3.0;
+	let q = a * (2.0 * a * a / 27.0 - b / 3.0) + c;
+
+	var result = CubicRoots(array<f32, 3>(), 0);
+	// discriminant is (q/2)^2 + (p/3)^3
+	let disc = (q * q) / 4.0 + (p * p * p) / 27.0;
+	let shift = a / 3.0;
+	if (disc >= 0.0) {
+		// Single root, solution is u + v, where 
+		//  u = (-q/2 + sqrt(disc))^(1/3)
+		//  v = (-q/2 - sqrt(disc))^(1/3)
+		// However, u*v = -p/3, so we can eliminate one cube root
+		let u_cube = -0.5 * q + sqrt(disc);
+		let u = sign(u_cube) * pow(abs(u_cube), 1.0 / 3.0); 
+		let v = -p / (3.0 * u);
+		let x = u + v - shift;
+		result.roots[0] = x;
+		result.count = 1;
+	} else {
+		let r = 2.0 * sqrt(-p / 3.0);
+		let c0 = cos_acos_3((3.0 * q) / (2.0 * p) * sqrt(-3.0 / p));
+		let s0 = sqrt(1.0 - c0 * c0);
+
+		const SQRT3_HALF: f32 = 0.8660254037844386;
+		// No need to sort the roots, they are in increasing order
+		result.roots[0] = r * c0 - shift;
+		result.roots[1] = r * (-0.5 * c0 - SQRT3_HALF * s0) - shift;
+		result.roots[2] = r * (-0.5 * c0 + SQRT3_HALF * s0) - shift;
+		result.count = 3;
+	}
+	return result;
+}
+
+// Evaluate cos(arccos(theta) / 3)
+// https://www.shadertoy.com/view/WltSD7
+fn cos_acos_3(theta: f32) -> f32 { 
+	let x = sqrt(0.5 + 0.5 * theta); 
+	return x * (x * (x * (x * -0.008972 + 0.039071) - 0.107074) + 0.576975) + 0.5;
+} 
+
+/// Solve a polynomial ax^3 + bx^2 + cx + d = 0
+/// in the interval 0 <= x <= 1
+fn solve_cubic(a: f32, b: f32, c: f32, d: f32) -> CubicRoots {
+	return solve_normalized_cubic(b / a, c / a, d / a);
+}
+
+
+/*struct QuarticRoots {
+	roots: array<f32, 4>,
+	count: u32
+}
+
+/// Solve a polynomial ax^4 + bx^3 + cx^2 + dx + e = 0
+/// in the interval 0 <= x <= 1
+fn solve_quartic(a: f32, b: f32, c: f32, d: f32, e: f32) -> QuarticRoots {
+	let extremas = solve_cubic(4.0 * a, 3.0 * b, 2.0 * c, d);
+	
+	var interval_pts = array<vec2f, 5>();
+	interval_pts[0] = vec2f(0.0, eval_quartic(0.0, a, b, c, d, e));
+	var interval_count = 1;
+	for (var i = 0; i < extremas.count; i++) {
+		// Solve cubic returns all extremas, need to ensure that it is in (0, 1)
+		if (extremas.roots[i] > 0.0 && extremas.roots[i] < 1.0) {
+			interval_pts[interval_count] = vec2f(extremas.roots[i], eval_quartic(extremas.roots[i], a, b, c, d, e));
+			interval_count = interval_count + 1;
+		}
+	}
+	interval_pts[interval_count] = vec2f(1.0, eval_quartic(1.0, a, b, c, d, e));
+
+	var result = QuarticRoots(vec4f(0.0), 0);
+	for (var i = 0; i < interval_count; i++) {
+		let start = interval_pts[i];
+		let end = interval_pts[i+1];
+		if (start.y * end.y < 0.0) {
+			result[result.count] = bisect_quartic(start.x, end.x, a, b, c, d, e);
+			result.count = result.count + 1;
+		}
+	}
+	return result;
+}
+
+fn eval_quartic(x: f32, a: f32, b: f32, c: f32, d: f32, e: f32) -> f32 {
+	return x * (x * (x * (a * x + b) + c) + d) + e;
+}
+
+fn bisect_quartic(x_min: f32, x_max: f32, a: f32, b: f32, c: f32, d: f32, e: f32) -> f32 {
+	return 0.0;
+}
+
+struct QuinticRoots {
+	roots: array<f32, 5>,
+	count: u32
+}
+
+/// Solve a polynomial ax^5 + bx^4 + cx^3 + dx^2 + ex + f = 0
+/// in the interval 0 <= x <= 1
+fn solve_quintic(a: f32, b: f32, c: f32, d: f32, e: f32, f: f32) -> QuinticRoots {
+	let extremas = solve_quartic(5.0 * a, 4.0 * b, 3.0 * c, 2.0 * d, e);
+	
+	let interval_count = extremas.count + 1;
+	var interval_pts = array<vec2f, 6>();
+	interval_pts[0] = vec2f(0.0, eval_quintic(0.0, a, b, c, d, e, f));
+	for (var i = 0; i < extremas.count; i++) {
+		interval_pts[i + 1] = vec2f(extremas.roots[i], eval_quintic(extremas.roots[i], a, b, c, d, e, f));
+	}
+	interval_pts[interval_count] = vec2f(1.0, eval_quintic(1.0, a, b, c, d, e, f));
+
+	var result = QuinticRoots(array<vec2f, 4>(), 0);
+	for (var i = 0; i < interval_count; i++) {
+		let start = interval_pts[i];
+		let end = interval_pts[i+1];
+		if (start.y * end.y < 0.0) {
+			result[result.count] = bisect_quintic(start.x, end.x, a, b, c, d, e, f);
+			result.count = result.count + 1;
+		}
+	}
+	return result;
+}
+
+fn eval_quintic(x: f32, a: f32, b: f32, c: f32, d: f32, e: f32, f: f32) -> f32 {
+	return x * (x * (x * (x * (a * x + b) + c) + d) + e) + f;
+}
+
+fn bisect_quintic(x_min: f32, x_max: f32, a: f32, b: f32, c: f32, d: f32, e: f32, f: f32) -> f32 {
+	return 0.0;
+}*/
 
 /// Pick the radius of the corner of a rounded rectangle that is closest to pos
 fn select_rect_corner(c: vec4f, pos: vec2f) -> f32 {

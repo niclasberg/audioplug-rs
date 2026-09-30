@@ -10,187 +10,115 @@ pub enum FillRule {
     EvenOdd,
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum PathElement {
-    MoveTo(Point),
-    LineTo(Point),
-    QuadTo(Point, Point),
-    CurveTo(Point, Point, Point),
-    ClosePath,
-}
-
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum PathSegment {
     Line(Line),
-    QuadBezier(QuadBezier),
-    CubicBezier(CubicBezier),
+    Quad(QuadBezier),
+    Cubic(CubicBezier),
 }
 
 impl PathSegment {
-    /// Evaluate the position at `t`
-    pub fn eval(&self, t: f32) -> Point {
-        match self {
-            PathSegment::Line(line) => line.eval(t),
-            PathSegment::QuadBezier(quad_bezier) => quad_bezier.eval(t),
-            PathSegment::CubicBezier(cubic_bezier) => cubic_bezier.eval(t),
-        }
-    }
-
-    /// Split the path segment at `t` into two separate segments.
-    pub fn split(&self, t: f32) -> (Self, Self) {
-        match self {
-            PathSegment::Line(line) => {
-                let (left, right) = line.split(t);
-                (Self::Line(left), Self::Line(right))
-            }
-            PathSegment::QuadBezier(quad_bezier) => {
-                let (left, right) = quad_bezier.split(t);
-                (Self::QuadBezier(left), Self::QuadBezier(right))
-            }
-            PathSegment::CubicBezier(cubic_bezier) => {
-                let (left, right) = cubic_bezier.split(t);
-                (Self::CubicBezier(left), Self::CubicBezier(right))
-            }
-        }
-    }
-
     pub fn bounds(&self) -> Rect {
         match self {
             PathSegment::Line(line) => line.bounds(),
-            PathSegment::QuadBezier(quad_bezier) => quad_bezier.bounds(),
-            PathSegment::CubicBezier(cubic_bezier) => cubic_bezier.bounds(),
+            PathSegment::Quad(quad_bezier) => quad_bezier.bounds(),
+            PathSegment::Cubic(cubic_bezier) => cubic_bezier.bounds(),
         }
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Path {
-    elements: Vec<PathElement>,
+impl From<Line> for PathSegment {
+    fn from(value: Line) -> Self {
+        Self::Line(value)
+    }
 }
 
-impl Path {
-    pub const fn new() -> Self {
+impl From<QuadBezier> for PathSegment {
+    fn from(value: QuadBezier) -> Self {
+        Self::Quad(value)
+    }
+}
+
+impl From<CubicBezier> for PathSegment {
+    fn from(value: CubicBezier) -> Self {
+        Self::Cubic(value)
+    }
+}
+
+pub struct PathBuilder<'a> {
+    segments: &'a mut Vec<PathSegment>,
+    last_point: Option<Point>,
+    first_point: Point,
+}
+
+impl<'a> PathBuilder<'a> {
+    pub const fn new(segments: &'a mut Vec<PathSegment>) -> Self {
         Self {
-            elements: Vec::new(),
+            segments,
+            last_point: None,
+            first_point: Point::ZERO,
         }
     }
 
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            elements: Vec::with_capacity(capacity),
+    pub fn move_to(&mut self, to: Point) -> &mut Self {
+        self.last_point = Some(to);
+        self.first_point = to;
+        self
+    }
+
+    pub fn line_to(&mut self, to: Point) -> &mut Self {
+        self.segments
+            .push(Line::new(self.last_point.unwrap_or(Point::ZERO), to).into());
+        self.last_point.replace(to);
+        self
+    }
+
+    pub fn quad_to(&mut self, control_point: Point, to: Point) -> &mut Self {
+        self.segments.push(
+            QuadBezier::new(self.last_point.unwrap_or(Point::ZERO), control_point, to).into(),
+        );
+        self.last_point.replace(to);
+        self
+    }
+
+    pub fn cubic_to(
+        &mut self,
+        control_point1: Point,
+        control_point2: Point,
+        to: Point,
+    ) -> &mut Self {
+        self.segments.push(
+            CubicBezier::new(
+                self.last_point.unwrap_or(Point::ZERO),
+                control_point1,
+                control_point2,
+                to,
+            )
+            .into(),
+        );
+        self.last_point.replace(to);
+        self
+    }
+
+    pub fn close_path(&mut self) -> &mut Self {
+        if let Some(last_point) = self.last_point
+            && last_point.distance_squared_to(&self.first_point) > 1.0e-4
+        {
+            self.segments
+                .push(Line::new(last_point, self.first_point).into());
         }
-    }
-
-    pub fn add_rect(mut self, rect: Rect) -> Self {
-        self.elements.push(PathElement::MoveTo(rect.top_left()));
-        self.elements.push(PathElement::LineTo(rect.top_right()));
-        self.elements.push(PathElement::LineTo(rect.bottom_right()));
-        self.elements.push(PathElement::LineTo(rect.bottom_left()));
-        self.elements.push(PathElement::ClosePath);
-        self
-    }
-
-    pub fn move_to(mut self, to: Point) -> Self {
-        self.elements.push(PathElement::MoveTo(to));
-        self
-    }
-
-    pub fn line_to(mut self, to: Point) -> Self {
-        self.elements.push(PathElement::LineTo(to));
-        self
-    }
-
-    pub fn quad_to(mut self, control_point: Point, to: Point) -> Self {
-        self.elements.push(PathElement::QuadTo(control_point, to));
-        self
-    }
-
-    pub fn cubic_to(mut self, control_point1: Point, control_point2: Point, to: Point) -> Self {
-        self.elements
-            .push(PathElement::CurveTo(control_point1, control_point2, to));
-        self
-    }
-
-    pub fn close_path(mut self) -> Self {
-        self.elements.push(PathElement::ClosePath);
-        self
-    }
-
-    /// Flattens the path into path elements corresponding to lines
-    ///
-    /// Adapted from Kurbo and (https://raphlinus.github.io/graphics/curves/2019/12/23/flatten-quadbez.html)
-    pub fn flatten(&self, tolerance: f64, mut f: impl FnMut(Line)) {
-        let mut last_point = None;
-        let mut first_point = Point::ZERO;
-        let sqrt_tolerance = tolerance.sqrt();
-        for &el in self.elements.iter() {
-            match el {
-                PathElement::MoveTo(point) => {
-                    last_point = Some(point);
-                    first_point = point;
-                }
-                PathElement::LineTo(point) => {
-                    f(Line::new(last_point.unwrap_or(Point::ZERO), point));
-                    last_point = Some(point);
-                }
-                PathElement::QuadTo(p1, p2) => {
-                    if let Some(p0) = last_point {
-                        QuadBezier { p0, p1, p2 }.flatten(sqrt_tolerance, &mut f);
-                    }
-                    last_point = Some(p2);
-                }
-                PathElement::CurveTo(point, point1, point2) => todo!(),
-                PathElement::ClosePath => {
-                    if let Some(last_point) = last_point
-                        && last_point.distance_squared_to(&first_point) > tolerance.powi(2)
-                    {
-                        f(Line::new(last_point, first_point));
-                    }
-                    first_point = last_point.unwrap_or(Point::ZERO);
-                    last_point = None;
-                }
-            }
-        }
-    }
-
-    pub fn bounds(&self) -> Rect {
-        let bounds = Rect::EMPTY;
-        bounds
-    }
-
-    pub fn offset(mut self, delta: Vec2) -> Self {
-        for element in self.elements.iter_mut() {
-            match element {
-                PathElement::MoveTo(point) => *point += delta,
-                PathElement::LineTo(point) => *point += delta,
-                PathElement::QuadTo(point, point1) => {
-                    *point += delta;
-                    *point1 += delta;
-                }
-                PathElement::CurveTo(point, point1, point2) => {
-                    *point += delta;
-                    *point1 += delta;
-                    *point2 += delta;
-                }
-                PathElement::ClosePath => {}
-            }
-        }
+        self.first_point = self.last_point.unwrap_or(Point::ZERO);
+        self.last_point = None;
         self
     }
 }
 
-impl Default for Path {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<P: IntoIterator<Item = PathElement>> From<P> for Path {
-    fn from(value: P) -> Self {
-        Path {
-            elements: value.into_iter().collect(),
-        }
-    }
+pub struct IntersectionPoint {
+    pub point: Point,
+    /// Parameter of intersection for the first path segment
+    pub t1: f32,
+    /// Parameter of intersection for the second path segment
+    pub t2: f32,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -261,43 +189,10 @@ impl Line {
         }
     }
 
-    pub fn clip_with_rect(mut self, rect: Rect) -> Option<Self> {
-        // Clip using Cohen Sutherland algorithm
-        const INSIDE: u8 = 0b0000;
-        const LEFT: u8 = 0b0001;
-        const RIGHT: u8 = 0b0010;
-        const BOTTOM: u8 = 0b0100;
-        const TOP: u8 = 0b1000;
-
-        fn compute_out_code(p: Point, rect: Rect) -> u8 {
-            let mut out = INSIDE;
-            if p.x < rect.left {
-                out |= LEFT;
-            } else if p.x > rect.right {
-                out |= RIGHT;
-            }
-            if p.y < rect.top {
-                out |= TOP;
-            } else if p.y > rect.bottom {
-                out |= BOTTOM;
-            }
-            out
-        }
-
-        let mut outcode0 = compute_out_code(self.p0, rect);
-        let mut outcode1 = compute_out_code(self.p1, rect);
-
-        loop {
-            if (outcode0 | outcode1) == INSIDE {
-                return Some(self);
-            } else if (outcode0 & outcode1) != 0 {
-                // Both points are in the same outside zone (for instance both to the left).
-                // i.e. both points are outside
-                return None;
-            } else {
-                todo!()
-            }
-        }
+    pub fn intersect_line(&self, other: &Self) -> Option<IntersectionPoint> {
+        // Intersect if (1-t1) * p10 + p11 = (1-t2) * p20 + p21
+        // Use: https://www.sciencedirect.com/science/article/abs/pii/S0010448500000506
+        None
     }
 }
 
@@ -346,6 +241,7 @@ impl QuadBezier {
         }
     }
 
+    #[inline(always)]
     fn points_as_vec2s(self) -> (Vec2, Vec2, Vec2) {
         (
             self.p0.into_vec2(),
@@ -362,14 +258,14 @@ impl QuadBezier {
     /// distance to `pos` is minimal.
     pub fn closest_point_t(&self, pos: Point) -> f32 {
         // Distance squared is d(t) = |p(t) - pos|^2 = dot(p(t)-pos, p(t)-pos)
-        // with derivative: d' = dot(p(t)-pos, p'(t))
+        // with derivative: d' = 2*dot(p(t)-pos, p'(t))
         // Now, p(t) = at^2 + bt + c, and p'(t) = 2at + b, where
         //   a = p0 - 2*p1 + p2
         //   b = -2*p0 + 2*p1
         //   c = p0
         // this gives:
-        // d' = dot(a, 2a) t^3 + (dot(a, b) + dot(b, 2a))t^2 + (dot(c-pos, 2a) + dot(b, b)) t + dot(c-pos, b)
-        //      2|a|^2 t^3 + 3dot(a, b) t^2 + (2dot(c - pos, a) + |b|^2) + dot(c-pos, b)
+        // 0 = dot(a, 2a) t^3 + (dot(a, b) + dot(b, 2a))t^2 + (dot(c-pos, 2a) + dot(b, b)) t + dot(c-pos, b)
+        //   = 2|a|^2 t^3 + 3dot(a, b) t^2 + (2dot(c - pos, a) + |b|^2) + dot(c-pos, b)
         let dp1 = self.p1 - self.p0;
 
         0.0
@@ -391,33 +287,20 @@ impl QuadBezier {
     }
 
     pub fn bounds(&self) -> Rect {
-        let mut min = self.p0.min(&self.p2);
-        let mut max = self.p0.max(&self.p2);
+        let mut bounds = Rect::from_points(self.p0, self.p2);
 
         // If p1 is within the bounding box spanned by p0 and p2, then
-        // the whole curve is bounded by p0 and p1. Otherwise,
+        // the whole curve is bounded by p0 and p2. Otherwise,
         // we need to find the extreme point of the curve.
-        if self.p1.x < min.x || self.p1.x > max.x || self.p1.y < min.y || self.p2.y > max.y {
-            let tx = ((self.p0.x - self.p1.x) / (self.p0.x - 2.0 * self.p1.x + self.p2.x))
-                .clamp(0.0, 1.0);
-            let sx = 1.0 - tx;
-            let ty = ((self.p0.y - self.p1.y) / (self.p0.y - 2.0 * self.p1.y + self.p2.y))
-                .clamp(0.0, 1.0);
-            let sy = 1.0 - ty;
-            let px = sx * sx * self.p0.x + 2.0 * sx * tx * self.p1.x + tx * tx * self.p2.x;
-            let py = sy * sy * self.p0.y + 2.0 * sy * ty * self.p1.y + ty * ty * self.p2.y;
-            min.x = min.x.min(px);
-            min.y = min.y.min(py);
-            max.x = max.x.max(px);
-            max.y = max.y.max(py);
+        if !bounds.contains(self.p1) {
+            let (p0, p1, p2) = self.points_as_vec2s();
+            let t = ((p0 - p1) / (p0 - 2.0 * p1 + p2)).clamp(0.0, 1.0);
+            let s = Vec2::splat(1.0) - t;
+            let p_extrema = s * s * p0 + 2.0 * s * t * p1 + t * t * p2;
+            bounds = bounds.expand_to_include(p_extrema.into_point());
         }
 
-        Rect {
-            left: min.x,
-            top: min.y,
-            right: max.x,
-            bottom: max.y,
-        }
+        bounds
     }
 
     pub fn into_cubic_bezier(self) -> CubicBezier {
@@ -523,6 +406,10 @@ pub struct CubicBezier {
 }
 
 impl CubicBezier {
+    pub fn new(p0: Point, p1: Point, p2: Point, p3: Point) -> Self {
+        Self { p0, p1, p2, p3 }
+    }
+
     pub fn eval(&self, t: f32) -> Point {
         eval_cubic(self.p0, self.p1, self.p2, self.p3, t)
     }
@@ -548,5 +435,3 @@ impl CubicBezier {
         todo!()
     }
 }
-
-struct Stoker {}

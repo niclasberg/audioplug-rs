@@ -1,6 +1,8 @@
 use std::{any::Any, marker::PhantomData, rc::Rc};
 
-use super::{CanCreate, CanWrite, NodeId, WatchContext};
+use crate::ui::reactive::EffectContext;
+
+use super::{CanCreate, CanWrite, NodeId};
 
 pub struct EventChannel<T> {
     emitter_id: NodeId,
@@ -28,7 +30,7 @@ impl<T: Any> EventReceiver<T> {
     pub fn subscribe(
         &self,
         cx: &mut dyn CanCreate,
-        f: impl Fn(&mut WatchContext, &T),
+        f: impl Fn(&mut EffectContext, &T),
     ) -> EventSubscription {
         todo!()
     }
@@ -49,7 +51,7 @@ pub fn create_event_channel<'cx, T: Any>(
     (emitter, receiver)
 }
 
-pub type HandleEventFn = dyn Fn(&mut WatchContext, &dyn Any);
+pub type HandleEventFn = dyn Fn(&mut EffectContext, &dyn Any);
 
 pub struct EventHandlerState {
     f: Rc<HandleEventFn>,

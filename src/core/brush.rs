@@ -21,12 +21,12 @@ impl From<LinearGradient> for Paint {
 }
 
 #[derive(Clone, Copy)]
-pub enum BrushRef<'a> {
+pub enum PaintRef<'a> {
     Solid(Color),
     LinearGradient(&'a LinearGradient),
 }
 
-impl<'a> From<&'a Paint> for BrushRef<'a> {
+impl<'a> From<&'a Paint> for PaintRef<'a> {
     fn from(value: &'a Paint) -> Self {
         match value {
             Paint::Solid(color) => Self::Solid(*color),
@@ -35,13 +35,13 @@ impl<'a> From<&'a Paint> for BrushRef<'a> {
     }
 }
 
-impl From<Color> for BrushRef<'_> {
+impl From<Color> for PaintRef<'_> {
     fn from(value: Color) -> Self {
         Self::Solid(value)
     }
 }
 
-impl<'a> From<&'a LinearGradient> for BrushRef<'a> {
+impl<'a> From<&'a LinearGradient> for PaintRef<'a> {
     fn from(value: &'a LinearGradient) -> Self {
         Self::LinearGradient(value)
     }

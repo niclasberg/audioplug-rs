@@ -7,9 +7,12 @@ use std::{
 
 use super::{
     CanCreate, CanRead, CanWrite, Effect, NodeId, ReactiveValue, ReadScope, ReadSignal,
-    WatchContext, runtime::NodeType,
+    runtime::NodeType,
 };
-use crate::ui::{ViewProp, Widgets, reactive::ReactiveGraph};
+use crate::ui::{
+    Prop, Widgets,
+    reactive::{EffectContext, ReactiveGraph},
+};
 use crate::{
     core::{Lerp, SpringPhysics},
     ui::reactive::ReadContext,
@@ -165,7 +168,7 @@ impl<T: 'static> From<AnimatedVar<T>> for ReadSignal<T> {
     }
 }
 
-impl<T: 'static> From<AnimatedVar<T>> for ViewProp<T> {
+impl<T: 'static> From<AnimatedVar<T>> for Prop<T> {
     fn from(value: AnimatedVar<T>) -> Self {
         Self::ReadSignal(ReadSignal::from_node(value.id))
     }
@@ -198,7 +201,7 @@ impl<T: 'static> ReactiveValue for AnimatedVar<T> {
 
     fn watch<'cx, F>(self, cx: &mut impl CanCreate<'cx>, f: F) -> Effect
     where
-        F: FnMut(&mut WatchContext, &Self::Value) + 'static,
+        F: FnMut(&mut EffectContext, &Self::Value) + 'static,
     {
         Effect::watch_node(cx.create_context(), self.id, f)
     }
@@ -285,7 +288,7 @@ impl<T: 'static> From<Animated<T>> for ReadSignal<T> {
     }
 }
 
-impl<T> From<Animated<T>> for ViewProp<T> {
+impl<T> From<Animated<T>> for Prop<T> {
     fn from(value: Animated<T>) -> Self {
         Self::ReadSignal(ReadSignal::from_node(value.id))
     }
@@ -318,7 +321,7 @@ impl<T: 'static> ReactiveValue for Animated<T> {
 
     fn watch<'s, F>(self, cx: &mut impl CanCreate<'s>, f: F) -> Effect
     where
-        F: FnMut(&mut WatchContext, &Self::Value) + 'static,
+        F: FnMut(&mut EffectContext, &Self::Value) + 'static,
     {
         Effect::watch_node::<T>(cx.create_context(), self.id, f)
     }

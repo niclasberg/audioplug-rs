@@ -4,8 +4,8 @@ use crate::{
     event::{MouseButton, MouseDownEvent, MouseDragEvent},
     param::{AnyParameter, NormalizedValue, PlainValue},
     ui::{
-        BuildContext, EventContext, EventStatus, RenderContext, Scene, StyleExt, View, ViewProp,
-        ViewStyle, Widget, reactive::ParamSetter, style::Length,
+        BuildContext, EventContext, EventResult, Prop, RenderContext, StyleExt, View, ViewStyle,
+        Widget, reactive::ParamSetter, style::Length,
     },
 };
 
@@ -22,15 +22,15 @@ type OnDragCallback = dyn Fn(&mut EventContext);
 type OnValueChangeCallback = dyn Fn(&mut EventContext, f64);
 
 const BASE_STYLE: ViewStyle = ViewStyle {
-    width: Some(ViewProp::Const(Length::Auto)),
-    height: Some(ViewProp::Const(Length::Px(10.0))),
+    width: Some(Prop::Const(Length::Auto)),
+    height: Some(Prop::Const(Length::Px(10.0))),
     ..ViewStyle::DEFAULT
 };
 
 pub struct Slider {
     min: f64,
     max: f64,
-    value: Option<ViewProp<f64>>,
+    value: Option<Prop<f64>>,
     on_drag_start: Option<Box<OnDragCallback>>,
     on_drag_end: Option<Box<OnDragCallback>>,
     on_value_changed: Box<OnValueChangeCallback>,
@@ -67,7 +67,7 @@ impl Slider {
         self
     }
 
-    pub fn value(mut self, value: impl Into<ViewProp<f64>>) -> Self {
+    pub fn value(mut self, value: impl Into<Prop<f64>>) -> Self {
         self.value = Some(value.into());
         self
     }
@@ -84,6 +84,7 @@ impl View for Slider {
 
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         ctx.set_focusable(true);
+        ctx.set_draggable(true);
         ctx.apply_style(self.style);
 
         let position_normalized = if let Some(value) = self.value {
@@ -118,7 +119,7 @@ impl StyleExt for Slider {
 pub struct ParameterSlider<P: AnyParameter> {
     style: ViewStyle,
     editor: ParamSetter<P>,
-    signal: ViewProp<NormalizedValue>,
+    signal: Prop<NormalizedValue>,
     direction: Direction,
 }
 
@@ -146,6 +147,7 @@ impl<P: AnyParameter> View for ParameterSlider<P> {
     fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
         let editor = self.editor;
         ctx.set_focusable(true);
+        ctx.set_draggable(true);
         ctx.apply_style(self.style);
         /*ctx.set_default_style(Style {
             size: match self.direction {
@@ -332,7 +334,7 @@ impl Widget for SliderWidget {
         }
     }
 
-    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
+    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventResult {
         match event {
             crate::KeyEvent::KeyDown { key, .. } => match key {
                 Key::Left | Key::Down => {
@@ -340,31 +342,26 @@ impl Widget for SliderWidget {
                     if self.set_position(ctx, new_position) {
                         ctx.request_render();
                     }
-                    EventStatus::Handled
+                    EventResult::Stop
                 }
                 Key::Right | Key::Up => {
                     let new_position = (self.position_normalized + 0.1).clamp(0.0, 1.0);
                     if self.set_position(ctx, new_position) {
                         ctx.request_render();
                     }
-                    EventStatus::Handled
+                    EventResult::Stop
                 }
-                _ => EventStatus::Ignored,
+                _ => EventResult::Continue,
             },
-            _ => EventStatus::Ignored,
+            _ => EventResult::Continue,
         }
     }
 
-    fn render(&mut self, ctx: &mut RenderContext) -> Scene {
-        let mut scene = Scene::new();
-        let bounds = ctx.content_bounds();
+    fn render(&mut self, cx: &mut RenderContext) {
+        let bounds = cx.bounds();
         let center = bounds.center();
         let knob_shape = self.knob_shape(bounds);
         let knob_radius = self.knob_radius(bounds);
-
-        if ctx.has_focus() {
-            //ctx.stroke(bounds, Color::RED, 1.0);
-        }
 
         let indent_rect = match self.direction {
             Direction::Horizontal => Rect::from_center(center, bounds.size().scale_y(0.3)),
@@ -378,14 +375,13 @@ impl Widget for SliderWidget {
         slider_position.x,
         center.y + bounds.height() / 5.0);*/
 
-        scene.stroke(background_rect, &self.background_gradient, 1.0);
-        scene.fill(background_rect, Color::BLACK.with_alpha(0.3));
+        cx.stroke(background_rect, &self.background_gradient, 1.0);
+        cx.fill(background_rect, Color::BLACK.with_alpha(0.3));
         //ctx.fill(RoundedRectangle::new(range_indicator_rect, Size::new(1.0, 1.0)), Color::NEON_GREEN);
-        scene.fill(knob_shape, self.knob_gradient_down.clone());
-        scene.fill(
+        cx.fill(knob_shape, self.knob_gradient_down.clone());
+        cx.fill(
             knob_shape.with_radius(4.0 * knob_radius / 5.0),
             self.knob_gradient_up.clone(),
         );
-        scene
     }
 }

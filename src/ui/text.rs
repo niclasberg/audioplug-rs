@@ -2,7 +2,7 @@ use parley::{FontContext, FontStyle, FontWeight, FontWidth, RangedBuilder, Style
 
 use crate::{
     core::{Color, TextBrush, TextLayout, TextLayoutContext},
-    ui::ViewProp,
+    ui::{Prop, render::GlyphCache},
 };
 
 pub struct TextData {
@@ -37,6 +37,7 @@ impl TextData {
                 .ranged_builder(cx.font_cx, &self.text, 1.0, false);
             self.style.apply(&mut builder);
             builder.build_into(&mut self.layout, &self.text);
+            self.layout_dirty = false;
         }
         &mut self.layout
     }
@@ -70,11 +71,20 @@ impl TextData {
 pub struct TextContext<'a> {
     pub font_cx: &'a mut FontContext,
     pub layout_cx: &'a mut TextLayoutContext,
+    pub glyph_cache: &'a mut GlyphCache,
 }
 
 impl<'a> TextContext<'a> {
-    pub fn new(font_cx: &'a mut FontContext, layout_cx: &'a mut TextLayoutContext) -> Self {
-        Self { font_cx, layout_cx }
+    pub fn new(
+        font_cx: &'a mut FontContext,
+        layout_cx: &'a mut TextLayoutContext,
+        glyph_cache: &'a mut GlyphCache,
+    ) -> Self {
+        Self {
+            font_cx,
+            layout_cx,
+            glyph_cache,
+        }
     }
 }
 
@@ -88,7 +98,7 @@ pub struct TextStyle {
 impl TextStyle {
     pub fn new() -> Self {
         Self {
-            font_size: 16.0,
+            font_size: 12.0,
             font_weight: Default::default(),
             font_style: Default::default(),
             font_width: Default::default(),
@@ -117,25 +127,25 @@ impl Default for TextStyle {
 
 #[derive(Default)]
 pub struct ViewText {
-    pub(crate) text: Option<ViewProp<String>>,
-    pub(crate) color: Option<ViewProp<Color>>,
-    pub(crate) font_size: Option<ViewProp<f32>>,
+    pub(crate) text: Option<Prop<String>>,
+    pub(crate) color: Option<Prop<Color>>,
+    pub(crate) font_size: Option<Prop<f32>>,
 }
 
 pub trait TextExt: Sized {
     fn text_mut(&mut self) -> &mut ViewText;
 
-    fn text(mut self, value: impl Into<ViewProp<String>>) -> Self {
+    fn text(mut self, value: impl Into<Prop<String>>) -> Self {
         self.text_mut().text.replace(value.into());
         self
     }
 
-    fn font_size(mut self, value: impl Into<ViewProp<f32>>) -> Self {
+    fn font_size(mut self, value: impl Into<Prop<f32>>) -> Self {
         self.text_mut().font_size.replace(value.into());
         self
     }
 
-    fn color(mut self, value: impl Into<ViewProp<Color>>) -> Self {
+    fn color(mut self, value: impl Into<Prop<Color>>) -> Self {
         self.text_mut().color.replace(value.into());
         self
     }

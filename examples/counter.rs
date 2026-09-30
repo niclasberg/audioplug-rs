@@ -63,15 +63,15 @@ fn main() {
                 audioplug::KeyEvent::KeyDown { key, .. } => match key {
                     Key::Up => {
                         count.update(cx, |_, value| *value += 1);
-                        EventStatus::Handled
+                        EventResult::Stop
                     }
                     Key::Down => {
                         count.update(cx, |_, value| *value -= 1);
-                        EventStatus::Handled
+                        EventResult::Stop
                     }
-                    _ => EventStatus::Ignored,
+                    _ => EventResult::Continue,
                 },
-                _ => EventStatus::Ignored,
+                _ => EventResult::Continue,
             })
         }),
     );

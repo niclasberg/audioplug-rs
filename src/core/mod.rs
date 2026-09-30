@@ -29,13 +29,13 @@ mod vector;
 use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
-    ops::{Add, Sub},
+    ops::{Add, Div, Mul, Sub},
 };
 
 pub use alignment::{Align, HAlign, VAlign};
 pub use axis::Axis;
 pub use border::Border;
-pub use brush::{BrushRef, Paint};
+pub use brush::{Paint, PaintRef};
 pub use color::Color;
 pub use constraint::*;
 pub use corner::{Corner, Corners};
@@ -47,16 +47,16 @@ pub use image::ImageData;
 use indexmap::{IndexMap, IndexSet};
 pub use interpolation::{Lerp, SpringPhysics, SpringProperties};
 pub use keyboard::{Key, Modifiers};
-pub use path::{CubicBezier, FillRule, Line, Path, PathElement, PathSegment, QuadBezier};
+pub use path::{CubicBezier, FillRule, Line, PathBuilder, PathSegment, QuadBezier};
 pub use point::{PartialPoint, Point};
 pub use poly::Polynomial;
 pub use rectangle::{PhysicalRect, Rect};
 pub use rounded_rectangle::RoundedRect;
 use rustc_hash::FxBuildHasher;
-pub use shape::{PrimitiveShape, Shape, ShapeRef};
+pub use shape::Shape;
 pub use size::{PhysicalSize, Size};
 pub use text::*;
-pub use transform::Transform;
+pub use transform::{Transform, TranslateScale};
 pub use unit_point::UnitPoint;
 pub use vector::{Vec2, Vec2i, Vec2u, Vec3f, Vec4f};
 
@@ -76,7 +76,7 @@ pub enum ShadowKind {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ShadowOptions {
-    pub radius: f64,
+    pub radius: f32,
     pub offset: Vec2,
     pub color: Color,
     pub kind: ShadowKind,
@@ -141,6 +141,16 @@ impl Sub for PhysicalCoord {
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct ScaleFactor(pub f32);
 
+impl ScaleFactor {
+    pub const fn logical_to_physical(&self) -> f32 {
+        self.0
+    }
+
+    pub const fn physical_to_logical(&self) -> f32 {
+        1.0 / self.0
+    }
+}
+
 impl Display for ScaleFactor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
@@ -150,6 +160,22 @@ impl Display for ScaleFactor {
 impl Default for ScaleFactor {
     fn default() -> Self {
         Self(1.0)
+    }
+}
+
+impl Mul<f32> for ScaleFactor {
+    type Output = Self;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        Self(self.0 * rhs)
+    }
+}
+
+impl Div<f32> for ScaleFactor {
+    type Output = Self;
+
+    fn div(self, rhs: f32) -> Self::Output {
+        Self(self.0 / rhs)
     }
 }
 

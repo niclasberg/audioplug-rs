@@ -2,7 +2,7 @@ use super::{
     NodeId,
     animation::{AnimationState, DerivedAnimationState},
     cached::CachedState,
-    effect::{EffectState, WatchState},
+    effect::EffectState,
     event_channel::EventHandlerState,
     var::SignalState,
 };
@@ -35,8 +35,10 @@ pub struct Node {
     next_sibling_id: NodeId,
 }
 
+/// Encodes the lifetime of the reactive node.
 #[derive(Debug, Clone, Copy)]
 pub enum Owner {
+    /// The node is a root node, and will only be removed when the reactive graph is destroyed.
     Root,
     /// The reactive node is owned by a widget, and will be removed
     /// when the widget is removed.
@@ -47,10 +49,10 @@ pub enum Owner {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum SourceId {
+pub(crate) enum Source {
     Parameter(ParameterId),
     Node(NodeId),
-    Widget(WidgetId),
+    Widget(WidgetId, WidgetStatusFlags),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -69,7 +71,7 @@ pub(super) enum NodeState {
     Dirty = 2,
 }
 
-pub(super) enum NodeType {
+pub(crate) enum NodeType {
     // Temporary value used while a node is leased
     TmpRemoved,
     // Sources
@@ -82,7 +84,6 @@ pub(super) enum NodeType {
     DerivedAnimation(DerivedAnimationState),
     // Effects (reactions)
     Effect(EffectState),
-    Binding(WatchState),
     EventHandler(EventHandlerState),
 }
 
@@ -100,7 +101,6 @@ impl NodeType {
                 .expect("Memo should have been evaluated before accessed")
                 .as_ref(),
             NodeType::Effect(_) => panic!("Cannot get value of an effect"),
-            NodeType::Binding(_) => panic!("Cannot get value of a binding"),
             NodeType::Animation(state) => state.inner.value_dyn(),
             NodeType::DerivedAnimation(state) => state.inner.value_dyn(),
             NodeType::EventEmitter => panic!("Cannot get value of eventemitter"),
@@ -111,7 +111,7 @@ impl NodeType {
     }
 }
 
-pub(super) struct LeasedNode(NodeId, NodeType);
+pub(crate) struct LeasedNode(NodeId, NodeType);
 impl Deref for LeasedNode {
     type Target = NodeType;
 
@@ -119,6 +119,7 @@ impl Deref for LeasedNode {
         &self.1
     }
 }
+
 impl DerefMut for LeasedNode {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.1
@@ -128,7 +129,7 @@ impl DerefMut for LeasedNode {
 pub struct ReactiveGraph {
     pub(super) nodes: SlotMap<NodeId, Node>,
     pub(crate) parameters: Rc<dyn AnyParameterMap>,
-    sources: SecondaryMap<NodeId, SmallVec<[SourceId; 4]>>,
+    sources: SecondaryMap<NodeId, SmallVec<[Source; 4]>>,
     node_observers: SecondaryMap<NodeId, SmallVec<[NodeId; 4]>>,
     parameter_observers: FxHashMap<ParameterId, SmallVec<[NodeId; 4]>>,
     widget_observers: SecondaryMap<WidgetId, SmallVec<[(NodeId, WidgetStatusFlags); 4]>>,
@@ -193,7 +194,7 @@ impl ReactiveGraph {
             .remove(id)
             .expect("Missing observers for node");
         for observer_id in observers {
-            self.sources[observer_id].retain(|source_id| *source_id != SourceId::Node(id));
+            self.sources[observer_id].retain(|source_id| *source_id != Source::Node(id));
         }
 
         // Remove other nodes' subscriptions to this node
@@ -242,6 +243,10 @@ impl ReactiveGraph {
         self.nodes.get_mut(node_id).expect("Node not found")
     }
 
+    pub fn contains(&self, node_id: NodeId) -> bool {
+        self.nodes.contains_key(node_id)
+    }
+
     pub fn drive_animations(&mut self, widgets: &mut Widgets, task_queue: &mut TaskQueue) {
         let node_ids = std::mem::take(&mut self.pending_animations);
         let now = Instant::now();
@@ -274,7 +279,7 @@ impl ReactiveGraph {
     }
 
     /// Temporarily remove a node and return it
-    pub(super) fn lease_node(&mut self, node_id: NodeId) -> Option<LeasedNode> {
+    pub(crate) fn lease_node(&mut self, node_id: NodeId) -> Option<LeasedNode> {
         if let Some(node) = self.nodes.get_mut(node_id) {
             Some(LeasedNode(
                 node_id,
@@ -286,7 +291,7 @@ impl ReactiveGraph {
     }
 
     /// Return a node that has previously been leased
-    pub(super) fn unlease_node(&mut self, mut node: LeasedNode) {
+    pub(crate) fn unlease_node(&mut self, mut node: LeasedNode) {
         std::mem::swap(&mut self.nodes[node.0].node_type, &mut node.1);
     }
 
@@ -328,9 +333,7 @@ impl ReactiveGraph {
                 if node.state < new_state {
                     node.state = new_state;
                     match &node.node_type {
-                        NodeType::Effect(_)
-                        | NodeType::Binding(_)
-                        | NodeType::DerivedAnimation(_) => {
+                        NodeType::Effect(_) | NodeType::DerivedAnimation(_) => {
                             effects_to_check.insert(node_id);
                         }
                         _ => {}
@@ -348,20 +351,12 @@ impl ReactiveGraph {
             if self.update_sources_if_necessary(widgets, node_id) == NodeState::Dirty {
                 let mut node_type = self.lease_node(node_id).unwrap();
                 match node_type.deref_mut() {
-                    NodeType::Effect(EffectState { f }) => {
-                        // Clear the sources, they will be re-populated while running the effect function
-                        self.clear_node_sources(node_id);
-                        let task = Task::RunEffect {
-                            id: node_id,
-                            f: Rc::downgrade(f),
-                        };
-                        task_queue.push(task);
-                    }
-                    NodeType::Binding(WatchState { f }) => {
-                        let task = Task::UpdateBinding {
-                            f: Rc::downgrade(f),
-                            node_id,
-                        };
+                    NodeType::Effect(state) => {
+                        if state.has_dynamic_sources() {
+                            // Clear the sources, they will be re-populated while running the effect function
+                            self.clear_node_sources(node_id);
+                        }
+                        let task = Task::RunEffect { id: node_id };
                         task_queue.push(task);
                     }
                     NodeType::DerivedAnimation(anim) => {
@@ -388,7 +383,7 @@ impl ReactiveGraph {
 
         if state == NodeState::Check {
             for source_id in self.sources[node_id].clone() {
-                if let SourceId::Node(source_id) = source_id {
+                if let Source::Node(source_id) = source_id {
                     self.update_value_if_necessary(widgets, source_id);
                     if self.get_node(node_id).state == NodeState::Dirty {
                         return NodeState::Dirty;
@@ -464,21 +459,21 @@ impl ReactiveGraph {
         observers: &mut SecondaryMap<NodeId, SmallVec<[NodeId; 4]>>,
         parameter_observers: &mut FxHashMap<ParameterId, SmallVec<[NodeId; 4]>>,
         widget_observers: &mut SecondaryMap<WidgetId, SmallVec<[(NodeId, WidgetStatusFlags); 4]>>,
-        source_id: SourceId,
+        source_id: Source,
         observer_id: NodeId,
     ) {
         match source_id {
-            SourceId::Parameter(parameter_id) => {
+            Source::Parameter(parameter_id) => {
                 parameter_observers
                     .get_mut(&parameter_id)
                     .expect("Missing parameter subscription")
                     .retain(|id| *id != observer_id);
             }
-            SourceId::Node(node_id) => {
+            Source::Node(node_id) => {
                 observers[node_id].retain(|id| *id != observer_id);
             }
-            SourceId::Widget(widget_id) => {
-                widget_observers[widget_id].retain(|(node_id, _)| *node_id != observer_id);
+            Source::Widget(widget_id, status_mask) => {
+                widget_observers[widget_id].retain(|w| *w != (observer_id, status_mask));
             }
         }
     }
@@ -497,11 +492,23 @@ impl ReactiveGraph {
         }
     }
 
+    pub fn add_subscription(&mut self, source_id: Source, observer_id: NodeId) {
+        match source_id {
+            Source::Parameter(parameter_id) => {
+                self.add_parameter_subscription(parameter_id, observer_id)
+            }
+            Source::Node(node_id) => self.add_node_subscription(node_id, observer_id),
+            Source::Widget(widget_id, status_mask) => {
+                self.add_widget_status_subscription(widget_id, status_mask, observer_id)
+            }
+        }
+    }
+
     pub fn add_parameter_subscription(&mut self, source_id: ParameterId, observer_id: NodeId) {
         let observers = self.parameter_observers.get_mut(&source_id).unwrap();
         if !observers.contains(&observer_id) {
             observers.push(observer_id);
-            self.sources[observer_id].push(SourceId::Parameter(source_id));
+            self.sources[observer_id].push(Source::Parameter(source_id));
         }
     }
 
@@ -509,7 +516,7 @@ impl ReactiveGraph {
         let observers = &mut self.node_observers[source_id];
         if !observers.contains(&observer_id) {
             self.node_observers[source_id].push(observer_id);
-            self.sources[observer_id].push(SourceId::Node(source_id));
+            self.sources[observer_id].push(Source::Node(source_id));
         }
     }
 
@@ -526,7 +533,7 @@ impl ReactiveGraph {
             .entry(observer_id)
             .unwrap()
             .or_default()
-            .push(SourceId::Widget(widget_id));
+            .push(Source::Widget(widget_id, status_mask));
     }
 
     pub fn widget_from_owner(&self, mut owner: Owner) -> Option<WidgetId> {

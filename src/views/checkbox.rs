@@ -1,10 +1,10 @@
 use crate::{
     KeyEvent, MouseEvent,
-    core::{Color, Key, Rect, Size, Zero},
+    core::{Color, Key, Rect, Size},
     ui::{
-        BuildContext, EventContext, EventStatus, RenderContext, Scene, StyleExt, View, ViewProp,
-        ViewStyle, Widget,
-        style::{AvailableSpace, LayoutMode, Length, Measure, Style, UiRect},
+        BuildContext, EventContext, EventResult, Prop, RenderContext, StyleExt, View, ViewStyle,
+        Widget,
+        style::{Length, UiRect},
     },
 };
 
@@ -12,8 +12,8 @@ type OnClickFn = dyn Fn(&mut EventContext);
 
 pub struct Checkbox {
     style: ViewStyle,
-    checked: Option<ViewProp<bool>>,
-    enabled: ViewProp<bool>,
+    checked: Option<Prop<bool>>,
+    enabled: Prop<bool>,
     click_fn: Option<Box<OnClickFn>>,
 }
 
@@ -21,27 +21,27 @@ impl Checkbox {
     pub fn new() -> Self {
         Self {
             checked: None,
-            enabled: ViewProp::Const(true),
+            enabled: Prop::Const(true),
             click_fn: None,
             style: ViewStyle {
-                width: Some(ViewProp::Const(Length::Px(12.0))),
-                height: Some(ViewProp::Const(Length::Px(12.0))),
-                border: Some(ViewProp::Const(Length::Px(1.0))),
-                border_color: Some(ViewProp::Const(Color::BLACK)),
-                aspect_ratio: Some(ViewProp::Const(1.0)),
-                corner_radius: Some(ViewProp::Const(Size::splat(3.0))),
-                padding: Some(ViewProp::Const(UiRect::all_px(0.5))),
+                width: Some(Prop::Const(Length::Px(12.0))),
+                height: Some(Prop::Const(Length::Px(12.0))),
+                border: Some(Prop::Const(Length::Px(1.0))),
+                border_color: Some(Prop::Const(Color::BLACK)),
+                aspect_ratio: Some(Prop::Const(1.0)),
+                corner_radius: Some(Prop::Const(Size::splat(3.0))),
+                padding: Some(Prop::Const(UiRect::all_px(0.5))),
                 ..ViewStyle::DEFAULT
             },
         }
     }
 
-    pub fn checked(mut self, val: impl Into<ViewProp<bool>>) -> Self {
+    pub fn checked(mut self, val: impl Into<Prop<bool>>) -> Self {
         self.checked = Some(val.into());
         self
     }
 
-    pub fn enabled(mut self, val: impl Into<ViewProp<bool>>) -> Self {
+    pub fn enabled(mut self, val: impl Into<Prop<bool>>) -> Self {
         self.enabled = val.into();
         self
     }
@@ -63,6 +63,7 @@ impl View for Checkbox {
 
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
         cx.set_focusable(true);
+        cx.set_clickable(true);
         cx.apply_style(self.style);
         CheckboxWidget {
             checked: self
@@ -101,15 +102,17 @@ impl Widget for CheckboxWidget {
         "Checkbox"
     }
 
-    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) {
+    fn mouse_event(&mut self, event: MouseEvent, cx: &mut EventContext) {
         if let MouseEvent::Click(_) = event {
+            self.checked = !self.checked;
             if let Some(f) = self.click_fn.as_mut() {
-                f(ctx);
+                f(cx);
             }
+            cx.request_render();
         }
     }
 
-    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventStatus {
+    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventResult {
         match event {
             KeyEvent::KeyDown {
                 key: Key::Enter, ..
@@ -117,27 +120,28 @@ impl Widget for CheckboxWidget {
                 if let Some(f) = self.click_fn.as_mut() {
                     f(ctx);
                 }
-                EventStatus::Handled
+                EventResult::Stop
             }
-            _ => EventStatus::Ignored,
+            _ => EventResult::Continue,
         }
     }
 
-    fn render(&mut self, ctx: &mut RenderContext) -> Scene {
-        let mut scene = Scene::new();
+    fn render(&mut self, cx: &mut RenderContext) {
         if self.checked {
-            let size = (ctx.content_bounds().size().min_element() - 1.0).max(0.0);
-            let bounds = Rect::from_center(ctx.content_bounds().center(), Size::splat(size));
-            scene.draw_lines(
-                &[
-                    bounds.get_relative_point(0., 0.5),
-                    bounds.get_relative_point(0.35, 1.0),
-                    bounds.get_relative_point(1.0, 0.0),
-                ],
+            let size = (cx.bounds().size().min_element() - 1.0).max(0.0);
+            let bounds = Rect::from_center(cx.bounds().center(), Size::splat(size));
+            cx.stroke_path(
+                |path| {
+                    path.move_to(bounds.get_relative_point(0.05, 0.5))
+                        .line_to(bounds.get_relative_point(0.35, 0.95))
+                        .quad_to(
+                            bounds.get_relative_point(0.5, 0.5),
+                            bounds.get_relative_point(0.95, 0.05),
+                        );
+                },
                 Color::BLACK,
                 2.0,
             )
         }
-        scene
     }
 }

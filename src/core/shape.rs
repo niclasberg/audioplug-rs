@@ -1,14 +1,13 @@
 use std::fmt::Debug;
 
-use crate::core::{Circle, Ellipse, Path, Point, Rect, RoundedRect, Size, Vec2};
+use crate::core::{Circle, Ellipse, Point, Rect, RoundedRect, Size, Vec2};
 
 /// Represents a drawable shape
-#[derive(Debug, Clone)]
+#[derive(Clone, Copy, Debug)]
 pub enum Shape {
     Rect(Rect),
     Rounded(RoundedRect),
     Ellipse(Ellipse),
-    Path(Path),
 }
 
 impl Shape {
@@ -37,7 +36,6 @@ impl Shape {
             Shape::Rect(rect) => Shape::Rect(rect.offset(delta)),
             Shape::Rounded(rect) => Shape::Rounded(rect.offset(delta)),
             Shape::Ellipse(ellipse) => Shape::Ellipse(ellipse.offset(delta)),
-            Shape::Path(path) => Shape::Path(path.clone().offset(delta)),
         }
     }
 
@@ -46,7 +44,22 @@ impl Shape {
             Shape::Rect(rect) => *rect,
             Shape::Rounded(rounded) => rounded.bounds(),
             Shape::Ellipse(ell) => ell.bounds(),
-            Shape::Path(geometry) => geometry.bounds(),
+        }
+    }
+
+    pub fn inflate(self, amount: f32) -> Self {
+        match self {
+            Shape::Rect(rect) => Self::Rect(rect.inflate(amount)),
+            Shape::Rounded(rounded_rect) => Self::Rounded(rounded_rect.inflate(amount)),
+            Shape::Ellipse(ellipse) => Self::Ellipse(ellipse.inflate(amount)),
+        }
+    }
+
+    pub fn scale(self, scale: f32) -> Self {
+        match self {
+            Shape::Rect(rect) => Self::Rect(rect.scale(scale)),
+            Shape::Rounded(rounded_rect) => Self::Rounded(rounded_rect.scale(scale)),
+            Shape::Ellipse(ellipse) => Self::Ellipse(ellipse.scale(scale)),
         }
     }
 
@@ -55,14 +68,7 @@ impl Shape {
             Shape::Rect(rect) => rect.contains(pos),
             Shape::Rounded(rect) => rect.contains(pos),
             Shape::Ellipse(ell) => ell.contains(pos),
-            Shape::Path(_) => todo!(),
         }
-    }
-}
-
-impl From<Path> for Shape {
-    fn from(value: Path) -> Self {
-        Self::Path(value)
     }
 }
 
@@ -87,112 +93,5 @@ impl From<Ellipse> for Shape {
 impl From<Circle> for Shape {
     fn from(value: Circle) -> Self {
         Self::Ellipse(value.into())
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum ShapeRef<'a> {
-    Rect(Rect),
-    Rounded(RoundedRect),
-    Ellipse(Ellipse),
-    Path(&'a Path),
-}
-
-impl ShapeRef<'_> {
-    pub fn bounds(&self) -> Rect {
-        match self {
-            Self::Rect(rect) => *rect,
-            Self::Rounded(rounded) => rounded.bounds(),
-            Self::Ellipse(ell) => ell.bounds(),
-            Self::Path(path) => path.bounds(),
-        }
-    }
-}
-
-impl<'a> From<&'a Shape> for ShapeRef<'a> {
-    fn from(value: &'a Shape) -> Self {
-        match value {
-            Shape::Rect(rectangle) => Self::Rect(*rectangle),
-            Shape::Rounded(rounded_rectangle) => Self::Rounded(*rounded_rectangle),
-            Shape::Ellipse(ellipse) => Self::Ellipse(*ellipse),
-            Shape::Path(path) => Self::Path(path),
-        }
-    }
-}
-
-impl<'a> From<Rect> for ShapeRef<'a> {
-    fn from(value: Rect) -> Self {
-        Self::Rect(value)
-    }
-}
-
-impl<'a> From<RoundedRect> for ShapeRef<'a> {
-    fn from(value: RoundedRect) -> Self {
-        Self::Rounded(value)
-    }
-}
-
-impl<'a> From<Ellipse> for ShapeRef<'a> {
-    fn from(value: Ellipse) -> Self {
-        Self::Ellipse(value)
-    }
-}
-
-impl<'a> From<Circle> for ShapeRef<'a> {
-    fn from(value: Circle) -> Self {
-        Self::Ellipse(value.into())
-    }
-}
-
-impl<'a> From<&'a Path> for ShapeRef<'a> {
-    fn from(value: &'a Path) -> Self {
-        Self::Path(value)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum PrimitiveShape {
-    Rect(Rect),
-    RoundedRect(RoundedRect),
-    Ellipse(Ellipse),
-}
-
-impl PrimitiveShape {
-    pub fn inflate(self, amount: f32) -> Self {
-        match self {
-            PrimitiveShape::Rect(rect) => Self::Rect(rect.inflate(amount)),
-            PrimitiveShape::RoundedRect(rounded_rect) => {
-                Self::RoundedRect(rounded_rect.inflate(amount))
-            }
-            PrimitiveShape::Ellipse(ellipse) => Self::Ellipse(ellipse.inflate(amount)),
-        }
-    }
-
-    pub fn scale(self, scale: f32) -> Self {
-        match self {
-            PrimitiveShape::Rect(rect) => Self::Rect(rect.scale(scale)),
-            PrimitiveShape::RoundedRect(rounded_rect) => {
-                Self::RoundedRect(rounded_rect.scale(scale))
-            }
-            PrimitiveShape::Ellipse(ellipse) => Self::Ellipse(ellipse.scale(scale)),
-        }
-    }
-}
-
-impl From<Rect> for PrimitiveShape {
-    fn from(value: Rect) -> Self {
-        Self::Rect(value)
-    }
-}
-
-impl From<RoundedRect> for PrimitiveShape {
-    fn from(value: RoundedRect) -> Self {
-        Self::RoundedRect(value)
-    }
-}
-
-impl From<Ellipse> for PrimitiveShape {
-    fn from(value: Ellipse) -> Self {
-        Self::Ellipse(value)
     }
 }

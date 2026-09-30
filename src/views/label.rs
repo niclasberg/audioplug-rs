@@ -1,4 +1,4 @@
-use crate::ui::{BuildContext, StyleExt, TextExt, View, ViewProp, ViewStyle, ViewText, Widget};
+use crate::ui::{BuildContext, StyleExt, TextExt, View, Prop, ViewStyle, ViewText, Widget};
 
 pub struct Label {
     style: ViewStyle,
@@ -6,7 +6,7 @@ pub struct Label {
 }
 
 impl Label {
-    pub fn new(str: impl Into<ViewProp<String>>) -> Self {
+    pub fn new(str: impl Into<Prop<String>>) -> Self {
         Self {
             style: Default::default(),
             text: ViewText {

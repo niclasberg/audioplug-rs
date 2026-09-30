@@ -1,4 +1,4 @@
-use std::ops::{Add, Mul};
+use std::ops::Mul;
 
 use super::{Point, Size, Vec2};
 
@@ -30,17 +30,17 @@ impl Transform {
         Self::new(1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
     }
 
-    pub fn from_rotation(angle: f32) -> Self {
+    pub fn rotate(angle: f32) -> Self {
         let c = angle.cos();
         let s = angle.sin();
         Self::new(c, -s, s, c, 0.0, 0.0)
     }
 
-    pub fn from_translation(v: Vec2) -> Self {
+    pub fn translate(v: Vec2) -> Self {
         Self::new(1.0, 0.0, 0.0, 1.0, v.x, v.y)
     }
 
-    pub fn from_scale(sx: f32, sy: f32) -> Self {
+    pub fn scale(sx: f32, sy: f32) -> Self {
         Self::new(sx, 0.0, 0.0, sy, 0.0, 0.0)
     }
 }
@@ -90,5 +90,82 @@ impl Mul<Size> for Transform {
             self.m11 * rhs.width + self.m12 * rhs.height,
             self.m21 * rhs.width + self.m22 * rhs.height,
         )
+    }
+}
+
+/// Transform consisting of a uniform scaling followed by a translation
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TranslateScale {
+    pub translation: Vec2,
+    pub scale: f32,
+}
+
+impl TranslateScale {
+    pub const fn new(translation: Vec2, scale: f32) -> Self {
+        Self { translation, scale }
+    }
+
+    pub const fn identity() -> Self {
+        Self::new(Vec2::ZERO, 1.0)
+    }
+
+    pub const fn translate(translation: Vec2) -> Self {
+        Self::new(translation, 0.0)
+    }
+
+    pub const fn scale(scale: f32) -> Self {
+        Self::new(Vec2::ZERO, scale)
+    }
+
+    pub fn inverse(self) -> Self {
+        Self::new(-self.translation / self.scale, 1.0 / self.scale)
+    }
+}
+
+impl Mul<Self> for TranslateScale {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self {
+            translation: self.translation + self.scale * rhs.translation,
+            scale: self.scale * rhs.scale,
+        }
+    }
+}
+
+impl Mul<Vec2> for TranslateScale {
+    type Output = Vec2;
+
+    fn mul(self, rhs: Vec2) -> Self::Output {
+        rhs * self.scale
+    }
+}
+
+impl Mul<Point> for TranslateScale {
+    type Output = Point;
+
+    fn mul(self, rhs: Point) -> Self::Output {
+        rhs.scale(self.scale) + self.translation
+    }
+}
+
+impl Mul<Size> for TranslateScale {
+    type Output = Size;
+
+    fn mul(self, rhs: Size) -> Self::Output {
+        rhs * self.scale
+    }
+}
+
+impl From<TranslateScale> for Transform {
+    fn from(value: TranslateScale) -> Self {
+        Self {
+            m11: value.scale,
+            m12: 0.0,
+            m21: 0.0,
+            m22: value.scale,
+            tx: value.translation.x,
+            ty: value.translation.y,
+        }
     }
 }
