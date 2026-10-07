@@ -85,7 +85,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                         if new_gesture.state == GestureState::Pressed
                             && flags.contains(WidgetFlags::DRAGGABLE)
                         {
-                            if (ev.position - new_gesture.start).length_squared() > 4.0 {
+                            if (ev.position - new_gesture.start).length_sq() > 4.0 {
                                 new_gesture.state = GestureState::Dragging;
                                 dispatch_mouse_event(
                                     app_state,

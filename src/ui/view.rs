@@ -1,12 +1,10 @@
-use parley::FontContext;
-
 use super::{
     AppState, ViewSequence, Widget, WidgetFlags, WidgetHandle, WidgetId, WidgetPos,
     overlay::OverlayOptions,
     reactive::{CanCreate, CanRead, Owner, ReadScope},
 };
 use crate::{
-    core::TextLayoutContext,
+    core::Size,
     ui::{
         Prop, ViewStyle, ViewText, WidgetData,
         reactive::{CreateContext, ReadContext},
@@ -85,6 +83,10 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
         self.widget_data_mut().display_style = display_style;
     }
 
+    pub fn set_intrinsic_size(&mut self, size: Size) {
+        self.widget_data_mut().intrinsic_size = Some(size);
+    }
+
     pub fn add_child(&mut self, view: impl View) -> WidgetId {
         self.app_state
             .add_widget(view, WidgetPos::LastChild(self.id))
@@ -112,7 +114,7 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
                 style.background = Some(value);
             });
             apply_layout_style(style.border, cx, |value, style| {
-                style.border = value;
+                style.border = Some(value);
             });
             apply_layout_style(style.corner_radius, cx, |value, style| {
                 style.corner_radius = value;
@@ -140,9 +142,6 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
             });
             apply_layout_style(style.width, cx, |value, style| {
                 style.width = value;
-            });
-            apply_render_style(style.border_color, cx, |value, style| {
-                style.border_color = Some(value);
             });
             apply_layout_style(style.align_self, cx, |value, style| {
                 style.align_self = Some(value);
@@ -172,6 +171,13 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
             })
         } else {
             "".to_string()
+        };
+        if let Some(font_size) = text.font_size {
+            let value = font_size.get_and_bind(self, |value, mut widget| {
+                widget.update_text(|t| t.set_font_size(value));
+                widget.request_layout();
+            });
+            text_data.set_font_size(value);
         };
         text_data.set_text(value);
         self.app_state.widgets.texts.insert(self.id, text_data);

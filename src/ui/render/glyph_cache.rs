@@ -34,9 +34,13 @@ impl GlyphKey {
 }
 
 pub struct CachedGlyph<'a> {
+    /// Unique id for the glyph
     pub id: usize,
-    pub outline: &'a [GpuPathSegment],
+    /// Path segments of the glyph's outline
+    pub segments: &'a [GpuPathSegment],
+    /// Tight bounding box for each segment
     pub segment_bounds: &'a [Rect],
+    /// Bounding box for the whole glyph
     pub glyph_bounds: Rect,
 }
 
@@ -75,7 +79,7 @@ impl GlyphCache {
         if let Some(cached_glyph) = self.glyphs.get(&key) {
             return Some(CachedGlyph {
                 id: cached_glyph.id,
-                outline: &self.segments[cached_glyph.segment_range],
+                segments: &self.segments[cached_glyph.segment_range],
                 segment_bounds: &self.segment_bounds[cached_glyph.segment_range],
                 glyph_bounds: cached_glyph.bounds,
             });
@@ -134,7 +138,7 @@ impl GlyphCache {
 
             Some(CachedGlyph {
                 id,
-                outline: &self.segments[segment_range],
+                segments: &self.segments[segment_range],
                 segment_bounds: &self.segment_bounds[segment_range],
                 glyph_bounds: bounds,
             })

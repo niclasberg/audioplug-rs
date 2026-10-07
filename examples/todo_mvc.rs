@@ -7,7 +7,7 @@ use audioplug::{
         App, EventContext, StyleExt, Window,
         prelude::*,
         reactive::CreateContext,
-        style::{Length, UiRect},
+        style::{Length, Edges},
     },
     views::*,
 };
@@ -61,12 +61,12 @@ fn main() {
                         EventResult::Continue
                     }),
                 Row::new((
-                    Button::new_with_label("Shuffle", move |cx| {
+                    LabelButton::new("Shuffle", move |cx| {
                         todos.update(cx, move |_, items| {
                             items.shuffle(&mut rand::rng());
                         });
                     }),
-                    Button::new_with_label("Sort", move |cx| {
+                    LabelButton::new("Sort", move |cx| {
                         todos.update(cx, move |cx, items| {
                             items.sort_by_key(|item| item.name.get_untracked(cx));
                         });
@@ -101,11 +101,11 @@ fn todo_view<F: Fn(&mut EventContext) + 'static>(todo: &Todo, on_remove: F) -> i
             .checked(todo.completed)
             .on_click(move |cx| completed.update(cx, |_, value| *value = !*value)),
         Label::new(todo.name).flex_grow(1.0),
-        Button::new_with_label("Remove", move |cx| on_remove(cx)),
+        LabelButton::new("Remove", move |cx| on_remove(cx)),
     ))
     .v_align_center()
     .spacing(Length::Px(5.0))
     .background(completed.map(|&c| if c { Color::GREEN } else { Color::RED }.into()))
-    .padding(UiRect::all_px(5.0))
+    .padding(Edges::all_px(5.0))
     .width(Length::Percent(100.0))
 }

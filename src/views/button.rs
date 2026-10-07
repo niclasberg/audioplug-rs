@@ -1,11 +1,12 @@
 use crate::{
     MouseEvent,
-    core::{Color, Key, Paint},
+    core::{Color, Key, Size},
     event::KeyEvent,
     ui::{
-        BuildContext, EventContext, EventResult, StyleExt, View, Prop, ViewStyle, Widget,
+        BuildContext, EventContext, EventResult, Paint, Prop, StyleExt, TextExt, View, ViewStyle,
+        ViewText, Widget,
         reactive::{ReactiveValue, WidgetStatus},
-        style::UiRect,
+        style::{Fill, Edges},
     },
     views::Label,
 };
@@ -14,15 +15,62 @@ type ClickFn = dyn FnMut(&mut EventContext);
 
 fn default_style() -> ViewStyle {
     ViewStyle::default()
-        .padding(UiRect::all_px(5.0))
+        .padding(Edges::all_px(5.0))
+        .corner_radius(Size::splat(5.0))
         .background_fn(|cx| {
             let color = if WidgetStatus::PRESSED.get(cx) {
                 Color::from_rgb8(121, 153, 141)
             } else {
                 Color::from_rgb8(101, 133, 121)
             };
-            Paint::Solid(color)
+            Fill::Solid(color)
         })
+}
+
+pub struct LabelButton {
+    style: ViewStyle,
+    text: ViewText,
+    click_fn: Box<ClickFn>,
+}
+
+impl LabelButton {
+    pub fn new(
+        label: impl Into<Prop<String>>,
+        click_fn: impl FnMut(&mut EventContext) + 'static,
+    ) -> Self {
+        Self {
+            style: default_style(),
+            text: ViewText::new(label),
+            click_fn: Box::new(click_fn),
+        }
+    }
+}
+
+impl StyleExt for LabelButton {
+    fn style_mut(&mut self) -> &mut ViewStyle {
+        &mut self.style
+    }
+}
+
+impl TextExt for LabelButton {
+    fn text_mut(&mut self) -> &mut ViewText {
+        &mut self.text
+    }
+}
+
+impl View for LabelButton {
+    type Element = ButtonWidget;
+
+    fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
+        cx.set_focusable(true);
+        cx.set_clickable(true);
+        cx.apply_text(self.text);
+        cx.apply_style(self.style);
+
+        ButtonWidget {
+            click_fn: self.click_fn,
+        }
+    }
 }
 
 pub struct Button<V> {
@@ -36,19 +84,6 @@ impl<V: View> Button<V> {
         Self {
             style: default_style(),
             child,
-            click_fn: Box::new(click_fn),
-        }
-    }
-}
-
-impl Button<Label> {
-    pub fn new_with_label(
-        text: impl Into<Prop<String>>,
-        click_fn: impl FnMut(&mut EventContext) + 'static,
-    ) -> Self {
-        Self {
-            style: default_style(),
-            child: Label::new(text),
             click_fn: Box::new(click_fn),
         }
     }

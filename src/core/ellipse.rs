@@ -64,6 +64,10 @@ impl Circle {
         self
     }
 
+    pub const fn bounds(&self) -> Rect {
+        Rect::from_center(self.center, Size::splat(2.0 * self.radius))
+    }
+
     pub fn contains(&self, pos: Point) -> bool {
         (pos.x - self.center.x).powi(2) + (pos.y - self.center.y).powi(2) <= self.radius.powi(2)
     }

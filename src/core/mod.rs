@@ -1,13 +1,10 @@
 mod alignment;
 mod axis;
-mod border;
-mod brush;
+mod capsule;
 mod color;
 mod constraint;
-mod corner;
 mod cursor;
 pub mod diff;
-mod edge;
 mod ellipse;
 mod gradient;
 mod image;
@@ -34,13 +31,10 @@ use std::{
 
 pub use alignment::{Align, HAlign, VAlign};
 pub use axis::Axis;
-pub use border::Border;
-pub use brush::{Paint, PaintRef};
+pub use capsule::Capsule;
 pub use color::Color;
 pub use constraint::*;
-pub use corner::{Corner, Corners};
 pub use cursor::Cursor;
-pub use edge::{Edge, Edges};
 pub use ellipse::{Circle, Ellipse};
 pub use gradient::*;
 pub use image::ImageData;
@@ -57,8 +51,8 @@ pub use shape::Shape;
 pub use size::{PhysicalSize, Size};
 pub use text::*;
 pub use transform::{Transform, TranslateScale};
-pub use unit_point::UnitPoint;
-pub use vector::{Vec2, Vec2i, Vec2u, Vec3f, Vec4f};
+pub use unit_point::{UnitPoint, UnitValue};
+pub use vector::{Vec2, Vec2i, Vec2u, Vec3, Vec4};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WindowTheme {
@@ -66,40 +60,6 @@ pub enum WindowTheme {
     Light,
     /// Dark mode
     Dark,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ShadowKind {
-    DropShadow,
-    InnerShadow,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ShadowOptions {
-    pub radius: f32,
-    pub offset: Vec2,
-    pub color: Color,
-    pub kind: ShadowKind,
-}
-
-impl ShadowOptions {
-    pub const DEFAULT: Self = Self {
-        radius: 0.0,
-        offset: Vec2::ZERO,
-        color: Color::BLACK.with_alpha(0.3),
-        kind: ShadowKind::DropShadow,
-    };
-}
-
-impl Default for ShadowOptions {
-    fn default() -> Self {
-        Self {
-            radius: 0.0,
-            offset: Vec2::ZERO,
-            color: Color::BLACK.with_alpha(0.3),
-            kind: ShadowKind::DropShadow,
-        }
-    }
 }
 
 pub trait Zero {

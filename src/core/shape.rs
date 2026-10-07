@@ -1,10 +1,11 @@
 use std::fmt::Debug;
 
-use crate::core::{Circle, Ellipse, Point, Rect, RoundedRect, Size, Vec2};
+use crate::core::{Circle, Ellipse, Point, Rect, RoundedRect, Size, Vec2, capsule::Capsule};
 
 /// Represents a drawable shape
 #[derive(Clone, Copy, Debug)]
 pub enum Shape {
+    Capsule(Capsule),
     Rect(Rect),
     Rounded(RoundedRect),
     Ellipse(Ellipse),
@@ -31,11 +32,11 @@ impl Shape {
     }
 
     pub fn offset(&self, delta: impl Into<Vec2>) -> Self {
-        let delta = delta.into();
         match self {
             Shape::Rect(rect) => Shape::Rect(rect.offset(delta)),
             Shape::Rounded(rect) => Shape::Rounded(rect.offset(delta)),
             Shape::Ellipse(ellipse) => Shape::Ellipse(ellipse.offset(delta)),
+            Shape::Capsule(capsule) => Shape::Capsule(capsule.offset(delta)),
         }
     }
 
@@ -44,6 +45,7 @@ impl Shape {
             Shape::Rect(rect) => *rect,
             Shape::Rounded(rounded) => rounded.bounds(),
             Shape::Ellipse(ell) => ell.bounds(),
+            Shape::Capsule(capsule) => capsule.bounds(),
         }
     }
 
@@ -52,6 +54,7 @@ impl Shape {
             Shape::Rect(rect) => Self::Rect(rect.inflate(amount)),
             Shape::Rounded(rounded_rect) => Self::Rounded(rounded_rect.inflate(amount)),
             Shape::Ellipse(ellipse) => Self::Ellipse(ellipse.inflate(amount)),
+            Shape::Capsule(capsule) => Self::Capsule(capsule.inflate(amount)),
         }
     }
 
@@ -60,14 +63,16 @@ impl Shape {
             Shape::Rect(rect) => Self::Rect(rect.scale(scale)),
             Shape::Rounded(rounded_rect) => Self::Rounded(rounded_rect.scale(scale)),
             Shape::Ellipse(ellipse) => Self::Ellipse(ellipse.scale(scale)),
+            Shape::Capsule(capsule) => Self::Capsule(capsule.scale(scale)),
         }
     }
 
-    pub fn hit_test(&self, pos: Point) -> bool {
+    pub fn contains(&self, pos: Point) -> bool {
         match self {
             Shape::Rect(rect) => rect.contains(pos),
             Shape::Rounded(rect) => rect.contains(pos),
             Shape::Ellipse(ell) => ell.contains(pos),
+            Shape::Capsule(capsule) => capsule.contains(pos),
         }
     }
 }
@@ -93,5 +98,11 @@ impl From<Ellipse> for Shape {
 impl From<Circle> for Shape {
     fn from(value: Circle) -> Self {
         Self::Ellipse(value.into())
+    }
+}
+
+impl From<Capsule> for Shape {
+    fn from(value: Capsule) -> Self {
+        Self::Capsule(value)
     }
 }

@@ -11,13 +11,34 @@ use super::{CanRead, Effect, ReactiveValue, ReadScope};
 type ComputedFn<T> = dyn Fn(&mut ReadContext) -> T;
 
 #[derive(Clone)]
+enum ComputedInner<T> {
+    Fn(Rc<ComputedFn<T>>),
+    ConstFn(fn(&mut ReadContext) -> T),
+}
+
+#[derive(Clone)]
 pub struct Computed<T> {
-    f: Rc<ComputedFn<T>>,
+    inner: ComputedInner<T>,
 }
 
 impl<T> Computed<T> {
     pub fn new(f: impl Fn(&mut ReadContext) -> T + 'static) -> Self {
-        Self { f: Rc::new(f) }
+        Self {
+            inner: ComputedInner::Fn(Rc::new(f)),
+        }
+    }
+
+    pub const fn new_const(f: fn(&mut ReadContext) -> T) -> Self {
+        Self {
+            inner: ComputedInner::ConstFn(f),
+        }
+    }
+
+    fn eval(&self, cx: &mut ReadContext) -> T {
+        match &self.inner {
+            ComputedInner::Fn(f) => f(cx),
+            ComputedInner::ConstFn(f) => f(cx),
+        }
     }
 }
 
@@ -32,16 +53,16 @@ impl<T: 'static> ReactiveValue for Computed<T> {
 
     fn track<'s>(&self, cx: &mut impl CanRead<'s>) {
         // Only way to track the variables that `f`reads is to run the function
-        (self.f)(&mut cx.read_context());
+        self.eval(&mut cx.read_context());
     }
 
     fn with_ref<'s, R>(&self, cx: &mut impl CanRead<'s>, f: impl FnOnce(&Self::Value) -> R) -> R {
-        let value = (self.f)(&mut cx.read_context());
+        let value = self.eval(&mut cx.read_context());
         f(&value)
     }
 
     fn get<'s>(&self, cx: &mut impl CanRead<'s>) -> Self::Value {
-        (self.f)(&mut cx.read_context())
+        self.eval(&mut cx.read_context())
     }
 
     fn with_ref_untracked<'s, R>(
@@ -53,12 +74,12 @@ impl<T: 'static> ReactiveValue for Computed<T> {
         // we want to ignore this scope while evaluating the Computed. If we didn't do this
         // we would end up tracking everything that is read while evaluating the Computed.
         // I know, this is a bit weird, but required for correct semantics.
-        let value = (self.f)(&mut cx.read_context().with_read_scope(ReadScope::Untracked));
+        let value = self.eval(&mut cx.read_context().with_read_scope(ReadScope::Untracked));
         f(&value)
     }
 
     fn get_untracked<'s>(&self, cx: &mut impl CanRead<'s>) -> Self::Value {
-        (self.f)(&mut cx.read_context().with_read_scope(ReadScope::Untracked))
+        self.eval(&mut cx.read_context().with_read_scope(ReadScope::Untracked))
     }
 
     fn watch<'s, F>(self, cx: &mut impl CanCreate<'s>, mut f: F) -> Effect
@@ -67,7 +88,7 @@ impl<T: 'static> ReactiveValue for Computed<T> {
     {
         Effect::watch(
             cx,
-            move |cx| (self.f)(&mut cx.read_context()),
+            move |cx| self.eval(&mut cx.read_context()),
             move |cx, value, _| {
                 f(cx, value);
             },

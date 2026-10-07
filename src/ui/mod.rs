@@ -32,7 +32,10 @@ pub use host_handle::HostHandle;
 pub use overlay::{OverlayAnchor, OverlayOptions};
 
 pub use prop::Prop;
-pub use render::{Canvas, CanvasWidget, RenderContext, invalidate_window};
+pub use render::{
+    Canvas, CanvasWidget, DrawStyle, Paint, PaintRef, RenderContext, ShadowKind, ShadowOptions,
+    invalidate_window,
+};
 pub use task_queue::TaskQueue;
 pub use text::{TextContext, TextExt, TextStyle, ViewText};
 pub use view::*;

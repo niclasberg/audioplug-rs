@@ -1,31 +1,18 @@
 use crate::{
     KeyEvent, MouseEvent,
-    core::{Circle, Color, Key, LinearGradient, Point, Rect, RoundedRect, Size, UnitPoint},
+    core::{Axis, Capsule, Circle, Color, Key, LinearGradient, Point, Rect, Size, UnitPoint},
     event::{MouseButton, MouseDownEvent, MouseDragEvent},
     param::{AnyParameter, NormalizedValue, PlainValue},
     ui::{
         BuildContext, EventContext, EventResult, Prop, RenderContext, StyleExt, View, ViewStyle,
-        Widget, reactive::ParamSetter, style::Length,
+        Widget, reactive::ParamSetter,
     },
 };
 
 use super::util::{denormalize_value, normalize_value};
 
-#[derive(Default)]
-enum Direction {
-    #[default]
-    Horizontal,
-    Vertical,
-}
-
 type OnDragCallback = dyn Fn(&mut EventContext);
 type OnValueChangeCallback = dyn Fn(&mut EventContext, f64);
-
-const BASE_STYLE: ViewStyle = ViewStyle {
-    width: Some(Prop::Const(Length::Auto)),
-    height: Some(Prop::Const(Length::Px(10.0))),
-    ..ViewStyle::DEFAULT
-};
 
 pub struct Slider {
     min: f64,
@@ -34,7 +21,7 @@ pub struct Slider {
     on_drag_start: Option<Box<OnDragCallback>>,
     on_drag_end: Option<Box<OnDragCallback>>,
     on_value_changed: Box<OnValueChangeCallback>,
-    direction: Direction,
+    direction: Axis,
     style: ViewStyle,
 }
 
@@ -47,13 +34,13 @@ impl Slider {
             on_drag_start: None,
             on_drag_end: None,
             on_value_changed: Box::new(value_change_fn),
-            direction: Default::default(),
-            style: BASE_STYLE,
+            direction: Axis::Horizontal,
+            style: ViewStyle::DEFAULT,
         }
     }
 
     pub fn vertical(mut self) -> Self {
-        self.direction = Direction::Vertical;
+        self.direction = Axis::Vertical;
         self
     }
 
@@ -86,6 +73,7 @@ impl View for Slider {
         ctx.set_focusable(true);
         ctx.set_draggable(true);
         ctx.apply_style(self.style);
+        ctx.set_intrinsic_size(intrinsic_size(self.direction));
 
         let position_normalized = if let Some(value) = self.value {
             let position = value.get_and_bind(ctx, move |value, mut widget| {
@@ -110,6 +98,15 @@ impl View for Slider {
     }
 }
 
+fn intrinsic_size(direction: Axis) -> Size {
+    let main_size = 120.0;
+    let cross_size = 16.0;
+    match direction {
+        Axis::Horizontal => Size::new(main_size, cross_size),
+        Axis::Vertical => Size::new(cross_size, main_size),
+    }
+}
+
 impl StyleExt for Slider {
     fn style_mut(&mut self) -> &mut ViewStyle {
         &mut self.style
@@ -120,7 +117,7 @@ pub struct ParameterSlider<P: AnyParameter> {
     style: ViewStyle,
     editor: ParamSetter<P>,
     signal: Prop<NormalizedValue>,
-    direction: Direction,
+    direction: Axis,
 }
 
 impl<P: AnyParameter> ParameterSlider<P> {
@@ -130,13 +127,13 @@ impl<P: AnyParameter> ParameterSlider<P> {
         Self {
             editor,
             signal,
-            direction: Default::default(),
-            style: BASE_STYLE,
+            direction: Axis::Horizontal,
+            style: ViewStyle::DEFAULT,
         }
     }
 
     pub fn vertical(mut self) -> Self {
-        self.direction = Direction::Vertical;
+        self.direction = Axis::Vertical;
         self
     }
 }
@@ -149,6 +146,7 @@ impl<P: AnyParameter> View for ParameterSlider<P> {
         ctx.set_focusable(true);
         ctx.set_draggable(true);
         ctx.apply_style(self.style);
+        ctx.set_intrinsic_size(intrinsic_size(self.direction));
         /*ctx.set_default_style(Style {
             size: match self.direction {
                 Direction::Horizontal => Size::new(Length::Auto, Length::Px(10.0)),
@@ -197,20 +195,17 @@ pub struct SliderWidget {
     on_drag_start: Option<Box<OnDragCallback>>,
     on_drag_end: Option<Box<OnDragCallback>>,
     on_value_changed: Option<Box<OnValueChangeCallback>>,
-    direction: Direction,
-    knob_gradient_up: LinearGradient,
-    knob_gradient_down: LinearGradient,
-    background_gradient: LinearGradient,
+    direction: Axis,
 }
 
 impl SliderWidget {
     fn slider_position(&self, bounds: Rect) -> Point {
         let slider_bounds = self.inner_bounds(bounds);
         match self.direction {
-            Direction::Horizontal => {
+            Axis::Horizontal => {
                 slider_bounds.get_relative_point(self.position_normalized as f32, 0.5)
             }
-            Direction::Vertical => {
+            Axis::Vertical => {
                 slider_bounds.get_relative_point(0.5, self.position_normalized as f32)
             }
         }
@@ -218,8 +213,8 @@ impl SliderWidget {
 
     fn inner_bounds(&self, bounds: Rect) -> Rect {
         match self.direction {
-            Direction::Horizontal => bounds.shrink_x(self.knob_radius(bounds)),
-            Direction::Vertical => bounds.shrink_y(self.knob_radius(bounds)),
+            Axis::Horizontal => bounds.shrink_x(self.knob_radius(bounds)),
+            Axis::Vertical => bounds.shrink_y(self.knob_radius(bounds)),
         }
     }
 
@@ -233,10 +228,10 @@ impl SliderWidget {
 
     fn absolute_to_normalized_position(&self, position: Point, bounds: Rect) -> f64 {
         let normalized_position = match self.direction {
-            Direction::Horizontal => {
+            Axis::Horizontal => {
                 ((position.x - bounds.left - 2.5) / (bounds.width() - 5.0)).clamp(0.0, 1.0)
             }
-            Direction::Vertical => {
+            Axis::Vertical => {
                 ((position.y - bounds.top - 2.5) / (bounds.height() - 5.0)).clamp(0.0, 1.0)
             }
         };
@@ -268,28 +263,7 @@ impl Default for SliderWidget {
             on_drag_start: None,
             on_drag_end: None,
             on_value_changed: None,
-            direction: Default::default(),
-            knob_gradient_up: LinearGradient::new(
-                (
-                    Color::from_rgb8(0xA7, 0xA7, 0xA7),
-                    Color::from_rgb8(0xDA, 0xDA, 0xDA),
-                ),
-                UnitPoint::TOP_CENTER,
-                UnitPoint::BOTTOM_CENTER,
-            ),
-            knob_gradient_down: LinearGradient::new(
-                (
-                    Color::from_rgb8(0xA7, 0xA7, 0xA7),
-                    Color::from_rgb8(0xDA, 0xDA, 0xDA),
-                ),
-                UnitPoint::BOTTOM_CENTER,
-                UnitPoint::TOP_CENTER,
-            ),
-            background_gradient: LinearGradient::new(
-                (Color::BLACK.with_alpha(0.2), Color::WHITE.with_alpha(0.2)),
-                UnitPoint::TOP_CENTER,
-                UnitPoint::BOTTOM_CENTER,
-            ),
+            direction: Axis::Horizontal,
         }
     }
 }
@@ -361,27 +335,43 @@ impl Widget for SliderWidget {
         let bounds = cx.bounds();
         let center = bounds.center();
         let knob_shape = self.knob_shape(bounds);
+        let knob_bounds = knob_shape.bounds();
         let knob_radius = self.knob_radius(bounds);
 
         let indent_rect = match self.direction {
-            Direction::Horizontal => Rect::from_center(center, bounds.size().scale_y(0.3)),
-            Direction::Vertical => Rect::from_center(center, bounds.size().scale_x(0.3)),
+            Axis::Horizontal => Rect::from_center(center, bounds.size().scale_y(0.3)),
+            Axis::Vertical => Rect::from_center(center, bounds.size().scale_x(0.3)),
         };
-        let corner_radius = indent_rect.height().min(indent_rect.width()) / 2.0;
-        let background_rect = RoundedRect::new(indent_rect, Size::splat(corner_radius));
-        /*let range_indicator_rect = Rectangle::from_ltrb(
-        bounds.left(),
-        center.y - bounds.height() / 5.0,
-        slider_position.x,
-        center.y + bounds.height() / 5.0);*/
+        let background_rect = Capsule::from_rect(indent_rect, self.direction);
+        let knob_gradient_up = LinearGradient::new(
+            (
+                Color::from_rgb8(0xA7, 0xA7, 0xA7),
+                Color::from_rgb8(0xDA, 0xDA, 0xDA),
+            ),
+            knob_bounds.get_relative_point(0.5, 0.0),
+            knob_bounds.get_relative_point(0.5, 1.0),
+        );
+        let knob_gradient_down = LinearGradient::new(
+            (
+                Color::from_rgb8(0xA7, 0xA7, 0xA7),
+                Color::from_rgb8(0xDA, 0xDA, 0xDA),
+            ),
+            knob_bounds.get_relative_point(0.5, 1.0),
+            knob_bounds.get_relative_point(0.5, 0.0),
+        );
+        let background_gradient = LinearGradient::new(
+            (Color::BLACK.with_alpha(0.2), Color::WHITE.with_alpha(0.2)),
+            indent_rect.get_relative_point(0.5, 0.0),
+            indent_rect.get_relative_point(0.5, 1.0),
+        );
 
-        cx.stroke(background_rect, &self.background_gradient, 1.0);
+        cx.stroke(background_rect, &background_gradient, 1.0);
         cx.fill(background_rect, Color::BLACK.with_alpha(0.3));
         //ctx.fill(RoundedRectangle::new(range_indicator_rect, Size::new(1.0, 1.0)), Color::NEON_GREEN);
-        cx.fill(knob_shape, self.knob_gradient_down.clone());
+        cx.fill(knob_shape, &knob_gradient_down);
         cx.fill(
             knob_shape.with_radius(4.0 * knob_radius / 5.0),
-            self.knob_gradient_up.clone(),
+            &knob_gradient_up,
         );
     }
 }

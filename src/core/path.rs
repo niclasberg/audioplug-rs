@@ -148,7 +148,7 @@ impl Line {
     }
 
     pub fn distance_squared(&self, pos: Point) -> f32 {
-        (self.closest_point(pos) - pos).length_squared()
+        (self.closest_point(pos) - pos).length_sq()
     }
 
     pub fn distance(&self, pos: Point) -> f32 {

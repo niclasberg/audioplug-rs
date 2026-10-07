@@ -1,9 +1,9 @@
 use audioplug::{
-    core::{Color, Key, LinearGradient, Size, UnitPoint},
+    core::{Color, Key, Size, UnitPoint},
     ui::{
         App, StyleExt, Window,
         prelude::*,
-        style::{AlignSelf, Length, UiRect},
+        style::{AlignSelf, Border, Edges, Fill, Length},
     },
     views::*,
 };
@@ -23,13 +23,13 @@ fn main() {
             Container::new(
                 Column::new((
                     Label::new(count.map(|cnt| format!("Count: {cnt}"))),
-                    Button::new_with_label("Increase", move |cx| {
+                    LabelButton::new("Increase", move |cx| {
                         count.update(cx, |_, value| *value += 1)
                     }),
-                    Button::new_with_label("Decrease", move |cx| {
+                    LabelButton::new("Decrease", move |cx| {
                         count.update(cx, |_, value| *value -= 1)
                     }),
-                    Button::new_with_label("Trigger", move |cx| trigger.notify(cx)),
+                    LabelButton::new("Trigger", move |cx| trigger.notify(cx)),
                     Label::new("No children to show").hidden(count.map(|x| *x > 0)),
                     Column::new(IndexedViewSeq::new(
                         count.map(|&x| x.max(0) as usize),
@@ -39,7 +39,7 @@ fn main() {
                 .spacing(Length::Px(10.0))
                 .width(Length::Percent(30.0))
                 .min_width(Length::Px(200.0))
-                .padding(UiRect::all_px(15.0))
+                .padding(Edges::all_px(15.0))
                 .corner_radius(Size::new(10.0, 10.0))
                 .align_self(AlignSelf::CENTER)
                 .background(count.map(|cnt| {
@@ -53,12 +53,12 @@ fn main() {
             )
             .height(Length::Vh(100.0))
             .width(Length::Vw(100.0))
-            .border(Length::Px(2.0), Color::RED)
-            .background(LinearGradient::new(
-                (Color::WHITE, Color::GRAY90),
-                UnitPoint::TOP_LEFT,
-                UnitPoint::BOTTOM_RIGHT,
-            ))
+            .border(Border::new(Color::RED, Length::Px(2.0)))
+            .background(Fill::LinearGradient {
+                colors: (Color::WHITE, Color::GRAY90).into(),
+                start: UnitPoint::TOP_LEFT,
+                end: UnitPoint::BOTTOM_RIGHT,
+            })
             .on_key_event(move |cx, event| match event {
                 audioplug::KeyEvent::KeyDown { key, .. } => match key {
                     Key::Up => {

@@ -30,6 +30,13 @@ impl TextData {
         }
     }
 
+    pub fn set_font_size(&mut self, value: f32) {
+        if self.style.font_size != value {
+            self.style.font_size = value;
+            self.layout_dirty = true;
+        }
+    }
+
     pub fn get_or_create_layout(&mut self, cx: &mut TextContext) -> &mut TextLayout {
         if self.layout_dirty {
             let mut builder = cx
@@ -130,6 +137,16 @@ pub struct ViewText {
     pub(crate) text: Option<Prop<String>>,
     pub(crate) color: Option<Prop<Color>>,
     pub(crate) font_size: Option<Prop<f32>>,
+}
+
+impl ViewText {
+    pub fn new(text: impl Into<Prop<String>>) -> Self {
+        Self {
+            text: Some(text.into()),
+            color: None,
+            font_size: None,
+        }
+    }
 }
 
 pub trait TextExt: Sized {

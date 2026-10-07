@@ -1,6 +1,6 @@
 use std::hash::Hash;
 
-use crate::core::UnitPoint;
+use crate::core::Point;
 
 use super::Color;
 
@@ -71,13 +71,13 @@ impl From<(Color, Color, Color)> for ColorMap {
 
 #[derive(Debug, Clone)]
 pub struct LinearGradient {
-    pub(crate) start: UnitPoint,
-    pub(crate) end: UnitPoint,
-    pub(crate) color_map: ColorMap,
+    pub start: Point,
+    pub end: Point,
+    pub color_map: ColorMap,
 }
 
 impl LinearGradient {
-    pub fn new(color_map: impl Into<ColorMap>, start: UnitPoint, end: UnitPoint) -> Self {
+    pub fn new(color_map: impl Into<ColorMap>, start: Point, end: Point) -> Self {
         Self {
             color_map: color_map.into(),
             start,
@@ -88,6 +88,7 @@ impl LinearGradient {
 
 #[derive(Clone)]
 pub struct RadialGradient {
-    pub(crate) center: UnitPoint,
-    pub(crate) color_map: ColorMap,
+    pub center: Point,
+    pub radius: f32,
+    pub color_map: ColorMap,
 }

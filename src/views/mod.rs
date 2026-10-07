@@ -14,7 +14,7 @@ mod textbox;
 mod util;
 mod xy_pad;
 
-pub use button::{Button, ButtonWidget};
+pub use button::{Button, ButtonWidget, LabelButton};
 pub use checkbox::Checkbox;
 pub use container::{Column, Container, Grid, Row};
 pub use dropdown::{Dropdown, DropdownWidget};

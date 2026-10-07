@@ -2,11 +2,16 @@ use bytemuck::{NoUninit, Pod, Zeroable};
 
 use crate::{
     core::{
-        Color, CubicBezier, Ellipse, FillRule, FxHashMap, Line, LinearGradient, Paint, PaintRef,
-        PathSegment, Point, QuadBezier, Rect, RoundedRect, ScaleFactor, ShadowKind, ShadowOptions,
-        Shape, TextLayout, TranslateScale, Vec2, Zero,
+        Color, CubicBezier, FillRule, FxHashMap, Line, PathSegment, Point, QuadBezier, Rect,
+        ScaleFactor, Shape, TextLayout, TranslateScale, Vec2, Zero,
     },
-    ui::render::GlyphCache,
+    ui::{
+        Paint, PaintRef,
+        render::{
+            GlyphCache,
+            draw_style::{ShadowKind, ShadowOptions},
+        },
+    },
 };
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -25,6 +30,7 @@ impl GpuShapeRef {
     const SHAPE_TYPE_RECT: u32 = 2;
     const SHAPE_TYPE_ROUNDED_RECT: u32 = 3;
     const SHAPE_TYPE_ELLIPSE: u32 = 4;
+    const SHAPE_TYPE_CAPSULE: u32 = 5;
 
     const FILL_RULE_EVEN_ODD: u32 = 1 << 3;
 
@@ -63,8 +69,8 @@ pub struct GpuDrawCommand {
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Pod, Zeroable)]
 pub struct GpuAppearance {
-    pub fill: GpuPaint,
-    pub stroke: GpuPaint,
+    pub fill_data: [u32; 8],
+    pub stroke_data: [u32; 8],
     pub shadow: GpuShadow,
     // ...bevel
     pub stroke_width: f32,
@@ -78,10 +84,19 @@ impl GpuAppearance {
     pub const STROKE_FLAG: u32 = 1 << 1;
     pub const SHADOW_FLAG: u32 = 1 << 2;
 
+    const FILL_KIND_OFFSET: u32 = 4;
+    const STROKE_KIND_OFFSET: u32 = 7;
+
+    pub const PAINT_KIND_SOLID: u32 = 0;
+    pub const PAINT_KIND_LINEAR_GRADIENT: u32 = 1;
+    pub const PAINT_KIND_RADIAL_GRADIENT: u32 = 2;
+    pub const PAINT_KIND_EDGE_GRADIENT: u32 = 3;
+    pub const PAINT_KIND_IMAGE: u32 = 4;
+
     pub fn new() -> Self {
         Self {
-            fill: GpuPaint::empty(),
-            stroke: GpuPaint::empty(),
+            fill_data: Default::default(),
+            stroke_data: Default::default(),
             shadow: GpuShadow::empty(),
             stroke_width: 0.0,
             flags: 0,
@@ -94,10 +109,27 @@ impl GpuAppearance {
         self.flags == 0
     }
 
-    pub fn set_fill(&mut self, paint: GpuPaint) {
-        self.fill = paint;
+    pub fn set_fill(&mut self, paint: PaintRef) {
+        set_paint_data(
+            paint,
+            &mut self.fill_data,
+            &mut self.flags,
+            Self::FILL_KIND_OFFSET,
+        );
         self.flags |= Self::FILL_FLAG;
         self.margin = self.margin.max(0.5);
+    }
+
+    pub fn set_stroke(&mut self, paint: PaintRef, width: f32) {
+        set_paint_data(
+            paint,
+            &mut self.stroke_data,
+            &mut self.flags,
+            Self::STROKE_KIND_OFFSET,
+        );
+        self.stroke_width = width;
+        self.margin = self.margin.max(width);
+        self.flags |= Self::STROKE_FLAG;
     }
 
     pub fn set_shadow(&mut self, shadow: ShadowOptions, scale_factor: ScaleFactor) {
@@ -120,78 +152,46 @@ impl GpuAppearance {
         self.margin = self.margin.max(3.0 * radius + offset.abs().max_element());
         self.flags |= Self::SHADOW_FLAG;
     }
-
-    pub fn set_stroke(&mut self, paint: GpuPaint, width: f32) {
-        self.stroke = paint;
-        self.stroke_width = width;
-        self.margin = self.margin.max(width);
-        self.flags |= Self::STROKE_FLAG;
-    }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, Hash, PartialEq, Pod, Zeroable)]
-pub struct GpuPaint {
-    kind: u32,
-    data: [u32; 7],
-}
-
-impl GpuPaint {
-    pub const KIND_NONE: u32 = 1;
-    pub const KIND_SOLID: u32 = 1;
-    pub const KIND_LINEAR_GRADIENT: u32 = 2;
-    pub const KIND_RADIAL_GRADIENT: u32 = 3;
-    pub const KIND_IMAGE: u32 = 4;
-
-    pub fn empty() -> Self {
-        Self {
-            kind: Self::KIND_NONE,
-            data: [0; _],
+fn set_paint_data(paint: PaintRef, data: &mut [u32; 8], flags: &mut u32, kind_offset: u32) {
+    let kind = match paint {
+        PaintRef::Solid(color) => {
+            data[..4].copy_from_slice(&color_to_bytes(color));
+            GpuAppearance::PAINT_KIND_SOLID
         }
-    }
-
-    pub fn solid(color: Color) -> Self {
-        let mut data = [0; _];
-        data[..4].copy_from_slice(&color_to_bytes(color));
-        Self {
-            kind: Self::KIND_SOLID,
-            data,
+        PaintRef::LinearGradient { start, end, colors } => {
+            *data = [
+                start.x.to_bits(),
+                start.y.to_bits(),
+                end.x.to_bits(),
+                end.y.to_bits(),
+                0,
+                0,
+                0,
+                0,
+            ];
+            GpuAppearance::PAINT_KIND_LINEAR_GRADIENT
         }
-    }
-
-    pub fn linear_gradient(grad: &LinearGradient) -> Self {
-        let data = [
-            grad.start.x.to_bits(),
-            grad.start.y.to_bits(),
-            grad.end.x.to_bits(),
-            grad.end.y.to_bits(),
-            0,
-            0,
-            0,
-        ];
-        Self {
-            kind: Self::KIND_LINEAR_GRADIENT,
-            data,
+        PaintRef::RadialGradient {
+            center,
+            radius,
+            colors,
+        } => {
+            *data = [
+                center.x.to_bits(),
+                center.y.to_bits(),
+                radius.to_bits(),
+                0,
+                0,
+                0,
+                0,
+                0,
+            ];
+            GpuAppearance::PAINT_KIND_RADIAL_GRADIENT
         }
-    }
-}
-
-impl From<Paint> for GpuPaint {
-    fn from(value: Paint) -> Self {
-        match value {
-            Paint::Solid(color) => Self::solid(color),
-            Paint::LinearGradient(linear_gradient) => Self::linear_gradient(&linear_gradient),
-        }
-    }
-}
-
-impl From<PaintRef<'_>> for GpuPaint {
-    fn from(value: PaintRef<'_>) -> Self {
-        match value {
-            PaintRef::Solid(color) => Self::solid(color),
-            PaintRef::LinearGradient(linear_gradient) => Self::linear_gradient(linear_gradient),
-        }
-    }
+    };
+    *flags = (*flags & !(0b111 << kind_offset)) | (kind << kind_offset);
 }
 
 fn color_to_bytes(color: Color) -> [u32; 4] {
@@ -202,12 +202,6 @@ fn color_to_bytes(color: Color) -> [u32; 4] {
         (color.a * color.b).to_bits(),
         color.a.to_bits(),
     ]
-}
-
-impl Default for GpuPaint {
-    fn default() -> Self {
-        Self::empty()
-    }
 }
 
 #[repr(C)]
@@ -329,27 +323,58 @@ impl GpuScene {
         }
     }
 
-    pub fn add_rect(&mut self, rect: Rect) -> GpuShapeRef {
-        self.add_shape_with_data(
-            GpuShapeRef::SHAPE_TYPE_RECT,
-            [
-                rect.left as _,
-                rect.top as _,
-                rect.right as _,
-                rect.bottom as _,
-            ],
-            rect,
-        )
-    }
-
-    fn add_shape_with_data<const N: usize>(
-        &mut self,
-        shape_type: u32,
-        values: [f32; N],
-        bounds: Rect,
-    ) -> GpuShapeRef {
+    pub fn add_shape(&mut self, shape: Shape) -> GpuShapeRef {
         let index = self.shape_data.len() as u32;
-        self.shape_data.extend(values.iter());
+        let bounds = shape.bounds();
+        let shape_type = match shape {
+            Shape::Rect(rect) => {
+                self.shape_data
+                    .extend([rect.left, rect.top, rect.right, rect.bottom].iter());
+                GpuShapeRef::SHAPE_TYPE_RECT
+            }
+            Shape::Rounded(rounded_rect) => {
+                self.shape_data.extend(
+                    [
+                        rounded_rect.rect.left,
+                        rounded_rect.rect.top,
+                        rounded_rect.rect.right,
+                        rounded_rect.rect.bottom,
+                        rounded_rect.corner_radius.width,
+                        rounded_rect.corner_radius.height,
+                        rounded_rect.corner_radius.width,
+                        rounded_rect.corner_radius.height,
+                    ]
+                    .iter(),
+                );
+                GpuShapeRef::SHAPE_TYPE_ROUNDED_RECT
+            }
+            Shape::Ellipse(ellipse) => {
+                self.shape_data.extend(
+                    [
+                        ellipse.center.x,
+                        ellipse.center.y,
+                        ellipse.radii.width,
+                        ellipse.radii.height,
+                    ]
+                    .iter(),
+                );
+                GpuShapeRef::SHAPE_TYPE_ELLIPSE
+            }
+            Shape::Capsule(capsule) => {
+                self.shape_data.extend(
+                    [
+                        capsule.start.x,
+                        capsule.start.y,
+                        capsule.end.x,
+                        capsule.end.y,
+                        capsule.radius,
+                    ]
+                    .iter(),
+                );
+                GpuShapeRef::SHAPE_TYPE_CAPSULE
+            }
+        };
+
         GpuShapeRef {
             shape_type,
             index,
@@ -357,71 +382,16 @@ impl GpuScene {
         }
     }
 
-    pub fn add_rounded_rect(&mut self, rounded_rect: RoundedRect) -> GpuShapeRef {
-        self.add_shape_with_data(
-            GpuShapeRef::SHAPE_TYPE_ROUNDED_RECT,
-            [
-                rounded_rect.rect.left as _,
-                rounded_rect.rect.top as _,
-                rounded_rect.rect.right as _,
-                rounded_rect.rect.bottom as _,
-                rounded_rect.corner_radius.width as _,
-                rounded_rect.corner_radius.height as _,
-                rounded_rect.corner_radius.width as _,
-                rounded_rect.corner_radius.height as _,
-            ],
-            rounded_rect.bounds(),
-        )
-    }
-
-    pub fn add_ellipse(&mut self, ellipse: Ellipse) -> GpuShapeRef {
-        self.add_shape_with_data(
-            GpuShapeRef::SHAPE_TYPE_ELLIPSE,
-            [
-                ellipse.center.x as _,
-                ellipse.center.y as _,
-                ellipse.radii.width as _,
-                ellipse.radii.height as _,
-            ],
-            ellipse.bounds(),
-        )
-    }
-
-    pub fn add_shape(&mut self, shape: Shape, scale_factor: ScaleFactor) -> GpuShapeRef {
-        match shape.scale(scale_factor.logical_to_physical()) {
-            Shape::Rect(rect) => self.add_rect(rect),
-            Shape::Rounded(rounded_rect) => self.add_rounded_rect(rounded_rect),
-            Shape::Ellipse(ellipse) => self.add_ellipse(ellipse),
-        }
-    }
-
-    pub fn add_path(
-        &mut self,
-        segments: &[PathSegment],
-        fill_rule: FillRule,
-        transform: TranslateScale,
-    ) -> GpuShapeRef {
+    pub fn add_path(&mut self, segments: &[PathSegment], fill_rule: FillRule) -> GpuShapeRef {
         let segment_index = self.segments.len();
         let mut shape_bounds = Rect::EMPTY;
         for segment in segments.iter() {
             let (gpu_segment, bounds) = match segment {
-                PathSegment::Line(l) => (
-                    GpuPathSegment::line(transform * l.p0, transform * l.p1),
-                    transform * l.bounds(),
-                ),
-                PathSegment::Quad(q) => (
-                    GpuPathSegment::quad(transform * q.p0, transform * q.p1, transform * q.p2),
-                    transform * q.bounds(),
-                ),
-                PathSegment::Cubic(c) => (
-                    GpuPathSegment::cubic(
-                        transform * c.p0,
-                        transform * c.p1,
-                        transform * c.p2,
-                        transform * c.p3,
-                    ),
-                    transform * c.bounds(),
-                ),
+                PathSegment::Line(l) => (GpuPathSegment::line(l.p0, l.p1), l.bounds()),
+                PathSegment::Quad(q) => (GpuPathSegment::quad(q.p0, q.p1, q.p2), q.bounds()),
+                PathSegment::Cubic(c) => {
+                    (GpuPathSegment::cubic(c.p0, c.p1, c.p2, c.p3), c.bounds())
+                }
             };
             self.segments.push(gpu_segment);
             self.segment_bounds.push(bounds);
@@ -439,7 +409,7 @@ impl GpuScene {
         scale_factor: ScaleFactor,
     ) {
         let mut app = GpuAppearance::new();
-        app.set_stroke(GpuPaint::solid(Color::BLACK), 2.0);
+        app.set_stroke(Color::BLACK.into(), 2.0);
         let app_ref = self.add_appearance(app);
 
         for line in text_layout.lines() {
@@ -472,7 +442,7 @@ impl GpuScene {
                                     *shape_ref
                                 } else {
                                     let segment_index = self.segments.len();
-                                    self.segments.extend(cached_glyph.outline);
+                                    self.segments.extend(cached_glyph.segments);
                                     self.segment_bounds.extend(cached_glyph.segment_bounds);
 
                                     let shape_ref = GpuShapeRef::path(

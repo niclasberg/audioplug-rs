@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::style::{ResolveInto, Style, UiRect};
+use super::style::{Edges, ResolveInto, Style};
 use crate::core::{Rect, Size};
 use crate::ui::app_state::WidgetMap;
 use crate::ui::style::DisplayStyle;
@@ -287,7 +287,13 @@ impl LayoutPartialTree for LayoutContext<'_, '_> {
                     (_, false) => {
                         let measure_function =
                             |known_dimensions: taffy::Size<Option<f32>>, available_space| {
-                                if let Some(text) = tree.widgets.texts.get_mut(widget_id) {
+                                if let Some(intrinsic) = tree.widgets.tree[widget_id].intrinsic_size
+                                {
+                                    known_dimensions
+                                        .zip_map(intrinsic.into(), |known, intrinsic| {
+                                            known.unwrap_or(intrinsic)
+                                        })
+                                } else if let Some(text) = tree.widgets.texts.get_mut(widget_id) {
                                     text.measure(
                                         &mut tree.text_cx,
                                         available_space,
@@ -405,7 +411,11 @@ impl taffy::CoreStyle for LayoutStyle<'_> {
     }
 
     fn border(&self) -> taffy::Rect<taffy::LengthPercentage> {
-        UiRect::all(self.style.border).resolve_into(self.window_size)
+        if let Some(border) = &self.style.border {
+            Edges::all(border.width).resolve_into(self.window_size)
+        } else {
+            taffy::Rect::zero()
+        }
     }
 }
 

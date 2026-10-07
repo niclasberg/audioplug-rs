@@ -1,18 +1,19 @@
 use taffy::{AlignSelf, JustifySelf};
 
 use crate::{
-    core::{Color, Cursor, Paint, ShadowOptions, Size},
+    core::{Color, Cursor, Size},
     ui::{
-        Prop, WidgetId,
+        Paint, Prop, WidgetId,
         reactive::CreateContext,
-        style::{Length, UiRect},
+        render::ShadowOptions,
+        style::{Length, Edges},
     },
 };
 
 #[derive(Clone)]
 pub enum WidgetProp {
     Hidden(Prop<bool>),
-    Padding(Prop<UiRect>),
+    Padding(Prop<Edges>),
     Width(Prop<Length>),
     Height(Prop<Length>),
     MinWidth(Prop<Length>),
@@ -21,8 +22,8 @@ pub enum WidgetProp {
     MaxHeight(Prop<Length>),
     AspectRatio(Prop<f64>),
     Border(Prop<Length>),
-    Margin(Prop<UiRect>),
-    Inset(Prop<UiRect>),
+    Margin(Prop<Edges>),
+    Inset(Prop<Edges>),
     Background(Prop<Paint>),
     CornerRadius(Prop<Size>),
     BorderColor(Prop<Color>),

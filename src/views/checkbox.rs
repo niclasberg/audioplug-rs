@@ -4,7 +4,7 @@ use crate::{
     ui::{
         BuildContext, EventContext, EventResult, Prop, RenderContext, StyleExt, View, ViewStyle,
         Widget,
-        style::{Length, UiRect},
+        style::{Border, Edges, Fill, Length},
     },
 };
 
@@ -26,11 +26,13 @@ impl Checkbox {
             style: ViewStyle {
                 width: Some(Prop::Const(Length::Px(12.0))),
                 height: Some(Prop::Const(Length::Px(12.0))),
-                border: Some(Prop::Const(Length::Px(1.0))),
-                border_color: Some(Prop::Const(Color::BLACK)),
+                border: Some(Prop::Const(Border {
+                    fill: Fill::Solid(Color::BLACK),
+                    width: Length::Px(1.0),
+                })),
                 aspect_ratio: Some(Prop::Const(1.0)),
                 corner_radius: Some(Prop::Const(Size::splat(3.0))),
-                padding: Some(Prop::Const(UiRect::all_px(0.5))),
+                padding: Some(Prop::Const(Edges::all_px(0.5))),
                 ..ViewStyle::DEFAULT
             },
         }

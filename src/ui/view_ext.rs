@@ -1,17 +1,18 @@
 use taffy::{AlignSelf, JustifySelf};
 
 use crate::{
-    core::{Color, Cursor, Paint, ShadowOptions, Size},
+    core::{Color, Cursor, Size},
     ui::{
         Prop,
         reactive::{Computed, ReadContext},
-        style::{Length, UiRect},
+        render::ShadowOptions,
+        style::{Border, Edges, Fill, Length},
     },
 };
 
 pub struct ViewStyle {
     pub(crate) hidden: Option<Prop<bool>>,
-    pub(crate) padding: Option<Prop<UiRect>>,
+    pub(crate) padding: Option<Prop<Edges>>,
     pub(crate) width: Option<Prop<Length>>,
     pub(crate) height: Option<Prop<Length>>,
     pub(crate) min_width: Option<Prop<Length>>,
@@ -19,12 +20,11 @@ pub struct ViewStyle {
     pub(crate) max_width: Option<Prop<Length>>,
     pub(crate) max_height: Option<Prop<Length>>,
     pub(crate) aspect_ratio: Option<Prop<f64>>,
-    pub(crate) border: Option<Prop<Length>>,
-    pub(crate) margin: Option<Prop<UiRect>>,
-    pub(crate) inset: Option<Prop<UiRect>>,
-    pub(crate) background: Option<Prop<Paint>>,
+    pub(crate) border: Option<Prop<Border>>,
+    pub(crate) margin: Option<Prop<Edges>>,
+    pub(crate) inset: Option<Prop<Edges>>,
+    pub(crate) background: Option<Prop<Fill>>,
     pub(crate) corner_radius: Option<Prop<Size>>,
-    pub(crate) border_color: Option<Prop<Color>>,
     pub(crate) justify_self: Option<Prop<JustifySelf>>,
     pub(crate) align_self: Option<Prop<AlignSelf>>,
     pub(crate) box_shadow: Option<Prop<ShadowOptions>>,
@@ -49,7 +49,6 @@ impl ViewStyle {
         inset: None,
         background: None,
         corner_radius: None,
-        border_color: None,
         justify_self: None,
         align_self: None,
         box_shadow: None,
@@ -63,22 +62,22 @@ impl ViewStyle {
         self
     }
 
-    pub fn padding(mut self, value: UiRect) -> Self {
+    pub fn padding(mut self, value: Edges) -> Self {
         self.padding.replace(Prop::Const(value));
         self
     }
 
-    pub fn background(mut self, value: Paint) -> Self {
+    pub fn background(mut self, value: Fill) -> Self {
         self.background.replace(value.into());
         self
     }
 
-    pub fn background_fn(mut self, f: fn(&mut ReadContext) -> Paint) -> Self {
-        self.background.replace(Computed::new(f).into());
+    pub fn background_fn(mut self, f: fn(&mut ReadContext) -> Fill) -> Self {
+        self.background.replace(Computed::new_const(f).into());
         self
     }
 
-    pub fn margin(mut self, value: UiRect) -> Self {
+    pub fn margin(mut self, value: Edges) -> Self {
         self.margin.replace(Prop::Const(value));
         self
     }
@@ -118,13 +117,8 @@ impl ViewStyle {
         self
     }
 
-    pub fn border_width(mut self, value: Length) -> Self {
+    pub fn border(mut self, value: Border) -> Self {
         self.border.replace(Prop::Const(value));
-        self
-    }
-
-    pub fn border_color(mut self, value: Color) -> Self {
-        self.border_color.replace(Prop::Const(value));
         self
     }
 
@@ -172,12 +166,12 @@ pub trait StyleExt: Sized {
         self
     }
 
-    fn padding(mut self, value: impl Into<Prop<UiRect>>) -> Self {
+    fn padding(mut self, value: impl Into<Prop<Edges>>) -> Self {
         self.style_mut().padding = Some(value.into());
         self
     }
 
-    fn margin(mut self, value: impl Into<Prop<UiRect>>) -> Self {
+    fn margin(mut self, value: impl Into<Prop<Edges>>) -> Self {
         self.style_mut().margin = Some(value.into());
         self
     }
@@ -212,7 +206,7 @@ pub trait StyleExt: Sized {
         self
     }
 
-    fn background(mut self, value: impl Into<Prop<Paint>>) -> Self {
+    fn background(mut self, value: impl Into<Prop<Fill>>) -> Self {
         self.style_mut().background = Some(value.into());
         self
     }
@@ -222,9 +216,8 @@ pub trait StyleExt: Sized {
         self
     }
 
-    fn border(mut self, value: impl Into<Prop<Length>>, color: impl Into<Prop<Color>>) -> Self {
+    fn border(mut self, value: impl Into<Prop<Border>>) -> Self {
         self.style_mut().border = Some(value.into());
-        self.style_mut().border_color = Some(color.into());
         self
     }
 

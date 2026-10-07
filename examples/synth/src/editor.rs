@@ -1,10 +1,10 @@
 use audioplug::{
-    core::{Color, FillRule, ShadowOptions, Size, Vec2},
+    core::{Color, FillRule, Size, Vec2},
     param::{AnyParameter, FloatParameter},
     ui::{
         prelude::*,
-        style::{AlignItems, Length, UiRect},
-        Canvas, StyleExt, View,
+        style::{AlignItems, Length, Edges},
+        Canvas, ShadowOptions, StyleExt, View,
     },
     views::{Checkbox, Column, Label, ParameterKnob, ParameterSlider, Row},
     Editor, EditorContext,
@@ -12,7 +12,7 @@ use audioplug::{
 
 use crate::params::{AmpEnvelopeParams, FilterParams, OscillatorParams, SynthParams};
 
-const PADDING: UiRect = UiRect::all_px(5.0);
+const PADDING: Edges = Edges::all_px(5.0);
 const SPACER: Length = Length::Px(5.0);
 const SHADOW: ShadowOptions = ShadowOptions {
     radius: 6.0,
@@ -169,7 +169,7 @@ fn envelope_graph(
         );
     })
     .background(Color::WHITE.with_alpha(0.2))
-    .padding(UiRect::all_px(2.0))
+    .padding(Edges::all_px(2.0))
     .width(Length::Percent(100.0))
     .height(Length::Px(30.0))
 }

@@ -46,7 +46,7 @@ impl Vec2 {
         self.x.hypot(self.y)
     }
 
-    pub fn length_squared(self) -> f32 {
+    pub fn length_sq(self) -> f32 {
         self.dot(self)
     }
 
@@ -186,6 +186,10 @@ macro_rules! impl_vec2_base {
                 }
             }
 
+            pub fn min_element(self) -> $t {
+                self.x.min(self.y)
+            }
+
             pub fn max_element(self) -> $t {
                 self.x.max(self.y)
             }
@@ -283,13 +287,13 @@ impl_vec2_base!(Vec2u, u32);
 
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, PartialEq, Pod, Zeroable)]
-pub struct Vec3f {
+pub struct Vec3 {
     pub x: f32,
     pub y: f32,
     pub z: f32,
 }
 
-impl Vec3f {
+impl Vec3 {
     pub const ZERO: Self = Self {
         x: 0.0,
         y: 0.0,
@@ -314,14 +318,14 @@ impl Vec3f {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, Pod, Zeroable)]
-pub struct Vec4f {
+pub struct Vec4 {
     pub x: f32,
     pub y: f32,
     pub z: f32,
     pub w: f32,
 }
 
-impl Vec4f {
+impl Vec4 {
     pub const ZERO: Self = Self {
         x: 0.0,
         y: 0.0,

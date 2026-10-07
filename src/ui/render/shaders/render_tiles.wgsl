@@ -1,6 +1,7 @@
 // Ideas:
 // 1. Use a BVH for paths, should speed up SDF computation
 // 2. Also use this for winding number evaluation. Or keep a separate y-binned data structure
+// 3. Perform a first pass where the whole workgroup collectively culls the draw commands.
 
 const TILE_SIZE: u32 = 16;
 
@@ -12,6 +13,7 @@ const SHAPE_TYPE_PATH = 1u;
 const SHAPE_TYPE_RECT = 2u;
 const SHAPE_TYPE_ROUNDED_RECT = 3u;
 const SHAPE_TYPE_ELLIPSE = 4u;
+const SHAPE_TYPE_CAPSULE = 5u;
 const SHAPE_TYPE_MASK = 7u;
 
 const SEGMENT_KIND_LINE = 0u;
@@ -24,9 +26,12 @@ const FILL_FLAG = 1u;
 const STROKE_FLAG = 2u;
 const SHADOW_FLAG = 4u;
 
-const PAINT_KIND_SOLID = 1u;
-const PAINT_KIND_LINEAR_GRADIENT = 2u;
-const PAINT_KIND_RADIAL_GRADIENT = 3u;
+const FILL_KIND_OFFSET = 4u;
+const STROKE_KIND_OFFSET = 7u;
+const PAINT_KIND_SOLID = 0u;
+const PAINT_KIND_LINEAR_GRADIENT = 1u;
+const PAINT_KIND_RADIAL_GRADIENT = 2u;
+const PAINT_KIND_EDGE_GRADIENT = 3u;
 const PAINT_KIND_IMAGE = 4u;
 
 const SHADOW_KIND_OUTER = 1u;
@@ -36,16 +41,6 @@ struct Params {
 	width: u32,
 	height: u32,
 	draw_command_count: u32
-}
-
-struct LinearGradient {
-	p0: vec2f,
-	p1: vec2f
-}
-
-struct RadialGradient {
-	center: vec2f,
-	radius: f32,
 }
 
 struct LineSegment {
@@ -79,9 +74,10 @@ struct Ellipse {
 	radii: vec2f,
 }
 
-struct Paint {
-	kind: u32,
-	data: array<u32, 7>
+struct Capsule {
+	start: vec2f,
+	end: vec2f,
+	radius: f32
 }
 
 struct Shadow {
@@ -92,8 +88,8 @@ struct Shadow {
 }
 
 struct Appearance {
-	fill: Paint,
-	stroke: Paint,
+	fill_data: array<u32, 8>,
+	stroke_data: array<u32, 8>,
 	shadow: Shadow,
 	stroke_width: f32, 
 	flags: u32,
@@ -159,7 +155,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 		let appearance = appearances[command.appearance_index];
 		let shape_pos = (pos - command.translation) / command.scale;
 
-		let signed_dist = command.scale * sd_shape(command.shape_type, command.shape_index, shape_pos, appearance.margin / command.scale);
+		let signed_dist = command.scale * sdg_shape(command.shape_type, command.shape_index, shape_pos, appearance.margin / command.scale).x;
 
 		if ((appearance.flags & SHADOW_FLAG) != 0 && appearance.shadow.kind == SHADOW_KIND_OUTER) {
 			let pt = pos - appearance.shadow.offset;
@@ -170,13 +166,13 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 		}
 
 		if ((appearance.flags & FILL_FLAG) != 0) {
-			let fill_color = eval_paint(appearance.fill, pos);
+			let fill_color = eval_paint(appearance.flags >> FILL_KIND_OFFSET, appearance.fill_data, pos);
 			let coverage = distance_to_coverage(signed_dist);
 			color = blend(color, fill_color, coverage);
 		}
 
 		if ((appearance.flags & STROKE_FLAG) != 0) {
-			let stroke_color = eval_paint(appearance.stroke, pos);
+			let stroke_color = eval_paint(appearance.flags >> STROKE_KIND_OFFSET, appearance.stroke_data, pos);
 			let signed_dist_stroked = abs(signed_dist) - appearance.stroke_width * 0.5;
 			let coverage = distance_to_coverage(signed_dist_stroked);
 			color = blend(color, stroke_color, coverage);
@@ -194,27 +190,27 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 	textureStore(output_texture, coord, color);
 }
 
-fn eval_paint(paint: Paint, pos: vec2f) -> vec4f {
-	switch (paint.kind) {
+fn eval_paint(paint_kind: u32, paint_data: array<u32, 8>, pos: vec2f) -> vec4f {
+	switch (paint_kind & 0x3) {
 		case PAINT_KIND_SOLID: {
 			return vec4f(
-				bitcast<f32>(paint.data[0]),
-				bitcast<f32>(paint.data[1]),
-				bitcast<f32>(paint.data[2]),
-				bitcast<f32>(paint.data[3]),
+				bitcast<f32>(paint_data[0]),
+				bitcast<f32>(paint_data[1]),
+				bitcast<f32>(paint_data[2]),
+				bitcast<f32>(paint_data[3]),
 			);
 		}
 		case PAINT_KIND_LINEAR_GRADIENT: {
-			let start = vec2f(bitcast<f32>(paint.data[0]), bitcast<f32>(paint.data[1]));
-			let end = vec2f(bitcast<f32>(paint.data[2]), bitcast<f32>(paint.data[3]));
+			let start = vec2f(bitcast<f32>(paint_data[0]), bitcast<f32>(paint_data[1]));
+			let end = vec2f(bitcast<f32>(paint_data[2]), bitcast<f32>(paint_data[3]));
 			let delta = end - start;
 			let t = clamp(dot(pos - start, delta) / dot(delta, delta), 0.0, 1.0);
 			// TODO: Sample from colormap LUT
 			return vec4f(t, t, t, 1.0);
 		}
 		case PAINT_KIND_RADIAL_GRADIENT: {
-			let center = vec2f(bitcast<f32>(paint.data[0]), bitcast<f32>(paint.data[1]));
-			let radius = max(bitcast<f32>(paint.data[2]), 1.0e-6);
+			let center = vec2f(bitcast<f32>(paint_data[0]), bitcast<f32>(paint_data[1]));
+			let radius = max(bitcast<f32>(paint_data[2]), 1.0e-6);
 			let t = clamp(length(pos - center) / radius, 0.0, 1.0);
 			return vec4f(t, t, t, 1.0);
 		}
@@ -264,60 +260,76 @@ fn read_ellipse(index: u32) -> Ellipse {
 	);
 }
 
-fn sd_shape(shape_type: u32, index: u32, pos: vec2f, max_dist: f32) -> f32 {
+fn read_capsule(index: u32) -> Capsule {
+	return Capsule(
+		vec2f(shape_data[index], shape_data[index+1]),
+		vec2f(shape_data[index+2], shape_data[index+3]),
+		shape_data[index+4]
+	);
+}
+
+fn sdg_shape(shape_type: u32, index: u32, pos: vec2f, max_dist: f32) -> vec3f {
 	switch (shape_type & SHAPE_TYPE_MASK) {
 		case SHAPE_TYPE_NONE: {
-			return -1.0;
+			return vec3f(-1.0, 1.0, 0.0);
 		}
 		case SHAPE_TYPE_PATH: {
 			let size = (shape_type >> 4);
-			var winding_number = 0.0f;
-			var dist = max_dist;
+			var winding_number = 0;
+			var dist_grad = vec3f(max_dist, 1.0, 0.0);
 			for (var i = 0u; i < size; i++) {
 				let bounds = segment_bounds[index + i];
 				let segment = segments[index + i];
-				if rect_dist_less_than(bounds, pos, dist) {
+				if rect_dist_less_than(bounds, pos, dist_grad.x) {
+					var segment_dist_grad = vec3f(0.0);
 					switch (segment.kind) {
 						case SEGMENT_KIND_LINE: {
-							dist = min(dist, sd_line(segment.start, segment.end, pos));
+							segment_dist_grad = sdg_line(segment.start, segment.end, pos);
 						}
 						case SEGMENT_KIND_QUAD_BEZ: {
-							dist = min(dist, sd_quad_bezier(segment.start, segment.control1, segment.end, pos));
+							segment_dist_grad = sdg_quad_bezier(segment.start, segment.control1, segment.end, pos);
 						}
 						default: {
 
 						}
 					}
+					if segment_dist_grad.x < dist_grad.x {
+						dist_grad = segment_dist_grad;
+					}
 				}
 
-				winding_number += winding_contribution(segment.start, segment.end, pos);
+				winding_number += line_winding(segment.start, segment.end, pos);
 			}
 			
 			let is_inside = select(
-				abs(winding_number) > 0.0, 
+				abs(winding_number) > 0, 
 				(u32(abs(winding_number)) & 1u) != 0u, 
 				(shape_type & FILL_RULE_EVEN_ODD) != 0u);
-			return select(-dist, dist, is_inside);
+			return select(-dist_grad, dist_grad, is_inside);
 		}
 		case SHAPE_TYPE_RECT: {
 			let rect = read_rect(index);
 			let half_size = 0.5 * (rect.bottom_right - rect.top_left);
 			let p = pos - rect.top_left - half_size;
-			return sd_rect(half_size, p);
+			return sdg_rect(half_size, p);
 		}
 		case SHAPE_TYPE_ROUNDED_RECT: {
 			let rect = read_rounded_rect(index);
 			let half_size = 0.5 * (rect.bottom_right - rect.top_left);
 			let p = pos - rect.top_left - half_size;
 			let corner_radius = select_rect_corner(rect.corner_radii, p);
-			return sd_rounded_rect(half_size, corner_radius, p);
+			return sdg_rounded_rect(half_size, corner_radius, p);
 		}
 		case SHAPE_TYPE_ELLIPSE: {
 			let ellipse = read_ellipse(index);
-			return sd_ellipse(ellipse.radii, pos - ellipse.center);
+			return sdg_ellipse(ellipse.radii, pos - ellipse.center);
+		}
+		case SHAPE_TYPE_CAPSULE: {
+			let capsule = read_capsule(index);
+			return sdg_capsule(capsule.start, capsule.end, capsule.radius, pos);
 		}
 		default: {
-			return 0.0;
+			return vec3f(0.0, 1.0, 0.0);
 		}
 	}
 }
@@ -333,13 +345,12 @@ fn rect_dist_less_than(r: Rect, pos: vec2f, dist: f32) -> bool {
 }
 
 // Shoot ray in positive x direction, returns the number of path crossings
-fn winding_contribution(p0: vec2<f32>, p1: vec2<f32>, pos: vec2<f32>) -> f32 {
+fn line_winding(p0: vec2<f32>, p1: vec2<f32>, pos: vec2<f32>) -> i32 {
 	let delta = p1 - p0;
 	let cross = cross(delta, pos - p0);
 	let up_crossing = p0.y <= pos.y && p1.y > pos.y && cross > 0.0;
 	let down_crossing = p0.y > pos.y && p1.y <= pos.y && cross < 0.0;
-	let direction = select(0.0, 1.0, up_crossing) + select(0.0, -1.0, down_crossing);
-    return direction;
+	return select(0, 1, up_crossing) + select(0, -1, down_crossing);
 }
 
 fn cross(u: vec2<f32>, v: vec2<f32>) -> f32 {
@@ -352,48 +363,73 @@ fn dot2(u: vec2<f32>) -> f32 {
 
 /// Signed distance to a rect centered at the origin (adapted 
 /// from https://iquilezles.org/articles/distfunctions2d/)
-fn sd_rect(half_size: vec2f, pos: vec2f) -> f32 {
-	let d = abs(pos) - half_size;
-	return length(max(d, vec2f(0.0))) + min(max(d.x, d.y), 0.0);
+fn sdg_rect(half_size: vec2f, pos: vec2f) -> vec3f {
+	let w = abs(pos) - half_size;
+	let sign = vec2f(select(1.0, -1.0, pos.x < 0.0), select(1.0, -1.0, pos.y < 0.0));
+	let g = max(w.x, w.y);
+	if g > 0.0 {
+		let q = max(w, vec2f(0.0));
+		let l = length(q);
+		return vec3f(l, sign * q/l);
+	} else {
+		return vec3f(g, sign * select(vec2(0.0, 1.0), vec2(1.0, 0.0), w.x > w.y));
+	}
 }
 
 /// Signed distance to a rounded rect centered at the origin (adapted 
 /// from https://iquilezles.org/articles/distfunctions2d/)
-fn sd_rounded_rect(half_size: vec2f, radius: f32, pos: vec2f) -> f32 {
-	let q = abs(pos) - half_size + radius;
-    return length(max(q, vec2f(0.0))) - radius;
+fn sdg_rounded_rect(half_size: vec2f, radius: f32, pos: vec2f) -> vec3f {
+	let dist_grad = sdg_rect(half_size - radius, pos);
+	return vec3f(dist_grad.x - radius, dist_grad.yz);
+}
+
+/// Signed distance and gradient to a circle centered at the origin (adapted 
+/// from https://iquilezles.org/articles/distgradfunctions2d/)
+fn sdg_circle(radius: f32, pos: vec2f) -> vec3f {
+	let d = length(pos);
+	return vec3f(d - radius, pos / d);
 }
 
 /// Signed distance to an ellipse centered at the origin (adapted 
 /// from https://iquilezles.org/articles/ellipsedist/)
-fn sd_ellipse(radii: vec2f, pos: vec2f) -> f32 {
+fn sdg_ellipse(radii: vec2f, pos: vec2f) -> vec3f {
     // symmetry
 	let p = abs(pos);
+	let signs = sign(pos);
 
     // Find the angle, w, of the point on the ellipse that is closes to pos, using Newton-Raphson
-    let q = radii * (p - radii);
+	let is_outside = dot2(p / radii) > 1.0;
+	let q0 = radii * (p - radii);
 
 	// Maybe we can use a better initial condition?
-	var w = select(0.0, PI / 2.0, q.x < q.y);
+	var w = select(0.0, PI / 2.0, q0.x < q0.y);
     for (var i=0; i < 5; i++ ) {
         let cs = vec2(cos(w), sin(w));
         let u = radii * vec2f( cs.x, cs.y);
         let v = radii * vec2f(-cs.y, cs.x);
         w = w + dot(p - u, v) / (dot(p - u, u) + dot(v, v));
     }
-    
-    let d = length(p - radii * vec2f(cos(w), sin(w)));
-    return select(-d, d, dot(p / radii, p / radii) > 1.0);
+
+	let q = p - radii * vec2f(cos(w), sin(w));
+    let dist = length(q);
+    return vec3f(dist, signs * q / dist) * select(-1.0, 1.0, is_outside);
 }
 
-fn sd_line(a: vec2f, b: vec2f, pos: vec2f) -> f32 {
+fn sdg_line(a: vec2f, b: vec2f, pos: vec2f) -> vec3f {
 	let pa = pos - a;
 	let ba = b - a;
-	let t = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0 );
-    return length(pa - ba * t);
+	let t = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+	let q = pa - ba * t;
+	let dist = length(q);
+    return vec3f(dist, q / dist);
 }
 
-fn sd_quad_bezier(p0: vec2f, p1: vec2f, p2: vec2f, pos: vec2f) -> f32 {
+fn sdg_capsule(a: vec2f, b: vec2f, radius: f32, pos: vec2f) -> vec3f {
+	let dist_grad = sdg_line(a, b, pos);
+	return vec3f(dist_grad.x - radius, dist_grad.yz);
+}
+
+fn sdg_quad_bezier(p0: vec2f, p1: vec2f, p2: vec2f, pos: vec2f) -> vec3f {
 	// Want to solve:
 	// 	0 = 2|a|^2 t^3 + 3dot(a, b) t^2 + (2dot(c - pos, a) + |b|^2) + dot(c-pos, b)
 	// Where a = p0 - 2*p1 + p2, b = -2*p0 + 2*p1, c = p0
@@ -409,13 +445,17 @@ fn sd_quad_bezier(p0: vec2f, p1: vec2f, p2: vec2f, pos: vec2f) -> f32 {
 	let roots = solve_cubic(k0, k1, k2, k3);
 	// The maxima always occurs at one of the two first roots
 	let t1 = clamp(roots.roots[0], 0.0, 1.0);
-	let dist1 = dot2(c + (b + a * t1) * t1);
+	let q1 = c + (b + a * t1) * t1;
+	let dist_sqr1 = dot2(q1);
 	let t2 = clamp(roots.roots[1], 0.0, 1.0);
-	let dist2 = dot2(c + (b + a * t2) * t2);
-	if dist1 < dist2 {
-		return sqrt(dist1);
+	let q2 = c + (b + a * t2) * t2;
+	let dist_sqr2 = dot2(q2);
+	if dist_sqr1 < dist_sqr2 {
+		let dist = sqrt(dist_sqr1);
+		return vec3f(dist, q1 / dist);
 	} else {
-		return sqrt(dist2);
+		let dist = sqrt(dist_sqr2);
+		return vec3f(dist, q2 / dist);
 	}
 }
 

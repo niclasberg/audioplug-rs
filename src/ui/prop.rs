@@ -1,7 +1,7 @@
 use super::reactive::{CanCreate, CanRead, Computed, Effect, ReactiveValue, ReadSignal};
 use crate::{
-    core::{Color, LinearGradient, Paint},
-    ui::{BuildContext, Widget, WidgetMut, reactive::EffectContext},
+    core::{Color, LinearGradient},
+    ui::{BuildContext, Paint, Widget, WidgetMut, reactive::EffectContext, style::Fill},
 };
 
 /// Represents a value that is either varying over time (a `ReactiveValue`) or a constant
@@ -149,14 +149,8 @@ impl From<&str> for Prop<String> {
     }
 }
 
-impl From<Color> for Prop<Paint> {
+impl From<Color> for Prop<Fill> {
     fn from(value: Color) -> Self {
-        Self::Const(value.into())
-    }
-}
-
-impl From<LinearGradient> for Prop<Paint> {
-    fn from(value: LinearGradient) -> Self {
         Self::Const(value.into())
     }
 }

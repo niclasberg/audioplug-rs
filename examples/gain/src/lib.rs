@@ -1,6 +1,6 @@
 use audioplug::core::{Color, Size};
 use audioplug::param::{BoolParameter, FloatParameter, ParameterId, Params};
-use audioplug::ui::style::UiRect;
+use audioplug::ui::style::Edges;
 use audioplug::ui::{prelude::*, StyleExt, TextExt};
 use audioplug::wrapper::vst3::VST3Categories;
 use audioplug::EditorContext;
@@ -51,7 +51,7 @@ impl Editor for MyEditor {
             Label::new("Gain").color(Color::BLUE),
             ParameterSlider::new(&parameters.gain),
         ))
-        .padding(UiRect::all_px(10.0))
+        .padding(Edges::all_px(10.0))
     }
 }
 

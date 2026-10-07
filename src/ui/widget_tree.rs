@@ -70,6 +70,7 @@ pub struct WidgetData {
     pub(super) origin: Point,
     /// Controls how children are laid out
     pub display_style: DisplayStyle,
+    pub intrinsic_size: Option<Size>,
 }
 
 impl WidgetData {
@@ -87,6 +88,7 @@ impl WidgetData {
             flags: Cell::new(WidgetFlags::EMPTY),
             origin: Point::ZERO,
             display_style: Default::default(),
+            intrinsic_size: None,
         }
     }
 

@@ -7,7 +7,7 @@ use crate::{
         AnyView, AppState, View, StyleExt,
         prelude::CanRead,
         reactive::{CanCreate, CreateContext, Owner, ReadScope, Var},
-        style::{Length, UiRect},
+        style::{Length, Edges},
     },
     views::{Column, Container, Label, ParameterSlider, Row, Stateful},
 };
@@ -90,10 +90,10 @@ impl ParamVisitor for CreateParameterViewsVisitor {
             Column::new((
                 Label::new(name),
                 Column::new(child_visitor.views)
-                    .padding(UiRect::left_px(20.0))
+                    .padding(Edges::left_px(20.0))
                     .hidden(hide_children),
             ))
-            .padding(UiRect::top_px(10.0))
+            .padding(Edges::top_px(10.0))
         });
         self.views.push(view.into_any_view());
     }

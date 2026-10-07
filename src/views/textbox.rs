@@ -2,10 +2,10 @@ use crate::MouseEvent;
 use crate::core::{Color, Cursor, Key, Modifiers, TextLayout};
 use crate::event::{KeyEvent, MouseButton, MouseDownEvent, MouseDragEvent};
 use crate::ui::ViewStyle;
+use crate::ui::style::Border;
 use crate::ui::{
-    AnimationContext, BuildContext, EventContext, EventResult, RenderContext, View, Prop,
-    Widget,
-    style::{Length, UiRect},
+    AnimationContext, BuildContext, EventContext, EventResult, Prop, RenderContext, View, Widget,
+    style::{Edges, Length},
 };
 use std::ops::Range;
 use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
@@ -28,8 +28,8 @@ impl TextBox {
             value: None,
             placeholder: None,
             style: ViewStyle::default()
-                .padding(UiRect::all(Length::Px(2.0)))
-                .border_width(Length::Px(1.0))
+                .padding(Edges::all(Length::Px(2.0)))
+                .border(Border::new(Color::BLACK, Length::Px(1.0)))
                 .cursor(Cursor::IBeam),
         }
     }

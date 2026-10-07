@@ -1,6 +1,6 @@
 use crate::{
     MouseButton, MouseEvent,
-    core::{Circle, Color, Modifiers, Point, Rect, Vec2},
+    core::{Circle, Color, Modifiers, Point, Rect, Size, Vec2},
     event::{MouseDownEvent, MouseDragEvent, MouseWheelEvent},
     param::{AnyParameter, NormalizedValue, PlainValue},
     ui::{BuildContext, EventContext, Prop, RenderContext, View, Widget, reactive::ParamSetter},
@@ -11,6 +11,8 @@ use super::util::{denormalize_value, round_to_steps};
 type DragStartFn = dyn Fn(&mut EventContext);
 type DragEndFn = dyn Fn(&mut EventContext);
 type ValueChangedFn = dyn Fn(&mut EventContext, f64);
+
+const INTRINSIC_SIZE: Size = Size::splat(24.0);
 
 pub struct Knob {
     min: f64,
@@ -56,6 +58,8 @@ impl View for Knob {
 
     fn build(self, cx: &mut crate::ui::BuildContext<Self::Element>) -> Self::Element {
         cx.set_focusable(true);
+        cx.set_intrinsic_size(INTRINSIC_SIZE);
+        cx.set_draggable(true);
         KnobWidget {
             normalized_value: 0.0,
             on_drag_start: self.on_drag_start,
@@ -85,6 +89,8 @@ impl<P: AnyParameter> View for ParameterKnob<P> {
 
     fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
         let editor = self.editor;
+        cx.set_intrinsic_size(INTRINSIC_SIZE);
+        cx.set_draggable(true);
         KnobWidget {
             min: editor.info(cx).min_value().into(),
             max: editor.info(cx).max_value().into(),

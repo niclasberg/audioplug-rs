@@ -32,14 +32,6 @@ pub trait Measure {
     fn measure(&self, width: AvailableSpace, height: AvailableSpace) -> Size;
 }
 
-pub enum LayoutMode<'a> {
-    Block,
-    Stack,
-    Flex(&'a FlexStyle),
-    Grid(&'a GridStyle),
-    Leaf(&'a mut dyn Measure),
-}
-
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct FlexStyle {
     pub direction: FlexDirection,

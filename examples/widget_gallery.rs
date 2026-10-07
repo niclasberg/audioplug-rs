@@ -1,7 +1,7 @@
-use audioplug::core::{Color, Paint, ShadowKind, ShadowOptions, Size, Vec2};
+use audioplug::core::{Color, Size, Vec2};
 use audioplug::ui::reactive::{SpringOptions, TweenOptions};
-use audioplug::ui::style::{Length, UiRect};
-use audioplug::ui::{App, TextExt, Window};
+use audioplug::ui::style::{Border, Edges, Fill, Length};
+use audioplug::ui::{App, Paint, ShadowKind, ShadowOptions, TextExt, Window};
 use audioplug::ui::{StyleExt, prelude::*};
 use audioplug::views::*;
 use std::path::Path;
@@ -30,7 +30,7 @@ fn main() {
                     menu_button("Overview", tab, Tab::Overview),
                     menu_button("Buttons", tab, Tab::Buttons),
                 ))
-                .margin(UiRect::right_px(5.0)),
+                .margin(Edges::right_px(5.0)),
                 Switch::new(
                     move |cx| tab.get(cx),
                     move |tab| match tab {
@@ -48,7 +48,7 @@ fn main() {
 }
 
 fn menu_button(label: &str, tab_signal: Var<Tab>, tab: Tab) -> impl View {
-    Button::new_with_label(label, move |cx| tab_signal.set(cx, tab)).background(tab_signal.map(
+    LabelButton::new(label, move |cx| tab_signal.set(cx, tab)).background(tab_signal.map(
         move |current_tab| {
             if *current_tab == tab {
                 Color::EARTH_YELLOW.tint(0.2)
@@ -72,7 +72,7 @@ fn overview() -> impl View {
                 if checkbox_enabled.get(cx) {
                     color
                 } else {
-                    color.with_alpha(0.8)
+                    color.with_alpha(0.3)
                 }
             },
             TweenOptions {
@@ -107,14 +107,14 @@ fn overview() -> impl View {
                     animated.get(cx)
                 )
             }))
-            .border(Length::Px(2.0), Color::GRAY90)
+            .border(Border::new(Color::GRAY90, Length::Px(2.0)))
             .corner_radius(Size::new(2.0, 2.0)),
             Row::new((
                 Label::new("Slider"),
                 Slider::new(move |cx, value| slider_value.set(cx, value))
                     .range(1.0, 500.0)
                     .value(slider_value)
-                    .height(Length::Px(25.0))
+                    .max_width(Length::Px(200.0))
                     .flex_grow(1.0),
             ))
             .spacing(Length::Px(5.0))
@@ -124,7 +124,7 @@ fn overview() -> impl View {
                 Label::new("Checkbox"),
                 Checkbox::new()
                     .checked(checkbox_enabled)
-                    .background(checkbox_bg.map(|c| Paint::Solid(*c))),
+                    .background(checkbox_bg.map(|c| Fill::Solid(*c))),
             ))
             .v_align_center()
             .spacing(Length::Px(5.0)),
@@ -143,16 +143,17 @@ fn overview() -> impl View {
                         radius: 5.0,
                         ..Default::default()
                     })
-                    .padding(UiRect::all_px(5.0))
+                    .padding(Edges::all_px(5.0))
                 }),
             ))
             .v_align_center()
             .spacing(Length::Px(5.0)),
             Row::new((
                 Label::new("Button"),
-                Button::new_with_label("Filled", move |cx| {
+                LabelButton::new("Filled", move |cx| {
                     checkbox_enabled.update(cx, |_, enabled| *enabled = !*enabled);
-                }),
+                })
+                .font_size(22.0),
             ))
             .spacing(Length::Px(5.0))
             .v_align_center(),

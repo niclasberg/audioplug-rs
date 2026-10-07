@@ -1,17 +1,16 @@
 mod display_style;
-mod image_effect;
 mod length;
-mod ui_rect;
 
-use crate::core::{Color, Cursor, Paint, ShadowOptions, Size, Zero};
-pub use display_style::{AvailableSpace, DisplayStyle, FlexStyle, GridStyle, LayoutMode, Measure};
-pub use image_effect::ImageEffect;
-pub use length::Length;
+use crate::{
+    core::{Color, ColorMap, Cursor, Size, Zero},
+    ui::render::ShadowOptions,
+};
+pub use display_style::{AvailableSpace, DisplayStyle, FlexStyle, GridStyle, Measure};
+pub use length::{Corner, Corners, Edge, Edges, Length, RelativePoint};
 pub use taffy::{
     AlignContent, AlignItems, AlignSelf, FlexDirection, FlexWrap, JustifyContent, JustifySelf,
     Overflow,
 };
-pub use ui_rect::UiRect;
 
 pub(crate) trait ResolveInto<T> {
     fn resolve_into(self, window_size: Size) -> T;
@@ -27,17 +26,16 @@ pub struct Style {
     pub max_width: Length,
     pub max_height: Length,
     pub aspect_ratio: Option<f64>,
-    pub padding: UiRect,
-    pub border: Length,
-    pub margin: UiRect,
-    pub inset: UiRect,
+    pub padding: Edges,
+    pub border: Option<Border>,
+    pub margin: Edges,
+    pub inset: Edges,
     pub scrollbar_width: f64,
     pub overflow_x: Overflow,
     pub overflow_y: Overflow,
-    pub background: Option<Paint>,
+    pub background: Option<Fill>,
     pub corner_radius: Size,
     pub cursor: Option<Cursor>,
-    pub border_color: Option<Color>,
     pub flex_grow: f32,
     pub flex_shrink: f32,
     pub align_self: Option<AlignSelf>,
@@ -56,22 +54,59 @@ impl Default for Style {
             max_width: Length::Auto,
             max_height: Length::Auto,
             aspect_ratio: None,
-            padding: UiRect::ZERO,
-            border: Length::ZERO,
-            margin: UiRect::ZERO,
-            inset: UiRect::ZERO,
+            padding: Edges::ZERO,
+            border: None,
+            margin: Edges::ZERO,
+            inset: Edges::ZERO,
             scrollbar_width: 5.0,
             overflow_x: Overflow::Visible,
             overflow_y: Overflow::Visible,
             background: None,
             corner_radius: Size::ZERO,
             cursor: None,
-            border_color: None,
             align_self: None,
             justify_self: None,
             box_shadow: None,
             flex_grow: 0.0,
             flex_shrink: 1.0,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Border {
+    pub fill: Fill,
+    pub width: Length,
+}
+
+impl Border {
+    pub fn new(fill: impl Into<Fill>, width: Length) -> Self {
+        Self {
+            fill: fill.into(),
+            width,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Fill {
+    Solid(Color),
+    LinearGradient {
+        colors: ColorMap,
+        start: RelativePoint,
+        end: RelativePoint,
+    },
+    RadialGradient {
+        colors: ColorMap,
+        center: RelativePoint,
+        radius: Length,
+    },
+}
+
+impl Fill {}
+
+impl From<Color> for Fill {
+    fn from(value: Color) -> Self {
+        Fill::Solid(value)
     }
 }

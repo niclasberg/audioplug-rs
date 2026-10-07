@@ -104,22 +104,22 @@ impl Rect {
         Point::new(self.right, self.top)
     }
 
-    pub fn size(&self) -> Size {
+    pub const fn size(&self) -> Size {
         Size {
             width: self.width(),
             height: self.height(),
         }
     }
 
-    pub fn width(self) -> f32 {
+    pub const fn width(self) -> f32 {
         self.right - self.left
     }
 
-    pub fn height(self) -> f32 {
+    pub const fn height(self) -> f32 {
         self.bottom - self.top
     }
 
-    pub fn contains(&self, point: Point) -> bool {
+    pub const fn contains(&self, point: Point) -> bool {
         point.x >= self.left
             && point.x <= self.right
             && point.y >= self.top
@@ -187,7 +187,7 @@ impl Rect {
         }
     }
 
-    pub fn from_center(center: Point, size: Size) -> Self {
+    pub const fn from_center(center: Point, size: Size) -> Self {
         let half_width = size.width / 2.0;
         let half_height = size.height / 2.0;
         Self {
@@ -212,7 +212,7 @@ impl Rect {
         }
     }
 
-    pub fn center(&self) -> Point {
+    pub const fn center(&self) -> Point {
         Point::new(
             0.5 * (self.left + self.right),
             0.5 * (self.top + self.bottom),

@@ -1,23 +1,25 @@
 use crate::{
     core::{
-        FillRule, ImageData, Paint, PaintRef, PathBuilder, PathSegment, Point, Rect, ScaleFactor,
-        Shape, TextLayout, Transform, TranslateScale,
+        FillRule, ImageData, PathBuilder, PathSegment, Point, Rect, ScaleFactor, Shape, Size,
+        TextLayout, Transform, TranslateScale,
     },
     ui::{
         TextContext, WidgetData, Widgets,
         app_state::WidgetMap,
         reactive::{CanRead, ReactiveGraph, ReadContext, ReadScope},
-        render::scene::{GpuAppearance, GpuPaint},
+        render::scene::GpuAppearance,
     },
 };
 
 mod canvas;
+mod draw_style;
 mod glyph_cache;
 mod gradient_cache;
 mod scene;
 mod tiles;
 mod wgpu_surface;
 pub use canvas::{Canvas, CanvasWidget};
+pub use draw_style::{DrawStyle, Paint, PaintRef, ShadowKind, ShadowOptions};
 pub use glyph_cache::GlyphCache;
 pub use scene::GpuScene;
 pub use wgpu_surface::WGPUSurface;
@@ -139,6 +141,7 @@ fn rebuild_scene(
     window_id: WindowId,
 ) {
     let window = &mut widgets.windows[window_id];
+    let window_size = window.handle.global_bounds().size();
     let scale_factor = window.handle.scale_factor();
     let mut gpu_scene = std::mem::take(&mut window.gpu_scene);
     gpu_scene.clear();
@@ -154,7 +157,12 @@ fn rebuild_scene(
             .dfs_walker_with_pruning(root_id, |node| !(node.is_overlay() || node.style.hidden));
         while let Some(widget_id) = walker.next(&widgets.tree) {
             let bounds = widgets.tree[widget_id].content_bounds();
-            render_node_background(&widgets.tree[widget_id], &mut gpu_scene, scale_factor);
+            render_node_background(
+                &widgets.tree[widget_id],
+                &mut gpu_scene,
+                window_size,
+                scale_factor,
+            );
 
             widget_map[widget_id].render(&mut RenderContext {
                 id: widget_id,
@@ -180,32 +188,41 @@ fn rebuild_scene(
     ));
 }
 
-fn render_node_background(node: &WidgetData, gpu_scene: &mut GpuScene, scale_factor: ScaleFactor) {
+fn render_node_background(
+    node: &WidgetData,
+    gpu_scene: &mut GpuScene,
+    window_size: Size,
+    scale_factor: ScaleFactor,
+) {
     let mut appearance = GpuAppearance::new();
     if let Some(shadow) = node.style.box_shadow {
         appearance.set_shadow(shadow, scale_factor);
     }
 
     if let Some(background) = &node.style.background {
-        let paint = match background {
-            Paint::Solid(color) => GpuPaint::solid(*color),
-            Paint::LinearGradient(linear_gradient) => GpuPaint::linear_gradient(linear_gradient),
-        };
-        appearance.set_fill(paint);
+        let bounds = node.content_bounds();
+        appearance.set_fill(PaintRef::from_fill(background, window_size, bounds));
     }
 
     let line_width = node.layout.border.top * scale_factor.0;
-    if let Some(border_color) = node.style.border_color
+    if let Some(border) = &node.style.border
         && line_width > 0.0
     {
-        let paint = GpuPaint::solid(border_color);
-        appearance.set_stroke(paint, line_width);
+        let bounds = node.global_bounds();
+        appearance.set_stroke(
+            PaintRef::from_fill(&border.fill, window_size, bounds),
+            line_width,
+        );
     }
 
     if !appearance.is_empty() {
-        let shape_ref = gpu_scene.add_shape(node.shape(), scale_factor);
+        let shape_ref = gpu_scene.add_shape(node.shape());
         let appearance_ref = gpu_scene.add_appearance(appearance);
-        gpu_scene.draw(shape_ref, appearance_ref, TranslateScale::identity());
+        gpu_scene.draw(
+            shape_ref,
+            appearance_ref,
+            TranslateScale::scale(scale_factor.0),
+        );
     }
 }
 
@@ -232,56 +249,57 @@ impl<'a> RenderContext<'a> {
         self.widgets.is_pressed(self.id)
     }
 
-    pub fn fill_path(
+    fn current_transform(&self) -> TranslateScale {
+        TranslateScale::scale(self.scale_factor.0)
+    }
+
+    pub fn fill_path<'b>(
         &mut self,
         mut build_path: impl FnMut(&mut PathBuilder),
-        brush: impl Into<Paint>,
+        brush: impl Into<PaintRef<'b>>,
         fill_rule: FillRule,
     ) {
         self.path_segment_buffer.clear();
         build_path(&mut PathBuilder::new(self.path_segment_buffer));
-        let shape_ref = self.scene.add_path(
-            &self.path_segment_buffer,
-            fill_rule,
-            TranslateScale::scale(self.scale_factor.0),
-        );
-        let mut appearance = GpuAppearance::new();
-        appearance.set_fill(GpuPaint::from(brush.into()));
+        let shape_ref = self.scene.add_path(&self.path_segment_buffer, fill_rule);
+        let mut appearance: GpuAppearance = GpuAppearance::new();
+        appearance.set_fill(self.current_transform() * brush.into());
         let appearance_ref = self.scene.add_appearance(appearance);
         self.scene
-            .draw(shape_ref, appearance_ref, TranslateScale::identity());
+            .draw(shape_ref, appearance_ref, self.current_transform());
     }
 
-    pub fn stroke_path(
+    pub fn stroke_path<'b>(
         &mut self,
         mut build_path: impl FnMut(&mut PathBuilder),
-        brush: impl Into<Paint>,
+        brush: impl Into<PaintRef<'b>>,
         line_width: f32,
     ) {
         self.path_segment_buffer.clear();
         build_path(&mut PathBuilder::new(self.path_segment_buffer));
-        let shape_ref = self.scene.add_path(
-            &self.path_segment_buffer,
-            FillRule::NonZero,
+        let shape_ref = self
+            .scene
+            .add_path(&self.path_segment_buffer, FillRule::NonZero);
+        let mut appearance = GpuAppearance::new();
+        appearance.set_stroke(brush.into(), line_width * self.scale_factor.0);
+        let appearance_ref = self.scene.add_appearance(appearance);
+        self.scene.draw(
+            shape_ref,
+            appearance_ref,
             TranslateScale::scale(self.scale_factor.0),
         );
-        let mut appearance = GpuAppearance::new();
-        appearance.set_stroke(
-            GpuPaint::from(brush.into()),
-            line_width * self.scale_factor.0,
-        );
-        let appearance_ref = self.scene.add_appearance(appearance);
-        self.scene
-            .draw(shape_ref, appearance_ref, TranslateScale::identity());
     }
 
-    pub fn fill(&mut self, shape: impl Into<Shape>, brush: impl Into<Paint>) {
-        let shape_ref = self.scene.add_shape(shape.into(), self.scale_factor);
+    pub fn fill<'b>(&mut self, shape: impl Into<Shape>, brush: impl Into<PaintRef<'b>>) {
+        let shape_ref = self.scene.add_shape(shape.into());
         let mut appearance = GpuAppearance::new();
-        appearance.set_fill(GpuPaint::from(brush.into()));
+        appearance.set_fill(self.current_transform() * brush.into());
         let appearance_ref = self.scene.add_appearance(appearance);
-        self.scene
-            .draw(shape_ref, appearance_ref, TranslateScale::identity());
+        self.scene.draw(
+            shape_ref,
+            appearance_ref,
+            TranslateScale::scale(self.scale_factor.0),
+        );
     }
 
     pub fn stroke<'d>(
@@ -290,19 +308,22 @@ impl<'a> RenderContext<'a> {
         brush: impl Into<PaintRef<'d>>,
         line_width: f32,
     ) {
-        let shape_ref = self.scene.add_shape(shape.into(), self.scale_factor);
+        let shape_ref = self.scene.add_shape(shape.into());
         let mut appearance = GpuAppearance::new();
-        appearance.set_stroke(GpuPaint::from(brush.into()), line_width);
+        appearance.set_stroke(self.current_transform() * brush.into(), line_width);
         let appearance_ref = self.scene.add_appearance(appearance);
-        self.scene
-            .draw(shape_ref, appearance_ref, TranslateScale::identity());
+        self.scene.draw(
+            shape_ref,
+            appearance_ref,
+            TranslateScale::scale(self.scale_factor.0),
+        );
     }
 
-    pub fn draw_line<'c>(
+    pub fn draw_line<'b>(
         &mut self,
         p0: Point,
         p1: Point,
-        brush: impl Into<Paint>,
+        brush: impl Into<PaintRef<'b>>,
         line_width: f32,
     ) {
         self.stroke_path(
@@ -314,7 +335,12 @@ impl<'a> RenderContext<'a> {
         );
     }
 
-    pub fn draw_lines<'c>(&mut self, points: &[Point], brush: impl Into<Paint>, line_width: f32) {
+    pub fn draw_lines<'c>(
+        &mut self,
+        points: &[Point],
+        brush: impl Into<PaintRef<'c>>,
+        line_width: f32,
+    ) {
         if points.len() > 1 {
             self.stroke_path(
                 |mut path| {
