@@ -238,10 +238,56 @@ pub struct RelativePoint {
 }
 
 impl RelativePoint {
+    pub const TOP_LEFT: Self = Self {
+        x: Length::Percent(0.0),
+        y: Length::Percent(0.0),
+    };
+    pub const TOP_CENTER: Self = Self {
+        x: Length::Percent(50.0),
+        y: Length::Percent(0.0),
+    };
+    pub const TOP_RIGHT: Self = Self {
+        x: Length::Percent(100.0),
+        y: Length::Percent(0.0),
+    };
+    pub const CENTER_LEFT: Self = Self {
+        x: Length::Percent(0.0),
+        y: Length::Percent(50.0),
+    };
+    pub const CENTER: Self = Self {
+        x: Length::Percent(50.0),
+        y: Length::Percent(50.0),
+    };
+    pub const CENTER_RIGHT: Self = Self {
+        x: Length::Percent(100.0),
+        y: Length::Percent(50.0),
+    };
+    pub const BOTTOM_LEFT: Self = Self {
+        x: Length::Percent(0.0),
+        y: Length::Percent(100.0),
+    };
+    pub const BOTTOM_CENTER: Self = Self {
+        x: Length::Percent(50.0),
+        y: Length::Percent(100.0),
+    };
+    pub const BOTTOM_RIGHT: Self = Self {
+        x: Length::Percent(100.0),
+        y: Length::Percent(100.0),
+    };
+
     pub(crate) fn resolve_into_point(self, window_size: Size, bounds: Rect) -> Point {
         Point {
             x: self.x.resolve_into_px(window_size, bounds.width()) + bounds.left,
             y: self.y.resolve_into_px(window_size, bounds.height()) + bounds.top,
+        }
+    }
+}
+
+impl<T: Into<Length>, U: Into<Length>> From<(T, U)> for RelativePoint {
+    fn from(value: (T, U)) -> Self {
+        RelativePoint {
+            x: value.0.into(),
+            y: value.1.into(),
         }
     }
 }

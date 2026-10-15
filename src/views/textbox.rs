@@ -1,23 +1,19 @@
-use crate::MouseEvent;
-use crate::core::{Color, Cursor, Key, Modifiers, TextLayout};
-use crate::event::{KeyEvent, MouseButton, MouseDownEvent, MouseDragEvent};
-use crate::ui::ViewStyle;
+use crate::core::{Color, Cursor};
 use crate::ui::style::Border;
 use crate::ui::{
-    AnimationContext, BuildContext, EventContext, EventResult, Prop, RenderContext, View, Widget,
+    BuildContext, EventContext, Prop, View,
     style::{Edges, Length},
 };
-use std::ops::Range;
-use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
+use crate::ui::{StyleExt, TextExt, ViewStyle, ViewText};
 
 type InputChangedFn = dyn Fn(&mut EventContext, &str);
 
 pub struct TextBox {
     width: f64,
     input_changed_fn: Box<InputChangedFn>,
-    value: Option<Prop<String>>,
     placeholder: Option<Prop<String>>,
     style: ViewStyle,
+    text: ViewText,
 }
 
 impl TextBox {
@@ -25,18 +21,13 @@ impl TextBox {
         Self {
             width: 100.0,
             input_changed_fn: Box::new(input_changed_fn),
-            value: None,
             placeholder: None,
+            text: ViewText::new("TEXTBOX".to_string()),
             style: ViewStyle::default()
                 .padding(Edges::all(Length::Px(2.0)))
                 .border(Border::new(Color::BLACK, Length::Px(1.0)))
                 .cursor(Cursor::IBeam),
         }
-    }
-
-    pub fn value(mut self, value: impl Into<Prop<String>>) -> Self {
-        self.value = Some(value.into());
-        self
     }
 
     pub fn placeholder(mut self, value: impl Into<Prop<String>>) -> Self {
@@ -45,57 +36,23 @@ impl TextBox {
     }
 }
 
+impl TextExt for TextBox {
+    fn text_mut(&mut self) -> &mut ViewText {
+        &mut self.text
+    }
+}
+
 impl View for TextBox {
-    type Element = TextBoxWidget;
-
-    fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
-        cx.set_focusable(true);
-        cx.apply_style(self.style);
-
-        let value = if let Some(value) = self.value {
-            let text = value.get_and_bind(cx, |value, mut widget| {
-                if value != widget.value {
-                    widget.value = value;
-                    widget.rebuild_text_layout();
-                    widget.request_render();
-                }
-            });
-            text
-        } else {
-            "".to_owned()
-        };
-
-        let text_cx = cx.text_context();
-        let text_layout = text_cx
-            .layout_cx
-            .ranged_builder(text_cx.font_cx, &value, 1.0, false)
-            .build(&value);
-
-        TextBoxWidget {
-            width: self.width,
-            value: "".to_owned(),
-            text_layout,
-            cursor_on: true,
-            position: 0,
-            selection_start: None,
-            last_cursor_timestamp: 0.0,
-            input_changed_fn: self.input_changed_fn,
-        }
+    fn build(self, cx: &mut BuildContext) {
+        cx.style(self.style).text(self.text);
     }
 }
 
 pub struct TextBoxWidget {
-    width: f64,
-    value: String,
-    text_layout: TextLayout,
-    cursor_on: bool,
-    position: usize,
-    selection_start: Option<usize>,
-    last_cursor_timestamp: f64,
     input_changed_fn: Box<InputChangedFn>,
 }
 
-impl TextBoxWidget {
+/*impl TextBoxWidget {
     fn selection(&self) -> Option<Range<usize>> {
         match self.selection_start {
             Some(start) if start < self.position => Some(start..self.position),
@@ -327,175 +284,169 @@ impl TextBoxWidget {
 
         //self.text_layout = TextLayout::new(self.value.as_str(), Color::BLACK, Size::INFINITY);
     }
-}
+}*/
 
 const CURSOR_DELAY_SECONDS: f64 = 0.5;
 
-impl Widget for TextBoxWidget {
-    fn debug_label(&self) -> &'static str {
-        "TextBox"
-    }
+/*fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventResult {
+    let rebuild_text_layout = |this: &mut Self, ctx: &mut EventContext| {
+        this.rebuild_text_layout();
+        ctx.request_render();
+        (this.input_changed_fn)(ctx, &this.value);
+    };
 
-    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventResult {
-        let rebuild_text_layout = |this: &mut Self, ctx: &mut EventContext| {
-            this.rebuild_text_layout();
-            ctx.request_render();
-            (this.input_changed_fn)(ctx, &this.value);
-        };
-
-        match event {
-            KeyEvent::KeyDown {
-                key,
-                modifiers,
-                str,
-                ..
-            } => match (key, str) {
-                (Key::BackSpace, _) if modifiers.contains(Modifiers::CONTROL) => {
-                    if self.remove_word_left() {
-                        rebuild_text_layout(self, ctx);
-                    }
-                    EventResult::Stop
-                }
-                (Key::BackSpace, _) => {
-                    if self.remove_left() {
-                        rebuild_text_layout(self, ctx);
-                    }
-                    EventResult::Stop
-                }
-                (Key::Delete, _) if modifiers.contains(Modifiers::CONTROL) => {
-                    if self.remove_word_right() {
-                        rebuild_text_layout(self, ctx);
-                    }
-                    EventResult::Stop
-                }
-                (Key::Delete, _) => {
-                    if self.remove_right() {
-                        rebuild_text_layout(self, ctx);
-                    }
-                    EventResult::Stop
-                }
-                (Key::Left, _) if modifiers.contains(Modifiers::CONTROL) => {
-                    if self.move_word_left(modifiers.contains(Modifiers::SHIFT)) {
-                        ctx.request_render();
-                    }
-                    EventResult::Stop
-                }
-                (Key::Left, _) => {
-                    if self.move_left(modifiers.contains(Modifiers::SHIFT)) {
-                        ctx.request_render();
-                    }
-                    EventResult::Stop
-                }
-                (Key::Right, _) if modifiers.contains(Modifiers::CONTROL) => {
-                    if self.move_word_right(modifiers.contains(Modifiers::SHIFT)) {
-                        ctx.request_render();
-                    }
-                    EventResult::Stop
-                }
-                (Key::Right, _) => {
-                    if self.move_right(modifiers.contains(Modifiers::SHIFT)) {
-                        ctx.request_render();
-                    }
-                    EventResult::Stop
-                }
-                (Key::C, _) if modifiers == Modifiers::CONTROL => {
-                    if let Some(selected_text) = self.selected_text() {
-                        ctx.clipboard().set_text(selected_text);
-                    }
-                    EventResult::Stop
-                }
-                (Key::V, _) if modifiers == Modifiers::CONTROL => {
-                    if let Some(text_to_insert) = ctx.clipboard().get_text() {
-                        self.insert(text_to_insert.as_str());
-                        rebuild_text_layout(self, ctx);
-                    }
-                    EventResult::Stop
-                }
-                (Key::X, _) if modifiers == Modifiers::CONTROL => EventResult::Stop,
-                (Key::Tab, _)
-                | (Key::Escape, _)
-                | (Key::Enter, _)
-                | (Key::Up, _)
-                | (Key::Down, _) => EventResult::Continue,
-                (_, Some(str)) if !modifiers.contains(Modifiers::CONTROL) => {
-                    self.insert(str.as_str());
+    match event {
+        KeyEvent::KeyDown {
+            key,
+            modifiers,
+            str,
+            ..
+        } => match (key, str) {
+            (Key::BackSpace, _) if modifiers.contains(Modifiers::CONTROL) => {
+                if self.remove_word_left() {
                     rebuild_text_layout(self, ctx);
-                    EventResult::Stop
                 }
-                _ => EventResult::Continue,
-            },
-            _ => EventResult::Continue,
-        }
-    }
-
-    fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) {
-        match event {
-            MouseEvent::Down(MouseDownEvent {
-                button: MouseButton::LEFT,
-                position,
-                is_double_click,
-                ..
-            }) => {
-                let point = position - ctx.bounds().top_left().into_vec2();
-                let new_cursor =
-                    parley::Cursor::from_point(&self.text_layout, point.x as _, point.y as _);
-                if is_double_click {
-                    if self.select_word_at(new_cursor.index()) {
-                        ctx.request_render();
-                    }
-                } else {
-                    if self.set_caret_position(new_cursor.index(), false) {
-                        ctx.request_render();
-                    }
-                }
+                EventResult::Stop
             }
-            MouseEvent::DragMoved(MouseDragEvent { position, .. }) => {
-                let point = position - ctx.bounds().top_left().into_vec2();
-                let new_cursor =
-                    parley::Cursor::from_point(&self.text_layout, point.x as _, point.y as _);
-                if self.set_caret_position(new_cursor.index(), true) {
+            (Key::BackSpace, _) => {
+                if self.remove_left() {
+                    rebuild_text_layout(self, ctx);
+                }
+                EventResult::Stop
+            }
+            (Key::Delete, _) if modifiers.contains(Modifiers::CONTROL) => {
+                if self.remove_word_right() {
+                    rebuild_text_layout(self, ctx);
+                }
+                EventResult::Stop
+            }
+            (Key::Delete, _) => {
+                if self.remove_right() {
+                    rebuild_text_layout(self, ctx);
+                }
+                EventResult::Stop
+            }
+            (Key::Left, _) if modifiers.contains(Modifiers::CONTROL) => {
+                if self.move_word_left(modifiers.contains(Modifiers::SHIFT)) {
+                    ctx.request_render();
+                }
+                EventResult::Stop
+            }
+            (Key::Left, _) => {
+                if self.move_left(modifiers.contains(Modifiers::SHIFT)) {
+                    ctx.request_render();
+                }
+                EventResult::Stop
+            }
+            (Key::Right, _) if modifiers.contains(Modifiers::CONTROL) => {
+                if self.move_word_right(modifiers.contains(Modifiers::SHIFT)) {
+                    ctx.request_render();
+                }
+                EventResult::Stop
+            }
+            (Key::Right, _) => {
+                if self.move_right(modifiers.contains(Modifiers::SHIFT)) {
+                    ctx.request_render();
+                }
+                EventResult::Stop
+            }
+            (Key::C, _) if modifiers == Modifiers::CONTROL => {
+                if let Some(selected_text) = self.selected_text() {
+                    ctx.clipboard().set_text(selected_text);
+                }
+                EventResult::Stop
+            }
+            (Key::V, _) if modifiers == Modifiers::CONTROL => {
+                if let Some(text_to_insert) = ctx.clipboard().get_text() {
+                    self.insert(text_to_insert.as_str());
+                    rebuild_text_layout(self, ctx);
+                }
+                EventResult::Stop
+            }
+            (Key::X, _) if modifiers == Modifiers::CONTROL => EventResult::Stop,
+            (Key::Tab, _)
+            | (Key::Escape, _)
+            | (Key::Enter, _)
+            | (Key::Up, _)
+            | (Key::Down, _) => EventResult::Continue,
+            (_, Some(str)) if !modifiers.contains(Modifiers::CONTROL) => {
+                self.insert(str.as_str());
+                rebuild_text_layout(self, ctx);
+                EventResult::Stop
+            }
+            _ => EventResult::Continue,
+        },
+        _ => EventResult::Continue,
+    }
+}
+
+fn mouse_event(&mut self, event: MouseEvent, ctx: &mut EventContext) {
+    match event {
+        MouseEvent::Down(MouseDownEvent {
+            button: MouseButton::LEFT,
+            position,
+            is_double_click,
+            ..
+        }) => {
+            let point = position - ctx.bounds().top_left().into_vec2();
+            let new_cursor =
+                parley::Cursor::from_point(&self.text_layout, point.x as _, point.y as _);
+            if is_double_click {
+                if self.select_word_at(new_cursor.index()) {
+                    ctx.request_render();
+                }
+            } else {
+                if self.set_caret_position(new_cursor.index(), false) {
                     ctx.request_render();
                 }
             }
-            _ => {}
         }
-    }
-
-    fn animation_frame(&mut self, frame: crate::AnimationFrame, ctx: &mut AnimationContext) {
-        if ctx.has_focus() {
-            if frame.timestamp - self.last_cursor_timestamp > CURSOR_DELAY_SECONDS {
-                self.cursor_on = !self.cursor_on;
+        MouseEvent::DragMoved(MouseDragEvent { position, .. }) => {
+            let point = position - ctx.bounds().top_left().into_vec2();
+            let new_cursor =
+                parley::Cursor::from_point(&self.text_layout, point.x as _, point.y as _);
+            if self.set_caret_position(new_cursor.index(), true) {
                 ctx.request_render();
-                self.last_cursor_timestamp = frame.timestamp;
             }
-            ctx.request_animation();
         }
-    }
-
-    fn render(&mut self, cx: &mut RenderContext) {
-        let text_bounds = cx.bounds();
-        cx.use_clip(text_bounds, |cx| {
-            /*if let Some(selection) = self.selection() {
-                let left = self.text_layout.point_at_text_index(selection.start);
-                let right = self.text_layout.point_at_text_index(selection.end);
-                let rect = Rect::from_points(
-                    text_bounds.top_left() + left.into_vec2(),
-                    text_bounds.bottom_left() + right.into_vec2(),
-                );
-                scene.fill(rect, Color::from_rgb8(68, 85, 90));
-            }*/
-
-            cx.draw_text(&self.text_layout, text_bounds.top_left());
-
-            /*if ctx.has_focus() && self.cursor_on {
-                let cursor_point = self
-                    .text_layout
-                    .point_at_text_index(self.position)
-                    .into_vec2();
-                let p0 = text_bounds.bottom_left() + cursor_point;
-                let p1 = text_bounds.top_left() + cursor_point;
-                scene.draw_line(p0, p1, Color::BLACK, 1.0);
-            }*/
-        });
+        _ => {}
     }
 }
+
+fn animation_frame(&mut self, frame: crate::AnimationFrame, ctx: &mut AnimationContext) {
+    if ctx.has_focus() {
+        if frame.timestamp - self.last_cursor_timestamp > CURSOR_DELAY_SECONDS {
+            self.cursor_on = !self.cursor_on;
+            ctx.request_render();
+            self.last_cursor_timestamp = frame.timestamp;
+        }
+        ctx.request_animation();
+    }
+}
+
+fn render(&mut self, cx: &mut RenderContext) {
+    let text_bounds = cx.bounds();
+    cx.use_clip(text_bounds, |cx| {
+        /*if let Some(selection) = self.selection() {
+            let left = self.text_layout.point_at_text_index(selection.start);
+            let right = self.text_layout.point_at_text_index(selection.end);
+            let rect = Rect::from_points(
+                text_bounds.top_left() + left.into_vec2(),
+                text_bounds.bottom_left() + right.into_vec2(),
+            );
+            scene.fill(rect, Color::from_rgb8(68, 85, 90));
+        }*/
+
+        cx.draw_text(&self.text_layout, text_bounds.top_left());
+
+        /*if ctx.has_focus() && self.cursor_on {
+            let cursor_point = self
+                .text_layout
+                .point_at_text_index(self.position)
+                .into_vec2();
+            let p0 = text_bounds.bottom_left() + cursor_point;
+            let p1 = text_bounds.top_left() + cursor_point;
+            scene.draw_line(p0, p1, Color::BLACK, 1.0);
+        }*/
+    });
+}*/

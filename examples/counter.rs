@@ -3,7 +3,7 @@ use audioplug::{
     ui::{
         App, StyleExt, Window,
         prelude::*,
-        style::{AlignSelf, Border, Edges, Fill, Length},
+        style::{AlignSelf, Border, Edges, Fill, Length, RelativePoint},
     },
     views::*,
 };
@@ -56,8 +56,8 @@ fn main() {
             .border(Border::new(Color::RED, Length::Px(2.0)))
             .background(Fill::LinearGradient {
                 colors: (Color::WHITE, Color::GRAY90).into(),
-                start: UnitPoint::TOP_LEFT,
-                end: UnitPoint::BOTTOM_RIGHT,
+                start: RelativePoint::TOP_LEFT,
+                end: RelativePoint::BOTTOM_RIGHT,
             })
             .on_key_event(move |cx, event| match event {
                 audioplug::KeyEvent::KeyDown { key, .. } => match key {

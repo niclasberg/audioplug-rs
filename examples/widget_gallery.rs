@@ -1,7 +1,7 @@
-use audioplug::core::{Color, Size, Vec2};
+use audioplug::core::{Color, Cursor, Size, Vec2};
 use audioplug::ui::reactive::{SpringOptions, TweenOptions};
 use audioplug::ui::style::{Border, Edges, Fill, Length};
-use audioplug::ui::{App, Paint, ShadowKind, ShadowOptions, TextExt, Window};
+use audioplug::ui::{App, ShadowKind, ShadowOptions, TextExt, Window};
 use audioplug::ui::{StyleExt, prelude::*};
 use audioplug::views::*;
 use std::path::Path;
@@ -119,12 +119,14 @@ fn overview() -> impl View {
             ))
             .spacing(Length::Px(5.0))
             .v_align_center(),
-            Row::new((Label::new("Knob"), Knob::new())).v_align_center(),
+            Row::new((Label::new("Knob"), Knob::new(|_, _| {}))).v_align_center(),
             Row::new((
                 Label::new("Checkbox"),
-                Checkbox::new()
-                    .checked(checkbox_enabled)
-                    .background(checkbox_bg.map(|c| Fill::Solid(*c))),
+                Checkbox::new(|cx, value| {
+                    checkbox_enabled.set(cx, value);
+                })
+                .checked(checkbox_enabled)
+                .background(checkbox_bg.map(|c| Fill::Solid(*c))),
             ))
             .v_align_center()
             .spacing(Length::Px(5.0)),
@@ -139,7 +141,7 @@ fn overview() -> impl View {
                     .spacing(Length::Px(2.5))
                     .corner_radius(Size::splat(5.0))
                     .background(Color::EARTH_YELLOW)
-                    .box_shadow(ShadowOptions {
+                    .shadow(ShadowOptions {
                         radius: 5.0,
                         ..Default::default()
                     })
@@ -153,7 +155,8 @@ fn overview() -> impl View {
                 LabelButton::new("Filled", move |cx| {
                     checkbox_enabled.update(cx, |_, enabled| *enabled = !*enabled);
                 })
-                .font_size(22.0),
+                .font_size(22.0)
+                .cursor(Cursor::Hand),
             ))
             .spacing(Length::Px(5.0))
             .v_align_center(),
@@ -163,7 +166,7 @@ fn overview() -> impl View {
                     .max_width(Length::Px(200.0))
                     .height(animated.map(|a| Length::Px(*a as f32)))
                     .corner_radius(Size::splat(7.0))
-                    .box_shadow(ShadowOptions {
+                    .shadow(ShadowOptions {
                         radius: 10.0,
                         offset: Vec2::splat(2.0),
                         color: Color::BLACK.with_alpha(0.3),

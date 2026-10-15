@@ -1,7 +1,7 @@
 use taffy::{AlignSelf, JustifySelf};
 
 use crate::{
-    core::{Color, Cursor, Size},
+    core::{Cursor, Size},
     ui::{
         Prop,
         reactive::{Computed, ReadContext},
@@ -56,96 +56,6 @@ impl ViewStyle {
         flex_shrink: None,
         cursor: None,
     };
-
-    pub fn hidden(mut self, value: bool) -> Self {
-        self.hidden.replace(Prop::Const(value));
-        self
-    }
-
-    pub fn padding(mut self, value: Edges) -> Self {
-        self.padding.replace(Prop::Const(value));
-        self
-    }
-
-    pub fn background(mut self, value: Fill) -> Self {
-        self.background.replace(value.into());
-        self
-    }
-
-    pub fn background_fn(mut self, f: fn(&mut ReadContext) -> Fill) -> Self {
-        self.background.replace(Computed::new_const(f).into());
-        self
-    }
-
-    pub fn margin(mut self, value: Edges) -> Self {
-        self.margin.replace(Prop::Const(value));
-        self
-    }
-
-    pub fn height(mut self, value: Length) -> Self {
-        self.height.replace(value.into());
-        self
-    }
-
-    pub fn width(mut self, value: Length) -> Self {
-        self.width.replace(value.into());
-        self
-    }
-
-    pub fn min_width(mut self, value: impl Into<Prop<Length>>) -> Self {
-        self.min_width.replace(value.into());
-        self
-    }
-
-    pub fn max_width(mut self, value: Length) -> Self {
-        self.max_width.replace(value.into());
-        self
-    }
-
-    pub fn min_height(mut self, value: Length) -> Self {
-        self.min_height.replace(value.into());
-        self
-    }
-
-    pub fn max_height(mut self, value: Length) -> Self {
-        self.max_height.replace(value.into());
-        self
-    }
-
-    pub fn corner_radius(mut self, value: Size) -> Self {
-        self.corner_radius.replace(Prop::Const(value));
-        self
-    }
-
-    pub fn border(mut self, value: Border) -> Self {
-        self.border.replace(Prop::Const(value));
-        self
-    }
-
-    pub fn align_self(mut self, value: impl Into<Prop<AlignSelf>>) -> Self {
-        self.align_self.replace(value.into());
-        self
-    }
-
-    pub fn flex_grow(mut self, value: f32) -> Self {
-        self.flex_grow.replace(value.into());
-        self
-    }
-
-    pub fn flex_shrink(mut self, value: f32) -> Self {
-        self.flex_shrink.replace(value.into());
-        self
-    }
-
-    pub fn shadow(mut self, value: ShadowOptions) -> Self {
-        self.box_shadow = Some(Prop::Const(value));
-        self
-    }
-
-    pub fn cursor(mut self, value: Cursor) -> Self {
-        self.cursor = Some(Prop::Const(value));
-        self
-    }
 }
 
 impl Default for ViewStyle {
@@ -236,8 +146,19 @@ pub trait StyleExt: Sized {
         self
     }
 
-    fn box_shadow(mut self, value: impl Into<Prop<ShadowOptions>>) -> Self {
+    fn shadow(mut self, value: impl Into<Prop<ShadowOptions>>) -> Self {
         self.style_mut().box_shadow = Some(value.into());
+        self
+    }
+
+    fn cursor(mut self, value: impl Into<Prop<Cursor>>) -> Self {
+        self.style_mut().cursor = Some(value.into());
+        self
+    }
+}
+
+impl StyleExt for ViewStyle {
+    fn style_mut(&mut self) -> &mut ViewStyle {
         self
     }
 }

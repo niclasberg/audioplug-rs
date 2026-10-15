@@ -1,28 +1,21 @@
-use std::{
-    fmt::Debug,
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
-};
+use std::fmt::Debug;
 
 use slotmap::Key;
 
-use super::{
-    AppState, OverlayOptions, View, Widget, WidgetData, WidgetFlags, WidgetId, style::Style,
-};
+use super::{AppState, OverlayOptions, View, WidgetData, WidgetFlags, WidgetId, style::Style};
 use crate::{
     core::{Rect, diff::DiffOp},
     ui::{
-        WidgetHandle, WidgetPos, Widgets,
-        app_state::WidgetMap,
+        WidgetPos, Widgets,
         style::{DisplayStyle, Length},
         text::TextData,
         widget_tree::SiblingWalker,
     },
 };
 
-pub struct WidgetNotFound<'a, W: Widget + ?Sized>(WidgetMut<'a, W>);
+pub struct WidgetNotFound<'a>(WidgetMut<'a>);
 
-impl<'a, W: Widget + ?Sized> Debug for WidgetNotFound<'a, W> {
+impl<'a> Debug for WidgetNotFound<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("WidgetNotFound").field(&self.0.id).finish()
     }
@@ -30,17 +23,16 @@ impl<'a, W: Widget + ?Sized> Debug for WidgetNotFound<'a, W> {
 
 pub struct WidgetRefIter<'a> {
     widgets: &'a Widgets,
-    widget_impls: &'a WidgetMap,
     inner: SiblingWalker,
 }
 
 impl<'a> Iterator for WidgetRefIter<'a> {
-    type Item = WidgetRef<'a, dyn Widget>;
+    type Item = WidgetRef<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner
             .next_id(&self.widgets.tree)
-            .map(|id| WidgetRef::new(self.widgets, self.widget_impls, id))
+            .map(|id| WidgetRef::new(self.widgets, id))
     }
 }
 
@@ -48,25 +40,18 @@ impl<'a> DoubleEndedIterator for WidgetRefIter<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.inner
             .next_back_id(&self.widgets.tree)
-            .map(|id| WidgetRef::new(self.widgets, self.widget_impls, id))
+            .map(|id| WidgetRef::new(self.widgets, id))
     }
 }
 
-pub struct WidgetRef<'a, W: 'a + Widget + ?Sized> {
+pub struct WidgetRef<'a> {
     widgets: &'a Widgets,
-    widget_impls: &'a WidgetMap,
     id: WidgetId,
-    _phantom: PhantomData<&'a W>,
 }
 
-impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
-    pub(super) fn new(widgets: &'a Widgets, widget_impls: &'a WidgetMap, id: WidgetId) -> Self {
-        Self {
-            widgets,
-            widget_impls,
-            id,
-            _phantom: PhantomData,
-        }
+impl<'a> WidgetRef<'a> {
+    pub(super) fn new(widgets: &'a Widgets, id: WidgetId) -> Self {
+        Self { widgets, id }
     }
 
     pub fn id(&self) -> WidgetId {
@@ -104,27 +89,24 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
     pub fn child_iter(&self) -> WidgetRefIter<'_> {
         WidgetRefIter {
             inner: self.widgets.tree.child_id_walker(self.id),
-            widget_impls: self.widget_impls,
             widgets: self.widgets,
         }
     }
 
-    pub fn for_each_child_ref(&self, mut f: impl FnMut(WidgetRef<'_, dyn Widget>)) {
-        for_each_child_ref_impl(self.widgets, self.widget_impls, self.id, &mut f);
+    pub fn for_each_child_ref(&self, mut f: impl FnMut(WidgetRef<'_>)) {
+        for_each_child_ref_impl(self.widgets, self.id, &mut f);
     }
 
     pub fn parent_id(&self) -> WidgetId {
         self.data().parent_id
     }
 
-    pub fn parent(&self) -> Option<WidgetRef<'a, dyn Widget>> {
+    pub fn parent<'s>(&'s self) -> Option<WidgetRef<'s>> {
         let parent_id = self.data().parent_id;
         if !parent_id.is_null() {
             Some(WidgetRef {
                 widgets: self.widgets,
-                widget_impls: self.widget_impls,
                 id: parent_id,
-                _phantom: PhantomData,
             })
         } else {
             None
@@ -132,47 +114,21 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetRef<'a, W> {
     }
 }
 
-impl Deref for WidgetRef<'_, dyn Widget> {
-    type Target = dyn Widget;
-
-    fn deref(&self) -> &Self::Target {
-        &self.widget_impls[self.id]
-    }
-}
-
-impl<'a, W: 'a + Widget> Deref for WidgetRef<'a, W> {
-    type Target = W;
-
-    fn deref(&self) -> &Self::Target {
-        self.widget_impls[self.id].downcast_ref().unwrap()
-    }
-}
-
-fn for_each_child_ref_impl(
-    widgets: &Widgets,
-    widget_impls: &WidgetMap,
-    id: WidgetId,
-    f: &mut dyn FnMut(WidgetRef<'_, dyn Widget>),
-) {
+fn for_each_child_ref_impl(widgets: &Widgets, id: WidgetId, f: &mut dyn FnMut(WidgetRef<'_>)) {
     let mut child_iter = widgets.tree.child_id_walker(id);
     while let Some(child_id) = child_iter.next_id(&widgets.tree) {
-        f(WidgetRef::new(widgets, widget_impls, child_id))
+        f(WidgetRef::new(widgets, child_id))
     }
 }
 
-pub struct WidgetMut<'a, W: 'a + Widget + ?Sized> {
+pub struct WidgetMut<'a> {
     pub(super) app_state: &'a mut AppState,
     pub(super) id: WidgetId,
-    _phantom: PhantomData<&'a mut W>,
 }
 
-impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
+impl<'a> WidgetMut<'a> {
     pub(super) fn new(app_state: &'a mut AppState, id: WidgetId) -> Self {
-        Self {
-            app_state,
-            id,
-            _phantom: PhantomData,
-        }
+        Self { app_state, id }
     }
 
     fn data(&self) -> &WidgetData {
@@ -187,16 +143,13 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         self.child_iter().position(|w| w.id == id)
     }
 
-    pub fn find_child<W2: Widget + ?Sized>(
-        self,
-        id: WidgetHandle<W2>,
-    ) -> Result<WidgetMut<'a, W2>, WidgetNotFound<'a, W>> {
+    pub fn find_child(self, id: WidgetId) -> Result<WidgetMut<'a>, WidgetNotFound<'a>> {
         // Could just find the widget by id and verify that it is a child of this widget
         let found = self
             .app_state
             .widgets
             .child_id_iter(self.id)
-            .find(|&child_id| child_id == id.id);
+            .find(|&child_id| child_id == id);
 
         if let Some(child_id) = found {
             Ok(WidgetMut::new(self.app_state, child_id))
@@ -205,15 +158,12 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         }
     }
 
-    pub fn find_sibling<W2: Widget + ?Sized>(
-        self,
-        id: WidgetHandle<W2>,
-    ) -> Result<WidgetMut<'a, W2>, WidgetNotFound<'a, W>> {
+    pub fn find_sibling(self, id: WidgetId) -> Result<WidgetMut<'a>, WidgetNotFound<'a>> {
         let found = self
             .app_state
             .widgets
             .sibling_id_iter(self.id)
-            .find(|&child_id| child_id == id.id);
+            .find(|&child_id| child_id == id);
 
         if let Some(child_id) = found {
             Ok(WidgetMut::new(self.app_state, child_id))
@@ -226,25 +176,15 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         WidgetRefIter {
             inner: self.app_state.widgets.tree.child_id_walker(self.id),
             widgets: &self.app_state.widgets,
-            widget_impls: &self.app_state.widget_impls,
         }
     }
 
-    pub fn for_each_child_ref(&self, mut f: impl FnMut(WidgetRef<'_, dyn Widget>)) {
-        for_each_child_ref_impl(
-            &self.app_state.widgets,
-            &self.app_state.widget_impls,
-            self.id,
-            &mut f,
-        );
+    pub fn for_each_child_ref(&self, mut f: impl FnMut(WidgetRef<'_>)) {
+        for_each_child_ref_impl(&self.app_state.widgets, self.id, &mut f);
     }
 
-    pub fn for_each_child_mut(&mut self, mut f: impl FnMut(WidgetMut<'_, dyn Widget>)) {
-        fn _impl(
-            app_state: &mut AppState,
-            id: WidgetId,
-            f: &mut dyn FnMut(WidgetMut<'_, dyn Widget>),
-        ) {
+    pub fn for_each_child_mut(&mut self, mut f: impl FnMut(WidgetMut<'_>)) {
+        fn _impl(app_state: &mut AppState, id: WidgetId, f: &mut dyn FnMut(WidgetMut<'_>)) {
             let mut child_iter = app_state.widgets.tree.child_id_walker(id);
             let mut current = child_iter.next_id(&app_state.widgets.tree);
             while let Some(child_id) = current {
@@ -261,44 +201,32 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
         self.app_state.remove_widget(self.id);
     }
 
-    pub fn replace<V: View>(self, view: V) -> WidgetMut<'a, V::Element> {
+    pub fn replace(self, view: impl View) -> WidgetMut<'a> {
         self.app_state.replace_widget(self.id, view);
         WidgetMut::new(self.app_state, self.id)
     }
 
-    pub fn add_before<V: View>(&mut self, view: V) -> WidgetHandle<V::Element> {
-        let id = self.app_state.add_widget(view, WidgetPos::Before(self.id));
-        WidgetHandle::new(id)
+    pub fn add_before(&mut self, view: impl View) -> WidgetId {
+        self.app_state.add_widget(view, WidgetPos::Before(self.id))
     }
 
-    pub fn add_after<V: View>(&mut self, view: V) -> WidgetHandle<V::Element> {
-        let id = self.app_state.add_widget(view, WidgetPos::After(self.id));
-        WidgetHandle::new(id)
+    pub fn add_after(&mut self, view: impl View) -> WidgetId {
+        self.app_state.add_widget(view, WidgetPos::After(self.id))
     }
 
-    pub fn push_child_front<V: View>(&mut self, view: V) -> WidgetHandle<V::Element> {
-        let widget_id = self
-            .app_state
-            .add_widget(view, WidgetPos::FirstChild(self.id));
-        WidgetHandle::new(widget_id)
+    pub fn push_child_front(&mut self, view: impl View) -> WidgetId {
+        self.app_state
+            .add_widget(view, WidgetPos::FirstChild(self.id))
     }
 
-    pub fn push_child_back<V: View>(&mut self, view: V) -> WidgetHandle<V::Element> {
-        let widget_id = self
-            .app_state
-            .add_widget(view, WidgetPos::LastChild(self.id));
-        WidgetHandle::new(widget_id)
+    pub fn push_child_back(&mut self, view: impl View) -> WidgetId {
+        self.app_state
+            .add_widget(view, WidgetPos::LastChild(self.id))
     }
 
-    pub fn add_overlay<V: View>(
-        &mut self,
-        view: V,
-        options: OverlayOptions,
-    ) -> WidgetHandle<V::Element> {
-        let widget_id = self
-            .app_state
-            .add_widget(view, WidgetPos::Overlay(self.id, options));
-        WidgetHandle::new(widget_id)
+    pub fn add_overlay(&mut self, view: impl View, options: OverlayOptions) -> WidgetId {
+        self.app_state
+            .add_widget(view, WidgetPos::Overlay(self.id, options))
     }
 
     pub fn swap_with(&mut self, widget_id: WidgetId) {
@@ -350,7 +278,7 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     }
 
     pub fn request_render(&mut self) {
-        self.app_state.widgets.invalidate_widget(self.id);
+        self.app_state.widgets.request_render(self.id);
     }
 
     pub fn update_style(&mut self, f: impl FnOnce(&mut Style)) {
@@ -371,13 +299,9 @@ impl<'a, W: 'a + Widget + ?Sized> WidgetMut<'a, W> {
     pub fn style(&self) -> &Style {
         &self.data().style
     }
-
-    pub(super) fn unchecked_cast<W2: 'a + Widget + ?Sized>(self) -> WidgetMut<'a, W2> {
-        unsafe { std::mem::transmute(self) }
-    }
 }
 
-impl<'a> WidgetMut<'a, dyn Widget> {
+impl<'a> WidgetMut<'a> {
     pub fn apply_diff_to_children<T, V: View>(
         &mut self,
         _diff: DiffOp<'_, T>,
@@ -400,34 +324,6 @@ impl<'a> WidgetMut<'a, dyn Widget> {
                 self.move_child(from, to);
             }
         }*/
-    }
-}
-
-impl Deref for WidgetMut<'_, dyn Widget> {
-    type Target = dyn Widget;
-
-    fn deref(&self) -> &Self::Target {
-        &self.app_state.widget_impls[self.id]
-    }
-}
-
-impl<'a, W: 'a + Widget> Deref for WidgetMut<'a, W> {
-    type Target = W;
-
-    fn deref(&self) -> &Self::Target {
-        self.app_state.widget_impls[self.id].downcast_ref().unwrap()
-    }
-}
-
-impl DerefMut for WidgetMut<'_, dyn Widget> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.app_state.widget_impls[self.id]
-    }
-}
-
-impl<'a, W: 'a + Widget> DerefMut for WidgetMut<'a, W> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.app_state.widget_impls[self.id].downcast_mut().unwrap()
     }
 }
 

@@ -7,7 +7,7 @@ use std::{
 
 use super::reactive::NodeId;
 use crate::ui::{
-    AppState, Widget, WidgetId, WidgetMut,
+    AppState, WidgetId, WidgetMut,
     reactive::{EffectContext, EffectState, HandleEventFn, runtime::NodeType},
 };
 
@@ -26,7 +26,7 @@ pub enum Task {
     },
     UpdateWidget {
         widget_id: WidgetId,
-        f: Box<dyn FnOnce(WidgetMut<'_, dyn Widget>)>,
+        f: Box<dyn FnOnce(WidgetMut<'_>)>,
     },
     HandleEvent {
         f: Weak<HandleEventFn>,
@@ -70,6 +70,9 @@ impl Task {
                                 prop,
                                 *read_scope,
                             );
+                        }
+                        EffectState::RequestRender { widget_id } => {
+                            app_state.widgets.request_render(*widget_id)
                         }
                     }
 

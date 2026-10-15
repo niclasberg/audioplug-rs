@@ -59,6 +59,12 @@ impl Circle {
         Self { center, radius }
     }
 
+    pub const fn from_rect(bounds: Rect) -> Self {
+        let center = bounds.center();
+        let radius = bounds.size().min_element() / 2.0;
+        Self::new(center, radius)
+    }
+
     pub fn with_radius(mut self, radius: f32) -> Self {
         self.radius = radius;
         self

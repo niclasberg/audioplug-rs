@@ -1,8 +1,12 @@
-use crate::ui::{BuildContext, StyleExt, TextExt, View, Prop, ViewStyle, ViewText, Widget};
+use crate::ui::{
+    BuildContext, EventHandlerExt, Prop, StyleExt, TextExt, View, ViewEventHandlers, ViewStyle,
+    ViewText,
+};
 
 pub struct Label {
     style: ViewStyle,
     text: ViewText,
+    event_handlers: ViewEventHandlers,
 }
 
 impl Label {
@@ -13,17 +17,14 @@ impl Label {
                 text: Some(str.into()),
                 ..Default::default()
             },
+            event_handlers: Default::default(),
         }
     }
 }
 
 impl View for Label {
-    type Element = TextWidget;
-
-    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
-        ctx.apply_style(self.style);
-        ctx.apply_text(self.text);
-        TextWidget {}
+    fn build(self, ctx: &mut BuildContext) {
+        ctx.style(self.style).text(self.text);
     }
 }
 
@@ -33,47 +34,14 @@ impl StyleExt for Label {
     }
 }
 
+impl EventHandlerExt for Label {
+    fn event_handlers_mut(&mut self) -> &mut ViewEventHandlers {
+        &mut self.event_handlers
+    }
+}
+
 impl TextExt for Label {
     fn text_mut(&mut self) -> &mut ViewText {
         &mut self.text
     }
-}
-
-pub struct TextWidget {}
-
-/*impl Measure for TextWidget {
-    fn measure(&self, available_width: AvailableSpace, height: AvailableSpace) -> Size {
-        let mut text_layout = self.text_layout.borrow_mut();
-        let widths = text_layout.calculate_content_widths();
-
-        let width = match available_width {
-            AvailableSpace::MinContent => widths.min,
-            AvailableSpace::MaxContent => widths.max,
-            AvailableSpace::Exact(width) => width as f32,
-        }
-        .ceil();
-
-        text_layout.break_all_lines(Some(width));
-        let height = if let AvailableSpace::Exact(height) = height {
-            height as f32
-        } else {
-            text_layout.height()
-        };
-        Size::new(width as _, height as _)
-    }
-}*/
-
-impl Widget for TextWidget {
-    fn debug_label(&self) -> &'static str {
-        "Label"
-    }
-
-    /*fn render(&mut self, ctx: &mut RenderContext) -> Scene {
-        let mut scene = Scene::new();
-        let mut text_layout = self.text_layout.borrow_mut();
-        let bounds = ctx.content_bounds();
-        text_layout.break_all_lines(Some(bounds.width() as _));
-        scene.draw_text(&text_layout, bounds.top_left());
-        scene
-    }*/
 }

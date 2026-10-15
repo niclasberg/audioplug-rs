@@ -5,17 +5,15 @@ use objc2::rc::{Retained, Weak};
 use objc2::runtime::{NSObject, NSObjectProtocol};
 use objc2::{AllocAnyThread, DefinedClass, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
-    NSEvent, NSResponder, NSTrackingArea, NSTrackingAreaOptions, NSView,
+    NSCursor, NSEvent, NSResponder, NSTrackingArea, NSTrackingAreaOptions, NSView,
     NSViewFrameDidChangeNotification,
 };
 use objc2_foundation::{MainThreadMarker, NSDate, NSNotificationCenter, NSRect, NSTimer};
 
 use super::Handle;
 use crate::AnimationFrame;
-use crate::core::{PhysicalCoord, PhysicalSize, Point, ScaleFactor, Vec2};
-use crate::event::{
-    KeyEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, MouseWheelEvent,
-};
+use crate::core::{Cursor, PhysicalSize, Point, ScaleFactor, Vec2};
+use crate::event::{KeyEvent, MouseButton, MouseDown, MouseMove, MouseUp, MouseWheelEvent};
 use crate::platform::WindowEvent;
 use crate::platform::WindowHandler;
 use crate::platform::mac::keyboard::{get_modifiers, key_from_code};
@@ -62,7 +60,7 @@ define_class!(
                 let click_count = event.clickCount();
                 let modifiers = get_modifiers(event.modifierFlags());
                 self.dispatch_event(WindowEvent::Mouse(
-                    OSMouseEvent::Down(MouseDownEvent{ button, position, modifiers, is_double_click: click_count >= 2 })
+                    OSMouseEvent::Down(MouseDown{ button, position, modifiers, is_double_click: click_count >= 2 })
                 ))
             }
         }
@@ -72,7 +70,7 @@ define_class!(
             if let (Some(button), Some(position)) = (mouse_button(event), self.mouse_position(event)) {
                 let modifiers = get_modifiers(event.modifierFlags());
                 self.dispatch_event(WindowEvent::Mouse(
-                    OSMouseEvent::Up(MouseUpEvent { button, position, modifiers })
+                    OSMouseEvent::Up(MouseUp { button, position, modifiers })
                 ))
             }
         }
@@ -80,9 +78,10 @@ define_class!(
         #[unsafe(method(mouseMoved:))]
         fn mouse_moved(&self, event: &NSEvent) {
             if let Some(position) = self.mouse_position(event) {
+                self.get_cursor(position).set();
                 let modifiers = get_modifiers(event.modifierFlags());
                 self.dispatch_event(WindowEvent::Mouse(
-                    OSMouseEvent::Move(MouseMoveEvent { position, modifiers })
+                    OSMouseEvent::Move(MouseMove { position, modifiers })
                 ))
             }
         }
@@ -92,7 +91,7 @@ define_class!(
             if let Some(position) = self.mouse_position(event) {
                 let modifiers = get_modifiers(event.modifierFlags());
                 self.dispatch_event(WindowEvent::Mouse(
-                    OSMouseEvent::Move(MouseMoveEvent { position, modifiers })
+                    OSMouseEvent::Move(MouseMove { position, modifiers })
                 ))
             }
         }
@@ -283,6 +282,26 @@ impl View {
             .expect("View must be installed in a window")
             .backingScaleFactor();
         ScaleFactor(scale_factor as f32)
+    }
+
+    fn get_cursor(&self, p: Point) -> Retained<NSCursor> {
+        if let Some(cursor) = self.ivars().handler.borrow().get_cursor(p) {
+            match cursor {
+                Cursor::Arrow => NSCursor::arrowCursor(),
+                Cursor::Hand => NSCursor::openHandCursor(),
+                Cursor::Help => NSCursor::arrowCursor(),
+                Cursor::IBeam => NSCursor::IBeamCursor(),
+                Cursor::NotAllowed => NSCursor::operationNotAllowedCursor(),
+                Cursor::Wait => todo!(),
+                Cursor::Cross => todo!(),
+                Cursor::UpDown => todo!(),
+                Cursor::LeftRight => todo!(),
+                Cursor::LeftUpRightDown => todo!(),
+                Cursor::LeftDownRightUp => todo!(),
+            }
+        } else {
+            NSCursor::arrowCursor()
+        }
     }
 }
 

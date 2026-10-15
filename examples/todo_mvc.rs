@@ -7,7 +7,7 @@ use audioplug::{
         App, EventContext, StyleExt, Window,
         prelude::*,
         reactive::CreateContext,
-        style::{Length, Edges},
+        style::{Edges, Length},
     },
     views::*,
 };
@@ -97,9 +97,7 @@ fn main() {
 fn todo_view<F: Fn(&mut EventContext) + 'static>(todo: &Todo, on_remove: F) -> impl View + use<F> {
     let completed = todo.completed;
     Row::new((
-        Checkbox::new()
-            .checked(todo.completed)
-            .on_click(move |cx| completed.update(cx, |_, value| *value = !*value)),
+        Checkbox::new(move |cx, value| completed.set(cx, value)).checked(todo.completed),
         Label::new(todo.name).flex_grow(1.0),
         LabelButton::new("Remove", move |cx| on_remove(cx)),
     ))

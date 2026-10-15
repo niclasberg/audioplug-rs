@@ -1,5 +1,6 @@
 use crate::ui::{
-    BuildContext, Prop, StyleExt, View, ViewSequence, ViewStyle, Widget,
+    BuildContext, EventHandlerExt, Prop, StyleExt, View, ViewEventHandlers, ViewSequence,
+    ViewStyle,
     reactive::{Cached, ReactiveValue},
     style::{AlignItems, DisplayStyle, FlexDirection, FlexStyle, FlexWrap, JustifyContent, Length},
 };
@@ -14,6 +15,7 @@ pub struct FlexContainer<VS, const IS_ROW: bool> {
     wrap: Prop<FlexWrap>,
     align_items: Option<Prop<AlignItems>>,
     justify_content: Option<Prop<JustifyContent>>,
+    event_handlers: ViewEventHandlers,
 }
 
 impl<VS: ViewSequence, const IS_ROW: bool> FlexContainer<VS, IS_ROW> {
@@ -25,6 +27,7 @@ impl<VS: ViewSequence, const IS_ROW: bool> FlexContainer<VS, IS_ROW> {
             align_items: None,
             justify_content: None,
             base: ViewStyle::DEFAULT,
+            event_handlers: Default::default(),
         }
     }
 
@@ -114,9 +117,7 @@ impl<VS, const IS_ROW: bool> StyleExt for FlexContainer<VS, IS_ROW> {
 }
 
 impl<VS: ViewSequence, const IS_ROW: bool> View for FlexContainer<VS, IS_ROW> {
-    type Element = ContainerWidget;
-
-    fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
+    fn build(self, cx: &mut BuildContext) {
         Container {
             base: self.base,
             view_seq: self.view_seq,
@@ -134,6 +135,7 @@ impl<VS: ViewSequence, const IS_ROW: bool> View for FlexContainer<VS, IS_ROW> {
                 })
             })
             .into(),
+            event_handlers: self.event_handlers,
         }
         .build(cx)
     }
@@ -165,6 +167,7 @@ pub struct Container<VS> {
     base: ViewStyle,
     view_seq: VS,
     display_style: Prop<DisplayStyle>,
+    event_handlers: ViewEventHandlers,
 }
 
 impl<VS: ViewSequence> Container<VS> {
@@ -173,22 +176,19 @@ impl<VS: ViewSequence> Container<VS> {
             base: ViewStyle::DEFAULT,
             view_seq,
             display_style: Prop::Const(DisplayStyle::Block),
+            event_handlers: Default::default(),
         }
     }
 }
 
 impl<VS: ViewSequence> View for Container<VS> {
-    type Element = ContainerWidget;
-
-    fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
+    fn build(self, cx: &mut BuildContext) {
         cx.add_children(self.view_seq);
-        cx.apply_style(self.base);
+        cx.style(self.base);
         let display_style = self.display_style.get_and_bind(cx, |value, mut widget| {
             widget.set_display_style(value);
         });
         cx.set_display_style(display_style);
-
-        ContainerWidget {}
     }
 }
 
@@ -198,10 +198,8 @@ impl<VS> StyleExt for Container<VS> {
     }
 }
 
-pub struct ContainerWidget;
-
-impl Widget for ContainerWidget {
-    fn debug_label(&self) -> &'static str {
-        "Container"
+impl<VS> EventHandlerExt for Container<VS> {
+    fn event_handlers_mut(&mut self) -> &mut ViewEventHandlers {
+        &mut self.event_handlers
     }
 }

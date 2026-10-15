@@ -3,7 +3,7 @@ use slotmap::Key;
 use crate::{
     param::{ParamRef, ParameterId},
     ui::{
-        AppState, Widget, WidgetHandle, WidgetId, WidgetMut, WidgetRef,
+        AppState, WidgetId, WidgetMut, WidgetRef,
         reactive::{
             CreateContext, ReadContext, ReadScope, WidgetStatus, WriteContext, runtime::Source,
         },
@@ -21,22 +21,12 @@ pub struct EffectContext<'a> {
 }
 
 impl<'s> EffectContext<'s> {
-    pub fn widget_ref<W: Widget + ?Sized>(
-        &self,
-        widget_handle: WidgetHandle<W>,
-    ) -> WidgetRef<'_, W> {
-        WidgetRef::new(
-            &self.app_state.widgets,
-            &self.app_state.widget_impls,
-            widget_handle.id,
-        )
+    pub fn widget_ref(&self, widget_id: WidgetId) -> WidgetRef {
+        WidgetRef::new(&self.app_state.widgets, widget_id)
     }
 
-    pub fn widget_mut<W: Widget + ?Sized>(
-        &mut self,
-        widget_handle: WidgetHandle<W>,
-    ) -> WidgetMut<'_, W> {
-        WidgetMut::new(&mut self.app_state, widget_handle.id)
+    pub fn widget_mut(&mut self, widget_id: WidgetId) -> WidgetMut {
+        WidgetMut::new(&mut self.app_state, widget_id)
     }
 }
 
@@ -64,50 +54,6 @@ impl<'s> CanWrite<'s> for EffectContext<'s> {
     }
 }
 
-pub struct WatchContext<'a> {
-    pub effect_id: NodeId,
-    pub app_state: &'a mut AppState,
-}
-
-impl<'a> WatchContext<'a> {
-    pub fn widget_ref<W: Widget + ?Sized>(
-        &self,
-        widget_handle: WidgetHandle<W>,
-    ) -> WidgetRef<'_, W> {
-        WidgetRef::new(
-            &self.app_state.widgets,
-            &self.app_state.widget_impls,
-            widget_handle.id,
-        )
-    }
-
-    pub fn widget_mut<W: Widget + ?Sized>(
-        &mut self,
-        widget_handle: WidgetHandle<W>,
-    ) -> WidgetMut<'_, W> {
-        WidgetMut::new(&mut self.app_state, widget_handle.id)
-    }
-}
-
-impl<'s> CanRead<'s> for WatchContext<'s> {
-    fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
-    where
-        's: 's2,
-    {
-        let widget = self.app_state.reactive_graph.owner_widget(self.effect_id);
-        self.app_state.read_context(ReadScope::Untracked, widget)
-    }
-}
-
-impl<'s> CanWrite<'s> for WatchContext<'s> {
-    fn write_context<'s2>(&'s2 mut self) -> WriteContext<'s2>
-    where
-        's: 's2,
-    {
-        self.app_state.write_context()
-    }
-}
-
 pub type EffectFn = dyn FnMut(&mut EffectContext);
 
 pub enum EffectState {
@@ -115,6 +61,9 @@ pub enum EffectState {
         f: Box<EffectFn>,
         /// True if the sources for the effect gets re-evaluated each time it is invoked, false otherwise
         dynamic_sources: bool,
+    },
+    RequestRender {
+        widget_id: WidgetId,
     },
     WidgetPropBinding {
         widget_id: WidgetId,
@@ -129,6 +78,7 @@ impl EffectState {
             EffectState::EffectFn {
                 dynamic_sources, ..
             } => *dynamic_sources,
+            EffectState::RequestRender { .. } => true,
             EffectState::WidgetPropBinding { prop, .. } => todo!(),
         }
     }

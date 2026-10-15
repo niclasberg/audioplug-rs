@@ -23,27 +23,28 @@ mod widget_tree;
 mod widgets;
 mod window;
 
-use std::{cell::RefCell, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 pub use animation::AnimationContext;
 pub(crate) use app_state::AppState;
+pub use event_handler::{
+    Event, EventHandlerExt, EventResult, ViewEventHandlers, WidgetHandler, WidgetHandlers,
+};
 pub use event_handling::EventContext;
 pub use host_handle::HostHandle;
 pub use overlay::{OverlayAnchor, OverlayOptions};
 
 pub use prop::Prop;
 pub use render::{
-    Canvas, CanvasWidget, DrawStyle, Paint, PaintRef, RenderContext, ShadowKind, ShadowOptions,
-    invalidate_window,
+    DrawStyle, Paint, PaintRef, RenderContext, ShadowKind, ShadowOptions, invalidate_window,
 };
 pub use task_queue::TaskQueue;
 pub use text::{TextContext, TextExt, TextStyle, ViewText};
 pub use view::*;
 pub use view_ext::{StyleExt, ViewStyle};
 pub use view_sequence::*;
-pub use widget::{EventResult, Widget, WidgetAdapter};
 pub use widget_ref::{WidgetMut, WidgetRef};
-pub use widget_tree::{WidgetData, WidgetFlags, WidgetId, WidgetTree};
+pub use widget_tree::{Capabilities, WidgetData, WidgetFlags, WidgetId, WidgetTree};
 pub use widgets::{WidgetPos, Widgets};
 #[cfg(target_os = "macos")]
 pub(crate) use window::MyHandler;
@@ -54,37 +55,6 @@ use crate::{param::ParameterMap, platform};
 slotmap::new_key_type! {
     pub struct WindowId;
 }
-
-pub struct WidgetHandle<W: Widget + ?Sized> {
-    pub id: WidgetId,
-    _phantom: PhantomData<fn() -> W>,
-}
-
-impl<W: Widget + ?Sized> WidgetHandle<W> {
-    pub fn new(id: WidgetId) -> Self {
-        Self {
-            id,
-            _phantom: PhantomData,
-        }
-    }
-
-    pub fn into_any_widget_id(self) -> AnyWidgetId {
-        AnyWidgetId {
-            id: self.id,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-pub type AnyWidgetId = WidgetHandle<dyn Widget>;
-
-impl<T: Widget + ?Sized> Clone for WidgetHandle<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T: Widget + ?Sized> Copy for WidgetHandle<T> {}
 
 pub struct App {
     native: platform::Application,
@@ -119,6 +89,6 @@ pub mod prelude {
     pub use super::reactive::prelude::*;
     pub use super::{
         BuildContext, EventResult, IndexedViewSeq, OverlayAnchor, OverlayOptions, ReactiveValueExt,
-        View, ViewSequence, Widget, view_for_each,
+        View, ViewSequence, view_for_each,
     };
 }

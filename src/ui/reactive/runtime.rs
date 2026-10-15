@@ -10,7 +10,7 @@ use crate::{
     core::{FxHashMap, FxHashSet, FxIndexSet},
     param::{AnyParameterMap, ParamRef, ParameterId},
     ui::{
-        WidgetId, WidgetTree, Widgets,
+        HostHandle, WidgetId, Widgets,
         reactive::view_status::WidgetStatusFlags,
         task_queue::{Task, TaskQueue},
     },
@@ -59,6 +59,8 @@ pub(crate) enum Source {
 pub enum ReadScope {
     Untracked,
     Node(NodeId),
+    Render(WidgetId),
+    Layout(WidgetId),
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
@@ -126,15 +128,22 @@ impl DerefMut for LeasedNode {
     }
 }
 
+#[derive(Default)]
+struct WidgetNode {
+    observers: SmallVec<[(NodeId, WidgetStatusFlags); 4]>,
+    first_owned_node_id: NodeId,
+}
+
 pub struct ReactiveGraph {
     pub(super) nodes: SlotMap<NodeId, Node>,
     pub(crate) parameters: Rc<dyn AnyParameterMap>,
     sources: SecondaryMap<NodeId, SmallVec<[Source; 4]>>,
     node_observers: SecondaryMap<NodeId, SmallVec<[NodeId; 4]>>,
     parameter_observers: FxHashMap<ParameterId, SmallVec<[NodeId; 4]>>,
-    widget_observers: SecondaryMap<WidgetId, SmallVec<[(NodeId, WidgetStatusFlags); 4]>>,
+    widgets: SecondaryMap<WidgetId, WidgetNode>,
     node_id_buffer: VecDeque<NodeId>,
     pub(super) pending_animations: FxIndexSet<NodeId>,
+    pub(super) host_handle: Option<Box<dyn HostHandle>>,
 }
 
 impl ReactiveGraph {
@@ -149,10 +158,11 @@ impl ReactiveGraph {
             sources: Default::default(),
             node_observers: Default::default(),
             parameter_observers: parameter_subscriptions,
-            widget_observers: Default::default(),
+            widgets: Default::default(),
             parameters: parameter_map,
             node_id_buffer: Default::default(),
             pending_animations: Default::default(),
+            host_handle: None,
         }
     }
 
@@ -161,7 +171,6 @@ impl ReactiveGraph {
         node_type: NodeType,
         state: NodeState,
         owner: Owner,
-        widget_tree: &mut WidgetTree,
     ) -> NodeId {
         let id = self.nodes.insert(Node {
             node_type,
@@ -175,7 +184,8 @@ impl ReactiveGraph {
 
         let next_sibling_id = match owner {
             Owner::Widget(widget_id) => {
-                std::mem::replace(&mut widget_tree[widget_id].first_owned_node_id, id)
+                let widget = self.widgets.entry(widget_id).unwrap().or_default();
+                std::mem::replace(&mut widget.first_owned_node_id, id)
             }
             Owner::Node(parent_id) => {
                 std::mem::replace(&mut self.nodes[parent_id].first_child_id, id)
@@ -203,7 +213,7 @@ impl ReactiveGraph {
                 Self::remove_source_from_observer(
                     &mut self.node_observers,
                     &mut self.parameter_observers,
-                    &mut self.widget_observers,
+                    &mut self.widgets,
                     source_id,
                     id,
                 );
@@ -222,12 +232,18 @@ impl ReactiveGraph {
         self.remove_all_siblings(node.first_child_id);
     }
 
-    pub fn remove_all_siblings(&mut self, id: NodeId) {
+    fn remove_all_siblings(&mut self, id: NodeId) {
         let mut current = id;
         while !current.is_null() {
             let next = self.nodes[current].next_sibling_id;
             self.remove_node(current);
             current = next;
+        }
+    }
+
+    pub fn remove_widget(&mut self, id: WidgetId) {
+        if let Some(widget_node) = self.widgets.remove(id) {
+            self.remove_all_siblings(widget_node.first_owned_node_id);
         }
     }
 
@@ -442,11 +458,12 @@ impl ReactiveGraph {
         widget_id: WidgetId,
         change_mask: WidgetStatusFlags,
     ) {
-        if let Some(widget_observers) = self.widget_observers.get(widget_id) {
+        if let Some(widget_nodes) = self.widgets.get(widget_id) {
             let mut nodes_to_notify = std::mem::take(&mut self.node_id_buffer);
             nodes_to_notify.clear();
             nodes_to_notify.extend(
-                widget_observers
+                widget_nodes
+                    .observers
                     .iter()
                     .filter_map(|(node_id, mask)| mask.contains(change_mask).then_some(node_id)),
             );
@@ -458,7 +475,7 @@ impl ReactiveGraph {
     fn remove_source_from_observer(
         observers: &mut SecondaryMap<NodeId, SmallVec<[NodeId; 4]>>,
         parameter_observers: &mut FxHashMap<ParameterId, SmallVec<[NodeId; 4]>>,
-        widget_observers: &mut SecondaryMap<WidgetId, SmallVec<[(NodeId, WidgetStatusFlags); 4]>>,
+        widgets: &mut SecondaryMap<WidgetId, WidgetNode>,
         source_id: Source,
         observer_id: NodeId,
     ) {
@@ -473,7 +490,9 @@ impl ReactiveGraph {
                 observers[node_id].retain(|id| *id != observer_id);
             }
             Source::Widget(widget_id, status_mask) => {
-                widget_observers[widget_id].retain(|w| *w != (observer_id, status_mask));
+                widgets[widget_id]
+                    .observers
+                    .retain(|w| *w != (observer_id, status_mask));
             }
         }
     }
@@ -484,7 +503,7 @@ impl ReactiveGraph {
                 Self::remove_source_from_observer(
                     &mut self.node_observers,
                     &mut self.parameter_observers,
-                    &mut self.widget_observers,
+                    &mut self.widgets,
                     source_id,
                     node_id,
                 );
@@ -527,8 +546,8 @@ impl ReactiveGraph {
         observer_id: NodeId,
     ) {
         // Maybe check if it exists and then merge masks?
-        let observers = self.widget_observers.entry(widget_id).unwrap().or_default();
-        observers.push((observer_id, status_mask));
+        let widgets = self.widgets.entry(widget_id).unwrap().or_default();
+        widgets.observers.push((observer_id, status_mask));
         self.sources
             .entry(observer_id)
             .unwrap()
@@ -548,5 +567,16 @@ impl ReactiveGraph {
 
     pub fn owner_widget(&self, node_id: NodeId) -> Option<WidgetId> {
         self.widget_from_owner(self.nodes[node_id].owner)
+    }
+
+    pub(crate) fn set_host_handle(&mut self, host_handle: Option<Box<dyn HostHandle>>) {
+        self.host_handle = host_handle;
+    }
+
+    pub fn host_handle(&self) -> &dyn HostHandle {
+        let Some(host_handle) = self.host_handle.as_ref() else {
+            panic!("Host handle not set")
+        };
+        host_handle.as_ref()
     }
 }

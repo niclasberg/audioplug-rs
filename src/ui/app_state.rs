@@ -1,9 +1,8 @@
 use parley::FontContext;
-use slotmap::SecondaryMap;
 
 use super::reactive::{CreateContext, ReactiveGraph, Var};
 use super::{
-    BuildContext, HostHandle, View, Widget, WidgetId, WidgetMut, WidgetRef, Widgets, WindowId,
+    BuildContext, HostHandle, View, WidgetId, WidgetMut, WidgetRef, Widgets, WindowId,
     event_handling::{set_focus_widget, set_hovered_widget},
     layout::RecomputeLayout,
     render::WGPUSurface,
@@ -12,6 +11,7 @@ use super::{
 };
 use crate::core::TextLayoutContext;
 use crate::ui::TextContext;
+use crate::ui::event_handler::WidgetHandlers;
 use crate::ui::reactive::{Owner, ReadContext, ReadScope, WriteContext};
 use crate::ui::render::GlyphCache;
 use crate::{
@@ -21,18 +21,16 @@ use crate::{
 };
 use std::rc::Rc;
 
-pub type WidgetMap = SecondaryMap<WidgetId, Box<dyn Widget>>;
-
 pub struct AppState {
     pub(super) wgpu_instance: wgpu::Instance,
     pub(super) font_cx: parley::FontContext,
     pub(super) text_layout_cx: TextLayoutContext,
     pub(super) glyph_cache: GlyphCache,
-    /// Widget implementation. Should exist for each widget data.
-    pub(super) widget_impls: WidgetMap,
     pub(super) widgets: Widgets,
+    /// Event handlers - store outside of the widgets so that we don't get borrowing
+    /// issues when dispatching events
+    pub(super) event_handlers: WidgetHandlers,
     pub(super) reactive_graph: ReactiveGraph,
-    pub(super) host_handle: Option<Box<dyn HostHandle>>,
     pub(super) task_queue: TaskQueue,
     pub(crate) theme_signal: Var<WindowTheme>,
 }
@@ -60,11 +58,10 @@ impl AppState {
             text_layout_cx: TextLayoutContext::new(),
             glyph_cache: GlyphCache::new(),
             reactive_graph,
-            host_handle: None,
             theme_signal,
             widgets,
             task_queue,
-            widget_impls: Default::default(),
+            event_handlers: Default::default(),
         }
     }
 
@@ -73,7 +70,7 @@ impl AppState {
     }
 
     pub(crate) fn set_host_handle(&mut self, host_handle: Option<Box<dyn HostHandle>>) {
-        self.host_handle = host_handle;
+        self.reactive_graph.set_host_handle(host_handle);
     }
 
     #[allow(dead_code)]
@@ -113,9 +110,8 @@ impl AppState {
     ) -> WindowId {
         let window_id = self.widgets.allocate_window(handle, wgpu_surface);
         let root_widget_id = self.widgets.window(window_id).root_widget;
-        self.build_and_insert_widget(root_widget_id, view);
+        self.build_widget(root_widget_id, view);
         self.widgets.layout_window(
-            &mut self.widget_impls,
             &mut TextContext::new(
                 &mut self.font_cx,
                 &mut self.text_layout_cx,
@@ -127,36 +123,35 @@ impl AppState {
         window_id
     }
 
-    fn build_and_insert_widget<V: View>(&mut self, id: WidgetId, view: V) {
-        let widget = view.build(&mut BuildContext::new(id, self));
-        self.widget_impls.insert(id, Box::new(widget));
+    fn build_widget<V: View>(&mut self, id: WidgetId, view: V) {
+        view.build(&mut BuildContext::new(id, self));
     }
 
     /// Add a new widget
     pub fn add_widget<V: View>(&mut self, view: V, position: WidgetPos) -> WidgetId {
         let id = self.widgets.allocate_widget(position);
-        self.build_and_insert_widget(id, view);
+        self.build_widget(id, view);
         id
     }
 
     pub fn remove_window(&mut self, id: WindowId) {
         self.clear_mouse_capture_and_focus(self.widgets.window(id).root_widget);
         self.widgets
-            .remove_window(id, &mut self.reactive_graph, &mut self.widget_impls);
+            .remove_window(id, &mut self.reactive_graph, &mut self.event_handlers);
     }
 
     /// Remove a widget and all of its children and associated signals
     pub fn remove_widget(&mut self, id: WidgetId) {
         self.clear_mouse_capture_and_focus(id);
         self.widgets
-            .remove_widget(id, &mut self.reactive_graph, &mut self.widget_impls);
+            .remove_widget(id, &mut self.reactive_graph, &mut self.event_handlers);
     }
 
     pub fn replace_widget<V: View>(&mut self, id: WidgetId, view: V) {
         self.clear_mouse_capture_and_focus(id);
         self.widgets
-            .reset_widget(id, &mut self.reactive_graph, &mut self.widget_impls);
-        self.build_and_insert_widget(id, view);
+            .reset_widget(id, &mut self.reactive_graph, &mut self.event_handlers);
+        self.build_widget(id, view);
     }
 
     fn clear_mouse_capture_and_focus(&mut self, id: WidgetId) {
@@ -174,22 +169,22 @@ impl AppState {
         }
     }
 
-    pub fn widget_ref(&self, id: WidgetId) -> WidgetRef<'_, dyn Widget> {
-        WidgetRef::new(&self.widgets, &self.widget_impls, id)
+    pub fn widget_ref(&self, id: WidgetId) -> WidgetRef<'_> {
+        WidgetRef::new(&self.widgets, id)
     }
 
-    pub fn widget_mut(&mut self, id: WidgetId) -> WidgetMut<'_, dyn Widget> {
+    pub fn widget_mut(&mut self, id: WidgetId) -> WidgetMut<'_> {
         WidgetMut::new(self, id)
     }
 
-    pub fn focus_widget(&self, window_id: WindowId) -> Option<WidgetRef<'_, dyn Widget>> {
+    pub fn focus_widget(&self, window_id: WindowId) -> Option<WidgetRef<'_>> {
         self.widgets
             .window(window_id)
             .focus_widget
-            .map(|id| WidgetRef::new(&self.widgets, &self.widget_impls, id))
+            .map(|id| WidgetRef::new(&self.widgets, id))
     }
 
-    pub fn focus_widget_mut(&mut self, window_id: WindowId) -> Option<WidgetMut<'_, dyn Widget>> {
+    pub fn focus_widget_mut(&mut self, window_id: WindowId) -> Option<WidgetMut<'_>> {
         self.widgets
             .window(window_id)
             .focus_widget
@@ -212,7 +207,6 @@ impl AppState {
         let window_ids: Vec<_> = self.widgets.window_id_iter().collect();
         for window_id in window_ids {
             self.widgets.layout_window(
-                &mut self.widget_impls,
                 &mut TextContext::new(
                     &mut self.font_cx,
                     &mut self.text_layout_cx,
@@ -222,13 +216,6 @@ impl AppState {
                 RecomputeLayout::IfNeeded,
             );
         }
-    }
-
-    pub fn host_handle(&self) -> &dyn HostHandle {
-        let Some(host_handle) = self.host_handle.as_ref() else {
-            panic!("Host handle not set")
-        };
-        host_handle.as_ref()
     }
 
     pub fn read_context(
@@ -249,7 +236,6 @@ impl AppState {
             widgets: &mut self.widgets,
             reactive_graph: &mut self.reactive_graph,
             task_queue: &mut self.task_queue,
-            host_handle: self.host_handle.as_ref().map(|h| h.as_ref()),
         }
     }
 

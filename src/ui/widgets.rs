@@ -1,20 +1,19 @@
-use parley::FontContext;
 use slotmap::{Key, SecondaryMap, SlotMap};
 
 use crate::{
-    core::{FxIndexSet, HAlign, Point, Rect, TextLayoutContext, VAlign, Vec2, Zero},
+    core::{FxIndexSet, HAlign, Point, Rect, VAlign, Vec2, Zero},
     platform,
     ui::{
-        OverlayAnchor, OverlayOptions, Widget, WidgetFlags, WidgetId, WindowId,
-        app_state::WidgetMap,
+        OverlayAnchor, OverlayOptions, WidgetFlags, WidgetId, WindowId,
         clipboard::Clipboard,
+        event_handler::WidgetHandlers,
         layout::{LayoutContext, RecomputeLayout},
         overlay::OverlayContainer,
         reactive::{ReactiveGraph, ReactiveValue, ReadContext, ReadScope},
         render::{GpuScene, WGPUSurface},
         text::{TextContext, TextData},
         widget_prop::WidgetProp,
-        widget_tree::{ChildIdIter, WidgetTree},
+        widget_tree::{Capabilities, ChildIdIter, WidgetTree},
     },
 };
 
@@ -154,15 +153,15 @@ impl Widgets {
         &mut self,
         widget_id: WidgetId,
         reactive_graph: &mut ReactiveGraph,
-        widget_impls: &mut WidgetMap,
+        event_handlers: &mut WidgetHandlers,
     ) {
         self.tree.remove(widget_id, |data| {
             self.child_id_cache.remove(data.id);
             self.layout_cache.remove(data.id);
             self.texts.remove(data.id);
             self.windows[data.window_id].overlays.remove(data.id);
-            widget_impls.remove(widget_id);
-            reactive_graph.remove_all_siblings(data.first_owned_node_id);
+            event_handlers.remove(widget_id);
+            reactive_graph.remove_widget(data.id);
         });
     }
 
@@ -170,15 +169,15 @@ impl Widgets {
         &mut self,
         widget_id: WidgetId,
         reactive_graph: &mut ReactiveGraph,
-        widget_impls: &mut WidgetMap,
+        event_handlers: &mut WidgetHandlers,
     ) {
         self.tree.reset(widget_id, |data| {
             self.child_id_cache.remove(data.id);
             self.layout_cache.remove(data.id);
             self.texts.remove(data.id);
             self.windows[data.window_id].overlays.remove(data.id);
-            widget_impls.remove(widget_id);
-            reactive_graph.remove_all_siblings(data.first_owned_node_id);
+            event_handlers.remove(widget_id);
+            reactive_graph.remove_widget(data.id);
         });
         // self.scenes[widget_id]; <- clear
         self.layout_cache[widget_id].clear();
@@ -189,10 +188,10 @@ impl Widgets {
         &mut self,
         window_id: WindowId,
         reactive_graph: &mut ReactiveGraph,
-        widget_impls: &mut WidgetMap,
+        event_handlers: &mut WidgetHandlers,
     ) {
         let root_widget = self.windows[window_id].root_widget;
-        self.remove_widget(root_widget, reactive_graph, widget_impls);
+        self.remove_widget(root_widget, reactive_graph, event_handlers);
         self.windows.remove(window_id);
     }
 
@@ -245,7 +244,7 @@ impl Widgets {
     }
 
     pub fn has_focus(&self, id: WidgetId) -> bool {
-        self.windows[self.tree.get(id).unwrap().window_id]
+        self.windows[self.tree[id].window_id]
             .focus_widget
             .as_ref()
             .is_some_and(|focus_widget_id| *focus_widget_id == id)
@@ -253,6 +252,34 @@ impl Widgets {
 
     pub fn focus_widget_id(&self, window_id: WindowId) -> Option<WidgetId> {
         self.windows[window_id].focus_widget
+    }
+
+    pub fn set_capabilities(&mut self, widget_id: WidgetId, cap: Capabilities) {
+        self.tree[widget_id].capabilities |= cap;
+    }
+
+    pub fn set_focusable(&mut self, widget_id: WidgetId, value: bool) {
+        self.tree[widget_id]
+            .capabilities
+            .set(Capabilities::FOCUSABLE, value);
+    }
+
+    pub fn is_focusable(&self, widget_id: WidgetId) -> bool {
+        self.tree[widget_id]
+            .capabilities
+            .contains(Capabilities::FOCUSABLE)
+    }
+
+    pub fn set_clickable(&mut self, widget_id: WidgetId, value: bool) {
+        self.tree[widget_id]
+            .capabilities
+            .set(Capabilities::CLICKABLE, value);
+    }
+
+    pub fn is_clickable(&self, widget_id: WidgetId) -> bool {
+        self.tree[widget_id]
+            .capabilities
+            .contains(Capabilities::CLICKABLE)
     }
 
     pub fn is_pressed(&self, widget_id: WidgetId) -> bool {
@@ -276,22 +303,16 @@ impl Widgets {
         std::mem::take(&mut self.pending_animations)
     }
 
-    pub fn request_render(&mut self, widget_id: WidgetId) {
-        let data = &mut self.tree[widget_id];
+    pub fn request_render(&self, widget_id: WidgetId) {
+        let data = &self.tree[widget_id];
         data.set_flag(WidgetFlags::NEEDS_RENDER);
         self.windows[data.window_id]
             .handle
             .invalidate(data.global_bounds());
     }
 
-    pub fn invalidate_widget(&self, widget_id: WidgetId) {
-        let bounds = self.tree[widget_id].global_bounds();
-        let window_id = self.tree[widget_id].window_id;
-        self.windows[window_id].handle.invalidate(bounds);
-    }
-
-    /// Gets children of a widget. The order is from the root and down the tree (draw order).
-    pub(super) fn get_widgets_at(&self, window_id: WindowId, pos: Point) -> Vec<WidgetId> {
+    /// Gets all widgets at a point in a window. The order is from the root and down the tree (draw order).
+    pub fn get_widgets_at(&self, window_id: WindowId, pos: Point) -> Vec<WidgetId> {
         let mut widgets = Vec::new();
 
         let window = &self.windows[window_id];
@@ -384,7 +405,6 @@ impl Widgets {
 
     pub fn layout_window(
         &mut self,
-        widget_impls: &mut WidgetMap,
         text_context: &mut TextContext,
         window_id: WindowId,
         mode: RecomputeLayout,
@@ -398,8 +418,7 @@ impl Widgets {
         // Need to layout root first, the overlay positions can depend on their parent positions
         if mode == RecomputeLayout::Force || self.tree.get(root_id).unwrap().needs_layout() {
             let region_to_invalidate =
-                LayoutContext::new(self, widget_impls, window_size, text_context)
-                    .compute_root_layout(root_id);
+                LayoutContext::new(self, window_size, text_context).compute_root_layout(root_id);
             self.tree.update_node_origins(root_id, Point::ZERO);
             if let Some(region_to_invalidate) = region_to_invalidate {
                 self.window(window_id)
@@ -414,9 +433,8 @@ impl Widgets {
         let overlay_ids: Vec<_> = self.windows[window_id].overlays.iter().collect();
         for (i, overlay_id) in overlay_ids.into_iter().enumerate() {
             if mode == RecomputeLayout::Force || self.tree.get(overlay_id).unwrap().needs_layout() {
-                let region_to_invalidate =
-                    LayoutContext::new(self, widget_impls, window_size, text_context)
-                        .compute_root_layout(root_id);
+                let region_to_invalidate = LayoutContext::new(self, window_size, text_context)
+                    .compute_root_layout(root_id);
                 let options = self
                     .window(window_id)
                     .overlays
@@ -482,21 +500,21 @@ impl Widgets {
         self.child_id_cache[widget_id].as_slice()
     }
 
-    pub fn print_tree(&self, widget_impls: &WidgetMap, window_id: WindowId) {
-        fn _impl(this: &Widgets, widget_impls: &WidgetMap, root_id: WidgetId, indent: usize) {
+    pub fn print_tree(&self, window_id: WindowId) {
+        fn _impl(this: &Widgets, root_id: WidgetId, indent: usize) {
             println!(
                 "{} {}({:?}), {:?}",
                 "-".repeat(indent),
-                widget_impls[root_id].debug_label(),
+                "LABEL",
                 root_id,
                 this.tree[root_id].global_bounds()
             );
             let mut walker = this.tree.child_id_walker(root_id);
             while let Some(child_id) = walker.next_id(&this.tree) {
-                _impl(this, widget_impls, child_id, indent + 1);
+                _impl(this, child_id, indent + 1);
             }
         }
         let root_id = self.window(window_id).root_widget;
-        _impl(self, widget_impls, root_id, 0);
+        _impl(self, root_id, 0);
     }
 }

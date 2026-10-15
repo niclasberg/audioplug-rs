@@ -1,7 +1,7 @@
 use super::reactive::{CanCreate, CanRead, Computed, Effect, ReactiveValue, ReadSignal};
 use crate::{
-    core::{Color, LinearGradient},
-    ui::{BuildContext, Paint, Widget, WidgetMut, reactive::EffectContext, style::Fill},
+    core::Color,
+    ui::{BuildContext, WidgetMut, reactive::EffectContext, style::Fill},
 };
 
 /// Represents a value that is either varying over time (a `ReactiveValue`) or a constant
@@ -19,50 +19,16 @@ impl<T: 'static> Prop<T> {
         Self::Const(value)
     }
 
-    pub fn get_and_bind<W: Widget + ?Sized>(
-        self,
-        cx: &mut BuildContext<W>,
-        f: impl Fn(T, WidgetMut<'_, W>) + 'static,
-    ) -> T
+    pub fn get_and_bind(self, cx: &mut BuildContext, f: impl Fn(T, WidgetMut) + 'static) -> T
     where
         T: Clone,
     {
-        self.get_and_bind_mapped(cx, T::clone, f)
-    }
-
-    pub fn get_and_bind_mapped<W: Widget + ?Sized, U: 'static>(
-        self,
-        cx: &mut BuildContext<W>,
-        f_map: fn(&T) -> U,
-        f: impl Fn(U, WidgetMut<'_, W>) + 'static,
-    ) -> U {
-        let value = self.with_ref(cx, f_map);
-        self.bind_mapped(cx, f_map, f);
-        value
-    }
-
-    pub fn bind<W: Widget + ?Sized>(
-        self,
-        cx: &mut BuildContext<W>,
-        f: impl Fn(T, WidgetMut<'_, W>) + 'static,
-    ) where
-        T: Clone,
-    {
-        self.bind_mapped(cx, T::clone, f);
-    }
-
-    pub fn bind_mapped<W: Widget + ?Sized, U: 'static, F>(
-        self,
-        cx: &mut BuildContext<W>,
-        f_map: fn(&T) -> U,
-        f: F,
-    ) where
-        F: Fn(U, WidgetMut<'_, W>) + 'static,
-    {
+        let value = self.get_untracked(cx);
         let widget_id = cx.id();
         self.watch(cx, move |cx, value| {
-            f(f_map(value), cx.widget_mut(widget_id))
+            f(value.clone(), cx.widget_mut(widget_id))
         });
+        value
     }
 }
 

@@ -4,27 +4,31 @@ use crate::{
         TextLayout, Transform, TranslateScale,
     },
     ui::{
-        TextContext, WidgetData, Widgets,
-        app_state::WidgetMap,
-        reactive::{CanRead, ReactiveGraph, ReadContext, ReadScope},
+        TextContext, WidgetData, WidgetHandlers, Widgets,
+        reactive::{CanRead, NodeId, ReactiveGraph, ReadContext, ReadScope},
         render::scene::GpuAppearance,
     },
 };
 
-mod canvas;
 mod draw_style;
 mod glyph_cache;
 mod gradient_cache;
 mod scene;
 mod tiles;
 mod wgpu_surface;
-pub use canvas::{Canvas, CanvasWidget};
 pub use draw_style::{DrawStyle, Paint, PaintRef, ShadowKind, ShadowOptions};
 pub use glyph_cache::GlyphCache;
 pub use scene::GpuScene;
+use slotmap::SecondaryMap;
 pub use wgpu_surface::WGPUSurface;
 
 use super::{WidgetId, WindowId};
+
+pub struct RenderFn {
+    pub f: Box<dyn FnMut(&mut RenderContext)>,
+    pub effect_id: NodeId,
+}
+pub type RenderFnMap = SecondaryMap<WidgetId, RenderFn>;
 
 pub fn invalidate_window(widgets: &Widgets, window_id: WindowId) {
     let handle = &widgets.window(window_id).handle;
@@ -35,11 +39,11 @@ pub fn paint_window(
     widgets: &mut Widgets,
     text_cx: &mut TextContext,
     reactive_graph: &mut ReactiveGraph,
-    widget_map: &mut WidgetMap,
+    widget_handlers: &mut WidgetHandlers,
     window_id: WindowId,
     dirty_rect: Rect,
 ) {
-    rebuild_scene(widgets, text_cx, reactive_graph, widget_map, window_id);
+    rebuild_scene(widgets, text_cx, reactive_graph, widget_handlers, window_id);
     let window = widgets.window_mut(window_id);
     let wgpu_surface = &mut window.wgpu_surface;
 
@@ -137,7 +141,7 @@ fn rebuild_scene(
     widgets: &mut Widgets,
     text_cx: &mut TextContext,
     reactive_graph: &mut ReactiveGraph,
-    widget_map: &mut WidgetMap,
+    widget_handlers: &mut WidgetHandlers,
     window_id: WindowId,
 ) {
     let window = &mut widgets.windows[window_id];
@@ -164,15 +168,17 @@ fn rebuild_scene(
                 scale_factor,
             );
 
-            widget_map[widget_id].render(&mut RenderContext {
-                id: widget_id,
-                widgets,
-                reactive_graph,
-                read_scope: ReadScope::Untracked,
-                scene: &mut gpu_scene,
-                path_segment_buffer: &mut path_segment_buffer,
-                scale_factor,
-            });
+            widget_handlers.render(
+                &mut RenderContext {
+                    id: widget_id,
+                    widgets,
+                    reactive_graph,
+                    scene: &mut gpu_scene,
+                    path_segment_buffer: &mut path_segment_buffer,
+                    scale_factor,
+                },
+                widget_id,
+            );
 
             if let Some(text) = widgets.texts.get_mut(widget_id) {
                 let layout = text.get_or_create_layout(text_cx);
@@ -230,7 +236,6 @@ pub struct RenderContext<'a> {
     pub(super) id: WidgetId,
     pub(super) widgets: &'a mut Widgets,
     pub(super) reactive_graph: &'a mut ReactiveGraph,
-    pub(super) read_scope: ReadScope,
     pub(super) path_segment_buffer: &'a mut Vec<PathSegment>,
     pub(super) scene: &'a mut GpuScene,
     pub(super) scale_factor: ScaleFactor,
@@ -384,7 +389,7 @@ impl<'s> CanRead<'s> for RenderContext<'s> {
         ReadContext {
             widgets: self.widgets,
             reactive_graph: self.reactive_graph,
-            scope: self.read_scope,
+            scope: ReadScope::Render(self.id),
             current_widget: Some(self.id),
         }
     }

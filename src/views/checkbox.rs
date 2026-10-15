@@ -1,28 +1,29 @@
 use crate::{
-    KeyEvent, MouseEvent,
+    KeyEvent,
     core::{Color, Key, Rect, Size},
     ui::{
-        BuildContext, EventContext, EventResult, Prop, RenderContext, StyleExt, View, ViewStyle,
-        Widget,
+        BuildContext, Capabilities, Event, EventContext, EventResult, Prop, StyleExt, View,
+        ViewStyle, WidgetHandler,
+        reactive::{ReactiveValue, Var},
         style::{Border, Edges, Fill, Length},
     },
 };
 
-type OnClickFn = dyn Fn(&mut EventContext);
+type OnClickFn = dyn Fn(&mut EventContext, bool);
 
 pub struct Checkbox {
     style: ViewStyle,
     checked: Option<Prop<bool>>,
     enabled: Prop<bool>,
-    click_fn: Option<Box<OnClickFn>>,
+    click_fn: Box<OnClickFn>,
 }
 
 impl Checkbox {
-    pub fn new() -> Self {
+    pub fn new(f: impl Fn(&mut EventContext, bool) + 'static) -> Self {
         Self {
             checked: None,
             enabled: Prop::Const(true),
-            click_fn: None,
+            click_fn: Box::new(f),
             style: ViewStyle {
                 width: Some(Prop::Const(Length::Px(12.0))),
                 height: Some(Prop::Const(Length::Px(12.0))),
@@ -47,43 +48,6 @@ impl Checkbox {
         self.enabled = val.into();
         self
     }
-
-    pub fn on_click(mut self, f: impl Fn(&mut EventContext) + 'static) -> Self {
-        self.click_fn.replace(Box::new(f));
-        self
-    }
-}
-
-impl Default for Checkbox {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl View for Checkbox {
-    type Element = CheckboxWidget;
-
-    fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
-        cx.set_focusable(true);
-        cx.set_clickable(true);
-        cx.apply_style(self.style);
-        CheckboxWidget {
-            checked: self
-                .checked
-                .map(|checked| {
-                    checked.get_and_bind(cx, |value, mut widget| {
-                        widget.checked = value;
-                        widget.request_render();
-                    })
-                })
-                .unwrap_or_default(),
-            enabled: self.enabled.get_and_bind(cx, |value, mut widget| {
-                widget.enabled = value;
-                widget.request_render();
-            }),
-            click_fn: self.click_fn,
-        }
-    }
 }
 
 impl StyleExt for Checkbox {
@@ -92,44 +56,68 @@ impl StyleExt for Checkbox {
     }
 }
 
-#[derive(Default)]
-pub struct CheckboxWidget {
-    checked: bool,
-    enabled: bool,
-    click_fn: Option<Box<OnClickFn>>,
+impl View for Checkbox {
+    fn build(self, cx: &mut BuildContext) {
+        if let Some(checked) = self.checked {
+            // User controls the checked property, so we should not toggle ourselves
+            build_checkbox(cx, self.style, checked.clone(), move |cx| {
+                let new_value = !checked.get(cx);
+                (self.click_fn)(cx, new_value);
+            });
+        } else {
+            // We control the check property, we should toggle on click
+            let checked = Var::new(cx, false);
+            build_checkbox(cx, self.style, checked.into(), move |cx| {
+                let new_value = !checked.get(cx);
+                checked.set(cx, new_value);
+                (self.click_fn)(cx, new_value);
+            });
+        };
+    }
 }
 
-impl Widget for CheckboxWidget {
-    fn debug_label(&self) -> &'static str {
-        "Checkbox"
-    }
+fn build_checkbox(
+    cx: &mut BuildContext,
+    style: ViewStyle,
+    checked: Prop<bool>,
+    on_change: impl Fn(&mut EventContext) + 'static,
+) {
+    cx.style(style).handler(
+        Capabilities::FOCUSABLE | Capabilities::CLICKABLE,
+        CheckboxHandler { checked, on_change },
+    );
+}
 
-    fn mouse_event(&mut self, event: MouseEvent, cx: &mut EventContext) {
-        if let MouseEvent::Click(_) = event {
-            self.checked = !self.checked;
-            if let Some(f) = self.click_fn.as_mut() {
-                f(cx);
-            }
-            cx.request_render();
-        }
-    }
+struct CheckboxHandler<FOnChange> {
+    checked: Prop<bool>,
+    on_change: FOnChange,
+}
 
-    fn key_event(&mut self, event: KeyEvent, ctx: &mut EventContext) -> EventResult {
+impl<FOnChange> WidgetHandler for CheckboxHandler<FOnChange>
+where
+    FOnChange: Fn(&mut EventContext) + 'static,
+{
+    fn event(&mut self, cx: &mut EventContext, event: &Event) -> EventResult {
         match event {
-            KeyEvent::KeyDown {
-                key: Key::Enter, ..
-            } => {
-                if let Some(f) = self.click_fn.as_mut() {
-                    f(ctx);
-                }
+            Event::Click(_) => {
+                (self.on_change)(cx);
                 EventResult::Stop
             }
+            Event::Key(key_event) => match key_event {
+                KeyEvent::KeyDown {
+                    key: Key::Enter, ..
+                } => {
+                    (self.on_change)(cx);
+                    EventResult::Stop
+                }
+                _ => EventResult::Continue,
+            },
             _ => EventResult::Continue,
         }
     }
 
-    fn render(&mut self, cx: &mut RenderContext) {
-        if self.checked {
+    fn render(&mut self, cx: &mut crate::ui::RenderContext) {
+        if self.checked.get(cx) {
             let size = (cx.bounds().size().min_element() - 1.0).max(0.0);
             let bounds = Rect::from_center(cx.bounds().center(), Size::splat(size));
             cx.stroke_path(

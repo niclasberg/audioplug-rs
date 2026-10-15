@@ -37,15 +37,18 @@ bitflags!(
         const NEEDS_LAYOUT = 1 << 1;
         const NEEDS_RENDER = 1 << 2;
 
-        // Capability flags
-        const FOCUSABLE = 1 << 4;
-        const OVERLAY = 1 << 5;
-        const CLICKABLE = 1 << 6;
-        const DRAGGABLE = 1 << 7;
-        const HOVERABLE = 1 << 8;
-
         // Status flags
         const UNDER_MOUSE_CURSOR = 1 << 9;
+        const OVERLAY = 1 << 10;
+    }
+
+    #[derive(Default, Debug, Clone, Copy)]
+    pub struct Capabilities : u32 {
+        const FOCUSABLE = 1 << 0;
+        const CLICKABLE = 1 << 2;
+        const DRAGGABLE = 1 << 3;
+        const HOVERABLE = 1 << 4;
+        const MOUSE_WHEEL = 1 << 5;
     }
 );
 
@@ -62,11 +65,10 @@ pub struct WidgetData {
     pub(super) next_sibling_id: WidgetId,
     /// Id of the previous sibling (or self.id if no siblings)
     pub(super) prev_sibling_id: WidgetId,
-    /// Id of the first reactive node that this widget owns (or null if no owned nodes)
-    pub(crate) first_owned_node_id: NodeId,
     pub(super) style: Style,
     pub(super) layout: taffy::Layout,
     flags: Cell<WidgetFlags>,
+    pub capabilities: Capabilities,
     pub(super) origin: Point,
     /// Controls how children are laid out
     pub display_style: DisplayStyle,
@@ -82,10 +84,10 @@ impl WidgetData {
             first_child_id: WidgetId::null(),
             next_sibling_id: id,
             prev_sibling_id: id,
-            first_owned_node_id: NodeId::null(),
             style: Default::default(),
             layout: Default::default(),
             flags: Cell::new(WidgetFlags::EMPTY),
+            capabilities: Capabilities::default(),
             origin: Point::ZERO,
             display_style: Default::default(),
             intrinsic_size: None,
@@ -223,17 +225,17 @@ impl WidgetData {
 
     #[inline(always)]
     pub fn is_clickable(&self) -> bool {
-        self.flag_is_set(WidgetFlags::CLICKABLE)
+        self.capabilities.contains(Capabilities::CLICKABLE)
     }
 
     #[inline(always)]
     pub fn is_draggable(&self) -> bool {
-        self.flag_is_set(WidgetFlags::DRAGGABLE)
+        self.capabilities.contains(Capabilities::DRAGGABLE)
     }
 
     #[inline(always)]
     pub fn is_hoverable(&self) -> bool {
-        self.flag_is_set(WidgetFlags::HOVERABLE)
+        self.capabilities.contains(Capabilities::HOVERABLE)
     }
 
     pub fn shape(&self) -> Shape {

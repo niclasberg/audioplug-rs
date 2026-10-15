@@ -1,38 +1,34 @@
 use super::{
-    AppState, ViewSequence, Widget, WidgetFlags, WidgetHandle, WidgetId, WidgetPos,
+    AppState, ViewSequence, WidgetId, WidgetPos,
     overlay::OverlayOptions,
     reactive::{CanCreate, CanRead, Owner, ReadScope},
 };
 use crate::{
     core::Size,
     ui::{
-        Prop, ViewStyle, ViewText, WidgetData,
-        reactive::{CreateContext, ReadContext},
+        Capabilities, Prop, ViewEventHandlers, ViewStyle, ViewText, WidgetData,
+        event_handler::WidgetHandler,
+        reactive::{CreateContext, EffectContext, ReactiveValue, ReadContext},
         style::{DisplayStyle, Style},
         text::{TextContext, TextData},
     },
 };
-use std::marker::PhantomData;
 
-pub type AnyView = Box<dyn FnOnce(&mut BuildContext<Box<dyn Widget>>) -> Box<dyn Widget>>;
+pub type AnyView = Box<dyn FnOnce(&mut BuildContext)>;
 
 pub trait View: 'static {
-    type Element: Widget + 'static;
-
-    fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element;
+    fn build(self, cx: &mut BuildContext);
 
     fn into_any_view(self) -> AnyView
     where
         Self: Sized + 'static,
     {
-        Box::new(move |ctx| Box::new(ctx.build_inner(self)))
+        Box::new(move |ctx| ctx.build_inner(self))
     }
 }
 
 impl View for AnyView {
-    type Element = Box<dyn Widget>;
-
-    fn build(self, ctx: &mut BuildContext<Self::Element>) -> Self::Element {
+    fn build(self, ctx: &mut BuildContext) {
         self(ctx)
     }
 
@@ -41,50 +37,43 @@ impl View for AnyView {
     }
 }
 
-pub struct BuildContext<'a, W: Widget + ?Sized> {
+pub struct BuildContext<'a> {
     id: WidgetId,
     pub(crate) app_state: &'a mut AppState,
-    _phantom: PhantomData<W>,
 }
 
-impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
+impl<'a> BuildContext<'a> {
     pub fn new(id: WidgetId, app_state: &'a mut AppState) -> Self {
-        Self {
-            id,
-            app_state,
-            _phantom: PhantomData,
-        }
+        Self { id, app_state }
     }
 
-    pub fn id(&self) -> WidgetHandle<W> {
-        WidgetHandle::new(self.id)
+    pub fn id(&self) -> WidgetId {
+        self.id
     }
 
     fn widget_data_mut(&mut self) -> &mut WidgetData {
         &mut self.app_state.widgets.tree[self.id]
     }
 
-    pub fn set_focusable(&mut self, focusable: bool) {
-        self.widget_data_mut()
-            .set_or_clear_flag(WidgetFlags::FOCUSABLE, focusable);
-    }
-
-    pub fn set_clickable(&mut self, clickable: bool) {
-        self.widget_data_mut()
-            .set_or_clear_flag(WidgetFlags::CLICKABLE, clickable);
-    }
-
-    pub fn set_draggable(&mut self, draggable: bool) {
-        self.widget_data_mut()
-            .set_or_clear_flag(WidgetFlags::DRAGGABLE, draggable);
+    pub fn bind<T: 'static>(
+        &mut self,
+        prop: Prop<T>,
+        mut f: impl FnMut(&mut EffectContext, WidgetId, &T) + 'static,
+    ) -> &mut Self {
+        let id = self.id;
+        prop.watch(self, move |cx, value| {
+            f(cx, id, value);
+        });
+        self
     }
 
     pub fn set_display_style(&mut self, display_style: DisplayStyle) {
         self.widget_data_mut().display_style = display_style;
     }
 
-    pub fn set_intrinsic_size(&mut self, size: Size) {
+    pub fn intrinsic_size(&mut self, size: Size) -> &mut Self {
         self.widget_data_mut().intrinsic_size = Some(size);
+        self
     }
 
     pub fn add_child(&mut self, view: impl View) -> WidgetId {
@@ -96,7 +85,6 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
         view_sequence.build_seq(&mut BuildContext {
             id: self.id,
             app_state: self.app_state,
-            _phantom: PhantomData,
         });
     }
 
@@ -105,8 +93,8 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
             .add_widget(view, WidgetPos::Overlay(self.id, options))
     }
 
-    pub fn apply_style(&mut self, style: ViewStyle) {
-        fn _inner(cx: &mut BuildContext<dyn Widget>, style: ViewStyle) {
+    pub fn style(&mut self, style: ViewStyle) -> &mut Self {
+        fn _inner(cx: &mut BuildContext, style: ViewStyle) {
             apply_layout_style(style.aspect_ratio, cx, |value, style| {
                 style.aspect_ratio = Some(value);
             });
@@ -152,17 +140,48 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
             });
             apply_render_style(style.box_shadow, cx, |value, style| {
                 style.box_shadow = Some(value);
-            })
+            });
+            apply_render_style(style.cursor, cx, |value, style| {
+                style.cursor = Some(value);
+            });
         }
         let mut cx = BuildContext {
             id: self.id,
             app_state: self.app_state,
-            _phantom: PhantomData,
         };
         _inner(&mut cx, style);
+        self
     }
 
-    pub fn apply_text(&mut self, text: ViewText) {
+    pub fn event_handlers(&mut self, event_handlers: ViewEventHandlers) -> &mut Self {
+        for handler in event_handlers.handlers {
+            self.app_state
+                .event_handlers
+                .push_event_handler(self.id, handler);
+        }
+
+        self.app_state
+            .widgets
+            .set_capabilities(self.id, event_handlers.capabilities);
+
+        self
+    }
+
+    pub fn handler(
+        &mut self,
+        capabilities: Capabilities,
+        handler: impl WidgetHandler,
+    ) -> &mut Self {
+        self.app_state
+            .widgets
+            .set_capabilities(self.id, capabilities);
+        self.app_state
+            .event_handlers
+            .set_widget_handler(self.id, Box::new(handler));
+        self
+    }
+
+    pub fn text(&mut self, text: ViewText) -> &mut Self {
         let mut text_data = TextData::new();
         let value = if let Some(value) = text.text {
             value.get_and_bind(self, |value, mut widget| {
@@ -181,13 +200,13 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
         };
         text_data.set_text(value);
         self.app_state.widgets.texts.insert(self.id, text_data);
+        self
     }
 
-    pub(crate) fn build_inner<V: View>(&mut self, view: V) -> V::Element {
+    pub(crate) fn build_inner(&mut self, view: impl View) {
         view.build(&mut BuildContext {
             id: self.id,
             app_state: self.app_state,
-            _phantom: PhantomData,
         })
     }
 
@@ -202,7 +221,7 @@ impl<'a, W: Widget + ?Sized> BuildContext<'a, W> {
 
 fn apply_layout_style<T: Clone + 'static>(
     accessor: Option<Prop<T>>,
-    cx: &mut BuildContext<dyn Widget>,
+    cx: &mut BuildContext,
     apply_fn: fn(T, &mut Style),
 ) {
     if let Some(accessor) = accessor {
@@ -216,7 +235,7 @@ fn apply_layout_style<T: Clone + 'static>(
 
 fn apply_render_style<T: Clone + 'static>(
     accessor: Option<Prop<T>>,
-    cx: &mut BuildContext<dyn Widget>,
+    cx: &mut BuildContext,
     apply_fn: fn(T, &mut Style),
 ) {
     if let Some(accessor) = accessor {
@@ -228,7 +247,7 @@ fn apply_render_style<T: Clone + 'static>(
     }
 }
 
-impl<'a, W: Widget + ?Sized> CanRead<'a> for BuildContext<'a, W> {
+impl<'a> CanRead<'a> for BuildContext<'a> {
     fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
     where
         'a: 's2,
@@ -238,7 +257,7 @@ impl<'a, W: Widget + ?Sized> CanRead<'a> for BuildContext<'a, W> {
     }
 }
 
-impl<'s, W: Widget + ?Sized> CanCreate<'s> for BuildContext<'s, W> {
+impl<'s> CanCreate<'s> for BuildContext<'s> {
     fn create_context<'s2>(&'s2 mut self) -> CreateContext<'s2>
     where
         's: 's2,

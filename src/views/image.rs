@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::{
     core::{Color, ImageData, Size},
     ui::{
-        RenderContext, StyleExt, View, ViewStyle, Widget,
+        BuildContext, StyleExt, View, ViewStyle,
         style::{AvailableSpace, Measure},
     },
 };
@@ -25,11 +25,14 @@ impl Image {
 }
 
 impl View for Image {
-    type Element = ImageWidget;
-
-    fn build(self, cx: &mut crate::ui::BuildContext<Self::Element>) -> Self::Element {
-        cx.apply_style(self.style);
-        ImageWidget { source: self.data }
+    fn build(self, cx: &mut BuildContext) {
+        cx.style(self.style).render_fn(move |cx| {
+            if let Some(source) = &self.data {
+                cx.draw_bitmap(source, cx.bounds())
+            } else {
+                cx.fill(cx.bounds(), Color::RED)
+            }
+        });
     }
 }
 
@@ -72,20 +75,6 @@ impl Measure for ImageWidget {
                 Size::new(width, height)
             }
             (_, _) => image_size,
-        }
-    }
-}
-
-impl Widget for ImageWidget {
-    fn debug_label(&self) -> &'static str {
-        "Image"
-    }
-
-    fn render(&mut self, cx: &mut RenderContext) {
-        if let Some(source) = &self.source {
-            cx.draw_bitmap(source, cx.bounds())
-        } else {
-            cx.fill(cx.bounds(), Color::RED)
         }
     }
 }

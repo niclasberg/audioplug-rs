@@ -3,7 +3,7 @@ use audioplug::{
     param::{AnyParameter, FloatParameter},
     ui::{
         prelude::*,
-        style::{AlignItems, Length, Edges},
+        style::{AlignItems, Edges, Length},
         Canvas, ShadowOptions, StyleExt, View,
     },
     views::{Checkbox, Column, Label, ParameterKnob, ParameterSlider, Row},
@@ -41,7 +41,7 @@ fn header_view() -> impl View {
     Row::new((Label::new("hello"),))
         .width(Length::Percent(100.0))
         .background(Color::BITTER_LEMON)
-        .box_shadow(SHADOW)
+        .shadow(SHADOW)
 }
 
 fn main_view(parameters: &SynthParams) -> impl View {
@@ -67,7 +67,7 @@ fn main_view(parameters: &SynthParams) -> impl View {
 
 fn oscillator_view(params: &OscillatorParams) -> impl View {
     Row::new((
-        Checkbox::new(),
+        Checkbox::new(|_, _| {}),
         Column::new((ParameterKnob::new(&params.octave), Label::new("Oct."))),
         Column::new((ParameterKnob::new(&params.semitones), Label::new("Semi"))),
     ))
@@ -94,7 +94,7 @@ fn filter_view(params: &FilterParams) -> impl View {
     .padding(PADDING)
     .corner_radius(Size::new(5.0, 5.0))
     .background(Color::BLACK.with_alpha(0.2))
-    .box_shadow(SHADOW)
+    .shadow(SHADOW)
 }
 
 fn amp_envelope_view(params: &AmpEnvelopeParams) -> impl View {
@@ -130,7 +130,7 @@ fn amp_envelope_view(params: &AmpEnvelopeParams) -> impl View {
     .padding(PADDING)
     .corner_radius(Size::new(5.0, 5.0))
     .background(Color::BLACK.with_alpha(0.2))
-    .box_shadow(SHADOW)
+    .shadow(SHADOW)
 }
 
 fn envelope_graph(

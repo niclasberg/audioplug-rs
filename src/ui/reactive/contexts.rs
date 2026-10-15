@@ -97,7 +97,7 @@ impl<'s> CanRead<'s> for ReadContext<'s> {
 }
 
 pub struct CreateContext<'a> {
-    pub(crate) widgets: &'a mut Widgets,
+    pub(crate) widgets: &'a Widgets,
     pub(crate) reactive_graph: &'a mut ReactiveGraph,
     pub(crate) task_queue: &'a mut TaskQueue,
     pub(crate) owner: Owner,
@@ -105,7 +105,7 @@ pub struct CreateContext<'a> {
 
 impl<'a> CreateContext<'a> {
     pub(crate) fn new_root_context(
-        widgets: &'a mut Widgets,
+        widgets: &'a Widgets,
         reactive_graph: &'a mut ReactiveGraph,
         task_queue: &'a mut TaskQueue,
     ) -> Self {
@@ -118,21 +118,13 @@ impl<'a> CreateContext<'a> {
     }
 
     pub(crate) fn create_var_node(&mut self, state: SignalState) -> NodeId {
-        self.reactive_graph.create_node(
-            NodeType::Signal(state),
-            NodeState::Clean,
-            self.owner,
-            &mut self.widgets.tree,
-        )
+        self.reactive_graph
+            .create_node(NodeType::Signal(state), NodeState::Clean, self.owner)
     }
 
     pub(crate) fn create_memo_node(&mut self, state: CachedState) -> NodeId {
-        self.reactive_graph.create_node(
-            NodeType::Memo(state),
-            NodeState::Dirty,
-            self.owner,
-            &mut self.widgets.tree,
-        )
+        self.reactive_graph
+            .create_node(NodeType::Memo(state), NodeState::Dirty, self.owner)
     }
 
     pub(crate) fn create_effect_node(&mut self, f: Box<EffectFn>, run_effect: bool) -> NodeId {
@@ -143,7 +135,6 @@ impl<'a> CreateContext<'a> {
             }),
             NodeState::Dirty,
             self.owner,
-            &mut self.widgets.tree,
         );
         if run_effect {
             self.task_queue.push(Task::RunEffect { id });
@@ -152,12 +143,8 @@ impl<'a> CreateContext<'a> {
     }
 
     pub(crate) fn create_trigger(&mut self) -> NodeId {
-        self.reactive_graph.create_node(
-            NodeType::Trigger,
-            NodeState::Clean,
-            self.owner,
-            &mut self.widgets.tree,
-        )
+        self.reactive_graph
+            .create_node(NodeType::Trigger, NodeState::Clean, self.owner)
     }
 
     pub(crate) fn create_watcher(&mut self, source: Source, f: Box<EffectFn>) -> NodeId {
@@ -169,31 +156,23 @@ impl<'a> CreateContext<'a> {
             }),
             NodeState::Clean,
             self.owner,
-            &mut self.widgets.tree,
         );
         graph.add_subscription(source, id);
         id
     }
 
     pub(crate) fn create_animation_node(&mut self, state: AnimationState) -> NodeId {
-        self.reactive_graph.create_node(
-            NodeType::Animation(state),
-            NodeState::Clean,
-            self.owner,
-            &mut self.widgets.tree,
-        )
+        self.reactive_graph
+            .create_node(NodeType::Animation(state), NodeState::Clean, self.owner)
     }
 
     pub(crate) fn create_derived_animation_node(
         &mut self,
         state_fn: impl FnOnce(&mut CreateContext, NodeId) -> DerivedAnimationState,
     ) -> NodeId {
-        let id = self.reactive_graph.create_node(
-            NodeType::TmpRemoved,
-            NodeState::Clean,
-            self.owner,
-            &mut self.widgets.tree,
-        );
+        let id =
+            self.reactive_graph
+                .create_node(NodeType::TmpRemoved, NodeState::Clean, self.owner);
         let state = state_fn(self, id);
         let _ = std::mem::replace(
             &mut self.reactive_graph.nodes[id].node_type,
@@ -203,12 +182,8 @@ impl<'a> CreateContext<'a> {
     }
 
     pub(crate) fn create_event_emitter(&mut self) -> NodeId {
-        self.reactive_graph.create_node(
-            NodeType::EventEmitter,
-            NodeState::Clean,
-            self.owner,
-            &mut self.widgets.tree,
-        )
+        self.reactive_graph
+            .create_node(NodeType::EventEmitter, NodeState::Clean, self.owner)
     }
 
     pub(crate) fn owning_widget(&self) -> Option<WidgetId> {
@@ -254,10 +229,9 @@ impl<'s> CanRead<'s> for CreateContext<'s> {
 }
 
 pub struct WriteContext<'a> {
-    pub(crate) widgets: &'a mut Widgets,
+    pub(crate) widgets: &'a Widgets,
     pub(crate) reactive_graph: &'a mut ReactiveGraph,
     pub(crate) task_queue: &'a mut TaskQueue,
-    pub(crate) host_handle: Option<&'a dyn HostHandle>,
 }
 
 impl<'a> WriteContext<'a> {
@@ -300,7 +274,7 @@ impl<'a> WriteContext<'a> {
     }
 
     pub fn host_handle(&self) -> &dyn HostHandle {
-        self.host_handle.unwrap()
+        self.reactive_graph.host_handle()
     }
 
     pub fn as_create_context(&mut self, owner: Owner) -> CreateContext<'_> {
@@ -329,7 +303,6 @@ impl<'s> CanWrite<'s> for WriteContext<'s> {
             widgets: self.widgets,
             reactive_graph: self.reactive_graph,
             task_queue: self.task_queue,
-            host_handle: self.host_handle,
         }
     }
 }

@@ -2,10 +2,9 @@ use std::sync::Arc;
 
 use super::style::{Edges, ResolveInto, Style};
 use crate::core::{Rect, Size};
-use crate::ui::app_state::WidgetMap;
+use crate::ui::Widgets;
 use crate::ui::style::DisplayStyle;
 use crate::ui::text::TextContext;
-use crate::ui::{Widget, Widgets};
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutInput, LayoutOutput,
     LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree,
@@ -18,7 +17,6 @@ pub enum RecomputeLayout {
     IfNeeded,
     Force,
 }
-
 pub struct LayoutChildIter<'a> {
     inner: std::slice::Iter<'a, WidgetId>,
 }
@@ -33,7 +31,6 @@ impl Iterator for LayoutChildIter<'_> {
 
 pub struct LayoutContext<'a, 'b> {
     widgets: &'a mut Widgets,
-    widget_impls: &'a mut WidgetMap,
     window_size: Size,
     region_to_invalidate: Option<Rect>,
     text_cx: &'a mut TextContext<'b>,
@@ -42,14 +39,12 @@ pub struct LayoutContext<'a, 'b> {
 impl<'a, 'b> LayoutContext<'a, 'b> {
     pub(super) fn new(
         widgets: &'a mut Widgets,
-        widget_impls: &'a mut WidgetMap,
         window_size: Size,
         text_cx: &'a mut TextContext<'b>,
     ) -> Self {
         Self {
             widgets,
             window_size,
-            widget_impls,
             region_to_invalidate: None,
             text_cx,
         }
@@ -101,7 +96,7 @@ impl TraverseTree for LayoutContext<'_, '_> {}
 
 impl PrintTree for LayoutContext<'_, '_> {
     fn get_debug_label(&self, node_id: taffy::NodeId) -> &'static str {
-        self.widget_impls[node_id.into()].debug_label()
+        "asdfasdf"
     }
 
     fn get_final_layout(&self, node_id: taffy::NodeId) -> taffy::Layout {

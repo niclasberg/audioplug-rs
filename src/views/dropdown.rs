@@ -1,15 +1,17 @@
 use crate::{
-    KeyEvent, MouseButton, MouseEvent,
+    KeyEvent, MouseButton,
     core::{Align, Key},
     ui::{
-        AnyWidgetId, EventContext, EventResult, OverlayAnchor, OverlayOptions, View, Widget,
-        WidgetAdapter, WidgetMut,
+        BuildContext, Capabilities, Event, EventResult, OverlayAnchor, OverlayOptions, View,
+        ViewEventHandlers, WidgetHandler,
+        reactive::{ReactiveValue, Var},
     },
 };
 
 pub struct Dropdown<VTrigger, FMenu> {
     trigger_view: VTrigger,
     menu_fn: FMenu,
+    event_handlers: ViewEventHandlers,
 }
 
 impl<VTrigger: View, VMenu: View, FMenu: Fn() -> VMenu + 'static> Dropdown<VTrigger, FMenu> {
@@ -17,6 +19,7 @@ impl<VTrigger: View, VMenu: View, FMenu: Fn() -> VMenu + 'static> Dropdown<VTrig
         Self {
             trigger_view,
             menu_fn,
+            event_handlers: Default::default(),
         }
     }
 }
@@ -24,91 +27,59 @@ impl<VTrigger: View, VMenu: View, FMenu: Fn() -> VMenu + 'static> Dropdown<VTrig
 impl<VTrigger: View, VMenu: View, FMenu: Fn() -> VMenu + 'static> View
     for Dropdown<VTrigger, FMenu>
 {
-    type Element = DropdownWidget<VTrigger::Element, FMenu>;
-
-    fn build(self, cx: &mut crate::ui::BuildContext<Self::Element>) -> Self::Element {
-        let trigger_widget = cx.build_inner(self.trigger_view);
-        cx.set_focusable(true);
-
-        DropdownWidget {
-            trigger_widget,
-            menu_fn: self.menu_fn,
-            overlay_id: None,
-        }
-    }
-}
-
-pub struct DropdownWidget<WTrigger, FMenu> {
-    trigger_widget: WTrigger,
-    menu_fn: FMenu,
-    overlay_id: Option<AnyWidgetId>,
-}
-
-impl<WTrigger: Widget, V: View, FMenu: Fn() -> V + 'static> DropdownWidget<WTrigger, FMenu> {
-    fn is_dropdown_open(&self) -> bool {
-        self.overlay_id.is_some()
-    }
-
-    fn close(mut widget: WidgetMut<Self>) {
-        if let Some(overlay_id) = widget.overlay_id.take() {
-            widget.find_child(overlay_id).unwrap().remove();
-        }
-    }
-}
-
-impl<WTrigger: Widget, V: View, FMenu: Fn() -> V + 'static> WidgetAdapter
-    for DropdownWidget<WTrigger, FMenu>
-{
-    type Inner = WTrigger;
-
-    fn inner(&self) -> &Self::Inner {
-        &self.trigger_widget
-    }
-
-    fn inner_mut(&mut self) -> &mut Self::Inner {
-        &mut self.trigger_widget
-    }
-
-    fn mouse_event(&mut self, event: MouseEvent, cx: &mut EventContext) {
-        if let MouseEvent::Down(ev) = event
-            && ev.button == MouseButton::LEFT
-        {
-            let view = (self.menu_fn)();
-            if !self.is_dropdown_open() {
-                cx.defer_update(self, move |mut widget| {
-                    // not sure if this second check is needed
-                    if !widget.is_dropdown_open() {
-                        let id = widget.add_overlay(
-                            view,
-                            OverlayOptions {
-                                anchor: OverlayAnchor::OutsideParent,
-                                align: Align::Bottom,
-                                z_index: 50000,
-                                ..Default::default()
-                            },
-                        );
-                        widget.overlay_id = Some(id.into_any_widget_id());
-                    }
-                });
-            } else {
-                cx.defer_update(self, Self::close);
-            }
-        }
-    }
-
-    fn key_event(&mut self, event: KeyEvent, cx: &mut EventContext) -> EventResult {
-        match event {
-            KeyEvent::KeyDown {
-                key: Key::Escape, ..
-            } => {
-                if self.is_dropdown_open() {
-                    cx.defer_update(self, Self::close);
-                    EventResult::Stop
-                } else {
-                    EventResult::Continue
+    fn build(self, cx: &mut BuildContext) {
+        let is_open = Var::new(cx, false);
+        let trigger_id = cx.id();
+        let mut overlay_id = None;
+        is_open.watch(cx, move |cx, is_open| {
+            if *is_open {
+                if overlay_id.is_none() {
+                    let id = cx.widget_mut(trigger_id).add_overlay(
+                        (self.menu_fn)(),
+                        OverlayOptions {
+                            anchor: OverlayAnchor::OutsideParent,
+                            align: Align::Bottom,
+                            z_index: 50000,
+                            ..Default::default()
+                        },
+                    );
+                    overlay_id = Some(id);
                 }
+            } else {
+                if let Some(overlay_id) = overlay_id.take() {
+                    cx.widget_mut(overlay_id).remove();
+                }
+            }
+        });
+
+        cx.handler(Capabilities::FOCUSABLE, DropdownHandler { is_open });
+
+        self.trigger_view.build(cx);
+    }
+}
+
+struct DropdownHandler {
+    is_open: Var<bool>,
+}
+
+impl WidgetHandler for DropdownHandler {
+    fn event(&mut self, cx: &mut crate::ui::EventContext, event: &Event) -> EventResult {
+        match event {
+            Event::MouseDown(mouse_down) => {
+                if mouse_down.button == MouseButton::LEFT {
+                    self.is_open.update(cx, |_, val| *val = !*val);
+                }
+                EventResult::Stop
+            }
+            Event::Key(KeyEvent::KeyDown {
+                key: Key::Escape, ..
+            }) => {
+                self.is_open.update(cx, |_, val| *val = !*val);
+                EventResult::Stop
             }
             _ => EventResult::Continue,
         }
     }
+
+    fn render(&mut self, _cx: &mut crate::ui::RenderContext) {}
 }

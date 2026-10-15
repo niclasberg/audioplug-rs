@@ -7,7 +7,7 @@ use crate::{
 /// Steps all animations that have been enqueued for window.
 pub(super) fn drive_animations(app_state: &mut AppState, animation_frame: AnimationFrame) {
     for widget_id in app_state.widgets.take_requested_animations() {
-        if let Some(widget) = app_state.widget_impls.get_mut(widget_id) {
+        /*if let Some(widget) = app_state.widget_impls.get_mut(widget_id) {
             widget.animation_frame(
                 animation_frame,
                 &mut AnimationContext {
@@ -15,7 +15,7 @@ pub(super) fn drive_animations(app_state: &mut AppState, animation_frame: Animat
                     widgets: &mut app_state.widgets,
                 },
             );
-        }
+        }*/
     }
 
     app_state
@@ -36,7 +36,7 @@ impl AnimationContext<'_> {
     }
 
     pub fn request_render(&mut self) {
-        self.widgets.invalidate_widget(self.id);
+        self.widgets.request_render(self.id);
     }
 
     pub fn request_animation(&mut self) {

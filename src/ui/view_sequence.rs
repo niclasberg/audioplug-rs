@@ -1,16 +1,16 @@
 use rustc_hash::FxBuildHasher;
 
-use super::reactive::{Effect, ReactiveValue, CanRead};
-use super::{BuildContext, View, Prop, Widget};
+use super::reactive::{CanRead, Effect, ReactiveValue};
+use super::{BuildContext, Prop, View};
 use crate::core::{FxIndexSet, diff};
 use std::hash::Hash;
 
 pub trait ViewSequence: Sized + 'static {
-    fn build_seq(self, cx: &mut BuildContext<dyn Widget>);
+    fn build_seq(self, cx: &mut BuildContext);
 }
 
 impl<V: View + Sized> ViewSequence for V {
-    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
+    fn build_seq(self, cx: &mut BuildContext) {
         cx.add_child(self);
     }
 }
@@ -18,7 +18,7 @@ impl<V: View + Sized> ViewSequence for V {
 macro_rules! impl_view_seq_tuple {
     ($( $t: ident),* ; $( $s: tt),*) => {
         impl<$( $t: ViewSequence, )*> ViewSequence for ($( $t, )*) {
-            fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
+            fn build_seq(self, cx: &mut BuildContext) {
                 (
                     $( self.$s.build_seq(cx), )*
                 );
@@ -41,7 +41,7 @@ impl_view_seq_tuple!(V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11; 0, 1, 2, 3, 4
 impl_view_seq_tuple!(V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12; 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
 
 impl<V: View> ViewSequence for Vec<V> {
-    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
+    fn build_seq(self, cx: &mut BuildContext) {
         for child in self {
             cx.add_child(child);
         }
@@ -49,7 +49,7 @@ impl<V: View> ViewSequence for Vec<V> {
 }
 
 impl<V: View> ViewSequence for Option<V> {
-    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
+    fn build_seq(self, cx: &mut BuildContext) {
         if let Some(view) = self {
             cx.add_child(view);
         }
@@ -57,7 +57,7 @@ impl<V: View> ViewSequence for Option<V> {
 }
 
 impl<const N: usize, V: View> ViewSequence for [V; N] {
-    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
+    fn build_seq(self, cx: &mut BuildContext) {
         for child in self {
             cx.add_child(child);
         }
@@ -79,22 +79,24 @@ impl<V: View, F: Fn(usize) -> V> IndexedViewSeq<F> {
 }
 
 impl<V: View, F: Fn(usize) -> V + 'static> ViewSequence for IndexedViewSeq<F> {
-    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
+    fn build_seq(self, cx: &mut BuildContext) {
         let child_count = self.count.get(cx);
         for i in 0..child_count {
             cx.add_child((self.view_factory)(i));
         }
 
         let f = self.view_factory;
-        self.count.bind(cx, move |value, mut widget| {
+        let id = cx.id();
+        self.count.watch(cx, move |cx, count| {
+            let mut widget = cx.widget_mut(id);
             let mut child_index = 0;
             widget.for_each_child_mut(|child| {
-                if child_index >= value {
+                if child_index >= *count {
                     child.remove();
                 }
                 child_index += 1;
             });
-            for i in child_index..value {
+            for i in child_index..*count {
                 widget.push_child_back(f(i));
             }
         });
@@ -114,8 +116,8 @@ where
     FView: Fn(&T) -> V + 'static,
     V: View,
 {
-    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
-        let id = cx.id().into_any_widget_id();
+    fn build_seq(self, cx: &mut BuildContext) {
+        let id = cx.id();
         Effect::new_with_state(cx, move |cx, old_values: Option<Vec<T>>| {
             let new_values: Vec<T> = (self.values_fn)(cx).into_iter().collect();
             let mut widget = cx.widget_mut(id);
@@ -204,7 +206,7 @@ where
     F: Fn(&T) -> V + 'static,
     FKey: Fn(&T) -> K + 'static,
 {
-    fn build_seq(self, cx: &mut BuildContext<dyn Widget>) {
+    fn build_seq(self, cx: &mut BuildContext) {
         let views_keys: Vec<_> = self.readable.with_ref(cx, |values| {
             values
                 .into_iter()

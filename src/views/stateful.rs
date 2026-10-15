@@ -56,13 +56,11 @@ where
     V: View,
     F: FnOnce(&mut ScopeContext) -> V + 'static,
 {
-    type Element = V::Element;
-
-    fn build(self, ctx: &mut crate::ui::BuildContext<Self::Element>) -> Self::Element {
+    fn build(self, ctx: &mut crate::ui::BuildContext) {
         let inner_view = (self.f)(&mut ScopeContext {
-            id: ctx.id().id,
+            id: ctx.id(),
             app_state: ctx.app_state,
         });
-        inner_view.build(ctx)
+        inner_view.build(ctx);
     }
 }

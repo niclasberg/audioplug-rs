@@ -10,10 +10,10 @@ pub enum MouseButton {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MouseEvent {
-    Down(MouseDownEvent),
-    Up(MouseUpEvent),
-    Click(MouseClickEvent),
-    Moved(MouseMoveEvent),
+    Down(MouseDown),
+    Up(MouseUp),
+    Click(MouseClick),
+    Moved(MouseMove),
     DragStarted,
     DragMoved(MouseDragEvent),
     DragEnded,
@@ -22,7 +22,28 @@ pub enum MouseEvent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct MouseDownEvent {
+pub enum MouseDrag {
+    Started {
+        position: Point,
+        modifiers: Modifiers,
+    },
+    Moved {
+        position: Point,
+        modifiers: Modifiers,
+        delta: Vec2,
+    },
+    Ended {
+        position: Point,
+        modifiers: Modifiers,
+    },
+    Cancelled {
+        position: Point,
+        modifiers: Modifiers,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MouseDown {
     pub button: MouseButton,
     pub position: Point,
     pub modifiers: Modifiers,
@@ -30,14 +51,14 @@ pub struct MouseDownEvent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct MouseUpEvent {
+pub struct MouseUp {
     pub button: MouseButton,
     pub position: Point,
     pub modifiers: Modifiers,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct MouseMoveEvent {
+pub struct MouseMove {
     pub position: Point,
     pub modifiers: Modifiers,
 }
@@ -50,7 +71,7 @@ pub struct MouseDragEvent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct MouseClickEvent {
+pub struct MouseClick {
     pub position: Point,
     pub modifiers: Modifiers,
 }

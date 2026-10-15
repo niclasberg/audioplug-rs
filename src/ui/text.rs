@@ -1,4 +1,6 @@
-use parley::{FontContext, FontStyle, FontWeight, FontWidth, RangedBuilder, StyleProperty};
+use std::ops::Range;
+
+use parley::{Cursor, FontContext, FontStyle, FontWeight, FontWidth, RangedBuilder, StyleProperty};
 
 use crate::{
     core::{Color, TextBrush, TextLayout, TextLayoutContext},
@@ -11,6 +13,9 @@ pub struct TextData {
 
     layout: TextLayout,
     layout_dirty: bool,
+
+    pub(crate) cursor: Cursor,
+    pub(crate) selection_start: Cursor,
 }
 
 impl TextData {
@@ -20,6 +25,8 @@ impl TextData {
             style: TextStyle::default(),
             layout: TextLayout::new(),
             layout_dirty: true,
+            cursor: Cursor::default(),
+            selection_start: Cursor::default(),
         }
     }
 
@@ -37,15 +44,21 @@ impl TextData {
         }
     }
 
-    pub fn get_or_create_layout(&mut self, cx: &mut TextContext) -> &mut TextLayout {
+    fn refresh_layout(&mut self, cx: &mut TextContext) {
         if self.layout_dirty {
             let mut builder = cx
                 .layout_cx
                 .ranged_builder(cx.font_cx, &self.text, 1.0, false);
             self.style.apply(&mut builder);
             builder.build_into(&mut self.layout, &self.text);
+            self.cursor.refresh(&self.layout);
+            self.selection_start.refresh(&self.layout);
             self.layout_dirty = false;
         }
+    }
+
+    pub fn get_or_create_layout(&mut self, cx: &mut TextContext) -> &mut TextLayout {
+        self.refresh_layout(cx);
         &mut self.layout
     }
 
@@ -72,6 +85,85 @@ impl TextData {
             .unwrap_or_else(|| text_layout.height());
 
         taffy::Size { width, height }
+    }
+
+    pub fn has_selection(&self) -> bool {
+        self.cursor == self.selection_start
+    }
+
+    fn selected_range(&self) -> Range<usize> {
+        let start = self.cursor.index().min(self.selection_start.index());
+        let end = self.cursor.index().max(self.selection_start.index());
+        start..end
+    }
+
+    pub fn selected_text(&self) -> Option<&str> {
+        let range = self.selected_range();
+        if !range.is_empty() {
+            Some(&self.text[range])
+        } else {
+            None
+        }
+    }
+
+    fn set_selection(&mut self, cursor: Cursor, selection_start: Cursor) -> bool {
+        if self.cursor != cursor || selection_start != self.selection_start {
+            self.cursor = cursor;
+            self.selection_start = selection_start;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn set_cursor(&mut self, cursor: Cursor, select: bool) -> bool {
+        let selection_start = if select { self.selection_start } else { cursor };
+        self.set_selection(cursor, selection_start)
+    }
+
+    fn remove_selected(&mut self) -> bool {
+        let range = self.selected_range();
+        if !range.is_empty() {
+            self.text.replace_range(range, "");
+            true
+        } else {
+            false
+        }
+    }
+}
+
+pub struct TextEditContext<'a> {
+    text: &'a mut TextData,
+    text_cx: TextContext<'a>,
+}
+
+impl TextEditContext<'_> {
+    fn refresh_layout(&mut self) {
+        self.text.refresh_layout(&mut self.text_cx);
+    }
+
+    pub fn move_right(&mut self, select: bool) -> bool {
+        self.refresh_layout();
+        let cursor = self.text.cursor.next_visual(&self.text.layout);
+        self.text.set_cursor(cursor, select)
+    }
+
+    pub fn move_word_right(&mut self, select: bool) -> bool {
+        self.refresh_layout();
+        let cursor = self.text.cursor.next_visual_word(&self.text.layout);
+        self.text.set_cursor(cursor, select)
+    }
+
+    pub fn move_left(&mut self, select: bool) -> bool {
+        self.refresh_layout();
+        let cursor = self.text.cursor.previous_visual(&self.text.layout);
+        self.text.set_cursor(cursor, select)
+    }
+
+    pub fn move_word_left(&mut self, select: bool) -> bool {
+        self.refresh_layout();
+        let cursor = self.text.cursor.previous_visual_word(&self.text.layout);
+        self.text.set_cursor(cursor, select)
     }
 }
 

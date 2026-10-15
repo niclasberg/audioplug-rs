@@ -216,6 +216,7 @@ dependencies = [
  "indexmap",
  "log",
  "midi-consts",
+ "morphorm",
  "num",
  "objc2",
  "objc2-app-kit",
@@ -1462,6 +1463,15 @@ checksum = "b63fbc4a50860e98e7b2aa7804ded1db5cbc3aff9193adaff57a6931bf7c4b4c"
 dependencies = [
  "adler2",
  "simd-adler32",
+]
+
+[[package]]
+name = "morphorm"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0997abf77163b581acc08914106e206f6cc9eac30e4512b9a611dd8e6916b13"
+dependencies = [
+ "smallvec",
 ]
 
 [[package]]

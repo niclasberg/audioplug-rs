@@ -1,8 +1,6 @@
 use crate::{
     core::{Cursor, PhysicalSize, Point, Rect, ScaleFactor, Size, WindowTheme},
-    event::{
-        AnimationFrame, KeyEvent, MouseDownEvent, MouseMoveEvent, MouseUpEvent, MouseWheelEvent,
-    },
+    event::{AnimationFrame, KeyEvent, MouseDown, MouseMove, MouseUp, MouseWheelEvent},
     platform::Handle,
 };
 
@@ -32,9 +30,9 @@ pub enum WindowEvent {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum OSMouseEvent {
-    Down(MouseDownEvent),
-    Up(MouseUpEvent),
-    Move(MouseMoveEvent),
+    Down(MouseDown),
+    Up(MouseUp),
+    Move(MouseMove),
     Wheel(MouseWheelEvent),
 }
 

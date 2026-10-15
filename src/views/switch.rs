@@ -28,12 +28,10 @@ where
     FView: Fn(&T) -> V + 'static,
     V: View,
 {
-    type Element = V::Element;
-
-    fn build(self, cx: &mut BuildContext<Self::Element>) -> Self::Element {
+    fn build(self, cx: &mut BuildContext) {
         let Self { f_value, f_view } = self;
         let mut value = f_value(&mut cx.read_context());
-        let widget = f_view(&value).build(cx);
+        f_view(&value).build(cx);
         let id = cx.id();
 
         Effect::new(cx, move |cx| {
@@ -45,7 +43,5 @@ where
                 value = new_value;
             }
         });
-
-        widget
     }
 }
