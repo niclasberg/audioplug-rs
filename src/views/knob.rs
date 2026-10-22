@@ -1,14 +1,17 @@
 use crate::{
-    core::{Circle, Color, Modifiers, Size, Vec2},
-    event::{MouseDrag, MouseWheelEvent},
-    param::{AnyParameter, NormalizedValue, PlainValue},
+    core::{Circle, Color, Size, Vec2},
+    param::{AnyParameter, NormalizedValue},
     ui::{
-        BuildContext, Capabilities, Event, EventContext, EventResult, Prop, RenderContext, View,
-        ViewStyle, WidgetHandler,
-        reactive::{CanRead, ParamSetter, ReactiveValue, ReadContext},
+        BuildContext, Sense, EventContext, KnobEvent, Prop, RenderContext, View,
+        reactive::{ParamSetter, ReactiveValue, ReadSignal, Var},
     },
     views::util::ValueMapper,
 };
+
+const INTRINSIC_SIZE: Size = Size::splat(24.0);
+const CAPABILITIES: Sense = Sense::DRAGGABLE
+    .union(Sense::FOCUSABLE)
+    .union(Sense::MOUSE_WHEEL);
 
 type DragStartFn = dyn Fn(&mut EventContext);
 type DragEndFn = dyn Fn(&mut EventContext);
@@ -54,129 +57,68 @@ impl View for Knob {
         };
 
         if let Some(value) = self.value {
-            build_knob(
-                cx,
-                ViewStyle::default(),
-                mapper,
-                move |cx| value.get(cx),
-                |_| {},
-                self.on_value_changed,
-                |_| {},
-            );
+            {
+                let value = value.clone();
+                cx.knob(move |cx, event| match event {
+                    KnobEvent::DragStart => {}
+                    KnobEvent::DragEnd => {}
+                    KnobEvent::ValueOffset { normalized_offset } => {
+                        let old_value = mapper.normalize(value.get_untracked(cx));
+                        let new_value = (old_value + normalized_offset).clamp(0.0, 1.0);
+                        if old_value != new_value {
+                            (self.on_value_changed)(cx, mapper.denormalize(new_value));
+                        }
+                    }
+                });
+            }
+            build_knob(cx, move |cx| mapper.normalize(value.get(cx)));
+        } else {
+            let normalized_value = Var::new(cx, 0.0);
+            cx.knob(move |cx, event| match event {
+                KnobEvent::DragStart => {}
+                KnobEvent::DragEnd => {}
+                KnobEvent::ValueOffset { normalized_offset } => {
+                    let old_value = normalized_value.get_untracked(cx);
+                    let new_value = (old_value + normalized_offset).clamp(0.0, 1.0);
+                    if old_value != new_value {
+                        normalized_value.set(cx, new_value);
+                        (self.on_value_changed)(cx, mapper.denormalize(new_value));
+                    }
+                }
+            });
+            build_knob(cx, move |cx| normalized_value.get(cx));
         }
     }
 }
 
 fn build_knob(
     cx: &mut BuildContext,
-    style: ViewStyle,
-    mapper: ValueMapper,
-    value: impl Fn(&mut ReadContext) -> f64 + 'static,
-    on_drag_start: impl Fn(&mut EventContext) + 'static,
-    on_value_changed: impl Fn(&mut EventContext, f64) + 'static,
-    on_drag_end: impl Fn(&mut EventContext) + 'static,
+    f_normalized_value: impl Fn(&mut RenderContext) -> f64 + 'static,
 ) {
-    const INTRINSIC_SIZE: Size = Size::splat(24.0);
-    cx.intrinsic_size(INTRINSIC_SIZE);
-    cx.style(style);
-    cx.handler(
-        Capabilities::FOCUSABLE | Capabilities::DRAGGABLE | Capabilities::MOUSE_WHEEL,
-        KnobHandler {
-            value,
-            mapper,
-            on_drag_start,
-            on_drag_end,
-            on_value_changed,
-        },
-    );
-}
-
-pub struct KnobHandler<FDragStart, FDragEnd, FOnChange, FValue> {
-    value: FValue,
-    mapper: ValueMapper,
-    on_drag_start: FDragStart,
-    on_drag_end: FDragEnd,
-    on_value_changed: FOnChange,
-}
-
-impl<FDragStart, FDragEnd, FOnChange, FValue> WidgetHandler
-    for KnobHandler<FDragStart, FDragEnd, FOnChange, FValue>
-where
-    FDragStart: Fn(&mut EventContext) + 'static,
-    FDragEnd: Fn(&mut EventContext) + 'static,
-    FOnChange: Fn(&mut EventContext, f64) + 'static,
-    FValue: Fn(&mut ReadContext) -> f64 + 'static,
-{
-    fn event(&mut self, cx: &mut EventContext, event: &Event) -> EventResult {
-        match event {
-            Event::Drag(drag_event) => {
-                match drag_event {
-                    MouseDrag::Started { .. } => {
-                        (self.on_drag_start)(cx);
-                    }
-                    MouseDrag::Moved {
-                        modifiers, delta, ..
-                    } => {
-                        let delta_value = if modifiers.contains(Modifiers::SHIFT) {
-                            delta.y * 0.001
-                        } else {
-                            delta.y * 0.01
-                        };
-                        let old_value = self.mapper.normalize((self.value)(&mut cx.read_context()));
-                        let new_value = self
-                            .mapper
-                            .round((old_value - delta_value as f64).clamp(0.0, 1.0));
-
-                        if new_value != old_value {
-                            (self.on_value_changed)(cx, self.mapper.denormalize(new_value));
-                        }
-                    }
-                    MouseDrag::Ended { .. } | MouseDrag::Cancelled { .. } => {
-                        (self.on_drag_end)(cx);
-                    }
-                };
-                EventResult::Stop
-            }
-            Event::Wheel(MouseWheelEvent { delta, .. }) => {
-                let delta_y = delta.y as f64;
-                let old_value = self.mapper.normalize((self.value)(&mut cx.read_context()));
-
-                let new_value = self
-                    .mapper
-                    .round((old_value - 0.2 * delta_y).clamp(0.0, 1.0));
-                if new_value != old_value {
-                    (self.on_value_changed)(cx, self.mapper.denormalize(new_value));
-                }
-                EventResult::Stop
-            }
-            _ => EventResult::Continue,
-        }
-    }
-
-    fn render(&mut self, cx: &mut RenderContext) {
+    cx.intrinsic_size(INTRINSIC_SIZE).render(move |cx| {
         const MIN_ANGLE: f32 = -1.25 * std::f32::consts::PI;
         const MAX_ANGLE: f32 = 0.25 * std::f32::consts::PI;
 
         let bounds = cx.bounds();
         let shape = Circle::from_rect(bounds);
-        let normalized_value = self.mapper.normalize((self.value)(&mut cx.read_context())) as f32;
+        let normalized_value = f_normalized_value(cx) as f32;
         let angle = MIN_ANGLE * (1.0 - normalized_value) + MAX_ANGLE * normalized_value;
 
         let dot_pos = shape.center + Vec2::new(angle.cos(), angle.sin()).scale(0.7 * shape.radius);
         cx.fill(shape, Color::GREEN);
         cx.fill(Circle::new(dot_pos, 0.15 * shape.radius), Color::BLACK);
-    }
+    });
 }
 
 pub struct ParameterKnob<P> {
     editor: ParamSetter<P>,
-    signal: Prop<NormalizedValue>,
+    signal: ReadSignal<NormalizedValue>,
 }
 
 impl<P: AnyParameter> ParameterKnob<P> {
     pub fn new(parameter: &P) -> Self {
         Self {
-            signal: parameter.as_signal_normalized().into(),
+            signal: parameter.as_signal_normalized(),
             editor: ParamSetter::new(parameter),
         }
     }
@@ -185,20 +127,18 @@ impl<P: AnyParameter> ParameterKnob<P> {
 impl<P: AnyParameter> View for ParameterKnob<P> {
     fn build(self, cx: &mut BuildContext) {
         let editor = self.editor;
-        let mapper = ValueMapper {
-            min: editor.info(cx).min_value().0,
-            max: editor.info(cx).max_value().0,
-            steps: editor.info(cx).step_count(),
-        };
-
-        build_knob(
-            cx,
-            ViewStyle::default(),
-            mapper,
-            move |cx| self.signal.get(cx).0,
-            move |cx| editor.begin_edit(cx),
-            move |cx, value| editor.set_value_plain(cx, PlainValue(value)),
-            move |cx| editor.end_edit(cx),
-        );
+        let signal = self.signal;
+        cx.knob(move |cx, event| match event {
+            KnobEvent::DragStart => editor.begin_edit(cx),
+            KnobEvent::DragEnd => editor.end_edit(cx),
+            KnobEvent::ValueOffset { normalized_offset } => {
+                let old_value = signal.get_untracked(cx).0;
+                let new_value = (old_value + normalized_offset).clamp(0.0, 1.0);
+                if old_value != new_value {
+                    editor.set_value_normalized(cx, NormalizedValue(new_value))
+                }
+            }
+        });
+        build_knob(cx, move |cx| signal.get(cx).0);
     }
 }

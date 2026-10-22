@@ -3,17 +3,14 @@ use parley::FontContext;
 use super::reactive::{CreateContext, ReactiveGraph, Var};
 use super::{
     BuildContext, HostHandle, View, WidgetId, WidgetMut, WidgetRef, Widgets, WindowId,
-    event_handling::{set_focus_widget, set_hovered_widget},
-    layout::RecomputeLayout,
-    render::WGPUSurface,
-    task_queue::TaskQueue,
-    widgets::WidgetPos,
+    layout::RecomputeLayout, render::WGPUSurface, task_queue::TaskQueue,
 };
 use crate::core::TextLayoutContext;
 use crate::ui::TextContext;
-use crate::ui::event_handler::WidgetHandlers;
+use crate::ui::reactive::runtime::WidgetPhase;
 use crate::ui::reactive::{Owner, ReadContext, ReadScope, WriteContext};
 use crate::ui::render::GlyphCache;
+use crate::ui::widgets::WidgetHandlers;
 use crate::{
     core::WindowTheme,
     param::{AnyParameterMap, NormalizedValue, ParameterId, PlainValue},
@@ -27,9 +24,7 @@ pub struct AppState {
     pub(super) text_layout_cx: TextLayoutContext,
     pub(super) glyph_cache: GlyphCache,
     pub(super) widgets: Widgets,
-    /// Event handlers - store outside of the widgets so that we don't get borrowing
-    /// issues when dispatching events
-    pub(super) event_handlers: WidgetHandlers,
+    pub(super) widget_handlers: WidgetHandlers,
     pub(super) reactive_graph: ReactiveGraph,
     pub(super) task_queue: TaskQueue,
     pub(crate) theme_signal: Var<WindowTheme>,
@@ -38,14 +33,10 @@ pub struct AppState {
 impl AppState {
     pub fn new(parameters: Rc<dyn AnyParameterMap>) -> Self {
         let mut reactive_graph = ReactiveGraph::new(parameters);
-        let mut task_queue = TaskQueue::default();
+        let task_queue = TaskQueue::default();
         let mut widgets = Widgets::default();
         let theme_signal = Var::new(
-            &mut CreateContext::new_root_context(
-                &mut widgets,
-                &mut reactive_graph,
-                &mut task_queue,
-            ),
+            &mut CreateContext::new_root_context(&mut widgets, &mut reactive_graph),
             WindowTheme::Dark,
         );
 
@@ -61,7 +52,7 @@ impl AppState {
             theme_signal,
             widgets,
             task_queue,
-            event_handlers: Default::default(),
+            widget_handlers: Default::default(),
         }
     }
 
@@ -110,7 +101,13 @@ impl AppState {
     ) -> WindowId {
         let window_id = self.widgets.allocate_window(handle, wgpu_surface);
         let root_widget_id = self.widgets.window(window_id).root_widget;
-        self.build_widget(root_widget_id, view);
+        view.build(&mut BuildContext {
+            id: root_widget_id,
+            widgets: &mut self.widgets,
+            handlers: &mut self.widget_handlers,
+            reactive_graph: &mut self.reactive_graph,
+        });
+        self.run_effects();
         self.widgets.layout_window(
             &mut TextContext::new(
                 &mut self.font_cx,
@@ -123,84 +120,44 @@ impl AppState {
         window_id
     }
 
-    fn build_widget<V: View>(&mut self, id: WidgetId, view: V) {
-        view.build(&mut BuildContext::new(id, self));
-    }
-
-    /// Add a new widget
-    pub fn add_widget<V: View>(&mut self, view: V, position: WidgetPos) -> WidgetId {
-        let id = self.widgets.allocate_widget(position);
-        self.build_widget(id, view);
-        id
-    }
-
     pub fn remove_window(&mut self, id: WindowId) {
-        self.clear_mouse_capture_and_focus(self.widgets.window(id).root_widget);
         self.widgets
-            .remove_window(id, &mut self.reactive_graph, &mut self.event_handlers);
-    }
-
-    /// Remove a widget and all of its children and associated signals
-    pub fn remove_widget(&mut self, id: WidgetId) {
-        self.clear_mouse_capture_and_focus(id);
-        self.widgets
-            .remove_widget(id, &mut self.reactive_graph, &mut self.event_handlers);
-    }
-
-    pub fn replace_widget<V: View>(&mut self, id: WidgetId, view: V) {
-        self.clear_mouse_capture_and_focus(id);
-        self.widgets
-            .reset_widget(id, &mut self.reactive_graph, &mut self.event_handlers);
-        self.build_widget(id, view);
-    }
-
-    fn clear_mouse_capture_and_focus(&mut self, id: WidgetId) {
-        if let Some(hovered_widget) = self.widgets.hovered_widget
-            && (hovered_widget == id || self.widgets.has_parent(hovered_widget, id))
-        {
-            set_hovered_widget(self, None);
-        }
-
-        let window_id = self.widgets.window_for_widget(id).id;
-        if let Some(focus_widget) = self.widgets.focus_widget_id(window_id)
-            && (focus_widget == id || self.widgets.has_parent(focus_widget, id))
-        {
-            set_focus_widget(self, window_id, None);
-        }
-    }
-
-    pub fn widget_ref(&self, id: WidgetId) -> WidgetRef<'_> {
-        WidgetRef::new(&self.widgets, id)
-    }
-
-    pub fn widget_mut(&mut self, id: WidgetId) -> WidgetMut<'_> {
-        WidgetMut::new(self, id)
-    }
-
-    pub fn focus_widget(&self, window_id: WindowId) -> Option<WidgetRef<'_>> {
-        self.widgets
-            .window(window_id)
-            .focus_widget
-            .map(|id| WidgetRef::new(&self.widgets, id))
-    }
-
-    pub fn focus_widget_mut(&mut self, window_id: WindowId) -> Option<WidgetMut<'_>> {
-        self.widgets
-            .window(window_id)
-            .focus_widget
-            .map(|id| WidgetMut::new(self, id))
+            .remove_window(id, &mut self.widget_handlers, &mut self.reactive_graph);
     }
 
     pub fn run_effects(&mut self) {
-        let mut tasks = std::mem::take(&mut self.task_queue.0);
+        loop {
+            let ran_effect = self
+                .reactive_graph
+                .run_effects(&mut self.widgets, &mut self.widget_handlers);
 
-        if tasks.is_empty() {
-            return;
+            let mut tasks = std::mem::take(&mut self.task_queue.tasks);
+            let ran_task = !tasks.is_empty();
+            while let Some(task) = tasks.pop_front() {
+                task.run(self);
+                tasks.extend(self.task_queue.tasks.drain(..));
+            }
+
+            if !(ran_effect || ran_task) {
+                break;
+            }
         }
 
-        while let Some(task) = tasks.pop_front() {
-            task.run(self);
-            tasks.extend(self.task_queue.0.drain(..));
+        let dirty_widgets = self.reactive_graph.take_invalidated_widgets();
+        for (widget_id, phase) in dirty_widgets {
+            match phase {
+                WidgetPhase::SyncWidget => {
+                    if let Some(props) = self.widget_handlers.widget_props.get(widget_id) {
+                        let node_id = self
+                            .reactive_graph
+                            .widget_invalidation_node_id(widget_id, phase);
+                        self.reactive_graph.clear_node_sources(node_id);
+                        props.apply(&mut self.reactive_graph, widget_id, &mut self.widgets);
+                        self.reactive_graph.mark_node_as_clean(node_id);
+                    }
+                }
+                WidgetPhase::Render => self.widgets.request_render(widget_id),
+            }
         }
 
         // Layout if needed
@@ -235,7 +192,6 @@ impl AppState {
         WriteContext {
             widgets: &mut self.widgets,
             reactive_graph: &mut self.reactive_graph,
-            task_queue: &mut self.task_queue,
         }
     }
 
@@ -243,7 +199,6 @@ impl AppState {
         CreateContext {
             widgets: &mut self.widgets,
             reactive_graph: &mut self.reactive_graph,
-            task_queue: &mut self.task_queue,
             owner,
         }
     }

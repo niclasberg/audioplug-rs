@@ -1,29 +1,25 @@
-use crate::{
-    core::WindowTheme,
-    ui::{
-        AppState, View, WidgetId,
-        prelude::CanRead,
-        reactive::{CanCreate, Owner, ReadScope, ReadSignal},
-    },
+use crate::ui::{
+    AppState, View, WidgetId, Widgets,
+    prelude::CanRead,
+    reactive::{CanCreate, CreateContext, Owner, ReactiveGraph, ReadContext, ReadScope},
 };
 
 pub struct ScopeContext<'a> {
     id: WidgetId,
-    app_state: &'a mut AppState,
-}
-
-impl ScopeContext<'_> {
-    pub fn theme(&self) -> ReadSignal<WindowTheme> {
-        self.app_state.theme_signal.as_read_signal()
-    }
+    widgets: &'a mut Widgets,
+    reactive_graph: &'a mut ReactiveGraph,
 }
 
 impl<'s> CanCreate<'s> for ScopeContext<'s> {
-    fn create_context<'s2>(&'s2 mut self) -> crate::ui::reactive::CreateContext<'s2>
+    fn create_context<'s2>(&'s2 mut self) -> CreateContext<'s2>
     where
         's: 's2,
     {
-        self.app_state.create_context(Owner::Widget(self.id))
+        CreateContext {
+            widgets: &mut self.widgets,
+            reactive_graph: &mut self.reactive_graph,
+            owner: Owner::Widget(self.id),
+        }
     }
 }
 
@@ -32,8 +28,12 @@ impl<'s> CanRead<'s> for ScopeContext<'s> {
     where
         's: 's2,
     {
-        self.app_state
-            .read_context(ReadScope::Untracked, Some(self.id))
+        ReadContext {
+            widgets: self.widgets,
+            reactive_graph: self.reactive_graph,
+            scope: ReadScope::Untracked,
+            current_widget: Some(self.id),
+        }
     }
 }
 
@@ -56,11 +56,12 @@ where
     V: View,
     F: FnOnce(&mut ScopeContext) -> V + 'static,
 {
-    fn build(self, ctx: &mut crate::ui::BuildContext) {
+    fn build(self, cx: &mut crate::ui::BuildContext) {
         let inner_view = (self.f)(&mut ScopeContext {
-            id: ctx.id(),
-            app_state: ctx.app_state,
+            id: cx.id(),
+            widgets: cx.widgets,
+            reactive_graph: cx.reactive_graph,
         });
-        inner_view.build(ctx);
+        inner_view.build(cx);
     }
 }

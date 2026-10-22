@@ -4,12 +4,13 @@ use parley::{Cursor, FontContext, FontStyle, FontWeight, FontWidth, RangedBuilde
 
 use crate::{
     core::{Color, TextBrush, TextLayout, TextLayoutContext},
-    ui::{Prop, render::GlyphCache},
+    ui::render::GlyphCache,
 };
 
+#[derive(Default)]
 pub struct TextData {
-    text: String,
-    style: TextStyle,
+    pub(crate) text: String,
+    pub(crate) style: TextStyle,
 
     layout: TextLayout,
     layout_dirty: bool,
@@ -30,18 +31,46 @@ impl TextData {
         }
     }
 
-    pub fn set_text(&mut self, value: String) {
+    /// Set the text, returns true if the text changed
+    pub fn set_text(&mut self, value: String) -> bool {
         if self.text != value {
             self.text = value;
             self.layout_dirty = true;
+            true
+        } else {
+            false
         }
     }
 
-    pub fn set_font_size(&mut self, value: f32) {
-        if self.style.font_size != value {
-            self.style.font_size = value;
+    pub fn set_font_size(&mut self, value: f32) -> bool {
+        self.replace_and_invalidate(|this| &mut this.style.font_size, value)
+    }
+
+    fn replace_and_invalidate<T: PartialEq>(
+        &mut self,
+        dst_fn: fn(&mut Self) -> &mut T,
+        new_val: T,
+    ) -> bool {
+        let dst = dst_fn(self);
+        if *dst != new_val {
+            *dst = new_val;
             self.layout_dirty = true;
+            true
+        } else {
+            false
         }
+    }
+
+    pub fn set_font_weight(&mut self, value: FontWeight) -> bool {
+        self.replace_and_invalidate(|this| &mut this.style.font_weight, Some(value))
+    }
+
+    pub fn set_font_style(&mut self, value: FontStyle) -> bool {
+        self.replace_and_invalidate(|this| &mut this.style.font_style, Some(value))
+    }
+
+    pub fn set_font_width(&mut self, value: FontWidth) -> bool {
+        self.replace_and_invalidate(|this| &mut this.style.font_width, Some(value))
     }
 
     fn refresh_layout(&mut self, cx: &mut TextContext) {
@@ -51,8 +80,8 @@ impl TextData {
                 .ranged_builder(cx.font_cx, &self.text, 1.0, false);
             self.style.apply(&mut builder);
             builder.build_into(&mut self.layout, &self.text);
-            self.cursor.refresh(&self.layout);
-            self.selection_start.refresh(&self.layout);
+            self.cursor = self.cursor.refresh(&self.layout);
+            self.selection_start = self.selection_start.refresh(&self.layout);
             self.layout_dirty = false;
         }
     }
@@ -192,6 +221,7 @@ pub struct TextStyle {
     pub font_weight: Option<FontWeight>,
     pub font_style: Option<FontStyle>,
     pub font_width: Option<FontWidth>,
+    pub color: Color,
 }
 
 impl TextStyle {
@@ -201,6 +231,7 @@ impl TextStyle {
             font_weight: Default::default(),
             font_style: Default::default(),
             font_width: Default::default(),
+            color: Color::BLACK,
         }
     }
 
@@ -221,41 +252,5 @@ impl TextStyle {
 impl Default for TextStyle {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[derive(Default)]
-pub struct ViewText {
-    pub(crate) text: Option<Prop<String>>,
-    pub(crate) color: Option<Prop<Color>>,
-    pub(crate) font_size: Option<Prop<f32>>,
-}
-
-impl ViewText {
-    pub fn new(text: impl Into<Prop<String>>) -> Self {
-        Self {
-            text: Some(text.into()),
-            color: None,
-            font_size: None,
-        }
-    }
-}
-
-pub trait TextExt: Sized {
-    fn text_mut(&mut self) -> &mut ViewText;
-
-    fn text(mut self, value: impl Into<Prop<String>>) -> Self {
-        self.text_mut().text.replace(value.into());
-        self
-    }
-
-    fn font_size(mut self, value: impl Into<Prop<f32>>) -> Self {
-        self.text_mut().font_size.replace(value.into());
-        self
-    }
-
-    fn color(mut self, value: impl Into<Prop<Color>>) -> Self {
-        self.text_mut().color.replace(value.into());
-        self
     }
 }

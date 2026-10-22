@@ -142,23 +142,23 @@ impl Rect {
 
     /// Expand the rectangle by `amount` from each side. Retains the
     /// center position and reduces the size by 2 times `amount`
-    pub fn inflate(&self, amount: f32) -> Self {
+    pub const fn inflate(&self, amount: f32) -> Self {
         Self::shrink(self, -amount)
     }
 
     /// Expand the rectangle by `amount` in the x direction, keeping the same center position
-    pub fn inflate_x(&self, amount: f32) -> Self {
+    pub const fn inflate_x(&self, amount: f32) -> Self {
         Self::shrink_x(self, -amount)
     }
 
     /// Expand the rectangle by `amount` in the y direction, keeping the same center position
-    pub fn inflate_y(&self, amount: f32) -> Self {
+    pub const fn inflate_y(&self, amount: f32) -> Self {
         Self::shrink_y(self, -amount)
     }
 
     /// Shrink the rectangle by `amount` from each side. Retains the
     /// center position and reduces the size by 2 times `amount`
-    pub fn shrink(&self, amount: f32) -> Self {
+    pub const fn shrink(&self, amount: f32) -> Self {
         Self {
             left: self.left + amount,
             top: self.top + amount,
@@ -168,7 +168,7 @@ impl Rect {
     }
 
     /// Shrink the rectangle by `amount` in the x direction, keeping the same center position
-    pub fn shrink_x(&self, amount: f32) -> Self {
+    pub const fn shrink_x(&self, amount: f32) -> Self {
         Self {
             left: self.left + amount,
             top: self.top,
@@ -178,7 +178,7 @@ impl Rect {
     }
 
     /// Shrink the rectangle by `amount` in the y direction, keeping the same center position
-    pub fn shrink_y(&self, amount: f32) -> Self {
+    pub const fn shrink_y(&self, amount: f32) -> Self {
         Self {
             left: self.left,
             top: self.top + amount,

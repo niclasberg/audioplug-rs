@@ -6,9 +6,8 @@ use crate::{
         HostHandle, WidgetId, Widgets,
         reactive::{
             EffectFn, WidgetStatusFlags,
-            runtime::{Node, Source},
+            runtime::{Node, Source, WidgetPhase},
         },
-        task_queue::{Task, TaskQueue},
     },
 };
 
@@ -29,10 +28,18 @@ pub struct ReadContext<'a> {
 
 impl ReadContext<'_> {
     pub fn track(&mut self, source_id: NodeId) {
-        if let ReadScope::Node(node_id) = self.scope {
-            self.reactive_graph
-                .add_subscription(Source::Node(source_id), node_id);
-        }
+        let node_id = match self.scope {
+            ReadScope::Untracked => return,
+            ReadScope::Node(node_id) => node_id,
+            ReadScope::SyncWidget(widget_id) => self
+                .reactive_graph
+                .widget_invalidation_node_id(widget_id, WidgetPhase::SyncWidget),
+            ReadScope::Render(widget_id) => self
+                .reactive_graph
+                .widget_invalidation_node_id(widget_id, WidgetPhase::Render),
+        };
+        self.reactive_graph
+            .add_subscription(Source::Node(source_id), node_id)
     }
 
     pub fn track_parameter(&mut self, source_id: ParameterId) {
@@ -99,7 +106,6 @@ impl<'s> CanRead<'s> for ReadContext<'s> {
 pub struct CreateContext<'a> {
     pub(crate) widgets: &'a Widgets,
     pub(crate) reactive_graph: &'a mut ReactiveGraph,
-    pub(crate) task_queue: &'a mut TaskQueue,
     pub(crate) owner: Owner,
 }
 
@@ -107,12 +113,10 @@ impl<'a> CreateContext<'a> {
     pub(crate) fn new_root_context(
         widgets: &'a Widgets,
         reactive_graph: &'a mut ReactiveGraph,
-        task_queue: &'a mut TaskQueue,
     ) -> Self {
         Self {
             widgets,
             reactive_graph,
-            task_queue,
             owner: Owner::Root,
         }
     }
@@ -129,7 +133,7 @@ impl<'a> CreateContext<'a> {
 
     pub(crate) fn create_effect_node(&mut self, f: Box<EffectFn>, run_effect: bool) -> NodeId {
         let id = self.reactive_graph.create_node(
-            NodeType::Effect(EffectState::EffectFn {
+            NodeType::Effect(EffectState {
                 f,
                 dynamic_sources: true,
             }),
@@ -137,7 +141,7 @@ impl<'a> CreateContext<'a> {
             self.owner,
         );
         if run_effect {
-            self.task_queue.push(Task::RunEffect { id });
+            self.reactive_graph.effects_to_check.insert(id);
         }
         id
     }
@@ -150,7 +154,7 @@ impl<'a> CreateContext<'a> {
     pub(crate) fn create_watcher(&mut self, source: Source, f: Box<EffectFn>) -> NodeId {
         let graph = &mut self.reactive_graph;
         let id = graph.create_node(
-            NodeType::Effect(EffectState::EffectFn {
+            NodeType::Effect(EffectState {
                 f,
                 dynamic_sources: false,
             }),
@@ -206,7 +210,6 @@ impl<'s> CanCreate<'s> for CreateContext<'s> {
         CreateContext {
             widgets: self.widgets,
             reactive_graph: self.reactive_graph,
-            task_queue: self.task_queue,
             owner: self.owner,
         }
     }
@@ -231,7 +234,6 @@ impl<'s> CanRead<'s> for CreateContext<'s> {
 pub struct WriteContext<'a> {
     pub(crate) widgets: &'a Widgets,
     pub(crate) reactive_graph: &'a mut ReactiveGraph,
-    pub(crate) task_queue: &'a mut TaskQueue,
 }
 
 impl<'a> WriteContext<'a> {
@@ -240,8 +242,7 @@ impl<'a> WriteContext<'a> {
     }
 
     pub fn notify(&mut self, node_id: NodeId) {
-        self.reactive_graph
-            .notify(self.widgets, self.task_queue, node_id);
+        self.reactive_graph.notify(node_id);
     }
 
     pub(super) fn get_node_mut(&mut self, node_id: NodeId) -> &mut Node {
@@ -253,11 +254,8 @@ impl<'a> WriteContext<'a> {
     }
 
     pub fn notify_parameter_subscribers(&mut self, parameter_id: ParameterId) {
-        self.reactive_graph.notify_parameter_subscribers(
-            self.widgets,
-            self.task_queue,
-            parameter_id,
-        );
+        self.reactive_graph
+            .notify_parameter_subscribers(parameter_id);
     }
 
     pub fn notify_widget_status_changed(
@@ -265,12 +263,6 @@ impl<'a> WriteContext<'a> {
         widget_id: WidgetId,
         change_mask: WidgetStatusFlags,
     ) {
-        self.reactive_graph.notify_widget_status_changed(
-            self.widgets,
-            self.task_queue,
-            widget_id,
-            change_mask,
-        );
     }
 
     pub fn host_handle(&self) -> &dyn HostHandle {
@@ -281,7 +273,6 @@ impl<'a> WriteContext<'a> {
         CreateContext {
             widgets: self.widgets,
             reactive_graph: self.reactive_graph,
-            task_queue: self.task_queue,
             owner,
         }
     }
@@ -302,7 +293,6 @@ impl<'s> CanWrite<'s> for WriteContext<'s> {
         WriteContext {
             widgets: self.widgets,
             reactive_graph: self.reactive_graph,
-            task_queue: self.task_queue,
         }
     }
 }

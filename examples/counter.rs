@@ -1,7 +1,7 @@
 use audioplug::{
-    core::{Color, Key, Size, UnitPoint},
+    core::{Color, Key, Size},
     ui::{
-        App, StyleExt, Window,
+        App, EventHandlerExt, StyleExt, Window,
         prelude::*,
         style::{AlignSelf, Border, Edges, Fill, Length, RelativePoint},
     },

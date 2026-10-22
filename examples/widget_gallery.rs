@@ -122,7 +122,7 @@ fn overview() -> impl View {
             Row::new((Label::new("Knob"), Knob::new(|_, _| {}))).v_align_center(),
             Row::new((
                 Label::new("Checkbox"),
-                Checkbox::new(|cx, value| {
+                Checkbox::new(move |cx, value| {
                     checkbox_enabled.set(cx, value);
                 })
                 .checked(checkbox_enabled)

@@ -4,8 +4,8 @@ use crate::{
         TextLayout, Transform, TranslateScale,
     },
     ui::{
-        TextContext, WidgetData, WidgetHandlers, Widgets,
-        reactive::{CanRead, NodeId, ReactiveGraph, ReadContext, ReadScope},
+        TextContext, WidgetData, Widgets,
+        reactive::{CanRead, ReactiveGraph, ReadContext, ReadScope, runtime::WidgetPhase},
         render::scene::GpuAppearance,
     },
 };
@@ -24,11 +24,8 @@ pub use wgpu_surface::WGPUSurface;
 
 use super::{WidgetId, WindowId};
 
-pub struct RenderFn {
-    pub f: Box<dyn FnMut(&mut RenderContext)>,
-    pub effect_id: NodeId,
-}
-pub type RenderFnMap = SecondaryMap<WidgetId, RenderFn>;
+pub type Renderer = dyn FnMut(&mut RenderContext);
+pub type RendererMap = SecondaryMap<WidgetId, Box<Renderer>>;
 
 pub fn invalidate_window(widgets: &Widgets, window_id: WindowId) {
     let handle = &widgets.window(window_id).handle;
@@ -39,11 +36,12 @@ pub fn paint_window(
     widgets: &mut Widgets,
     text_cx: &mut TextContext,
     reactive_graph: &mut ReactiveGraph,
-    widget_handlers: &mut WidgetHandlers,
+    renderers: &mut RendererMap,
     window_id: WindowId,
     dirty_rect: Rect,
 ) {
-    rebuild_scene(widgets, text_cx, reactive_graph, widget_handlers, window_id);
+    println!("Number of widgets: {}", widgets.tree.len());
+    rebuild_scene(widgets, text_cx, reactive_graph, renderers, window_id);
     let window = widgets.window_mut(window_id);
     let wgpu_surface = &mut window.wgpu_surface;
 
@@ -141,7 +139,7 @@ fn rebuild_scene(
     widgets: &mut Widgets,
     text_cx: &mut TextContext,
     reactive_graph: &mut ReactiveGraph,
-    widget_handlers: &mut WidgetHandlers,
+    renderers: &mut RendererMap,
     window_id: WindowId,
 ) {
     let window = &mut widgets.windows[window_id];
@@ -168,17 +166,20 @@ fn rebuild_scene(
                 scale_factor,
             );
 
-            widget_handlers.render(
-                &mut RenderContext {
+            if let Some(renderer) = renderers.get_mut(widget_id) {
+                let node_id =
+                    reactive_graph.widget_invalidation_node_id(widget_id, WidgetPhase::Render);
+                reactive_graph.clear_node_sources(node_id);
+                renderer(&mut RenderContext {
                     id: widget_id,
                     widgets,
                     reactive_graph,
                     scene: &mut gpu_scene,
                     path_segment_buffer: &mut path_segment_buffer,
                     scale_factor,
-                },
-                widget_id,
-            );
+                });
+                reactive_graph.mark_node_as_clean(node_id);
+            }
 
             if let Some(text) = widgets.texts.get_mut(widget_id) {
                 let layout = text.get_or_create_layout(text_cx);

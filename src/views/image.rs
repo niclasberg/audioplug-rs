@@ -3,13 +3,13 @@ use std::path::Path;
 use crate::{
     core::{Color, ImageData, Size},
     ui::{
-        BuildContext, StyleExt, View, ViewStyle,
+        BuildContext, StyleExt, View, ViewExt, WidgetProps,
         style::{AvailableSpace, Measure},
     },
 };
 
 pub struct Image {
-    style: ViewStyle,
+    props: WidgetProps,
     data: Option<ImageData>,
 }
 
@@ -19,14 +19,14 @@ impl Image {
 
         Self {
             data,
-            style: ViewStyle::default(),
+            props: Default::default(),
         }
     }
 }
 
 impl View for Image {
     fn build(self, cx: &mut BuildContext) {
-        cx.style(self.style).render_fn(move |cx| {
+        cx.props(self.props).render(move |cx| {
             if let Some(source) = &self.data {
                 cx.draw_bitmap(source, cx.bounds())
             } else {
@@ -35,12 +35,12 @@ impl View for Image {
         });
     }
 }
-
-impl StyleExt for Image {
-    fn style_mut(&mut self) -> &mut ViewStyle {
-        &mut self.style
+impl ViewExt for Image {
+    fn props_mut(&mut self) -> &mut WidgetProps {
+        &mut self.props
     }
 }
+impl StyleExt for Image {}
 
 pub struct ImageWidget {
     source: Option<ImageData>,

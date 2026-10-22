@@ -110,7 +110,7 @@ pub enum Edge {
 }
 
 /// Type used to define padding, margin and border
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Edges {
     pub left: Length,
     pub right: Length,

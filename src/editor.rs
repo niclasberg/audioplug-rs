@@ -4,10 +4,10 @@ use crate::{
     core::Size,
     param::{AnyParameter, AnyParameterGroup, ParamVisitor, ParameterTraversal, Params},
     ui::{
-        AnyView, AppState, View, StyleExt,
+        AnyView, AppState, StyleExt, View,
         prelude::CanRead,
         reactive::{CanCreate, CreateContext, Owner, ReadScope, Var},
-        style::{Length, Edges},
+        style::{Edges, Length},
     },
     views::{Column, Container, Label, ParameterSlider, Row, Stateful},
 };
@@ -71,10 +71,7 @@ impl ParamVisitor for CreateParameterViewsVisitor {
     }
 
     fn int_parameter(&mut self, p: &crate::param::IntParameter) {
-        let view = Row::new((
-            Label::new(p.name()),
-            ParameterSlider::new(p).into_any_view(),
-        ));
+        let view = Row::new((Label::new(p.name()), ParameterSlider::new(p)));
         self.views.push(view.into_any_view());
     }
 

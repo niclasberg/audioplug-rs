@@ -25,7 +25,7 @@ pub struct Style {
     pub min_height: Length,
     pub max_width: Length,
     pub max_height: Length,
-    pub aspect_ratio: Option<f64>,
+    pub aspect_ratio: Option<f32>,
     pub padding: Edges,
     pub border: Option<Border>,
     pub margin: Edges,
@@ -73,7 +73,7 @@ impl Default for Style {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Border {
     pub fill: Fill,
     pub width: Length,
@@ -88,7 +88,7 @@ impl Border {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Fill {
     Solid(Color),
     LinearGradient {

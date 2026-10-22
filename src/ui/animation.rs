@@ -18,10 +18,7 @@ pub(super) fn drive_animations(app_state: &mut AppState, animation_frame: Animat
         }*/
     }
 
-    app_state
-        .reactive_graph
-        .drive_animations(&mut app_state.widgets, &mut app_state.task_queue);
-
+    app_state.reactive_graph.drive_animations();
     app_state.run_effects();
 }
 

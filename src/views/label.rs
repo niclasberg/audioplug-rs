@@ -1,22 +1,17 @@
 use crate::ui::{
-    BuildContext, EventHandlerExt, Prop, StyleExt, TextExt, View, ViewEventHandlers, ViewStyle,
-    ViewText,
+    BuildContext, EventHandlerExt, Prop, StyleExt, TextExt, View, EventHandlers, ViewExt,
+    WidgetProps,
 };
 
 pub struct Label {
-    style: ViewStyle,
-    text: ViewText,
-    event_handlers: ViewEventHandlers,
+    props: WidgetProps,
+    event_handlers: EventHandlers,
 }
 
 impl Label {
     pub fn new(str: impl Into<Prop<String>>) -> Self {
         Self {
-            style: Default::default(),
-            text: ViewText {
-                text: Some(str.into()),
-                ..Default::default()
-            },
+            props: WidgetProps::default().text(str.into()),
             event_handlers: Default::default(),
         }
     }
@@ -24,24 +19,20 @@ impl Label {
 
 impl View for Label {
     fn build(self, ctx: &mut BuildContext) {
-        ctx.style(self.style).text(self.text);
+        ctx.props(self.props);
     }
 }
 
-impl StyleExt for Label {
-    fn style_mut(&mut self) -> &mut ViewStyle {
-        &mut self.style
+impl ViewExt for Label {
+    fn props_mut(&mut self) -> &mut WidgetProps {
+        &mut self.props
     }
 }
+impl StyleExt for Label {}
+impl TextExt for Label {}
 
 impl EventHandlerExt for Label {
-    fn event_handlers_mut(&mut self) -> &mut ViewEventHandlers {
+    fn event_handlers_mut(&mut self) -> &mut EventHandlers {
         &mut self.event_handlers
-    }
-}
-
-impl TextExt for Label {
-    fn text_mut(&mut self) -> &mut ViewText {
-        &mut self.text
     }
 }

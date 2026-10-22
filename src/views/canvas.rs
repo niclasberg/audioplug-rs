@@ -1,10 +1,8 @@
-use crate::ui::{
-    BuildContext, Capabilities, RenderContext, StyleExt, View, ViewStyle, WidgetHandler,
-};
+use crate::ui::{BuildContext, RenderContext, StyleExt, View, ViewExt, WidgetProps};
 
 /// View that allows custom rendering.
 pub struct Canvas {
-    style: ViewStyle,
+    props: WidgetProps,
     f_render: Box<dyn FnMut(&mut RenderContext)>,
 }
 
@@ -22,42 +20,21 @@ impl Canvas {
     pub fn new(f: impl FnMut(&mut RenderContext) + 'static) -> Self {
         Self {
             f_render: Box::new(f),
-            style: Default::default(),
+            props: Default::default(),
         }
     }
 }
 
 impl View for Canvas {
     fn build(self, cx: &mut BuildContext) {
-        struct Handler {
-            f_render: Box<dyn FnMut(&mut RenderContext)>,
-        }
-        impl WidgetHandler for Handler {
-            fn event(
-                &mut self,
-                _cx: &mut crate::ui::EventContext,
-                _event: &crate::ui::Event,
-            ) -> crate::ui::prelude::EventResult {
-                crate::ui::prelude::EventResult::Continue
-            }
-
-            fn render(&mut self, cx: &mut RenderContext) {
-                (self.f_render)(cx)
-            }
-        }
-
-        cx.handler(
-            Capabilities::empty(),
-            Handler {
-                f_render: self.f_render,
-            },
-        )
-        .style(self.style);
+        cx.render(self.f_render).props(self.props);
     }
 }
 
-impl StyleExt for Canvas {
-    fn style_mut(&mut self) -> &mut ViewStyle {
-        &mut self.style
+impl ViewExt for Canvas {
+    fn props_mut(&mut self) -> &mut WidgetProps {
+        &mut self.props
     }
 }
+
+impl StyleExt for Canvas {}

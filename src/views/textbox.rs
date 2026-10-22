@@ -4,7 +4,7 @@ use crate::ui::{
     BuildContext, EventContext, Prop, View,
     style::{Edges, Length},
 };
-use crate::ui::{StyleExt, TextExt, ViewStyle, ViewText};
+use crate::ui::{StyleExt, TextExt, ViewExt, WidgetProps};
 
 type InputChangedFn = dyn Fn(&mut EventContext, &str);
 
@@ -12,8 +12,7 @@ pub struct TextBox {
     width: f64,
     input_changed_fn: Box<InputChangedFn>,
     placeholder: Option<Prop<String>>,
-    style: ViewStyle,
-    text: ViewText,
+    props: WidgetProps,
 }
 
 impl TextBox {
@@ -22,8 +21,8 @@ impl TextBox {
             width: 100.0,
             input_changed_fn: Box::new(input_changed_fn),
             placeholder: None,
-            text: ViewText::new("TEXTBOX".to_string()),
-            style: ViewStyle::default()
+            props: WidgetProps::default()
+                .text("TEXTBOX".to_string())
                 .padding(Edges::all(Length::Px(2.0)))
                 .border(Border::new(Color::BLACK, Length::Px(1.0)))
                 .cursor(Cursor::IBeam),
@@ -36,15 +35,16 @@ impl TextBox {
     }
 }
 
-impl TextExt for TextBox {
-    fn text_mut(&mut self) -> &mut ViewText {
-        &mut self.text
+impl ViewExt for TextBox {
+    fn props_mut(&mut self) -> &mut WidgetProps {
+        &mut self.props
     }
 }
+impl TextExt for TextBox {}
 
 impl View for TextBox {
     fn build(self, cx: &mut BuildContext) {
-        cx.style(self.style).text(self.text);
+        cx.props(self.props);
     }
 }
 

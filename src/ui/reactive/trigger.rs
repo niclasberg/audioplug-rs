@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use crate::ui::reactive::{EffectContext, runtime::Source};
+
 use super::{CanCreate, CanRead, CanWrite, NodeId};
 
 #[derive(Clone, Copy)]
@@ -14,6 +16,15 @@ impl Trigger {
             node_id: cx.create_context().create_trigger(),
             _marker: PhantomData,
         }
+    }
+
+    pub fn watch<'a>(
+        &self,
+        cx: &mut impl CanCreate<'a>,
+        f: impl FnMut(&mut EffectContext) + 'static,
+    ) {
+        cx.create_context()
+            .create_watcher(Source::Node(self.node_id), Box::new(f));
     }
 
     pub fn track<'cx>(&self, cx: &mut impl CanRead<'cx>) {

@@ -95,7 +95,7 @@ impl taffy::TraversePartialTree for LayoutContext<'_, '_> {
 impl TraverseTree for LayoutContext<'_, '_> {}
 
 impl PrintTree for LayoutContext<'_, '_> {
-    fn get_debug_label(&self, node_id: taffy::NodeId) -> &'static str {
+    fn get_debug_label(&self, _node_id: taffy::NodeId) -> &'static str {
         "asdfasdf"
     }
 
@@ -229,7 +229,7 @@ impl LayoutPartialTree for LayoutContext<'_, '_> {
 
         taffy::compute_cached_layout(self, node_id, inputs, |tree, node, inputs| {
             let widget_id = node_id.into();
-            if tree.widgets.tree[widget_id].is_hidden() {
+            if tree.widgets.hidden(widget_id) {
                 taffy::compute_hidden_layout(tree, node)
             } else {
                 let has_children = tree.child_count(node) > 0;

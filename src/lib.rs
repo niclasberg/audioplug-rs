@@ -17,6 +17,6 @@ pub mod wrapper;
 pub use audio_buffer::*;
 pub use audiolayout::*;
 pub use editor::*;
-pub use event::{AnimationFrame, KeyEvent, MouseButton, MouseButtons, MouseEvent};
+pub use event::{AnimationFrame, KeyEvent, MouseButton, MouseButtons};
 pub use plugin::*;
 pub use uuid::Uuid;

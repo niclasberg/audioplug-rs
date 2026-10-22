@@ -3,18 +3,19 @@ use super::{
     AppState, EventResult, WidgetId, WindowId, animation::drive_animations, clipboard::Clipboard,
     invalidate_window,
 };
-use crate::event::{MouseClick, MouseDragEvent};
+use crate::MouseButton;
+use crate::event::{MouseClick, MouseDrag};
 use crate::platform::OSMouseEvent;
-use crate::ui::reactive::{ReactiveGraph, ReadContext, WidgetStatus, WriteContext};
+use crate::ui::interaction::Interactions;
+use crate::ui::reactive::{ReactiveGraph, ReadContext, WriteContext};
 use crate::ui::widgets::{Gesture, GestureState};
-use crate::ui::{Capabilities, Event, TaskQueue, TextContext, Widgets};
+use crate::ui::{Event, Sense, TaskQueue, TextContext, Widgets};
 use crate::{
     KeyEvent,
     core::{Key, Rect},
     platform::WindowEvent,
     ui::{WidgetMut, layout::RecomputeLayout, task_queue::Task},
 };
-use crate::{MouseButton, MouseEvent};
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
@@ -31,20 +32,31 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             invalidate_window(&app_state.widgets, window_id);
         }
         WindowEvent::Mouse(mouse_event) => {
-            handle_mouse_event(app_state, window_id, mouse_event);
+            handle_mouse_event(
+                &mut app_state.widgets,
+                &mut app_state.widget_handlers.event_handlers,
+                &mut app_state.reactive_graph,
+                &mut app_state.task_queue,
+                window_id,
+                mouse_event,
+            );
         }
         WindowEvent::Key(key_event) => {
             handle_key_event(app_state, window_id, key_event);
         }
         WindowEvent::Focused => {}
         WindowEvent::Unfocused => {
-            set_focus_widget(app_state, window_id, None);
+            app_state
+                .widgets
+                .set_focus_widget(&mut app_state.reactive_graph, window_id, None);
         }
         WindowEvent::Animation(animation_frame) => {
             drive_animations(app_state, animation_frame);
         }
         WindowEvent::MouseCaptureEnded => {
-            set_hovered_widget(app_state, None);
+            app_state
+                .widgets
+                .set_focus_widget(&mut app_state.reactive_graph, window_id, None);
         }
         WindowEvent::ThemeChanged(theme) => {
             //let signal = app_state.theme_signal;
@@ -61,78 +73,111 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
                     .hovered_widget
                     .is_some_and(|id| app_state.widgets.window_for_widget(id).id == window_id)
             {
-                set_hovered_widget(app_state, None);
+                app_state
+                    .widgets
+                    .set_hovered_widget(&mut app_state.reactive_graph, None);
             }
         }
     };
+    app_state.run_effects();
 }
 
 pub fn handle_mouse_event(
-    app_state: &mut AppState,
+    widgets: &mut Widgets,
+    event_handlers: &mut Interactions,
+    reactive_graph: &mut ReactiveGraph,
+    task_queue: &mut TaskQueue,
     window_id: WindowId,
     mouse_event: OSMouseEvent,
 ) {
-    let widgets_under_mouse = app_state
-        .widgets
-        .get_widgets_at(window_id, mouse_event.position());
+    let widgets_under_mouse = widgets.get_widgets_at(window_id, mouse_event.position());
 
     if let OSMouseEvent::Down(_) = mouse_event {
         let new_focus_view = widgets_under_mouse
             .iter()
             .copied()
             .rev()
-            .find(|id| app_state.widgets.is_focusable(*id));
+            .find(|id| event_handlers.has_sense(*id, Sense::FOCUSABLE));
 
-        set_focus_widget(app_state, window_id, new_focus_view);
+        widgets.set_focus_widget(reactive_graph, window_id, new_focus_view);
     };
 
-    if let Some(gesture) = app_state.widgets.gesture {
-        let capabilities = app_state.widgets.tree[gesture.target].capabilities;
+    if let Some(gesture) = widgets.gesture {
+        let senses = event_handlers.senses(gesture.target);
         match mouse_event {
             OSMouseEvent::Down(ev) => {
-                dispatch_mouse_event(app_state, gesture.target, MouseEvent::Down(ev));
+                dispatch_event(
+                    event_handlers,
+                    widgets,
+                    reactive_graph,
+                    task_queue,
+                    gesture.target,
+                    &Event::MouseDown(ev),
+                );
             }
             OSMouseEvent::Up(ev) => {
                 if ev.button == MouseButton::LEFT {
                     match gesture.state {
-                        GestureState::Pressed if capabilities.contains(Capabilities::CLICKABLE) => {
-                            dispatch_mouse_event(
-                                app_state,
+                        GestureState::Pressed if senses.contains(Sense::CLICKABLE) => {
+                            dispatch_event(
+                                event_handlers,
+                                widgets,
+                                reactive_graph,
+                                task_queue,
                                 gesture.target,
-                                MouseEvent::Click(MouseClick {
+                                &Event::Click(MouseClick {
                                     position: ev.position,
                                     modifiers: ev.modifiers,
                                 }),
                             );
                         }
-                        GestureState::Dragging
-                            if capabilities.contains(Capabilities::DRAGGABLE) =>
-                        {
-                            dispatch_mouse_event(app_state, gesture.target, MouseEvent::DragEnded);
+                        GestureState::Dragging if senses.contains(Sense::DRAGGABLE) => {
+                            dispatch_event(
+                                event_handlers,
+                                widgets,
+                                reactive_graph,
+                                task_queue,
+                                gesture.target,
+                                &Event::Drag(MouseDrag::Ended {
+                                    position: ev.position,
+                                    modifiers: ev.modifiers,
+                                }),
+                            );
                         }
                         _ => {}
                     }
-                    app_state.widgets.gesture = None;
+                    widgets.gesture = None;
                 }
             }
             OSMouseEvent::Move(ev) => {
                 let mut new_gesture = gesture;
 
-                if new_gesture.state == GestureState::Pressed
-                    && capabilities.contains(Capabilities::DRAGGABLE)
-                {
+                if new_gesture.state == GestureState::Pressed && senses.contains(Sense::DRAGGABLE) {
                     if (ev.position - new_gesture.start).length_sq() > 4.0 {
                         new_gesture.state = GestureState::Dragging;
-                        dispatch_mouse_event(app_state, gesture.target, MouseEvent::DragStarted)
+                        dispatch_event(
+                            event_handlers,
+                            widgets,
+                            reactive_graph,
+                            task_queue,
+                            gesture.target,
+                            &Event::Drag(MouseDrag::Ended {
+                                position: ev.position,
+                                modifiers: ev.modifiers,
+                            }),
+                        );
                     }
                 }
 
                 if new_gesture.state == GestureState::Dragging {
                     let delta = ev.position - new_gesture.last;
-                    dispatch_mouse_event(
-                        app_state,
+                    dispatch_event(
+                        event_handlers,
+                        widgets,
+                        reactive_graph,
+                        task_queue,
                         gesture.target,
-                        MouseEvent::DragMoved(MouseDragEvent {
+                        &Event::Drag(MouseDrag::Moved {
                             position: ev.position,
                             modifiers: ev.modifiers,
                             delta,
@@ -141,33 +186,55 @@ pub fn handle_mouse_event(
                     new_gesture.last = ev.position;
                 }
 
-                app_state.widgets.gesture = Some(new_gesture);
+                widgets.gesture = Some(new_gesture);
             }
-            OSMouseEvent::Wheel(mouse_wheel_event) => dispatch_mouse_event(
-                app_state,
-                gesture.target,
-                MouseEvent::Wheel(mouse_wheel_event),
-            ),
+            OSMouseEvent::Wheel(mouse_wheel_event) => {
+                dispatch_event(
+                    event_handlers,
+                    widgets,
+                    reactive_graph,
+                    task_queue,
+                    gesture.target,
+                    &Event::Wheel(mouse_wheel_event),
+                );
+            }
         }
     } else {
         for id in widgets_under_mouse.iter().copied().rev() {
-            let capabilities = app_state.widgets.tree[id].capabilities;
+            let capabilities = event_handlers.senses(id);
             match mouse_event {
                 OSMouseEvent::Down(ev) => {
-                    if capabilities.contains(Capabilities::CLICKABLE)
-                        || capabilities.contains(Capabilities::DRAGGABLE)
+                    if capabilities.contains(Sense::CLICKABLE)
+                        || capabilities.contains(Sense::DRAGGABLE)
                     {
-                        dispatch_mouse_event(app_state, id, MouseEvent::Down(ev));
+                        dispatch_event(
+                            event_handlers,
+                            widgets,
+                            reactive_graph,
+                            task_queue,
+                            id,
+                            &Event::MouseDown(ev),
+                        );
 
                         if ev.button == MouseButton::LEFT {
-                            if capabilities.contains(Capabilities::CLICKABLE) {
-                                app_state.widgets.gesture =
+                            if capabilities.contains(Sense::CLICKABLE) {
+                                widgets.gesture =
                                     Some(Gesture::new(id, ev.position, GestureState::Pressed));
                             } else {
                                 // DRAGGABLE. In this case, emit a DragStart immediately
-                                app_state.widgets.gesture =
+                                widgets.gesture =
                                     Some(Gesture::new(id, ev.position, GestureState::Dragging));
-                                dispatch_mouse_event(app_state, id, MouseEvent::DragStarted);
+                                dispatch_event(
+                                    event_handlers,
+                                    widgets,
+                                    reactive_graph,
+                                    task_queue,
+                                    id,
+                                    &Event::Drag(MouseDrag::Started {
+                                        position: ev.position,
+                                        modifiers: ev.modifiers,
+                                    }),
+                                );
                             }
                         }
 
@@ -175,27 +242,45 @@ pub fn handle_mouse_event(
                     }
                 }
                 OSMouseEvent::Up(mouse_up_event) => {
-                    if capabilities.contains(Capabilities::CLICKABLE)
-                        || capabilities.contains(Capabilities::DRAGGABLE)
+                    if capabilities.contains(Sense::CLICKABLE)
+                        || capabilities.contains(Sense::DRAGGABLE)
                     {
-                        dispatch_mouse_event(app_state, id, MouseEvent::Up(mouse_up_event));
+                        dispatch_event(
+                            event_handlers,
+                            widgets,
+                            reactive_graph,
+                            task_queue,
+                            id,
+                            &Event::MouseUp(mouse_up_event),
+                        );
                         break;
                     }
                 }
                 OSMouseEvent::Move(ev) => {
-                    dispatch_mouse_event(app_state, id, MouseEvent::Moved(ev));
+                    dispatch_event(
+                        event_handlers,
+                        widgets,
+                        reactive_graph,
+                        task_queue,
+                        id,
+                        &Event::MouseMove(ev),
+                    );
                     break;
                 }
                 OSMouseEvent::Wheel(ev) => {
-                    dispatch_mouse_event(app_state, id, MouseEvent::Wheel(ev));
+                    dispatch_event(
+                        event_handlers,
+                        widgets,
+                        reactive_graph,
+                        task_queue,
+                        id,
+                        &Event::Wheel(ev),
+                    );
                     break;
                 }
             }
         }
     }
-
-    app_state.run_effects();
-    //set_mouse_gesture(app_state, new_gesture);
 }
 
 pub fn handle_key_event(app_state: &mut AppState, window_id: WindowId, key_event: KeyEvent) {
@@ -208,7 +293,7 @@ pub fn handle_key_event(app_state: &mut AppState, window_id: WindowId, key_event
     // We start from the current focus widget, and work our way down until either
     // the event is handled, or we have reached a parentless widget
     while !slotmap::Key::is_null(&key_widget) && event_status != EventResult::Stop {
-        event_status = app_state.event_handlers.dispatch(
+        event_status = app_state.widget_handlers.event_handlers.dispatch(
             &mut EventContext {
                 id: key_widget,
                 widgets: &mut app_state.widgets,
@@ -226,41 +311,12 @@ pub fn handle_key_event(app_state: &mut AppState, window_id: WindowId, key_event
         && let KeyEvent::KeyDown { key, modifiers, .. } = key_event
     {
         match key {
-            Key::Escape if modifiers.is_empty() => set_hovered_widget(app_state, None),
+            Key::Escape if modifiers.is_empty() => app_state
+                .widgets
+                .set_hovered_widget(&mut app_state.reactive_graph, None),
             _ => {}
         }
     }
-}
-
-pub fn set_focus_widget(
-    app_state: &mut AppState,
-    window_id: WindowId,
-    new_focus_widget: Option<WidgetId>,
-) {
-    if new_focus_widget != app_state.widgets.focus_widget_id(window_id) {
-        println!(
-            "Focus change {:?}, {:?}",
-            app_state.widgets.focus_widget_id(window_id),
-            new_focus_widget
-        );
-
-        if let Some(old_focus_widget) = app_state.focus_widget(window_id) {
-            dispatch_focus_change(app_state, old_focus_widget.id(), false);
-        }
-
-        app_state.widgets.window_mut(window_id).focus_widget = new_focus_widget;
-
-        if let Some(focus_gained_widget) = new_focus_widget {
-            dispatch_focus_change(app_state, focus_gained_widget, true);
-        }
-    }
-}
-
-fn dispatch_focus_change(app_state: &mut AppState, widget_id: WidgetId, has_focus: bool) {
-    app_state
-        .write_context()
-        .notify_widget_status_changed(widget_id, WidgetStatus::FOCUSED.mask);
-    app_state.run_effects();
 }
 
 /*pub fn clear_focus_and_mouse_capture(app_state: &mut AppState, widget_id: WidgetId) {
@@ -271,39 +327,24 @@ fn dispatch_focus_change(app_state: &mut AppState, widget_id: WidgetId, has_focu
     let window_id = app_state.get_window_id_for_widget(widget_id);
 }*/
 
-pub fn set_hovered_widget(app_state: &mut AppState, new_widget: Option<WidgetId>) {
-    if new_widget != app_state.widgets.hovered_widget {
-        let old_capture_widget =
-            std::mem::replace(&mut app_state.widgets.hovered_widget, new_widget);
-
-        if let Some(old_mouse_capture_widget) = old_capture_widget {
-            dispatch_hovered_changed(app_state, old_mouse_capture_widget);
-        }
-
-        if let Some(new_capture_widget) = new_widget {
-            dispatch_hovered_changed(app_state, new_capture_widget);
-        }
-    }
-}
-
-fn dispatch_hovered_changed(app_state: &mut AppState, widget_id: WidgetId) {
-    app_state
-        .write_context()
-        .notify_widget_status_changed(widget_id, WidgetStatus::HOVERED.mask);
-    app_state.run_effects();
-}
-
-fn dispatch_mouse_event(app_state: &mut AppState, widget_id: WidgetId, event: MouseEvent) {
-    /*app_state.event_handlers.dispatch(
+fn dispatch_event(
+    event_handlers: &mut Interactions,
+    widgets: &mut Widgets,
+    reactive_graph: &mut ReactiveGraph,
+    task_queue: &mut TaskQueue,
+    widget_id: WidgetId,
+    event: &Event,
+) -> EventResult {
+    event_handlers.dispatch(
         &mut EventContext {
             id: widget_id,
-            widgets: &mut app_state.widgets,
-            reactive_graph: &mut app_state.reactive_graph,
-            task_queue: &mut app_state.task_queue,
-            host_handle: app_state.host_handle.as_deref(),
+            widgets,
+            reactive_graph,
+            task_queue,
         },
         widget_id,
-    );*/
+        event,
+    )
 }
 
 pub struct EventContext<'a> {
@@ -395,7 +436,6 @@ impl<'s> CanWrite<'s> for EventContext<'s> {
         WriteContext {
             widgets: self.widgets,
             reactive_graph: self.reactive_graph,
-            task_queue: self.task_queue,
         }
     }
 }

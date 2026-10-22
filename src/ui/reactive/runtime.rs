@@ -3,7 +3,6 @@ use super::{
     animation::{AnimationState, DerivedAnimationState},
     cached::CachedState,
     effect::EffectState,
-    event_channel::EventHandlerState,
     var::SignalState,
 };
 use crate::{
@@ -11,8 +10,8 @@ use crate::{
     param::{AnyParameterMap, ParamRef, ParameterId},
     ui::{
         HostHandle, WidgetId, Widgets,
-        reactive::view_status::WidgetStatusFlags,
-        task_queue::{Task, TaskQueue},
+        reactive::{EffectContext, view_status::WidgetStatusFlags},
+        widgets::WidgetHandlers,
     },
 };
 use slotmap::{Key, SecondaryMap, SlotMap};
@@ -59,8 +58,8 @@ pub(crate) enum Source {
 pub enum ReadScope {
     Untracked,
     Node(NodeId),
+    SyncWidget(WidgetId),
     Render(WidgetId),
-    Layout(WidgetId),
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
@@ -71,6 +70,12 @@ pub(super) enum NodeState {
     Check = 1,
     /// Reactive value is invalid, parents have changed, value needs to be recomputed
     Dirty = 2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WidgetPhase {
+    SyncWidget,
+    Render,
 }
 
 pub(crate) enum NodeType {
@@ -86,7 +91,10 @@ pub(crate) enum NodeType {
     DerivedAnimation(DerivedAnimationState),
     // Effects (reactions)
     Effect(EffectState),
-    EventHandler(EventHandlerState),
+    InvalidateWidget {
+        widget_id: WidgetId,
+        phase: WidgetPhase,
+    },
 }
 
 impl NodeType {
@@ -106,9 +114,7 @@ impl NodeType {
             NodeType::Animation(state) => state.inner.value_dyn(),
             NodeType::DerivedAnimation(state) => state.inner.value_dyn(),
             NodeType::EventEmitter => panic!("Cannot get value of eventemitter"),
-            NodeType::EventHandler(_) => {
-                panic!("Cannot get value of EventHandler")
-            }
+            NodeType::InvalidateWidget { .. } => panic!("Cannot get value of WidgetSink"),
         }
     }
 }
@@ -132,15 +138,22 @@ impl DerefMut for LeasedNode {
 struct WidgetNode {
     observers: SmallVec<[(NodeId, WidgetStatusFlags); 4]>,
     first_owned_node_id: NodeId,
+    sync_widget_node_id: Option<NodeId>,
+    request_render_node_id: Option<NodeId>,
 }
 
 pub struct ReactiveGraph {
+    /// State of all reactive nodes in the graph, e.g. Cached, Var, Animations etc.
     pub(super) nodes: SlotMap<NodeId, Node>,
     pub(crate) parameters: Rc<dyn AnyParameterMap>,
+    /// Node sources, the upstream nodes that each node depend on
     sources: SecondaryMap<NodeId, SmallVec<[Source; 4]>>,
     node_observers: SecondaryMap<NodeId, SmallVec<[NodeId; 4]>>,
     parameter_observers: FxHashMap<ParameterId, SmallVec<[NodeId; 4]>>,
+    /// Data needed by the reactive graph for all widgets
     widgets: SecondaryMap<WidgetId, WidgetNode>,
+    dirty_widgets: FxHashSet<(WidgetId, WidgetPhase)>,
+    pub(super) effects_to_check: FxIndexSet<NodeId>,
     node_id_buffer: VecDeque<NodeId>,
     pub(super) pending_animations: FxIndexSet<NodeId>,
     pub(super) host_handle: Option<Box<dyn HostHandle>>,
@@ -163,6 +176,8 @@ impl ReactiveGraph {
             node_id_buffer: Default::default(),
             pending_animations: Default::default(),
             host_handle: None,
+            dirty_widgets: Default::default(),
+            effects_to_check: Default::default(),
         }
     }
 
@@ -263,28 +278,24 @@ impl ReactiveGraph {
         self.nodes.contains_key(node_id)
     }
 
-    pub fn drive_animations(&mut self, widgets: &mut Widgets, task_queue: &mut TaskQueue) {
+    pub fn drive_animations(&mut self) {
         let node_ids = std::mem::take(&mut self.pending_animations);
         let now = Instant::now();
         for node_id in node_ids {
-            let did_change = self.try_drive_animation(node_id, now);
+            let mut did_change = false;
+            if let Some(node) = self.nodes.get_mut(node_id) {
+                did_change = match &mut node.node_type {
+                    NodeType::Animation(animation) => animation.inner.drive(now),
+                    NodeType::DerivedAnimation(animation) => animation.inner.drive(now),
+                    _ => unreachable!(),
+                }
+            };
+
             if did_change {
-                self.notify(widgets, task_queue, node_id);
+                self.notify(node_id);
                 // Re-queue the animation for the next frame
                 self.pending_animations.insert(node_id);
             }
-        }
-    }
-
-    fn try_drive_animation(&mut self, node_id: NodeId, now: Instant) -> bool {
-        if let Some(node) = self.nodes.get_mut(node_id) {
-            match &mut node.node_type {
-                NodeType::Animation(animation) => animation.inner.drive(now),
-                NodeType::DerivedAnimation(animation) => animation.inner.drive(now),
-                _ => unreachable!(),
-            }
-        } else {
-            false
         }
     }
 
@@ -315,65 +326,27 @@ impl ReactiveGraph {
         self.nodes[node_id].state = NodeState::Clean;
     }
 
-    pub(crate) fn notify(
-        &mut self,
-        widgets: &Widgets,
-        task_queue: &mut TaskQueue,
-        node_id: NodeId,
-    ) {
-        let mut observers = std::mem::take(&mut self.node_id_buffer);
-        observers.clear();
-        observers.extend(self.node_observers[node_id].iter());
-        self.notify_source_changed(widgets, task_queue, observers);
-    }
-
-    fn notify_source_changed(
-        &mut self,
-        widgets: &Widgets,
-        task_queue: &mut TaskQueue,
-        mut nodes_to_notify: VecDeque<NodeId>,
-    ) {
-        let mut effects_to_check = FxHashSet::default();
-
-        {
-            let direct_child_count = nodes_to_notify.len();
-            let mut i = 0;
-            while let Some(node_id) = nodes_to_notify.pop_front() {
-                // Mark direct nodes as Dirty and grand-children as Check
-                let new_state = if i < direct_child_count {
-                    NodeState::Dirty
-                } else {
-                    NodeState::Check
-                };
-                let node = self.get_node_mut(node_id);
-                if node.state < new_state {
-                    node.state = new_state;
-                    match &node.node_type {
-                        NodeType::Effect(_) | NodeType::DerivedAnimation(_) => {
-                            effects_to_check.insert(node_id);
-                        }
-                        _ => {}
-                    }
-                    nodes_to_notify.extend(self.node_observers[node_id].iter());
-                }
-                i += 1;
-            }
-        }
-
-        // Swap back the scratch buffer. Saves us from having to reallocate
-        std::mem::swap(&mut self.node_id_buffer, &mut nodes_to_notify);
-
+    /// Run all enqueued effects, returns true if any effect executed
+    pub fn run_effects(&mut self, widgets: &mut Widgets, handlers: &mut WidgetHandlers) -> bool {
+        let effects_to_check = std::mem::take(&mut self.effects_to_check);
+        let effects_was_empty = effects_to_check.is_empty();
         for node_id in effects_to_check {
             if self.update_sources_if_necessary(widgets, node_id) == NodeState::Dirty {
                 let mut node_type = self.lease_node(node_id).unwrap();
                 match node_type.deref_mut() {
                     NodeType::Effect(state) => {
-                        if state.has_dynamic_sources() {
+                        if state.dynamic_sources {
                             // Clear the sources, they will be re-populated while running the effect function
                             self.clear_node_sources(node_id);
                         }
-                        let task = Task::RunEffect { id: node_id };
-                        task_queue.push(task);
+
+                        (state.f)(&mut EffectContext {
+                            effect_id: node_id,
+                            widgets,
+                            track_reads: state.dynamic_sources,
+                            reactive_graph: self,
+                            handlers,
+                        });
                     }
                     NodeType::DerivedAnimation(anim) => {
                         // Clear the sources, they will be re-populated while running the reset function
@@ -385,8 +358,14 @@ impl ReactiveGraph {
                     _ => unreachable!(),
                 }
                 self.unlease_node(node_type);
+                self.mark_node_as_clean(node_id);
             }
         }
+        !effects_was_empty
+    }
+
+    pub fn take_invalidated_widgets(&mut self) -> FxHashSet<(WidgetId, WidgetPhase)> {
+        std::mem::take(&mut self.dirty_widgets)
     }
 
     /// Given a node (effect, binding, derived animation, or cached value), check if any of its sources have changed.
@@ -400,12 +379,15 @@ impl ReactiveGraph {
         if state == NodeState::Check {
             for source_id in self.sources[node_id].clone() {
                 if let Source::Node(source_id) = source_id {
+                    // Update the source value, if the value changed, this node will be marked as dirty
                     self.update_value_if_necessary(widgets, source_id);
                     if self.get_node(node_id).state == NodeState::Dirty {
                         return NodeState::Dirty;
                     }
                 }
             }
+            // No source marked this as dirty, so we must be clean
+            self.get_node_mut(node_id).state = NodeState::Clean;
         }
 
         self.get_node(node_id).state
@@ -439,22 +421,53 @@ impl ReactiveGraph {
         self.get_node_mut(node_id).state = NodeState::Clean;
     }
 
-    pub(crate) fn notify_parameter_subscribers(
-        &mut self,
-        widgets: &Widgets,
-        task_queue: &mut TaskQueue,
-        source_id: ParameterId,
-    ) {
+    pub(crate) fn notify(&mut self, node_id: NodeId) {
+        let mut observers = std::mem::take(&mut self.node_id_buffer);
+        observers.clear();
+        observers.extend(self.node_observers[node_id].iter());
+        self.notify_source_changed(observers);
+    }
+
+    fn notify_source_changed(&mut self, mut nodes_to_notify: VecDeque<NodeId>) {
+        let direct_child_count = nodes_to_notify.len();
+        let mut i = 0;
+        while let Some(node_id) = nodes_to_notify.pop_front() {
+            // Mark direct nodes as Dirty and grand-children as Check
+            let new_state = if i < direct_child_count {
+                NodeState::Dirty
+            } else {
+                NodeState::Check
+            };
+            let node = self.get_node_mut(node_id);
+            if node.state < new_state {
+                node.state = new_state;
+                match &node.node_type {
+                    NodeType::Effect(_) | NodeType::DerivedAnimation(_) => {
+                        self.effects_to_check.insert(node_id);
+                    }
+                    &NodeType::InvalidateWidget { widget_id, phase } => {
+                        self.dirty_widgets.insert((widget_id, phase));
+                    }
+                    _ => {}
+                }
+                nodes_to_notify.extend(self.node_observers[node_id].iter());
+            }
+            i += 1;
+        }
+
+        // Swap back the scratch buffer. Saves us from having to reallocate
+        std::mem::swap(&mut self.node_id_buffer, &mut nodes_to_notify);
+    }
+
+    pub(crate) fn notify_parameter_subscribers(&mut self, source_id: ParameterId) {
         let mut nodes_to_notify = std::mem::take(&mut self.node_id_buffer);
         nodes_to_notify.clear();
         nodes_to_notify.extend(self.parameter_observers.get_mut(&source_id).unwrap().iter());
-        self.notify_source_changed(widgets, task_queue, nodes_to_notify);
+        self.notify_source_changed(nodes_to_notify);
     }
 
     pub(crate) fn notify_widget_status_changed(
         &mut self,
-        widgets: &Widgets,
-        task_queue: &mut TaskQueue,
         widget_id: WidgetId,
         change_mask: WidgetStatusFlags,
     ) {
@@ -467,7 +480,7 @@ impl ReactiveGraph {
                     .iter()
                     .filter_map(|(node_id, mask)| mask.contains(change_mask).then_some(node_id)),
             );
-            self.notify_source_changed(widgets, task_queue, nodes_to_notify);
+            self.notify_source_changed(nodes_to_notify);
         }
     }
 
@@ -563,6 +576,33 @@ impl ReactiveGraph {
                 Owner::Node(node_id) => owner = self.nodes[node_id].owner,
             }
         }
+    }
+
+    pub fn widget_invalidation_node_id(
+        &mut self,
+        widget_id: WidgetId,
+        phase: WidgetPhase,
+    ) -> NodeId {
+        let widget = self.widgets.entry(widget_id).unwrap().or_default();
+        let existing_node_id = match phase {
+            WidgetPhase::SyncWidget => widget.sync_widget_node_id,
+            WidgetPhase::Render => widget.request_render_node_id,
+        };
+        if let Some(node_id) = existing_node_id {
+            return node_id;
+        }
+
+        let node_id = self.create_node(
+            NodeType::InvalidateWidget { widget_id, phase },
+            NodeState::Check,
+            Owner::Widget(widget_id),
+        );
+        match phase {
+            WidgetPhase::SyncWidget => self.widgets[widget_id].sync_widget_node_id = Some(node_id),
+            WidgetPhase::Render => self.widgets[widget_id].request_render_node_id = Some(node_id),
+        };
+
+        node_id
     }
 
     pub fn owner_widget(&self, node_id: NodeId) -> Option<WidgetId> {

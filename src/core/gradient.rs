@@ -19,7 +19,7 @@ impl Hash for ColorStop {
 
 impl Eq for ColorStop {}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ColorMap {
     pub stops: Vec<ColorStop>,
 }

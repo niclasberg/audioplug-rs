@@ -14,7 +14,7 @@ mod textbox;
 mod util;
 mod xy_pad;
 
-pub use button::{Button, LabelButton};
+pub use button::LabelButton;
 pub use canvas::Canvas;
 pub use checkbox::Checkbox;
 pub use container::{Column, Container, Grid, Row};

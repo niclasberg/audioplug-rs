@@ -4,7 +4,7 @@ use audioplug::{
     KeyEvent,
     core::{Color, Key},
     ui::{
-        App, EventContext, StyleExt, Window,
+        App, EventContext, StyleExt, TextExt, Window,
         prelude::*,
         reactive::CreateContext,
         style::{Edges, Length},
@@ -42,7 +42,7 @@ fn main() {
             Container::new(Column::new((
                 Label::new("TODO app"),
                 TextBox::new(move |cx, value| text_input.set(cx, value.to_string()))
-                    .value(text_input)
+                    .text(text_input)
                     .on_key_event(move |cx, event| {
                         if let KeyEvent::KeyDown {
                             key: Key::Enter, ..

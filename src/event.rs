@@ -9,19 +9,6 @@ pub enum MouseButton {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum MouseEvent {
-    Down(MouseDown),
-    Up(MouseUp),
-    Click(MouseClick),
-    Moved(MouseMove),
-    DragStarted,
-    DragMoved(MouseDragEvent),
-    DragEnded,
-    DragCancelled,
-    Wheel(MouseWheelEvent),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MouseDrag {
     Started {
         position: Point,

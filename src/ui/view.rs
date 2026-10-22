@@ -1,16 +1,17 @@
 use super::{
-    AppState, ViewSequence, WidgetId, WidgetPos,
+    ViewSequence, WidgetId, WidgetPos,
     overlay::OverlayOptions,
     reactive::{CanCreate, CanRead, Owner, ReadScope},
 };
 use crate::{
-    core::Size,
+    core::{Axis, Size},
     ui::{
-        Capabilities, Prop, ViewEventHandlers, ViewStyle, ViewText, WidgetData,
-        event_handler::WidgetHandler,
-        reactive::{CreateContext, EffectContext, ReactiveValue, ReadContext},
-        style::{DisplayStyle, Style},
-        text::{TextContext, TextData},
+        ButtonInteraction, EventContext, EventHandlers, KnobInteraction, RenderContext, WidgetData,
+        WidgetProps, Widgets,
+        interaction::{Interaction, KnobEvent, SliderEvent, SliderInteraction},
+        reactive::{CreateContext, ReactiveGraph, ReadContext},
+        style::DisplayStyle,
+        widgets::WidgetHandlers,
     },
 };
 
@@ -23,7 +24,7 @@ pub trait View: 'static {
     where
         Self: Sized + 'static,
     {
-        Box::new(move |ctx| ctx.build_inner(self))
+        Box::new(move |ctx| self.build(ctx))
     }
 }
 
@@ -38,33 +39,19 @@ impl View for AnyView {
 }
 
 pub struct BuildContext<'a> {
-    id: WidgetId,
-    pub(crate) app_state: &'a mut AppState,
+    pub(crate) id: WidgetId,
+    pub(crate) widgets: &'a mut Widgets,
+    pub(crate) handlers: &'a mut WidgetHandlers,
+    pub(crate) reactive_graph: &'a mut ReactiveGraph,
 }
 
 impl<'a> BuildContext<'a> {
-    pub fn new(id: WidgetId, app_state: &'a mut AppState) -> Self {
-        Self { id, app_state }
-    }
-
     pub fn id(&self) -> WidgetId {
         self.id
     }
 
     fn widget_data_mut(&mut self) -> &mut WidgetData {
-        &mut self.app_state.widgets.tree[self.id]
-    }
-
-    pub fn bind<T: 'static>(
-        &mut self,
-        prop: Prop<T>,
-        mut f: impl FnMut(&mut EffectContext, WidgetId, &T) + 'static,
-    ) -> &mut Self {
-        let id = self.id;
-        prop.watch(self, move |cx, value| {
-            f(cx, id, value);
-        });
-        self
+        &mut self.widgets.tree[self.id]
     }
 
     pub fn set_display_style(&mut self, display_style: DisplayStyle) {
@@ -77,173 +64,71 @@ impl<'a> BuildContext<'a> {
     }
 
     pub fn add_child(&mut self, view: impl View) -> WidgetId {
-        self.app_state
-            .add_widget(view, WidgetPos::LastChild(self.id))
+        self.widgets.add_widget(
+            self.handlers,
+            self.reactive_graph,
+            WidgetPos::LastChild(self.id),
+            view,
+        )
     }
 
     pub fn add_children(&mut self, view_sequence: impl ViewSequence) {
         view_sequence.build_seq(&mut BuildContext {
             id: self.id,
-            app_state: self.app_state,
+            widgets: self.widgets,
+            handlers: self.handlers,
+            reactive_graph: self.reactive_graph,
         });
     }
 
     pub fn add_overlay(&mut self, view: impl View, options: OverlayOptions) -> WidgetId {
-        self.app_state
-            .add_widget(view, WidgetPos::Overlay(self.id, options))
-    }
-
-    pub fn style(&mut self, style: ViewStyle) -> &mut Self {
-        fn _inner(cx: &mut BuildContext, style: ViewStyle) {
-            apply_layout_style(style.aspect_ratio, cx, |value, style| {
-                style.aspect_ratio = Some(value);
-            });
-            apply_render_style(style.background, cx, |value, style| {
-                style.background = Some(value);
-            });
-            apply_layout_style(style.border, cx, |value, style| {
-                style.border = Some(value);
-            });
-            apply_layout_style(style.corner_radius, cx, |value, style| {
-                style.corner_radius = value;
-            });
-            apply_layout_style(style.height, cx, |value, style| {
-                style.height = value;
-            });
-            apply_layout_style(style.hidden, cx, |value, style| {
-                style.hidden = value;
-            });
-            apply_layout_style(style.min_height, cx, |value, style| {
-                style.min_height = value;
-            });
-            apply_layout_style(style.min_width, cx, |value, style| {
-                style.min_width = value;
-            });
-            apply_layout_style(style.max_height, cx, |value, style| {
-                style.max_height = value;
-            });
-            apply_layout_style(style.max_width, cx, |value, style| {
-                style.max_width = value;
-            });
-            apply_layout_style(style.padding, cx, |value, style| {
-                style.padding = value;
-            });
-            apply_layout_style(style.width, cx, |value, style| {
-                style.width = value;
-            });
-            apply_layout_style(style.align_self, cx, |value, style| {
-                style.align_self = Some(value);
-            });
-            apply_layout_style(style.flex_grow, cx, |value, style| style.flex_grow = value);
-            apply_layout_style(style.flex_shrink, cx, |value, style| {
-                style.flex_shrink = value
-            });
-            apply_render_style(style.box_shadow, cx, |value, style| {
-                style.box_shadow = Some(value);
-            });
-            apply_render_style(style.cursor, cx, |value, style| {
-                style.cursor = Some(value);
-            });
-        }
-        let mut cx = BuildContext {
-            id: self.id,
-            app_state: self.app_state,
-        };
-        _inner(&mut cx, style);
-        self
-    }
-
-    pub fn event_handlers(&mut self, event_handlers: ViewEventHandlers) -> &mut Self {
-        for handler in event_handlers.handlers {
-            self.app_state
-                .event_handlers
-                .push_event_handler(self.id, handler);
-        }
-
-        self.app_state
-            .widgets
-            .set_capabilities(self.id, event_handlers.capabilities);
-
-        self
-    }
-
-    pub fn handler(
-        &mut self,
-        capabilities: Capabilities,
-        handler: impl WidgetHandler,
-    ) -> &mut Self {
-        self.app_state
-            .widgets
-            .set_capabilities(self.id, capabilities);
-        self.app_state
-            .event_handlers
-            .set_widget_handler(self.id, Box::new(handler));
-        self
-    }
-
-    pub fn text(&mut self, text: ViewText) -> &mut Self {
-        let mut text_data = TextData::new();
-        let value = if let Some(value) = text.text {
-            value.get_and_bind(self, |value, mut widget| {
-                widget.update_text(|t| t.set_text(value));
-                widget.request_layout();
-            })
-        } else {
-            "".to_string()
-        };
-        if let Some(font_size) = text.font_size {
-            let value = font_size.get_and_bind(self, |value, mut widget| {
-                widget.update_text(|t| t.set_font_size(value));
-                widget.request_layout();
-            });
-            text_data.set_font_size(value);
-        };
-        text_data.set_text(value);
-        self.app_state.widgets.texts.insert(self.id, text_data);
-        self
-    }
-
-    pub(crate) fn build_inner(&mut self, view: impl View) {
-        view.build(&mut BuildContext {
-            id: self.id,
-            app_state: self.app_state,
-        })
-    }
-
-    pub fn text_context(&mut self) -> TextContext<'_> {
-        TextContext::new(
-            &mut self.app_state.font_cx,
-            &mut self.app_state.text_layout_cx,
-            &mut self.app_state.glyph_cache,
+        self.widgets.add_widget(
+            self.handlers,
+            self.reactive_graph,
+            WidgetPos::Overlay(self.id, options),
+            view,
         )
     }
-}
 
-fn apply_layout_style<T: Clone + 'static>(
-    accessor: Option<Prop<T>>,
-    cx: &mut BuildContext,
-    apply_fn: fn(T, &mut Style),
-) {
-    if let Some(accessor) = accessor {
-        let value = accessor.get_and_bind(cx, move |value, mut widget| {
-            widget.update_style(|style| apply_fn(value, style));
-            widget.request_layout();
-        });
-        apply_fn(value, &mut cx.widget_data_mut().style)
+    pub fn props(&mut self, mut props: WidgetProps) -> &mut Self {
+        // The props can contain both constant and reactive values.
+        // We only need to retain the reactive values - we synchronize to those
+        // values after handling events. We still want to apply the constant values,
+        // so run apply for all props first.
+        props.apply(&mut self.reactive_graph, self.id, &mut self.widgets);
+        props.remove_const_props();
+        self.handlers.widget_props.insert(self.id, props);
+        self
     }
-}
 
-fn apply_render_style<T: Clone + 'static>(
-    accessor: Option<Prop<T>>,
-    cx: &mut BuildContext,
-    apply_fn: fn(T, &mut Style),
-) {
-    if let Some(accessor) = accessor {
-        let value = accessor.get_and_bind(cx, move |value, mut widget| {
-            widget.update_style(|style| apply_fn(value, style));
-            widget.request_render();
-        });
-        apply_fn(value, &mut cx.widget_data_mut().style)
+    pub fn interaction(&mut self, kind: Interaction) -> &mut Self {
+        self.handlers.event_handlers.insert(self.id, kind);
+        self
+    }
+
+    pub fn event_handlers(&mut self, event_handlers: EventHandlers) -> &mut Self {
+        self.interaction(Interaction::Events(event_handlers))
+    }
+
+    pub fn button(&mut self, f: impl FnMut(&mut EventContext) + 'static) -> &mut Self {
+        self.interaction(Interaction::Button(ButtonInteraction::new(f)))
+    }
+
+    pub fn knob(&mut self, f: impl FnMut(&mut EventContext, KnobEvent) + 'static) -> &mut Self {
+        self.interaction(Interaction::Knob(KnobInteraction::new(f)))
+    }
+
+    pub fn slider(
+        &mut self,
+        f: impl FnMut(&mut EventContext, SliderEvent) + 'static,
+        direction: Axis,
+    ) -> &mut Self {
+        self.interaction(Interaction::Slider(SliderInteraction::new(f, direction)))
+    }
+
+    pub fn render(&mut self, f: impl FnMut(&mut RenderContext) + 'static) -> &mut Self {
+        self.handlers.renderers.insert(self.id, Box::new(f));
+        self
     }
 }
 
@@ -252,8 +137,12 @@ impl<'a> CanRead<'a> for BuildContext<'a> {
     where
         'a: 's2,
     {
-        self.app_state
-            .read_context(ReadScope::Untracked, Some(self.id))
+        ReadContext {
+            widgets: self.widgets,
+            reactive_graph: self.reactive_graph,
+            scope: ReadScope::Untracked,
+            current_widget: Some(self.id),
+        }
     }
 }
 
@@ -262,6 +151,10 @@ impl<'s> CanCreate<'s> for BuildContext<'s> {
     where
         's: 's2,
     {
-        self.app_state.create_context(Owner::Widget(self.id))
+        CreateContext {
+            widgets: self.widgets,
+            reactive_graph: self.reactive_graph,
+            owner: Owner::Widget(self.id),
+        }
     }
 }

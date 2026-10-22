@@ -1,6 +1,6 @@
 use crate::ui::{
-    BuildContext, EventHandlerExt, Prop, StyleExt, View, ViewEventHandlers, ViewSequence,
-    ViewStyle,
+    BuildContext, EventHandlerExt, EventHandlers, Prop, StyleExt, View, ViewExt, ViewSequence,
+    WidgetProps,
     reactive::{Cached, ReactiveValue},
     style::{AlignItems, DisplayStyle, FlexDirection, FlexStyle, FlexWrap, JustifyContent, Length},
 };
@@ -9,13 +9,13 @@ pub type Row<VS> = FlexContainer<VS, true>;
 pub type Column<VS> = FlexContainer<VS, false>;
 
 pub struct FlexContainer<VS, const IS_ROW: bool> {
-    base: ViewStyle,
+    props: WidgetProps,
     view_seq: VS,
     spacing: Prop<Length>,
     wrap: Prop<FlexWrap>,
     align_items: Option<Prop<AlignItems>>,
     justify_content: Option<Prop<JustifyContent>>,
-    event_handlers: ViewEventHandlers,
+    event_handlers: EventHandlers,
 }
 
 impl<VS: ViewSequence, const IS_ROW: bool> FlexContainer<VS, IS_ROW> {
@@ -26,7 +26,7 @@ impl<VS: ViewSequence, const IS_ROW: bool> FlexContainer<VS, IS_ROW> {
             wrap: Prop::Const(Default::default()),
             align_items: None,
             justify_content: None,
-            base: ViewStyle::DEFAULT,
+            props: Default::default(),
             event_handlers: Default::default(),
         }
     }
@@ -110,35 +110,44 @@ impl<VS> Column<VS> {
     }
 }
 
-impl<VS, const IS_ROW: bool> StyleExt for FlexContainer<VS, IS_ROW> {
-    fn style_mut(&mut self) -> &mut ViewStyle {
-        &mut self.base
+impl<VS, const IS_ROW: bool> ViewExt for FlexContainer<VS, IS_ROW> {
+    fn props_mut(&mut self) -> &mut WidgetProps {
+        &mut self.props
     }
 }
+impl<VS, const IS_ROW: bool> StyleExt for FlexContainer<VS, IS_ROW> {}
 
 impl<VS: ViewSequence, const IS_ROW: bool> View for FlexContainer<VS, IS_ROW> {
     fn build(self, cx: &mut BuildContext) {
-        Container {
-            base: self.base,
-            view_seq: self.view_seq,
-            display_style: Cached::new(cx, move |cx, _| {
-                DisplayStyle::Flex(FlexStyle {
-                    direction: if IS_ROW {
-                        FlexDirection::Row
-                    } else {
-                        FlexDirection::Column
-                    },
-                    wrap: self.wrap.get(cx),
-                    gap: self.spacing.get(cx),
-                    align_items: self.align_items.as_ref().map(|x| x.get(cx)),
-                    align_content: self.justify_content.as_ref().map(|x| x.get(cx)),
-                })
+        cx.props(self.props).event_handlers(self.event_handlers);
+        let display_style = Cached::new(cx, move |cx, _| {
+            DisplayStyle::Flex(FlexStyle {
+                direction: if IS_ROW {
+                    FlexDirection::Row
+                } else {
+                    FlexDirection::Column
+                },
+                wrap: self.wrap.get(cx),
+                gap: self.spacing.get(cx),
+                align_items: self.align_items.as_ref().map(|x| x.get(cx)),
+                align_content: self.justify_content.as_ref().map(|x| x.get(cx)),
             })
-            .into(),
-            event_handlers: self.event_handlers,
-        }
-        .build(cx)
+        })
+        .into();
+        build_container(cx, self.view_seq, display_style);
     }
+}
+
+fn build_container<VS: ViewSequence>(
+    cx: &mut BuildContext,
+    children: VS,
+    display_style: Prop<DisplayStyle>,
+) {
+    cx.add_children(children);
+    let display_style = display_style.get_and_bind(cx, |value, mut widget| {
+        widget.set_display_style(value);
+    });
+    cx.set_display_style(display_style);
 }
 
 pub struct Grid<VS> {
@@ -164,16 +173,16 @@ impl<VS: ViewSequence> Grid<VS> {
 pub struct GridStyleBuilder {}
 
 pub struct Container<VS> {
-    base: ViewStyle,
+    props: WidgetProps,
     view_seq: VS,
     display_style: Prop<DisplayStyle>,
-    event_handlers: ViewEventHandlers,
+    event_handlers: EventHandlers,
 }
 
 impl<VS: ViewSequence> Container<VS> {
     pub fn new(view_seq: VS) -> Self {
         Self {
-            base: ViewStyle::DEFAULT,
+            props: Default::default(),
             view_seq,
             display_style: Prop::Const(DisplayStyle::Block),
             event_handlers: Default::default(),
@@ -183,23 +192,20 @@ impl<VS: ViewSequence> Container<VS> {
 
 impl<VS: ViewSequence> View for Container<VS> {
     fn build(self, cx: &mut BuildContext) {
-        cx.add_children(self.view_seq);
-        cx.style(self.base);
-        let display_style = self.display_style.get_and_bind(cx, |value, mut widget| {
-            widget.set_display_style(value);
-        });
-        cx.set_display_style(display_style);
+        cx.props(self.props);
+        build_container(cx, self.view_seq, self.display_style);
     }
 }
 
-impl<VS> StyleExt for Container<VS> {
-    fn style_mut(&mut self) -> &mut ViewStyle {
-        &mut self.base
+impl<VS> ViewExt for Container<VS> {
+    fn props_mut(&mut self) -> &mut WidgetProps {
+        &mut self.props
     }
 }
+impl<VS> StyleExt for Container<VS> {}
 
 impl<VS> EventHandlerExt for Container<VS> {
-    fn event_handlers_mut(&mut self) -> &mut ViewEventHandlers {
+    fn event_handlers_mut(&mut self) -> &mut EventHandlers {
         &mut self.event_handlers
     }
 }

@@ -8,7 +8,7 @@ use slotmap::{Key, KeyData, SlotMap, new_key_type};
 
 use crate::{
     core::{Point, Rect, RoundedRect, Shape, Size, Zero},
-    ui::{reactive::NodeId, style::DisplayStyle},
+    ui::style::DisplayStyle,
 };
 
 use super::{WindowId, style::Style};
@@ -41,15 +41,6 @@ bitflags!(
         const UNDER_MOUSE_CURSOR = 1 << 9;
         const OVERLAY = 1 << 10;
     }
-
-    #[derive(Default, Debug, Clone, Copy)]
-    pub struct Capabilities : u32 {
-        const FOCUSABLE = 1 << 0;
-        const CLICKABLE = 1 << 2;
-        const DRAGGABLE = 1 << 3;
-        const HOVERABLE = 1 << 4;
-        const MOUSE_WHEEL = 1 << 5;
-    }
 );
 
 /// Data associated with each widget. The nodes form an intrusive tree,
@@ -68,7 +59,6 @@ pub struct WidgetData {
     pub(super) style: Style,
     pub(super) layout: taffy::Layout,
     flags: Cell<WidgetFlags>,
-    pub capabilities: Capabilities,
     pub(super) origin: Point,
     /// Controls how children are laid out
     pub display_style: DisplayStyle,
@@ -87,7 +77,6 @@ impl WidgetData {
             style: Default::default(),
             layout: Default::default(),
             flags: Cell::new(WidgetFlags::EMPTY),
-            capabilities: Capabilities::default(),
             origin: Point::ZERO,
             display_style: Default::default(),
             intrinsic_size: None,
@@ -223,21 +212,6 @@ impl WidgetData {
         self.flag_is_set(WidgetFlags::OVERLAY)
     }
 
-    #[inline(always)]
-    pub fn is_clickable(&self) -> bool {
-        self.capabilities.contains(Capabilities::CLICKABLE)
-    }
-
-    #[inline(always)]
-    pub fn is_draggable(&self) -> bool {
-        self.capabilities.contains(Capabilities::DRAGGABLE)
-    }
-
-    #[inline(always)]
-    pub fn is_hoverable(&self) -> bool {
-        self.capabilities.contains(Capabilities::HOVERABLE)
-    }
-
     pub fn shape(&self) -> Shape {
         if self.style.corner_radius == Size::ZERO {
             self.global_bounds().into()
@@ -253,6 +227,10 @@ pub struct WidgetTree {
 }
 
 impl WidgetTree {
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
     #[inline(always)]
     pub fn get(&self, id: WidgetId) -> Option<&WidgetData> {
         self.data.get(id)
@@ -691,11 +669,7 @@ impl DFSWalker<NoPruning> {
 
 impl<F: PrunePredicate> DFSWalker<F> {
     pub fn new_with_pruning(tree: &WidgetTree, root_id: WidgetId, prune_fn: F) -> Self {
-        let next_id = if prune_fn.should_include(&tree[root_id]) {
-            root_id
-        } else {
-            WidgetId::null()
-        };
+        let next_id = root_id;
         Self {
             next_id,
             root_id,

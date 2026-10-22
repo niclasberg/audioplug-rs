@@ -2,14 +2,16 @@ use std::fmt::Debug;
 
 use slotmap::Key;
 
-use super::{AppState, OverlayOptions, View, WidgetData, WidgetFlags, WidgetId, style::Style};
+use super::{OverlayOptions, View, WidgetData, WidgetFlags, WidgetId, style::Style};
 use crate::{
     core::{Rect, diff::DiffOp},
     ui::{
         WidgetPos, Widgets,
+        reactive::ReactiveGraph,
         style::{DisplayStyle, Length},
         text::TextData,
         widget_tree::SiblingWalker,
+        widgets::WidgetHandlers,
     },
 };
 
@@ -122,21 +124,33 @@ fn for_each_child_ref_impl(widgets: &Widgets, id: WidgetId, f: &mut dyn FnMut(Wi
 }
 
 pub struct WidgetMut<'a> {
-    pub(super) app_state: &'a mut AppState,
+    pub(super) widgets: &'a mut Widgets,
+    pub(super) handlers: &'a mut WidgetHandlers,
+    pub(super) reactive_graph: &'a mut ReactiveGraph,
     pub(super) id: WidgetId,
 }
 
 impl<'a> WidgetMut<'a> {
-    pub(super) fn new(app_state: &'a mut AppState, id: WidgetId) -> Self {
-        Self { app_state, id }
+    pub(super) fn new(
+        widgets: &'a mut Widgets,
+        handlers: &'a mut WidgetHandlers,
+        reactive_graph: &'a mut ReactiveGraph,
+        id: WidgetId,
+    ) -> Self {
+        Self {
+            widgets,
+            id,
+            reactive_graph,
+            handlers,
+        }
     }
 
     fn data(&self) -> &WidgetData {
-        self.app_state.widgets.tree.get(self.id).unwrap()
+        self.widgets.tree.get(self.id).unwrap()
     }
 
     fn data_mut(&mut self) -> &mut WidgetData {
-        self.app_state.widgets.tree.get_mut(self.id).unwrap()
+        self.widgets.tree.get_mut(self.id).unwrap()
     }
 
     pub fn index_of_child(&self, id: WidgetId) -> Option<usize> {
@@ -144,15 +158,13 @@ impl<'a> WidgetMut<'a> {
     }
 
     pub fn find_child(self, id: WidgetId) -> Result<WidgetMut<'a>, WidgetNotFound<'a>> {
-        // Could just find the widget by id and verify that it is a child of this widget
-        let found = self
-            .app_state
-            .widgets
-            .child_id_iter(self.id)
-            .find(|&child_id| child_id == id);
-
-        if let Some(child_id) = found {
-            Ok(WidgetMut::new(self.app_state, child_id))
+        if self.widgets.parent(id) == self.id {
+            Ok(WidgetMut {
+                widgets: self.widgets,
+                id,
+                handlers: self.handlers,
+                reactive_graph: self.reactive_graph,
+            })
         } else {
             Err(WidgetNotFound(self))
         }
@@ -160,13 +172,17 @@ impl<'a> WidgetMut<'a> {
 
     pub fn find_sibling(self, id: WidgetId) -> Result<WidgetMut<'a>, WidgetNotFound<'a>> {
         let found = self
-            .app_state
             .widgets
             .sibling_id_iter(self.id)
-            .find(|&child_id| child_id == id);
+            .any(|child_id| child_id == id);
 
-        if let Some(child_id) = found {
-            Ok(WidgetMut::new(self.app_state, child_id))
+        if found {
+            Ok(WidgetMut {
+                widgets: self.widgets,
+                id,
+                handlers: self.handlers,
+                reactive_graph: self.reactive_graph,
+            })
         } else {
             Err(WidgetNotFound(self))
         }
@@ -174,92 +190,70 @@ impl<'a> WidgetMut<'a> {
 
     pub fn child_iter(&self) -> WidgetRefIter<'_> {
         WidgetRefIter {
-            inner: self.app_state.widgets.tree.child_id_walker(self.id),
-            widgets: &self.app_state.widgets,
+            inner: self.widgets.tree.child_id_walker(self.id),
+            widgets: &self.widgets,
         }
     }
 
     pub fn for_each_child_ref(&self, mut f: impl FnMut(WidgetRef<'_>)) {
-        for_each_child_ref_impl(&self.app_state.widgets, self.id, &mut f);
+        for_each_child_ref_impl(&self.widgets, self.id, &mut f);
     }
 
     pub fn for_each_child_mut(&mut self, mut f: impl FnMut(WidgetMut<'_>)) {
-        fn _impl(app_state: &mut AppState, id: WidgetId, f: &mut dyn FnMut(WidgetMut<'_>)) {
-            let mut child_iter = app_state.widgets.tree.child_id_walker(id);
-            let mut current = child_iter.next_id(&app_state.widgets.tree);
-            while let Some(child_id) = current {
-                // This copy is needed - the widget might be removed while visited
-                let next = child_iter.next_id(&app_state.widgets.tree);
-                f(WidgetMut::new(app_state, child_id));
-                current = next;
-            }
+        let mut child_iter = self.widgets.tree.child_id_walker(self.id);
+        let mut current = child_iter.next_id(&self.widgets.tree);
+        while let Some(child_id) = current {
+            // This copy is needed - the widget might be removed while visited
+            let next = child_iter.next_id(&self.widgets.tree);
+            f(WidgetMut {
+                widgets: self.widgets,
+                handlers: self.handlers,
+                reactive_graph: self.reactive_graph,
+                id: child_id,
+            });
+            current = next;
         }
-        _impl(self.app_state, self.id, &mut f)
     }
 
     pub fn remove(self) {
-        self.app_state.remove_widget(self.id);
+        self.widgets
+            .remove_widget(self.id, self.reactive_graph, self.handlers);
     }
 
     pub fn replace(self, view: impl View) -> WidgetMut<'a> {
-        self.app_state.replace_widget(self.id, view);
-        WidgetMut::new(self.app_state, self.id)
+        self.widgets
+            .replace_widget(self.id, self.reactive_graph, self.handlers, view);
+        self
     }
 
     pub fn add_before(&mut self, view: impl View) -> WidgetId {
-        self.app_state.add_widget(view, WidgetPos::Before(self.id))
+        self.add_widget(view, WidgetPos::Before(self.id))
+    }
+
+    fn add_widget(&mut self, view: impl View, pos: WidgetPos) -> WidgetId {
+        self.widgets
+            .add_widget(self.handlers, self.reactive_graph, pos, view)
     }
 
     pub fn add_after(&mut self, view: impl View) -> WidgetId {
-        self.app_state.add_widget(view, WidgetPos::After(self.id))
+        self.add_widget(view, WidgetPos::After(self.id))
     }
 
     pub fn push_child_front(&mut self, view: impl View) -> WidgetId {
-        self.app_state
-            .add_widget(view, WidgetPos::FirstChild(self.id))
+        self.add_widget(view, WidgetPos::FirstChild(self.id))
     }
 
     pub fn push_child_back(&mut self, view: impl View) -> WidgetId {
-        self.app_state
-            .add_widget(view, WidgetPos::LastChild(self.id))
+        self.add_widget(view, WidgetPos::LastChild(self.id))
     }
 
     pub fn add_overlay(&mut self, view: impl View, options: OverlayOptions) -> WidgetId {
-        self.app_state
-            .add_widget(view, WidgetPos::Overlay(self.id, options))
+        self.add_widget(view, WidgetPos::Overlay(self.id, options))
     }
 
     pub fn swap_with(&mut self, widget_id: WidgetId) {
-        self.app_state.widgets.swap_widgets(self.id, widget_id);
+        self.widgets.swap_widgets(self.id, widget_id);
     }
-
-    pub fn set_value(&mut self, value: WidgetPropValue) {}
-
-    /*
-
-    pub fn remove_child_by_id(&mut self, child_id: WidgetId) {
-        invalidate_widget(self.app_state, child_id);
-        self.app_state.remove_widget(child_id);
-        request_layout(self.app_state, self.id);
-    }
-
-    pub fn replace_child<V: View>(&mut self, index: usize, view: V) {
-        let id = self.data().children[index];
-        self.app_state.replace_widget(id, view);
-        request_layout(self.app_state, self.id);
-    }
-
-    pub fn swap_children(&mut self, from_index: usize, to_index: usize) {
-        self.data_mut().children.swap(from_index, to_index);
-        request_layout(self.app_state, self.id);
-    }
-
-    pub fn move_child(&mut self, from_index: usize, to_index: usize) {
-        let children = &mut self.data_mut().children;
-        let id = children.remove(from_index);
-        self.data_mut().children.insert(to_index, id);
-        request_layout(self.app_state, self.id);
-    }*/
 
     pub fn local_bounds(&self) -> Rect {
         self.data().local_bounds()
@@ -270,7 +264,7 @@ impl<'a> WidgetMut<'a> {
     }
 
     pub fn request_layout(&mut self) {
-        self.app_state.widgets.request_layout(self.id);
+        self.widgets.request_layout(self.id);
     }
 
     pub fn layout_requested(&self) -> bool {
@@ -278,7 +272,7 @@ impl<'a> WidgetMut<'a> {
     }
 
     pub fn request_render(&mut self) {
-        self.app_state.widgets.request_render(self.id);
+        self.widgets.request_render(self.id);
     }
 
     pub fn update_style(&mut self, f: impl FnOnce(&mut Style)) {
@@ -286,14 +280,14 @@ impl<'a> WidgetMut<'a> {
     }
 
     pub fn update_text(&mut self, f: impl FnOnce(&mut TextData)) {
-        if let Some(text_data) = self.app_state.widgets.texts.get_mut(self.id) {
+        if let Some(text_data) = self.widgets.texts.get_mut(self.id) {
             f(text_data)
         }
     }
 
     pub fn set_display_style(&mut self, display_style: DisplayStyle) {
         self.data_mut().display_style = display_style;
-        self.app_state.widgets.request_layout(self.id);
+        self.widgets.request_layout(self.id);
     }
 
     pub fn style(&self) -> &Style {

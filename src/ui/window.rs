@@ -82,7 +82,7 @@ impl<V: View> platform::WindowHandler for MyHandler<V> {
             &mut aa.widgets,
             &mut TextContext::new(&mut aa.font_cx, &mut aa.text_layout_cx, &mut aa.glyph_cache),
             &mut aa.reactive_graph,
-            &mut aa.event_handlers,
+            &mut aa.widget_handlers.renderers,
             self.state.window_id(),
             dirty_rect,
         )
