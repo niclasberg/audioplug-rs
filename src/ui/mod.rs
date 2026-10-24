@@ -7,7 +7,6 @@ mod host_handle;
 mod interaction;
 mod layout;
 mod overlay;
-mod path;
 mod prop;
 pub mod reactive;
 mod render;
@@ -33,7 +32,7 @@ pub use host_handle::HostHandle;
 pub use overlay::{OverlayAnchor, OverlayOptions};
 
 pub use interaction::{
-    ButtonInteraction, Sense, Interaction, KnobEvent, KnobInteraction, SliderEvent,
+    ButtonInteraction, Interaction, KnobEvent, KnobInteraction, Sense, SliderEvent,
     SliderInteraction,
 };
 pub use prop::Prop;

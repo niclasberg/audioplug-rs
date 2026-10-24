@@ -21,7 +21,6 @@ pub use computed::Computed;
 pub use contexts::*;
 pub use effect::{Effect, EffectContext};
 pub(super) use effect::{EffectFn, EffectState};
-pub(super) use event_channel::HandleEventFn;
 pub use event_channel::{EventChannel, EventReceiver, create_event_channel};
 pub use param::ParamSetter;
 pub use reactive_value::ReactiveValue;

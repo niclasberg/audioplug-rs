@@ -1,7 +1,7 @@
 use slotmap::{Key, SecondaryMap, SlotMap};
 
 use crate::{
-    core::{FxIndexSet, HAlign, Point, Rect, VAlign, Vec2, Zero},
+    core::{FxHashSet, FxIndexSet, HAlign, Point, Rect, VAlign, Vec2, Zero},
     platform,
     ui::{
         BuildContext, OverlayAnchor, OverlayOptions, TaskQueue, View, WidgetFlags, WidgetId,
@@ -10,7 +10,7 @@ use crate::{
         interaction::Interactions,
         layout::{LayoutContext, RecomputeLayout},
         overlay::OverlayContainer,
-        reactive::{ReactiveGraph, WidgetStatus},
+        reactive::{ReactiveGraph, WidgetStatus, runtime::WidgetPhase},
         render::{GpuScene, RendererMap, WGPUSurface},
         style::Style,
         text::{TextContext, TextData},
@@ -32,6 +32,7 @@ pub struct Widgets {
     child_id_cache: ChildCache,
     /// Ids of all widgets that have requested animation. Cleared during each call to [drive_animations]
     pending_animations: FxIndexSet<WidgetId>,
+    dirty_props_widgets: FxHashSet<WidgetId>,
     /// The current hovered widget, if any
     pub(super) hovered_widget: Option<WidgetId>,
     /// The current active mouse gesture, if any
@@ -330,15 +331,21 @@ impl Widgets {
             );
 
             if let Some(old_focus_widget) = old_focus_widget {
-                reactive_graph
-                    .notify_widget_status_changed(old_focus_widget, WidgetStatus::FOCUSED.mask);
+                reactive_graph.notify_widget_status_changed(
+                    self,
+                    old_focus_widget,
+                    WidgetStatus::FOCUSED.mask,
+                );
             }
 
             self.window_mut(window_id).focus_widget = new_focus_widget;
 
             if let Some(focus_gained_widget) = new_focus_widget {
-                reactive_graph
-                    .notify_widget_status_changed(focus_gained_widget, WidgetStatus::FOCUSED.mask);
+                reactive_graph.notify_widget_status_changed(
+                    self,
+                    focus_gained_widget,
+                    WidgetStatus::FOCUSED.mask,
+                );
             }
         }
     }
@@ -362,13 +369,19 @@ impl Widgets {
         if new_widget != self.hovered_widget {
             let old_hovered_widget = std::mem::replace(&mut self.hovered_widget, new_widget);
             if let Some(old_hovered_widget) = old_hovered_widget {
-                reactive_graph
-                    .notify_widget_status_changed(old_hovered_widget, WidgetStatus::HOVERED.mask);
+                reactive_graph.notify_widget_status_changed(
+                    self,
+                    old_hovered_widget,
+                    WidgetStatus::HOVERED.mask,
+                );
             }
 
             if let Some(new_hovered_widget) = new_widget {
-                reactive_graph
-                    .notify_widget_status_changed(new_hovered_widget, WidgetStatus::HOVERED.mask);
+                reactive_graph.notify_widget_status_changed(
+                    self,
+                    new_hovered_widget,
+                    WidgetStatus::HOVERED.mask,
+                );
             }
         }
     }
@@ -389,6 +402,10 @@ impl Widgets {
         self.windows[data.window_id]
             .handle
             .invalidate(data.global_bounds());
+    }
+
+    pub fn request_prop_update(&mut self, widget_id: WidgetId) {
+        self.dirty_props_widgets.insert(widget_id);
     }
 
     /// Gets all widgets at a point in a window. The order is from the root and down the tree (draw order).
@@ -427,6 +444,22 @@ impl Widgets {
 
 // Widget properties
 impl Widgets {
+    pub fn update_widget_props(
+        &mut self,
+        reactive_graph: &mut ReactiveGraph,
+        handlers: &WidgetHandlers,
+    ) {
+        for widget_id in std::mem::take(&mut self.dirty_props_widgets) {
+            if let Some(props) = handlers.widget_props.get(widget_id) {
+                let node_id =
+                    reactive_graph.widget_invalidation_node_id(widget_id, WidgetPhase::SyncWidget);
+                reactive_graph.clear_node_sources(node_id);
+                props.apply(reactive_graph, widget_id, self);
+                reactive_graph.mark_node_as_clean(node_id);
+            }
+        }
+    }
+
     pub fn set_text(&mut self, widget_id: WidgetId, value: String) {
         if self.text_mut(widget_id).set_text(value) {
             self.request_layout(widget_id);

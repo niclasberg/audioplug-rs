@@ -6,7 +6,7 @@ use super::{
     var::SignalState,
 };
 use crate::{
-    core::{FxHashMap, FxHashSet, FxIndexSet},
+    core::{FxHashMap, FxIndexSet},
     param::{AnyParameterMap, ParamRef, ParameterId},
     ui::{
         HostHandle, WidgetId, Widgets,
@@ -152,7 +152,6 @@ pub struct ReactiveGraph {
     parameter_observers: FxHashMap<ParameterId, SmallVec<[NodeId; 4]>>,
     /// Data needed by the reactive graph for all widgets
     widgets: SecondaryMap<WidgetId, WidgetNode>,
-    dirty_widgets: FxHashSet<(WidgetId, WidgetPhase)>,
     pub(super) effects_to_check: FxIndexSet<NodeId>,
     node_id_buffer: VecDeque<NodeId>,
     pub(super) pending_animations: FxIndexSet<NodeId>,
@@ -176,7 +175,6 @@ impl ReactiveGraph {
             node_id_buffer: Default::default(),
             pending_animations: Default::default(),
             host_handle: None,
-            dirty_widgets: Default::default(),
             effects_to_check: Default::default(),
         }
     }
@@ -278,7 +276,7 @@ impl ReactiveGraph {
         self.nodes.contains_key(node_id)
     }
 
-    pub fn drive_animations(&mut self) {
+    pub fn drive_animations(&mut self, widgets: &mut Widgets) {
         let node_ids = std::mem::take(&mut self.pending_animations);
         let now = Instant::now();
         for node_id in node_ids {
@@ -292,7 +290,7 @@ impl ReactiveGraph {
             };
 
             if did_change {
-                self.notify(node_id);
+                self.notify(widgets, node_id);
                 // Re-queue the animation for the next frame
                 self.pending_animations.insert(node_id);
             }
@@ -364,10 +362,6 @@ impl ReactiveGraph {
         !effects_was_empty
     }
 
-    pub fn take_invalidated_widgets(&mut self) -> FxHashSet<(WidgetId, WidgetPhase)> {
-        std::mem::take(&mut self.dirty_widgets)
-    }
-
     /// Given a node (effect, binding, derived animation, or cached value), check if any of its sources have changed.
     /// Any invalid cached value will be re-evaluated.
     fn update_sources_if_necessary(&mut self, widgets: &Widgets, node_id: NodeId) -> NodeState {
@@ -421,14 +415,18 @@ impl ReactiveGraph {
         self.get_node_mut(node_id).state = NodeState::Clean;
     }
 
-    pub(crate) fn notify(&mut self, node_id: NodeId) {
+    pub(crate) fn notify(&mut self, widgets: &mut Widgets, node_id: NodeId) {
         let mut observers = std::mem::take(&mut self.node_id_buffer);
         observers.clear();
         observers.extend(self.node_observers[node_id].iter());
-        self.notify_source_changed(observers);
+        self.notify_source_changed(widgets, observers);
     }
 
-    fn notify_source_changed(&mut self, mut nodes_to_notify: VecDeque<NodeId>) {
+    fn notify_source_changed(
+        &mut self,
+        widgets: &mut Widgets,
+        mut nodes_to_notify: VecDeque<NodeId>,
+    ) {
         let direct_child_count = nodes_to_notify.len();
         let mut i = 0;
         while let Some(node_id) = nodes_to_notify.pop_front() {
@@ -445,9 +443,10 @@ impl ReactiveGraph {
                     NodeType::Effect(_) | NodeType::DerivedAnimation(_) => {
                         self.effects_to_check.insert(node_id);
                     }
-                    &NodeType::InvalidateWidget { widget_id, phase } => {
-                        self.dirty_widgets.insert((widget_id, phase));
-                    }
+                    &NodeType::InvalidateWidget { widget_id, phase } => match phase {
+                        WidgetPhase::SyncWidget => widgets.request_prop_update(widget_id),
+                        WidgetPhase::Render => widgets.request_render(widget_id),
+                    },
                     _ => {}
                 }
                 nodes_to_notify.extend(self.node_observers[node_id].iter());
@@ -459,15 +458,20 @@ impl ReactiveGraph {
         std::mem::swap(&mut self.node_id_buffer, &mut nodes_to_notify);
     }
 
-    pub(crate) fn notify_parameter_subscribers(&mut self, source_id: ParameterId) {
+    pub(crate) fn notify_parameter_subscribers(
+        &mut self,
+        widgets: &mut Widgets,
+        source_id: ParameterId,
+    ) {
         let mut nodes_to_notify = std::mem::take(&mut self.node_id_buffer);
         nodes_to_notify.clear();
         nodes_to_notify.extend(self.parameter_observers.get_mut(&source_id).unwrap().iter());
-        self.notify_source_changed(nodes_to_notify);
+        self.notify_source_changed(widgets, nodes_to_notify);
     }
 
     pub(crate) fn notify_widget_status_changed(
         &mut self,
+        widgets: &mut Widgets,
         widget_id: WidgetId,
         change_mask: WidgetStatusFlags,
     ) {
@@ -480,7 +484,7 @@ impl ReactiveGraph {
                     .iter()
                     .filter_map(|(node_id, mask)| mask.contains(change_mask).then_some(node_id)),
             );
-            self.notify_source_changed(nodes_to_notify);
+            self.notify_source_changed(widgets, nodes_to_notify);
         }
     }
 

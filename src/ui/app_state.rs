@@ -2,12 +2,11 @@ use parley::FontContext;
 
 use super::reactive::{CreateContext, ReactiveGraph, Var};
 use super::{
-    BuildContext, HostHandle, View, WidgetId, WidgetMut, WidgetRef, Widgets, WindowId,
-    layout::RecomputeLayout, render::WGPUSurface, task_queue::TaskQueue,
+    BuildContext, HostHandle, View, WidgetId, Widgets, WindowId, layout::RecomputeLayout,
+    render::WGPUSurface, task_queue::TaskQueue,
 };
 use crate::core::TextLayoutContext;
 use crate::ui::TextContext;
-use crate::ui::reactive::runtime::WidgetPhase;
 use crate::ui::reactive::{Owner, ReadContext, ReadScope, WriteContext};
 use crate::ui::render::GlyphCache;
 use crate::ui::widgets::WidgetHandlers;
@@ -143,22 +142,8 @@ impl AppState {
             }
         }
 
-        let dirty_widgets = self.reactive_graph.take_invalidated_widgets();
-        for (widget_id, phase) in dirty_widgets {
-            match phase {
-                WidgetPhase::SyncWidget => {
-                    if let Some(props) = self.widget_handlers.widget_props.get(widget_id) {
-                        let node_id = self
-                            .reactive_graph
-                            .widget_invalidation_node_id(widget_id, phase);
-                        self.reactive_graph.clear_node_sources(node_id);
-                        props.apply(&mut self.reactive_graph, widget_id, &mut self.widgets);
-                        self.reactive_graph.mark_node_as_clean(node_id);
-                    }
-                }
-                WidgetPhase::Render => self.widgets.request_render(widget_id),
-            }
-        }
+        self.widgets
+            .update_widget_props(&mut self.reactive_graph, &self.widget_handlers);
 
         // Layout if needed
         let window_ids: Vec<_> = self.widgets.window_id_iter().collect();

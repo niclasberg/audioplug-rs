@@ -232,7 +232,7 @@ impl<'s> CanRead<'s> for CreateContext<'s> {
 }
 
 pub struct WriteContext<'a> {
-    pub(crate) widgets: &'a Widgets,
+    pub(crate) widgets: &'a mut Widgets,
     pub(crate) reactive_graph: &'a mut ReactiveGraph,
 }
 
@@ -242,7 +242,7 @@ impl<'a> WriteContext<'a> {
     }
 
     pub fn notify(&mut self, node_id: NodeId) {
-        self.reactive_graph.notify(node_id);
+        self.reactive_graph.notify(self.widgets, node_id);
     }
 
     pub(super) fn get_node_mut(&mut self, node_id: NodeId) -> &mut Node {
@@ -255,14 +255,7 @@ impl<'a> WriteContext<'a> {
 
     pub fn notify_parameter_subscribers(&mut self, parameter_id: ParameterId) {
         self.reactive_graph
-            .notify_parameter_subscribers(parameter_id);
-    }
-
-    pub fn notify_widget_status_changed(
-        &mut self,
-        widget_id: WidgetId,
-        change_mask: WidgetStatusFlags,
-    ) {
+            .notify_parameter_subscribers(self.widgets, parameter_id);
     }
 
     pub fn host_handle(&self) -> &dyn HostHandle {

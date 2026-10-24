@@ -24,11 +24,11 @@ pub struct EffectContext<'a> {
 }
 
 impl<'s> EffectContext<'s> {
-    pub fn widget_ref(&self, widget_id: WidgetId) -> WidgetRef {
+    pub fn widget_ref(&self, widget_id: WidgetId) -> WidgetRef<'_> {
         WidgetRef::new(self.widgets, widget_id)
     }
 
-    pub fn widget_mut(&mut self, widget_id: WidgetId) -> WidgetMut {
+    pub fn widget_mut(&mut self, widget_id: WidgetId) -> WidgetMut<'_> {
         WidgetMut::new(self.widgets, self.handlers, self.reactive_graph, widget_id)
     }
 }
