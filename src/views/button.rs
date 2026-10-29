@@ -58,7 +58,8 @@ impl View for LabelButton {
     fn build(self, cx: &mut BuildContext) {
         cx.props(self.props)
             .event_handlers(self.event_handlers)
-            .interaction(self.kind);
+            .interaction(self.kind)
+            .debug_label("Button");
     }
 }
 

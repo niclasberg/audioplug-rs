@@ -1,5 +1,5 @@
 use crate::ui::{
-    BuildContext, EventHandlerExt, Prop, StyleExt, TextExt, View, EventHandlers, ViewExt,
+    BuildContext, EventHandlerExt, EventHandlers, Prop, StyleExt, TextExt, View, ViewExt,
     WidgetProps,
 };
 
@@ -19,7 +19,7 @@ impl Label {
 
 impl View for Label {
     fn build(self, ctx: &mut BuildContext) {
-        ctx.props(self.props);
+        ctx.props(self.props).debug_label("Label");
     }
 }
 

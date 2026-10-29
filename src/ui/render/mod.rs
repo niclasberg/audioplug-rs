@@ -4,8 +4,8 @@ use crate::{
         TextLayout, Transform, TranslateScale,
     },
     ui::{
-        TextContext, WidgetData, Widgets,
-        reactive::{CanRead, ReactiveGraph, ReadContext, ReadScope, runtime::WidgetPhase},
+        TextContext, UiState, WidgetData,
+        reactive::{CanRead, ReadContext, ReadScope},
         render::scene::GpuAppearance,
     },
 };
@@ -27,21 +27,20 @@ use super::{WidgetId, WindowId};
 pub type Renderer = dyn FnMut(&mut RenderContext);
 pub type RendererMap = SecondaryMap<WidgetId, Box<Renderer>>;
 
-pub fn invalidate_window(widgets: &Widgets, window_id: WindowId) {
+pub fn invalidate_window(widgets: &UiState, window_id: WindowId) {
     let handle = &widgets.window(window_id).handle;
     handle.invalidate_window()
 }
 
 pub fn paint_window(
-    widgets: &mut Widgets,
+    widgets: &mut UiState,
     text_cx: &mut TextContext,
-    reactive_graph: &mut ReactiveGraph,
     renderers: &mut RendererMap,
     window_id: WindowId,
     dirty_rect: Rect,
 ) {
     println!("Number of widgets: {}", widgets.tree.len());
-    rebuild_scene(widgets, text_cx, reactive_graph, renderers, window_id);
+    rebuild_scene(widgets, text_cx, renderers, window_id);
     let window = widgets.window_mut(window_id);
     let wgpu_surface = &mut window.wgpu_surface;
 
@@ -116,33 +115,15 @@ pub fn paint_window(
     wgpu_surface.queue.submit(std::iter::once(encoder.finish()));
 
     surface_texture.present();
-
-    /*
-    overlays.extend(app_state.window(window_id).overlays.iter());
-
-        // Root
-        let mut cx = RenderContext {
-            id: app_state.window(window_id).root_widget,
-            app_state,
-        };
-        cx.render_current_widget();
-
-        // Overlays
-        for overlay_id in overlays.iter() {
-            cx.id = *overlay_id;
-            cx.render_current_widget();
-        }
-         */
 }
 
 fn rebuild_scene(
-    widgets: &mut Widgets,
+    ui: &mut UiState,
     text_cx: &mut TextContext,
-    reactive_graph: &mut ReactiveGraph,
     renderers: &mut RendererMap,
     window_id: WindowId,
 ) {
-    let window = &mut widgets.windows[window_id];
+    let window = &mut ui.windows[window_id];
     let window_size = window.handle.global_bounds().size();
     let scale_factor = window.handle.scale_factor();
     let mut gpu_scene = std::mem::take(&mut window.gpu_scene);
@@ -154,34 +135,32 @@ fn rebuild_scene(
     let mut path_segment_buffer = Vec::new();
 
     for root_id in roots {
-        let mut walker = widgets
+        let mut walker = ui
             .tree
             .dfs_walker_with_pruning(root_id, |node| !(node.is_overlay() || node.style.hidden));
-        while let Some(widget_id) = walker.next(&widgets.tree) {
-            let bounds = widgets.tree[widget_id].content_bounds();
+        while let Some(widget_id) = walker.next(&ui.tree) {
+            let bounds = ui.tree[widget_id].content_bounds();
             render_node_background(
-                &widgets.tree[widget_id],
+                &ui.tree[widget_id],
                 &mut gpu_scene,
                 window_size,
                 scale_factor,
             );
 
             if let Some(renderer) = renderers.get_mut(widget_id) {
-                let node_id =
-                    reactive_graph.widget_invalidation_node_id(widget_id, WidgetPhase::Render);
-                reactive_graph.clear_node_sources(node_id);
+                let node_id = ui.get_render_invalidation_node_id(widget_id);
+                ui.clear_node_sources(node_id);
                 renderer(&mut RenderContext {
                     id: widget_id,
-                    widgets,
-                    reactive_graph,
+                    ui,
                     scene: &mut gpu_scene,
                     path_segment_buffer: &mut path_segment_buffer,
                     scale_factor,
                 });
-                reactive_graph.mark_node_as_clean(node_id);
+                ui.mark_node_as_clean(node_id);
             }
 
-            if let Some(text) = widgets.texts.get_mut(widget_id) {
+            if let Some(text) = ui.texts.get_mut(widget_id) {
                 let layout = text.get_or_create_layout(text_cx);
                 layout.break_all_lines(Some(bounds.width()));
                 gpu_scene.draw_text(bounds.top_left(), layout, text_cx.glyph_cache, scale_factor);
@@ -190,7 +169,7 @@ fn rebuild_scene(
     }
 
     drop(std::mem::replace(
-        &mut widgets.windows[window_id].gpu_scene,
+        &mut ui.windows[window_id].gpu_scene,
         gpu_scene,
     ));
 }
@@ -235,8 +214,7 @@ fn render_node_background(
 
 pub struct RenderContext<'a> {
     pub(super) id: WidgetId,
-    pub(super) widgets: &'a mut Widgets,
-    pub(super) reactive_graph: &'a mut ReactiveGraph,
+    pub(super) ui: &'a mut UiState,
     pub(super) path_segment_buffer: &'a mut Vec<PathSegment>,
     pub(super) scene: &'a mut GpuScene,
     pub(super) scale_factor: ScaleFactor,
@@ -244,15 +222,15 @@ pub struct RenderContext<'a> {
 
 impl<'a> RenderContext<'a> {
     pub fn bounds(&self) -> Rect {
-        self.widgets.content_bounds(self.id)
+        self.ui.content_bounds(self.id)
     }
 
     pub fn has_focus(&self) -> bool {
-        self.widgets.has_focus(self.id)
+        self.ui.has_focus(self.id)
     }
 
     pub fn has_mouse_capture(&self) -> bool {
-        self.widgets.is_pressed(self.id)
+        self.ui.is_pressed(self.id)
     }
 
     fn current_transform(&self) -> TranslateScale {
@@ -388,8 +366,7 @@ impl<'s> CanRead<'s> for RenderContext<'s> {
         's: 's2,
     {
         ReadContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
+            ui: self.ui,
             scope: ReadScope::Render(self.id),
             current_widget: Some(self.id),
         }

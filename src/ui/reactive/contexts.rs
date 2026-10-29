@@ -3,48 +3,44 @@ use std::any::Any;
 use crate::{
     param::{ParamRef, ParameterId},
     ui::{
-        HostHandle, WidgetId, Widgets,
-        reactive::{
-            EffectFn, WidgetStatusFlags,
-            runtime::{Node, Source, WidgetPhase},
-        },
+        HostHandle, UiState, WidgetId,
+        reactive::{EffectFn, Node, Source, WidgetPhase, WidgetStatusFlags},
     },
 };
 
 use super::{
-    EffectState, NodeId, ReactiveGraph, ReadScope,
+    EffectState, NodeId, NodeState, NodeType, Owner, ReadScope,
     animation::{AnimationState, DerivedAnimationState},
     cached::CachedState,
-    runtime::{NodeState, NodeType, Owner},
     var::SignalState,
 };
 
 pub struct ReadContext<'a> {
-    pub(crate) widgets: &'a Widgets,
-    pub(crate) reactive_graph: &'a mut ReactiveGraph,
+    pub(crate) ui: &'a mut UiState,
     pub(crate) scope: ReadScope,
     pub(crate) current_widget: Option<WidgetId>,
 }
 
-impl ReadContext<'_> {
+impl<'a> ReadContext<'a> {
     pub fn track(&mut self, source_id: NodeId) {
         let node_id = match self.scope {
             ReadScope::Untracked => return,
             ReadScope::Node(node_id) => node_id,
             ReadScope::SyncWidget(widget_id) => self
+                .ui
                 .reactive_graph
                 .widget_invalidation_node_id(widget_id, WidgetPhase::SyncWidget),
             ReadScope::Render(widget_id) => self
+                .ui
                 .reactive_graph
                 .widget_invalidation_node_id(widget_id, WidgetPhase::Render),
         };
-        self.reactive_graph
-            .add_subscription(Source::Node(source_id), node_id)
+        self.ui.add_subscription(Source::Node(source_id), node_id)
     }
 
     pub fn track_parameter(&mut self, source_id: ParameterId) {
         if let ReadScope::Node(node_id) = self.scope {
-            self.reactive_graph
+            self.ui
                 .add_subscription(Source::Parameter(source_id), node_id);
         }
     }
@@ -52,30 +48,34 @@ impl ReadContext<'_> {
     pub fn track_widget_status(&mut self, status_mask: WidgetStatusFlags) {
         if let ReadScope::Node(node_id) = self.scope {
             let widget_id = self.current_widget.expect("View status can only be evaluated if bound to a view property or from a view-owned Cached value or effect");
-            self.reactive_graph
+            self.ui
                 .add_subscription(Source::Widget(widget_id, status_mask), node_id);
         }
     }
 
     pub fn update_value_if_needed(&mut self, node_id: NodeId) {
-        self.reactive_graph
-            .update_value_if_necessary(self.widgets, node_id);
+        self.ui.update_value_if_necessary(node_id);
+    }
+
+    pub(super) fn get_node(self, node_id: NodeId) -> &'a NodeType {
+        &self.ui.reactive_graph.nodes[node_id].node_type
     }
 
     pub fn get_node_value_ref(&self, node_id: NodeId) -> Option<&dyn Any> {
-        self.reactive_graph
-            .try_get_node(node_id)
+        self.ui
+            .reactive_graph
+            .nodes
+            .get(node_id)
             .map(|node| NodeType::get_value_ref(&node.node_type))
     }
 
     pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef<'_> {
-        self.reactive_graph.get_parameter_ref(parameter_id)
+        self.ui.get_parameter_ref(parameter_id)
     }
 
     pub fn with_read_scope(&mut self, scope: ReadScope) -> ReadContext<'_> {
         ReadContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
+            ui: self.ui,
             scope,
             current_widget: self.current_widget,
         }
@@ -95,8 +95,7 @@ impl<'s> CanRead<'s> for ReadContext<'s> {
         's: 's2,
     {
         ReadContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
+            ui: self.ui,
             scope: self.scope,
             current_widget: self.current_widget,
         }
@@ -104,35 +103,30 @@ impl<'s> CanRead<'s> for ReadContext<'s> {
 }
 
 pub struct CreateContext<'a> {
-    pub(crate) widgets: &'a Widgets,
-    pub(crate) reactive_graph: &'a mut ReactiveGraph,
+    pub(crate) ui: &'a mut UiState,
     pub(crate) owner: Owner,
 }
 
 impl<'a> CreateContext<'a> {
-    pub(crate) fn new_root_context(
-        widgets: &'a Widgets,
-        reactive_graph: &'a mut ReactiveGraph,
-    ) -> Self {
+    pub(crate) fn new_root_context(ui: &'a mut UiState) -> Self {
         Self {
-            widgets,
-            reactive_graph,
+            ui,
             owner: Owner::Root,
         }
     }
 
     pub(crate) fn create_var_node(&mut self, state: SignalState) -> NodeId {
-        self.reactive_graph
+        self.ui
             .create_node(NodeType::Signal(state), NodeState::Clean, self.owner)
     }
 
     pub(crate) fn create_memo_node(&mut self, state: CachedState) -> NodeId {
-        self.reactive_graph
+        self.ui
             .create_node(NodeType::Memo(state), NodeState::Dirty, self.owner)
     }
 
     pub(crate) fn create_effect_node(&mut self, f: Box<EffectFn>, run_effect: bool) -> NodeId {
-        let id = self.reactive_graph.create_node(
+        let id = self.ui.create_node(
             NodeType::Effect(EffectState {
                 f,
                 dynamic_sources: true,
@@ -141,19 +135,18 @@ impl<'a> CreateContext<'a> {
             self.owner,
         );
         if run_effect {
-            self.reactive_graph.effects_to_check.insert(id);
+            self.ui.effects_to_check.insert(id);
         }
         id
     }
 
     pub(crate) fn create_trigger(&mut self) -> NodeId {
-        self.reactive_graph
+        self.ui
             .create_node(NodeType::Trigger, NodeState::Clean, self.owner)
     }
 
     pub(crate) fn create_watcher(&mut self, source: Source, f: Box<EffectFn>) -> NodeId {
-        let graph = &mut self.reactive_graph;
-        let id = graph.create_node(
+        let id = self.ui.create_node(
             NodeType::Effect(EffectState {
                 f,
                 dynamic_sources: false,
@@ -161,12 +154,12 @@ impl<'a> CreateContext<'a> {
             NodeState::Clean,
             self.owner,
         );
-        graph.add_subscription(source, id);
+        self.ui.add_subscription(source, id);
         id
     }
 
     pub(crate) fn create_animation_node(&mut self, state: AnimationState) -> NodeId {
-        self.reactive_graph
+        self.ui
             .create_node(NodeType::Animation(state), NodeState::Clean, self.owner)
     }
 
@@ -174,24 +167,24 @@ impl<'a> CreateContext<'a> {
         &mut self,
         state_fn: impl FnOnce(&mut CreateContext, NodeId) -> DerivedAnimationState,
     ) -> NodeId {
-        let id =
-            self.reactive_graph
-                .create_node(NodeType::TmpRemoved, NodeState::Clean, self.owner);
+        let id = self
+            .ui
+            .create_node(NodeType::TmpRemoved, NodeState::Clean, self.owner);
         let state = state_fn(self, id);
         let _ = std::mem::replace(
-            &mut self.reactive_graph.nodes[id].node_type,
+            &mut self.ui.reactive_graph.nodes[id].node_type,
             NodeType::DerivedAnimation(state),
         );
         id
     }
 
     pub(crate) fn create_event_emitter(&mut self) -> NodeId {
-        self.reactive_graph
+        self.ui
             .create_node(NodeType::EventEmitter, NodeState::Clean, self.owner)
     }
 
     pub(crate) fn owning_widget(&self) -> Option<WidgetId> {
-        self.reactive_graph.widget_from_owner(self.owner)
+        self.ui.widget_from_owner(self.owner)
     }
 }
 
@@ -208,8 +201,7 @@ impl<'s> CanCreate<'s> for CreateContext<'s> {
         's: 's2,
     {
         CreateContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
+            ui: self.ui,
             owner: self.owner,
         }
     }
@@ -223,8 +215,7 @@ impl<'s> CanRead<'s> for CreateContext<'s> {
     {
         let current_widget = self.owning_widget();
         ReadContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
+            ui: self.ui,
             scope: ReadScope::Untracked,
             current_widget,
         }
@@ -232,42 +223,36 @@ impl<'s> CanRead<'s> for CreateContext<'s> {
 }
 
 pub struct WriteContext<'a> {
-    pub(crate) widgets: &'a mut Widgets,
-    pub(crate) reactive_graph: &'a mut ReactiveGraph,
+    pub(crate) ui: &'a mut UiState,
 }
 
 impl<'a> WriteContext<'a> {
     pub fn get_parameter_ref(&self, parameter_id: ParameterId) -> ParamRef<'_> {
-        self.reactive_graph.get_parameter_ref(parameter_id)
+        self.ui.get_parameter_ref(parameter_id)
     }
 
     pub fn notify(&mut self, node_id: NodeId) {
-        self.reactive_graph.notify(self.widgets, node_id);
+        self.ui.notify(node_id);
     }
 
     pub(super) fn get_node_mut(&mut self, node_id: NodeId) -> &mut Node {
-        &mut self.reactive_graph.nodes[node_id]
+        &mut self.ui.reactive_graph.nodes[node_id]
     }
 
     pub fn request_animation(&mut self, node_id: NodeId) {
-        self.reactive_graph.pending_animations.insert(node_id);
+        self.ui.pending_animations.insert(node_id);
     }
 
     pub fn notify_parameter_subscribers(&mut self, parameter_id: ParameterId) {
-        self.reactive_graph
-            .notify_parameter_subscribers(self.widgets, parameter_id);
+        self.ui.notify_parameter_subscribers(parameter_id);
     }
 
     pub fn host_handle(&self) -> &dyn HostHandle {
-        self.reactive_graph.host_handle()
+        self.ui.host_handle()
     }
 
     pub fn as_create_context(&mut self, owner: Owner) -> CreateContext<'_> {
-        CreateContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
-            owner,
-        }
+        CreateContext { ui: self.ui, owner }
     }
 }
 
@@ -283,10 +268,7 @@ impl<'s> CanWrite<'s> for WriteContext<'s> {
     where
         's: 's2,
     {
-        WriteContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
-        }
+        WriteContext { ui: self.ui }
     }
 }
 

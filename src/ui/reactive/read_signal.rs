@@ -85,7 +85,7 @@ impl<T: 'static> ReactiveValue for ReadSignal<T> {
         let mut cx = cx.read_context();
         match self.source {
             ReadSignalInner::Parameter { id, getter } => {
-                let value = getter(cx.reactive_graph.get_parameter_ref(id));
+                let value = getter(cx.ui.get_parameter_ref(id));
                 f(&value)
             }
             ReadSignalInner::Node(node_id) => {

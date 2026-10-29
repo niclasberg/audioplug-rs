@@ -1,13 +1,12 @@
 use crate::ui::{
-    AppState, View, WidgetId, Widgets,
+    UiState, View, WidgetId,
     prelude::CanRead,
-    reactive::{CanCreate, CreateContext, Owner, ReactiveGraph, ReadContext, ReadScope},
+    reactive::{CanCreate, CreateContext, Owner, ReadContext, ReadScope},
 };
 
 pub struct ScopeContext<'a> {
     id: WidgetId,
-    widgets: &'a mut Widgets,
-    reactive_graph: &'a mut ReactiveGraph,
+    ui: &'a mut UiState,
 }
 
 impl<'s> CanCreate<'s> for ScopeContext<'s> {
@@ -16,8 +15,7 @@ impl<'s> CanCreate<'s> for ScopeContext<'s> {
         's: 's2,
     {
         CreateContext {
-            widgets: &mut self.widgets,
-            reactive_graph: &mut self.reactive_graph,
+            ui: &mut self.ui,
             owner: Owner::Widget(self.id),
         }
     }
@@ -29,8 +27,7 @@ impl<'s> CanRead<'s> for ScopeContext<'s> {
         's: 's2,
     {
         ReadContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
+            ui: self.ui,
             scope: ReadScope::Untracked,
             current_widget: Some(self.id),
         }
@@ -59,8 +56,7 @@ where
     fn build(self, cx: &mut crate::ui::BuildContext) {
         let inner_view = (self.f)(&mut ScopeContext {
             id: cx.id(),
-            widgets: cx.widgets,
-            reactive_graph: cx.reactive_graph,
+            ui: cx.ui,
         });
         inner_view.build(cx);
     }

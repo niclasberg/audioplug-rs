@@ -6,12 +6,12 @@ use super::{
 use crate::{
     core::{Axis, Size},
     ui::{
-        ButtonInteraction, EventContext, EventHandlers, KnobInteraction, RenderContext, WidgetData,
-        WidgetProps, Widgets,
+        ButtonInteraction, EventContext, EventHandlers, KnobInteraction, RenderContext, UiState,
+        WidgetData, WidgetProps,
         interaction::{Interaction, KnobEvent, SliderEvent, SliderInteraction},
-        reactive::{CreateContext, ReactiveGraph, ReadContext},
+        reactive::{CreateContext, ReadContext},
         style::DisplayStyle,
-        widgets::WidgetHandlers,
+        ui_state::WidgetHandlers,
     },
 };
 
@@ -40,18 +40,32 @@ impl View for AnyView {
 
 pub struct BuildContext<'a> {
     pub(crate) id: WidgetId,
-    pub(crate) widgets: &'a mut Widgets,
+    pub(crate) ui: &'a mut UiState,
     pub(crate) handlers: &'a mut WidgetHandlers,
-    pub(crate) reactive_graph: &'a mut ReactiveGraph,
+    pub(crate) node_owner: Owner,
 }
 
 impl<'a> BuildContext<'a> {
+    pub(crate) fn new(id: WidgetId, ui: &'a mut UiState, handlers: &'a mut WidgetHandlers) -> Self {
+        Self {
+            id,
+            ui,
+            handlers,
+            node_owner: Owner::Widget(id),
+        }
+    }
+
     pub fn id(&self) -> WidgetId {
         self.id
     }
 
+    pub fn debug_label(&mut self, label: &'static str) -> &mut Self {
+        self.ui.tree[self.id].debug_label = label;
+        self
+    }
+
     fn widget_data_mut(&mut self) -> &mut WidgetData {
-        &mut self.widgets.tree[self.id]
+        &mut self.ui.tree[self.id]
     }
 
     pub fn set_display_style(&mut self, display_style: DisplayStyle) {
@@ -64,30 +78,22 @@ impl<'a> BuildContext<'a> {
     }
 
     pub fn add_child(&mut self, view: impl View) -> WidgetId {
-        self.widgets.add_widget(
-            self.handlers,
-            self.reactive_graph,
-            WidgetPos::LastChild(self.id),
-            view,
-        )
+        self.ui
+            .add_widget(self.handlers, WidgetPos::LastChild(self.id), view)
     }
 
     pub fn add_children(&mut self, view_sequence: impl ViewSequence) {
         view_sequence.build_seq(&mut BuildContext {
             id: self.id,
-            widgets: self.widgets,
+            ui: self.ui,
             handlers: self.handlers,
-            reactive_graph: self.reactive_graph,
+            node_owner: self.node_owner,
         });
     }
 
     pub fn add_overlay(&mut self, view: impl View, options: OverlayOptions) -> WidgetId {
-        self.widgets.add_widget(
-            self.handlers,
-            self.reactive_graph,
-            WidgetPos::Overlay(self.id, options),
-            view,
-        )
+        self.ui
+            .add_widget(self.handlers, WidgetPos::Overlay(self.id, options), view)
     }
 
     pub fn props(&mut self, mut props: WidgetProps) -> &mut Self {
@@ -95,7 +101,7 @@ impl<'a> BuildContext<'a> {
         // We only need to retain the reactive values - we synchronize to those
         // values after handling events. We still want to apply the constant values,
         // so run apply for all props first.
-        props.apply(&mut self.reactive_graph, self.id, &mut self.widgets);
+        props.apply(self.id, &mut self.ui);
         props.remove_const_props();
         self.handlers.widget_props.insert(self.id, props);
         self
@@ -138,8 +144,7 @@ impl<'a> CanRead<'a> for BuildContext<'a> {
         'a: 's2,
     {
         ReadContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
+            ui: self.ui,
             scope: ReadScope::Untracked,
             current_widget: Some(self.id),
         }
@@ -152,9 +157,8 @@ impl<'s> CanCreate<'s> for BuildContext<'s> {
         's: 's2,
     {
         CreateContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
-            owner: Owner::Widget(self.id),
+            ui: self.ui,
+            owner: self.node_owner,
         }
     }
 }

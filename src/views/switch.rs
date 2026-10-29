@@ -1,7 +1,7 @@
 use crate::ui::{
     BuildContext, View,
     prelude::CanRead,
-    reactive::{Effect, ReadContext},
+    reactive::{Cached, Effect, Owner, ReactiveValue, ReadContext},
 };
 
 pub struct Switch<FValue, FView> {
@@ -30,18 +30,18 @@ where
 {
     fn build(self, cx: &mut BuildContext) {
         let Self { f_value, f_view } = self;
-        let mut value = f_value(&mut cx.read_context());
-        f_view(&value).build(cx);
+        let value = Cached::new(cx, move |cx, _| f_value(&mut cx.read_context()));
         let id = cx.id();
 
         Effect::new(cx, move |cx| {
-            let new_value = f_value(&mut cx.read_context());
-            if new_value != value {
-                cx.widget_mut(id)
-                    .replace(f_view(&new_value))
-                    .request_layout();
-                value = new_value;
-            }
+            let view = value.with_ref(cx, &f_view);
+            cx.ui.reset_widget(id, cx.handlers);
+            view.build(&mut BuildContext {
+                id,
+                ui: cx.ui,
+                handlers: cx.handlers,
+                node_owner: Owner::Node(cx.effect_id),
+            })
         });
     }
 }

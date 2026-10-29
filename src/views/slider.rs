@@ -122,6 +122,7 @@ fn build_slider(
 
     cx.intrinsic_size(intrinsic_size)
         .props(props)
+        .debug_label("Slider")
         .render(move |cx| {
             let pos = normalized_value(cx) as f32;
             let bounds = cx.bounds();

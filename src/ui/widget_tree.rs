@@ -49,12 +49,13 @@ bitflags!(
 pub struct WidgetData {
     pub(super) id: WidgetId,
     pub(super) window_id: WindowId,
+    /// Id of the parent (or null if the widget is a root)
     pub(super) parent_id: WidgetId,
-    /// Id of the first child of the node (or null if childless)
+    /// Id of the first child (or null if childless)
     pub(super) first_child_id: WidgetId,
     /// Id of the next sibling (or [Self::id] if no siblings)
     pub(super) next_sibling_id: WidgetId,
-    /// Id of the previous sibling (or self.id if no siblings)
+    /// Id of the previous sibling (or [Self::id] if no siblings)
     pub(super) prev_sibling_id: WidgetId,
     pub(super) style: Style,
     pub(super) layout: taffy::Layout,
@@ -63,6 +64,7 @@ pub struct WidgetData {
     /// Controls how children are laid out
     pub display_style: DisplayStyle,
     pub intrinsic_size: Option<Size>,
+    pub debug_label: &'static str,
 }
 
 impl WidgetData {
@@ -80,11 +82,15 @@ impl WidgetData {
             origin: Point::ZERO,
             display_style: Default::default(),
             intrinsic_size: None,
+            debug_label: "Unknown",
         }
     }
 
     pub fn reset(&mut self) {
+        // Need to retain the overlay flag...
         self.flags.set(WidgetFlags::EMPTY);
+        self.style = Default::default();
+        self.layout = Default::default();
     }
 
     pub fn with_parent(mut self, parent_id: WidgetId) -> Self {
@@ -103,7 +109,7 @@ impl WidgetData {
     }
 
     pub fn has_siblings(&self) -> bool {
-        self.next_sibling_id != self.prev_sibling_id
+        self.next_sibling_id != self.id
     }
 
     /// Local bounds of the widget, relative to its parent
@@ -326,7 +332,7 @@ impl WidgetTree {
             ..
         } = self.data[first_child_id];
 
-        if next_sibling_id == prev_sibling_id {
+        if next_sibling_id == first_child_id {
             // Only child
             self.data[id].first_child_id = WidgetId::null();
         } else {
@@ -340,7 +346,7 @@ impl WidgetTree {
 
     /// Removes a widget and all its children. The [on_removed] function is invoked for each widget
     /// that is removed
-    pub fn remove(&mut self, id: WidgetId, mut on_removed: impl FnMut(WidgetData)) {
+    pub fn remove(&mut self, id: WidgetId, mut on_removed: impl FnMut(&mut Self, WidgetData)) {
         self.detach(id);
 
         let mut current = id;
@@ -350,7 +356,7 @@ impl WidgetTree {
             } else {
                 let data = self.data.remove(current).unwrap();
                 let parent_id = data.parent_id;
-                on_removed(data);
+                on_removed(self, data);
                 if parent_id.is_null() {
                     return;
                 } else {
@@ -361,7 +367,7 @@ impl WidgetTree {
     }
 
     /// Detaches a widget subtree from its parent and siblings, effectively making the widget into a new root
-    pub fn detach(&mut self, id: WidgetId) {
+    fn detach(&mut self, id: WidgetId) {
         let WidgetData {
             parent_id,
             prev_sibling_id,
@@ -524,6 +530,61 @@ impl WidgetTree {
                 stack.push((child, origin))
             }
             self.data[widget_id].origin = origin;
+        }
+    }
+
+    pub fn next_dfs(&self, widget_id: WidgetId, root_id: WidgetId) -> Option<WidgetId> {
+        let current = &self.data[widget_id];
+        if !current.first_child_id.is_null() {
+            return Some(current.first_child_id);
+        }
+        self.next_subtree_dfs(widget_id, root_id)
+    }
+
+    pub fn next_subtree_dfs(&self, widget_id: WidgetId, root_id: WidgetId) -> Option<WidgetId> {
+        let mut current_id = widget_id;
+        loop {
+            if current_id == root_id {
+                return None;
+            }
+
+            let current = &self.data[current_id];
+            let parent_id = current.parent_id;
+            let Some(parent) = self.data.get(parent_id) else {
+                // Root node
+                return None;
+            };
+
+            if current.next_sibling_id != parent.first_child_id {
+                return Some(current.next_sibling_id);
+            }
+            current_id = parent_id;
+        }
+    }
+
+    pub fn prev_dfs(&self, widget_id: WidgetId) -> Option<WidgetId> {
+        let current = &self.data[widget_id];
+        let Some(parent) = self.data.get(current.parent_id) else {
+            // We've reached the root
+            return None;
+        };
+
+        if widget_id == parent.first_child_id {
+            // First child of the parent, traverse back up into parent
+            return Some(current.parent_id);
+        }
+
+        // Find the last, deepest child of the previous sibling
+        let mut current_id = current.prev_sibling_id;
+        loop {
+            let current = &self.data[current_id];
+            if current.first_child_id.is_null() {
+                // We've reached a leaf
+                return Some(current_id);
+            }
+
+            // Recurse into the last child of the widget
+            current_id = self.data[current.first_child_id].prev_sibling_id;
         }
     }
 }
@@ -797,7 +858,7 @@ mod tests {
         {
             let mut tree = WidgetTree::default();
             let root_id = tree.insert_root(WindowId::null());
-            tree.remove(root_id, |_| {});
+            tree.remove(root_id, |_, _| {});
             assert_eq!(tree.iter().count(), 0);
         }
 
@@ -812,8 +873,9 @@ mod tests {
             let w22 = tree.insert_last_child(w2);
 
             let children = vec![root_id, w2, w21, w22];
-            tree.remove(w1, |_| {});
+            tree.remove(w1, |_, _| {});
 
+            assert_eq!(tree.len(), 4);
             let children2: Vec<_> = tree.dfs_iter(root_id).collect();
             assert_eq!(children, children2);
         }

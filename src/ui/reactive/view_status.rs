@@ -1,5 +1,5 @@
 use crate::ui::{
-    Prop, WidgetId, Widgets,
+    Prop, WidgetId, UiState,
     reactive::{CanCreate, CanRead, Effect, EffectContext, ReactiveValue, ReadSignal},
 };
 use bitflags::bitflags;
@@ -15,7 +15,7 @@ bitflags! {
 
 pub struct WidgetStatus<T> {
     pub mask: WidgetStatusFlags,
-    pub getter: fn(&Widgets, WidgetId) -> T,
+    pub getter: fn(&UiState, WidgetId) -> T,
 }
 
 impl<T> Clone for WidgetStatus<T> {
@@ -66,7 +66,7 @@ impl<T: 'static> ReactiveValue for WidgetStatus<T> {
             .current_widget
             .expect("View status can only be read when accessed from a View");
 
-        let value = (self.getter)(read_cx.widgets, widget_id);
+        let value = (self.getter)(read_cx.ui, widget_id);
         f(&value)
     }
 

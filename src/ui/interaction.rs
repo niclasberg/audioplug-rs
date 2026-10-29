@@ -1,6 +1,8 @@
 use bitflags::bitflags;
 use slotmap::SecondaryMap;
 
+use super::EventContext;
+
 use crate::{
     KeyEvent,
     core::{Axis, Key, Modifiers, Point, Rect},
@@ -18,8 +20,6 @@ bitflags! {
         const MOUSE_WHEEL = 1 << 5;
     }
 }
-
-use super::EventContext;
 
 pub type ClickFn = dyn FnMut(&mut EventContext);
 pub type OnDragCallback = dyn Fn(&mut EventContext);

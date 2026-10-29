@@ -2,8 +2,8 @@ use crate::{
     KeyEvent,
     core::{Align, Key},
     ui::{
-        BuildContext, Sense, Event, EventHandlerExt, EventHandlers, EventResult,
-        OverlayAnchor, OverlayOptions, View, reactive::Trigger,
+        BuildContext, Event, EventHandlerExt, EventHandlers, EventResult, OverlayAnchor,
+        OverlayOptions, Sense, View, reactive::Trigger,
     },
 };
 
@@ -48,24 +48,26 @@ impl<VTrigger: View, VMenu: View, FMenu: Fn() -> VMenu + 'static> View
         });
 
         self.trigger_view.build(cx);
-        let event_handlers = self.event_handlers.on_event(
-            Sense::FOCUSABLE | Sense::CLICKABLE,
-            move |cx, event| match event {
-                Event::Click(mouse_down) => {
-                    //if mouse_down.button == MouseButton::LEFT {
-                    is_open.notify(cx);
-                    //}
-                    EventResult::Stop
-                }
-                Event::Key(KeyEvent::KeyDown {
-                    key: Key::Escape, ..
-                }) => {
-                    is_open.notify(cx);
-                    EventResult::Stop
-                }
-                _ => EventResult::Continue,
-            },
-        );
-        cx.event_handlers(event_handlers);
+        let event_handlers =
+            self.event_handlers
+                .on_event(
+                    Sense::FOCUSABLE | Sense::CLICKABLE,
+                    move |cx, event| match event {
+                        Event::Click(mouse_down) => {
+                            //if mouse_down.button == MouseButton::LEFT {
+                            is_open.notify(cx);
+                            //}
+                            EventResult::Stop
+                        }
+                        Event::Key(KeyEvent::KeyDown {
+                            key: Key::Escape, ..
+                        }) => {
+                            is_open.notify(cx);
+                            EventResult::Stop
+                        }
+                        _ => EventResult::Continue,
+                    },
+                );
+        cx.event_handlers(event_handlers).debug_label("Dropdown");
     }
 }

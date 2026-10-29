@@ -6,12 +6,11 @@ use super::{OverlayOptions, View, WidgetData, WidgetFlags, WidgetId, style::Styl
 use crate::{
     core::{Rect, diff::DiffOp},
     ui::{
-        WidgetPos, Widgets,
-        reactive::ReactiveGraph,
+        UiState, WidgetPos,
         style::{DisplayStyle, Length},
         text::TextData,
+        ui_state::WidgetHandlers,
         widget_tree::SiblingWalker,
-        widgets::WidgetHandlers,
     },
 };
 
@@ -24,7 +23,7 @@ impl<'a> Debug for WidgetNotFound<'a> {
 }
 
 pub struct WidgetRefIter<'a> {
-    widgets: &'a Widgets,
+    ui: &'a UiState,
     inner: SiblingWalker,
 }
 
@@ -33,26 +32,26 @@ impl<'a> Iterator for WidgetRefIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner
-            .next_id(&self.widgets.tree)
-            .map(|id| WidgetRef::new(self.widgets, id))
+            .next_id(&self.ui.tree)
+            .map(|id| WidgetRef::new(self.ui, id))
     }
 }
 
 impl<'a> DoubleEndedIterator for WidgetRefIter<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.inner
-            .next_back_id(&self.widgets.tree)
-            .map(|id| WidgetRef::new(self.widgets, id))
+            .next_back_id(&self.ui.tree)
+            .map(|id| WidgetRef::new(self.ui, id))
     }
 }
 
 pub struct WidgetRef<'a> {
-    widgets: &'a Widgets,
+    widgets: &'a UiState,
     id: WidgetId,
 }
 
 impl<'a> WidgetRef<'a> {
-    pub(super) fn new(widgets: &'a Widgets, id: WidgetId) -> Self {
+    pub(super) fn new(widgets: &'a UiState, id: WidgetId) -> Self {
         Self { widgets, id }
     }
 
@@ -91,7 +90,7 @@ impl<'a> WidgetRef<'a> {
     pub fn child_iter(&self) -> WidgetRefIter<'_> {
         WidgetRefIter {
             inner: self.widgets.tree.child_id_walker(self.id),
-            widgets: self.widgets,
+            ui: self.widgets,
         }
     }
 
@@ -116,7 +115,7 @@ impl<'a> WidgetRef<'a> {
     }
 }
 
-fn for_each_child_ref_impl(widgets: &Widgets, id: WidgetId, f: &mut dyn FnMut(WidgetRef<'_>)) {
+fn for_each_child_ref_impl(widgets: &UiState, id: WidgetId, f: &mut dyn FnMut(WidgetRef<'_>)) {
     let mut child_iter = widgets.tree.child_id_walker(id);
     while let Some(child_id) = child_iter.next_id(&widgets.tree) {
         f(WidgetRef::new(widgets, child_id))
@@ -124,33 +123,22 @@ fn for_each_child_ref_impl(widgets: &Widgets, id: WidgetId, f: &mut dyn FnMut(Wi
 }
 
 pub struct WidgetMut<'a> {
-    pub(super) widgets: &'a mut Widgets,
+    pub(super) ui: &'a mut UiState,
     pub(super) handlers: &'a mut WidgetHandlers,
-    pub(super) reactive_graph: &'a mut ReactiveGraph,
     pub(super) id: WidgetId,
 }
 
 impl<'a> WidgetMut<'a> {
-    pub(super) fn new(
-        widgets: &'a mut Widgets,
-        handlers: &'a mut WidgetHandlers,
-        reactive_graph: &'a mut ReactiveGraph,
-        id: WidgetId,
-    ) -> Self {
-        Self {
-            widgets,
-            id,
-            reactive_graph,
-            handlers,
-        }
+    pub(super) fn new(ui: &'a mut UiState, handlers: &'a mut WidgetHandlers, id: WidgetId) -> Self {
+        Self { ui, id, handlers }
     }
 
     fn data(&self) -> &WidgetData {
-        self.widgets.tree.get(self.id).unwrap()
+        self.ui.tree.get(self.id).unwrap()
     }
 
     fn data_mut(&mut self) -> &mut WidgetData {
-        self.widgets.tree.get_mut(self.id).unwrap()
+        self.ui.tree.get_mut(self.id).unwrap()
     }
 
     pub fn index_of_child(&self, id: WidgetId) -> Option<usize> {
@@ -158,12 +146,11 @@ impl<'a> WidgetMut<'a> {
     }
 
     pub fn find_child(self, id: WidgetId) -> Result<WidgetMut<'a>, WidgetNotFound<'a>> {
-        if self.widgets.parent(id) == self.id {
+        if self.ui.parent(id) == self.id {
             Ok(WidgetMut {
-                widgets: self.widgets,
+                ui: self.ui,
                 id,
                 handlers: self.handlers,
-                reactive_graph: self.reactive_graph,
             })
         } else {
             Err(WidgetNotFound(self))
@@ -172,16 +159,15 @@ impl<'a> WidgetMut<'a> {
 
     pub fn find_sibling(self, id: WidgetId) -> Result<WidgetMut<'a>, WidgetNotFound<'a>> {
         let found = self
-            .widgets
+            .ui
             .sibling_id_iter(self.id)
             .any(|child_id| child_id == id);
 
         if found {
             Ok(WidgetMut {
-                widgets: self.widgets,
+                ui: self.ui,
                 id,
                 handlers: self.handlers,
-                reactive_graph: self.reactive_graph,
             })
         } else {
             Err(WidgetNotFound(self))
@@ -190,25 +176,24 @@ impl<'a> WidgetMut<'a> {
 
     pub fn child_iter(&self) -> WidgetRefIter<'_> {
         WidgetRefIter {
-            inner: self.widgets.tree.child_id_walker(self.id),
-            widgets: &self.widgets,
+            inner: self.ui.tree.child_id_walker(self.id),
+            ui: &self.ui,
         }
     }
 
     pub fn for_each_child_ref(&self, mut f: impl FnMut(WidgetRef<'_>)) {
-        for_each_child_ref_impl(&self.widgets, self.id, &mut f);
+        for_each_child_ref_impl(&self.ui, self.id, &mut f);
     }
 
     pub fn for_each_child_mut(&mut self, mut f: impl FnMut(WidgetMut<'_>)) {
-        let mut child_iter = self.widgets.tree.child_id_walker(self.id);
-        let mut current = child_iter.next_id(&self.widgets.tree);
+        let mut child_iter = self.ui.tree.child_id_walker(self.id);
+        let mut current = child_iter.next_id(&self.ui.tree);
         while let Some(child_id) = current {
             // This copy is needed - the widget might be removed while visited
-            let next = child_iter.next_id(&self.widgets.tree);
+            let next = child_iter.next_id(&self.ui.tree);
             f(WidgetMut {
-                widgets: self.widgets,
+                ui: self.ui,
                 handlers: self.handlers,
-                reactive_graph: self.reactive_graph,
                 id: child_id,
             });
             current = next;
@@ -216,13 +201,11 @@ impl<'a> WidgetMut<'a> {
     }
 
     pub fn remove(self) {
-        self.widgets
-            .remove_widget(self.id, self.reactive_graph, self.handlers);
+        self.ui.remove_widget(self.id, self.handlers);
     }
 
     pub fn replace(self, view: impl View) -> WidgetMut<'a> {
-        self.widgets
-            .replace_widget(self.id, self.reactive_graph, self.handlers, view);
+        self.ui.replace_widget(self.id, self.handlers, view);
         self
     }
 
@@ -231,8 +214,7 @@ impl<'a> WidgetMut<'a> {
     }
 
     fn add_widget(&mut self, view: impl View, pos: WidgetPos) -> WidgetId {
-        self.widgets
-            .add_widget(self.handlers, self.reactive_graph, pos, view)
+        self.ui.add_widget(self.handlers, pos, view)
     }
 
     pub fn add_after(&mut self, view: impl View) -> WidgetId {
@@ -252,7 +234,7 @@ impl<'a> WidgetMut<'a> {
     }
 
     pub fn swap_with(&mut self, widget_id: WidgetId) {
-        self.widgets.swap_widgets(self.id, widget_id);
+        self.ui.swap_widgets(self.id, widget_id);
     }
 
     pub fn local_bounds(&self) -> Rect {
@@ -264,7 +246,7 @@ impl<'a> WidgetMut<'a> {
     }
 
     pub fn request_layout(&mut self) {
-        self.widgets.request_layout(self.id);
+        self.ui.request_layout(self.id);
     }
 
     pub fn layout_requested(&self) -> bool {
@@ -272,7 +254,7 @@ impl<'a> WidgetMut<'a> {
     }
 
     pub fn request_render(&mut self) {
-        self.widgets.request_render(self.id);
+        self.ui.request_render(self.id);
     }
 
     pub fn update_style(&mut self, f: impl FnOnce(&mut Style)) {
@@ -280,14 +262,14 @@ impl<'a> WidgetMut<'a> {
     }
 
     pub fn update_text(&mut self, f: impl FnOnce(&mut TextData)) {
-        if let Some(text_data) = self.widgets.texts.get_mut(self.id) {
+        if let Some(text_data) = self.ui.texts.get_mut(self.id) {
             f(text_data)
         }
     }
 
     pub fn set_display_style(&mut self, display_style: DisplayStyle) {
         self.data_mut().display_style = display_style;
-        self.widgets.request_layout(self.id);
+        self.ui.request_layout(self.id);
     }
 
     pub fn style(&self) -> &Style {

@@ -1,12 +1,9 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
-use super::{
-    CanCreate, CanRead, CanWrite, Effect, NodeId, Owner, ReactiveValue, ReadSignal,
-    runtime::NodeType,
-};
+use super::{CanCreate, CanRead, CanWrite, Effect, NodeId, Owner, ReactiveValue, ReadSignal};
 use crate::ui::{
     Prop,
-    reactive::{CreateContext, EffectContext},
+    reactive::{CreateContext, EffectContext, NodeType},
 };
 
 /// A value that may change over time.
@@ -65,7 +62,7 @@ impl<T: Any> Var<T> {
         f: impl FnOnce(&mut CreateContext, &mut T),
     ) {
         let mut cx = cx.write_context();
-        if let Some(mut node) = cx.reactive_graph.lease_node(self.id) {
+        if let Some(mut node) = cx.ui.lease_node(self.id) {
             match node.deref_mut() {
                 NodeType::Signal(signal) => {
                     let value = signal
@@ -76,7 +73,7 @@ impl<T: Any> Var<T> {
                 }
                 _ => unreachable!(),
             }
-            cx.reactive_graph.unlease_node(node);
+            cx.ui.unlease_node(node);
         }
         cx.write_context().notify(self.id);
     }

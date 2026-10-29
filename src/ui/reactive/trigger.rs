@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::ui::reactive::{EffectContext, runtime::Source};
+use crate::ui::reactive::{EffectContext, Source};
 
 use super::{CanCreate, CanRead, CanWrite, NodeId};
 

@@ -30,10 +30,7 @@ impl<P: AnyParameter> ParamSetter<P> {
     where
         'cx: 'a,
     {
-        cx.read_context()
-            .reactive_graph
-            .get_parameter_ref(self.id)
-            .info()
+        cx.read_context().ui.get_parameter_ref(self.id).info()
     }
 
     pub fn begin_edit<'cx>(&self, cx: &mut impl CanWrite<'cx>) {

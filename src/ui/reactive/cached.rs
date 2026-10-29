@@ -1,19 +1,15 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
 use crate::ui::{
-    Prop, Widgets,
+    Prop, UiState,
     reactive::{EffectContext, ReadContext},
 };
 
-use super::{
-    CanCreate, CanRead, Effect, NodeId, ReactiveGraph, ReactiveValue, ReadScope, ReadSignal,
-    runtime::NodeType,
-};
+use super::{CanCreate, CanRead, Effect, NodeId, NodeType, ReactiveValue, ReadScope, ReadSignal};
 
 pub struct CachedContext<'a> {
     memo_id: NodeId,
-    widgets: &'a Widgets,
-    reactive_graph: &'a mut ReactiveGraph,
+    ui: &'a mut UiState,
 }
 
 impl<'s> CanRead<'s> for CachedContext<'s> {
@@ -21,10 +17,9 @@ impl<'s> CanRead<'s> for CachedContext<'s> {
     where
         's: 's2,
     {
-        let current_widget = self.reactive_graph.owner_widget(self.memo_id);
+        let current_widget = self.ui.owner_widget(self.memo_id);
         ReadContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
+            ui: self.ui,
             scope: ReadScope::Node(self.memo_id),
             current_widget,
         }
@@ -125,7 +120,7 @@ impl<T: 'static> ReactiveValue for Cached<T> {
 
 fn update_and_get_memo_value(mut cx: ReadContext<'_>, id: NodeId) -> &dyn Any {
     cx.update_value_if_needed(id);
-    match &cx.reactive_graph.get_node(id).node_type {
+    match cx.get_node(id) {
         NodeType::Memo(state) => state
             .value
             .as_ref()
@@ -143,17 +138,8 @@ pub struct CachedState {
 }
 
 impl CachedState {
-    pub fn eval(
-        &mut self,
-        memo_id: NodeId,
-        reactive_graph: &mut ReactiveGraph,
-        widgets: &Widgets,
-    ) -> bool {
-        let mut cx = CachedContext {
-            memo_id,
-            widgets,
-            reactive_graph,
-        };
+    pub fn eval(&mut self, memo_id: NodeId, ui: &mut UiState) -> bool {
+        let mut cx = CachedContext { memo_id, ui };
         (self.f)(&mut cx, &mut self.value)
     }
 }

@@ -1,7 +1,7 @@
 use std::{any::Any, marker::PhantomData};
 
 use super::{
-    CanCreate, CanWrite, NodeId, Owner, ReactiveValue, Trigger, runtime::NodeType, var::SignalState,
+    CanCreate, CanWrite, NodeId, NodeType, Owner, ReactiveValue, Trigger, var::SignalState,
 };
 use crate::ui::{
     Prop,
@@ -56,7 +56,7 @@ impl<T: Any> SignalVec<T> {
     }
 
     fn with_inner<R>(&self, cx: ReadContext, f: impl FnOnce(&Inner<T>) -> R) -> R {
-        let value = match &cx.reactive_graph.get_node(self.id).node_type {
+        let value = match cx.get_node(self.id) {
             NodeType::Signal(signal) => signal.value.as_ref(),
             _ => unreachable!(),
         };

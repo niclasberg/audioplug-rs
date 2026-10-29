@@ -79,9 +79,8 @@ impl<V: View> platform::WindowHandler for MyHandler<V> {
         let mut app_state = self.app_state.borrow_mut();
         let aa = app_state.deref_mut();
         super::render::paint_window(
-            &mut aa.widgets,
+            &mut aa.ui,
             &mut TextContext::new(&mut aa.font_cx, &mut aa.text_layout_cx, &mut aa.glyph_cache),
-            &mut aa.reactive_graph,
             &mut aa.widget_handlers.renderers,
             self.state.window_id(),
             dirty_rect,
@@ -91,11 +90,11 @@ impl<V: View> platform::WindowHandler for MyHandler<V> {
     fn get_cursor(&self, pos: Point) -> Option<Cursor> {
         let app_state = self.app_state.borrow();
         app_state
-            .widgets
+            .ui
             .get_widgets_at(self.state.window_id(), pos)
             .into_iter()
             .rev()
-            .find_map(|id| app_state.widgets.tree.get(id).unwrap().style.cursor)
+            .find_map(|id| app_state.ui.tree.get(id).unwrap().style.cursor)
     }
 }
 

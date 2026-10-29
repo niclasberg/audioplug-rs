@@ -2,7 +2,7 @@ use crate::{
     core::{Circle, Color, Size, Vec2},
     param::{AnyParameter, NormalizedValue},
     ui::{
-        BuildContext, Sense, EventContext, KnobEvent, Prop, RenderContext, View,
+        BuildContext, EventContext, KnobEvent, Prop, RenderContext, Sense, View,
         reactive::{ParamSetter, ReactiveValue, ReadSignal, Var},
     },
     views::util::ValueMapper,
@@ -95,19 +95,22 @@ fn build_knob(
     cx: &mut BuildContext,
     f_normalized_value: impl Fn(&mut RenderContext) -> f64 + 'static,
 ) {
-    cx.intrinsic_size(INTRINSIC_SIZE).render(move |cx| {
-        const MIN_ANGLE: f32 = -1.25 * std::f32::consts::PI;
-        const MAX_ANGLE: f32 = 0.25 * std::f32::consts::PI;
+    cx.intrinsic_size(INTRINSIC_SIZE)
+        .debug_label("Knob")
+        .render(move |cx| {
+            const MIN_ANGLE: f32 = -1.25 * std::f32::consts::PI;
+            const MAX_ANGLE: f32 = 0.25 * std::f32::consts::PI;
 
-        let bounds = cx.bounds();
-        let shape = Circle::from_rect(bounds);
-        let normalized_value = f_normalized_value(cx) as f32;
-        let angle = MIN_ANGLE * (1.0 - normalized_value) + MAX_ANGLE * normalized_value;
+            let bounds = cx.bounds();
+            let shape = Circle::from_rect(bounds);
+            let normalized_value = f_normalized_value(cx) as f32;
+            let angle = MIN_ANGLE * (1.0 - normalized_value) + MAX_ANGLE * normalized_value;
 
-        let dot_pos = shape.center + Vec2::new(angle.cos(), angle.sin()).scale(0.7 * shape.radius);
-        cx.fill(shape, Color::GREEN);
-        cx.fill(Circle::new(dot_pos, 0.15 * shape.radius), Color::BLACK);
-    });
+            let dot_pos =
+                shape.center + Vec2::new(angle.cos(), angle.sin()).scale(0.7 * shape.radius);
+            cx.fill(shape, Color::GREEN);
+            cx.fill(Circle::new(dot_pos, 0.15 * shape.radius), Color::BLACK);
+        });
 }
 
 pub struct ParameterKnob<P> {

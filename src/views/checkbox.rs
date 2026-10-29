@@ -55,7 +55,7 @@ impl StyleExt for Checkbox {}
 
 impl View for Checkbox {
     fn build(self, cx: &mut BuildContext) {
-        cx.props(self.props);
+        cx.props(self.props).debug_label("Checkbox");
         let checked = if let Some(checked) = self.checked {
             // User controls the checked property, so we should not toggle ourselves
             let _checked = checked.clone();

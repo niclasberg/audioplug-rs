@@ -6,13 +6,9 @@ use std::{
 };
 
 use super::{
-    CanCreate, CanRead, CanWrite, Effect, NodeId, ReactiveValue, ReadScope, ReadSignal,
-    runtime::NodeType,
+    CanCreate, CanRead, CanWrite, Effect, NodeId, NodeType, ReactiveValue, ReadScope, ReadSignal,
 };
-use crate::ui::{
-    Prop, Widgets,
-    reactive::{EffectContext, ReactiveGraph},
-};
+use crate::ui::{Prop, UiState, reactive::EffectContext};
 use crate::{
     core::{Lerp, SpringPhysics},
     ui::reactive::ReadContext,
@@ -34,7 +30,7 @@ pub trait Animation {
 }
 
 /// Type-erased animation, needed so that we can store them in the runtime
-pub(super) trait AnyAnimation {
+pub(crate) trait AnyAnimation {
     fn value_dyn(&self) -> &dyn Any;
     fn drive(&mut self, time: Instant) -> bool;
     fn set_target_dyn(&mut self, value: &dyn Any) -> bool;
@@ -81,19 +77,19 @@ impl AnyAnimation for Box<dyn AnyAnimation> {
 }
 
 pub struct AnimationState {
-    pub(super) inner: Box<dyn AnyAnimation>,
+    pub(crate) inner: Box<dyn AnyAnimation>,
 }
 
-type ResetFn = dyn Fn(&mut dyn AnyAnimation, &mut ReactiveGraph, &Widgets) -> bool;
+type ResetFn = dyn Fn(&mut dyn AnyAnimation, &mut UiState) -> bool;
 
 pub struct DerivedAnimationState {
-    pub(super) inner: Box<dyn AnyAnimation>,
+    pub(crate) inner: Box<dyn AnyAnimation>,
     reset_fn: Box<ResetFn>,
 }
 
 impl DerivedAnimationState {
-    pub fn reset(&mut self, reactive_graph: &mut ReactiveGraph, widgets: &Widgets) -> bool {
-        (self.reset_fn)(&mut self.inner, reactive_graph, widgets)
+    pub fn reset(&mut self, ui: &mut UiState) -> bool {
+        (self.reset_fn)(&mut self.inner, ui)
     }
 }
 
@@ -233,19 +229,15 @@ impl<T: 'static> Animated<T> {
             .create_derived_animation_node(move |cx, id| {
                 let value = f_value(&mut cx.read_context().with_read_scope(ReadScope::Node(id)));
                 let inner = Box::new(f_anim(value));
-                let reset_fn = Box::new(
-                    move |animation: &mut dyn AnyAnimation,
-                          reactive_graph: &mut ReactiveGraph,
-                          widgets: &Widgets| {
+                let reset_fn =
+                    Box::new(move |animation: &mut dyn AnyAnimation, ui: &mut UiState| {
                         let mut cx = ReadContext {
-                            widgets,
-                            reactive_graph,
+                            ui,
                             scope: ReadScope::Node(id),
                             current_widget,
                         };
                         animation.set_target_dyn(&f_value(&mut cx))
-                    },
-                );
+                    });
                 DerivedAnimationState { inner, reset_fn }
             });
 
@@ -327,8 +319,8 @@ impl<T: 'static> ReactiveValue for Animated<T> {
     }
 }
 
-fn get_animation_value_ref(cx: ReadContext<'_>, node_id: NodeId) -> &dyn Any {
-    match &cx.reactive_graph.get_node(node_id).node_type {
+fn get_animation_value_ref<'a>(cx: ReadContext<'a>, node_id: NodeId) -> &'a dyn Any {
+    match cx.get_node(node_id) {
         NodeType::Animation(animation) => animation.inner.value_dyn(),
         NodeType::DerivedAnimation(animation) => animation.inner.value_dyn(),
         _ => unreachable!(),

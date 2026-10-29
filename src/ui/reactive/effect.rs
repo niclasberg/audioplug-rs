@@ -3,12 +3,9 @@ use slotmap::Key;
 use crate::{
     param::{ParamRef, ParameterId},
     ui::{
-        WidgetId, WidgetMut, WidgetRef, Widgets,
-        reactive::{
-            CreateContext, ReactiveGraph, ReadContext, ReadScope, WidgetStatus, WriteContext,
-            runtime::Source,
-        },
-        widgets::WidgetHandlers,
+        UiState, WidgetId, WidgetMut, WidgetRef,
+        reactive::{CreateContext, ReadContext, ReadScope, Source, WidgetStatus, WriteContext},
+        ui_state::WidgetHandlers,
     },
 };
 
@@ -16,8 +13,7 @@ use super::{CanCreate, CanRead, CanWrite, NodeId};
 use std::any::Any;
 
 pub struct EffectContext<'a> {
-    pub widgets: &'a mut Widgets,
-    pub reactive_graph: &'a mut ReactiveGraph,
+    pub ui: &'a mut UiState,
     pub handlers: &'a mut WidgetHandlers,
     pub effect_id: NodeId,
     pub track_reads: bool,
@@ -25,11 +21,11 @@ pub struct EffectContext<'a> {
 
 impl<'s> EffectContext<'s> {
     pub fn widget_ref(&self, widget_id: WidgetId) -> WidgetRef<'_> {
-        WidgetRef::new(self.widgets, widget_id)
+        WidgetRef::new(self.ui, widget_id)
     }
 
     pub fn widget_mut(&mut self, widget_id: WidgetId) -> WidgetMut<'_> {
-        WidgetMut::new(self.widgets, self.handlers, self.reactive_graph, widget_id)
+        WidgetMut::new(self.ui, self.handlers, widget_id)
     }
 }
 
@@ -38,7 +34,7 @@ impl<'s> CanRead<'s> for EffectContext<'s> {
     where
         's: 's2,
     {
-        let current_widget = self.reactive_graph.owner_widget(self.effect_id);
+        let current_widget = self.ui.owner_widget(self.effect_id);
         let scope = if self.track_reads {
             ReadScope::Node(self.effect_id)
         } else {
@@ -46,8 +42,7 @@ impl<'s> CanRead<'s> for EffectContext<'s> {
         };
 
         ReadContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
+            ui: self.ui,
             scope,
             current_widget,
         }
@@ -59,10 +54,7 @@ impl<'s> CanWrite<'s> for EffectContext<'s> {
     where
         's: 's2,
     {
-        WriteContext {
-            widgets: self.widgets,
-            reactive_graph: self.reactive_graph,
-        }
+        WriteContext { ui: self.ui }
     }
 }
 
@@ -115,7 +107,7 @@ impl Effect {
         let id = cx.create_watcher(
             Source::Parameter(id),
             Box::new(move |cx| {
-                let value = getter(cx.reactive_graph.get_parameter_ref(id));
+                let value = getter(cx.ui.get_parameter_ref(id));
                 f(cx, &value);
             }),
         );
@@ -131,15 +123,14 @@ impl Effect {
         let id = cx.create_watcher(
             Source::Node(node_id),
             Box::new(move |cx| {
-                cx.reactive_graph
-                    .update_value_if_necessary(&cx.widgets, node_id);
-                if let Some(node) = cx.reactive_graph.lease_node(node_id) {
+                cx.ui.update_value_if_necessary(node_id);
+                if let Some(node) = cx.ui.lease_node(node_id) {
                     let value = node
                         .get_value_ref()
                         .downcast_ref()
                         .expect("Node should have the correct value type");
                     f(cx, value);
-                    cx.reactive_graph.unlease_node(node);
+                    cx.ui.unlease_node(node);
                 }
             }),
         );
@@ -156,7 +147,7 @@ impl Effect {
         let id = cx.create_watcher(
             Source::Widget(widget, status.mask),
             Box::new(move |cx| {
-                let value = (status.getter)(&cx.widgets, widget);
+                let value = (status.getter)(&cx.ui, widget);
                 f(cx, &value);
             }),
         );

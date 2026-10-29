@@ -119,7 +119,9 @@ impl<VS, const IS_ROW: bool> StyleExt for FlexContainer<VS, IS_ROW> {}
 
 impl<VS: ViewSequence, const IS_ROW: bool> View for FlexContainer<VS, IS_ROW> {
     fn build(self, cx: &mut BuildContext) {
-        cx.props(self.props).event_handlers(self.event_handlers);
+        cx.props(self.props)
+            .event_handlers(self.event_handlers)
+            .debug_label(if IS_ROW { "Row" } else { "Column" });
         let display_style = Cached::new(cx, move |cx, _| {
             DisplayStyle::Flex(FlexStyle {
                 direction: if IS_ROW {

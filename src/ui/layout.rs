@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use super::style::{Edges, ResolveInto, Style};
 use crate::core::{Rect, Size};
-use crate::ui::Widgets;
+use crate::ui::UiState;
 use crate::ui::style::DisplayStyle;
 use crate::ui::text::TextContext;
 use taffy::{
@@ -30,7 +30,7 @@ impl Iterator for LayoutChildIter<'_> {
 }
 
 pub struct LayoutContext<'a, 'b> {
-    widgets: &'a mut Widgets,
+    widgets: &'a mut UiState,
     window_size: Size,
     region_to_invalidate: Option<Rect>,
     text_cx: &'a mut TextContext<'b>,
@@ -38,7 +38,7 @@ pub struct LayoutContext<'a, 'b> {
 
 impl<'a, 'b> LayoutContext<'a, 'b> {
     pub(super) fn new(
-        widgets: &'a mut Widgets,
+        widgets: &'a mut UiState,
         window_size: Size,
         text_cx: &'a mut TextContext<'b>,
     ) -> Self {
