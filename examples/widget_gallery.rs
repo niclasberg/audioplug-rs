@@ -1,7 +1,7 @@
 use audioplug::core::{Color, Cursor, Size, Vec2};
-use audioplug::ui::reactive::{SpringOptions, TweenOptions};
+use audioplug::ui::reactive::{SpringOptions, TweenOptions, WidgetStatus};
 use audioplug::ui::style::{Border, Edges, Fill, Length};
-use audioplug::ui::{App, ShadowKind, ShadowOptions, TextExt, Window};
+use audioplug::ui::{App, ShadowKind, ShadowOptions, StrokeAlignment, TextExt, Window};
 use audioplug::ui::{StyleExt, prelude::*};
 use audioplug::views::*;
 use std::path::Path;
@@ -48,16 +48,26 @@ fn main() {
 }
 
 fn menu_button(label: &str, tab_signal: Var<Tab>, tab: Tab) -> impl View {
-    LabelButton::new(label, move |cx| tab_signal.set(cx, tab)).background(tab_signal.map(
-        move |current_tab| {
+    LabelButton::new(label, move |cx| tab_signal.set(cx, tab))
+        .background(tab_signal.map(move |current_tab| {
             if *current_tab == tab {
                 Color::EARTH_YELLOW.tint(0.2)
             } else {
                 Color::EARTH_YELLOW
             }
             .into()
-        },
-    ))
+        }))
+        .border(WidgetStatus::FOCUSED.map(|focused| {
+            if *focused {
+                Border {
+                    fill: Fill::Solid(Color::RED),
+                    width: Length::Px(1.0),
+                    alignment: StrokeAlignment::Inside,
+                }
+            } else {
+                Border::EMPTY
+            }
+        }))
 }
 
 fn overview() -> impl View {

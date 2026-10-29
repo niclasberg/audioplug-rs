@@ -88,11 +88,11 @@ impl ReactiveGraph {
         }
 
         // Remove other nodes' subscriptions to this node
-        if let Some(sources) = self.sources.remove(node_id) {
+        /*if let Some(sources) = self.sources.remove(node_id) {
             for source_id in sources {
                 self.remove_source_from_observer(source_id, node_id);
             }
-        }
+        }*/
 
         let node = self.nodes.remove(node_id).expect("Missing node");
         self.remove_node_and_siblings(node.first_child_id);

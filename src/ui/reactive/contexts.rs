@@ -26,10 +26,6 @@ impl<'a> ReadContext<'a> {
         let node_id = match self.scope {
             ReadScope::Untracked => return,
             ReadScope::Node(node_id) => node_id,
-            ReadScope::SyncWidget(widget_id) => self
-                .ui
-                .reactive_graph
-                .widget_invalidation_node_id(widget_id, WidgetPhase::SyncWidget),
             ReadScope::Render(widget_id) => self
                 .ui
                 .reactive_graph

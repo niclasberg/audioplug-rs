@@ -31,6 +31,14 @@ impl DrawStyle {
 pub struct StrokeStyle {
     pub paint: Paint,
     pub line_width: f32,
+    pub alignment: StrokeAlignment,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum StrokeAlignment {
+    Inside,
+    Outside,
+    Centered,
 }
 
 #[derive(Debug, Clone)]

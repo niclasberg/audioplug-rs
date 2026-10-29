@@ -77,13 +77,13 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
 }
 
 pub fn handle_mouse_event(
-    widgets: &mut UiState,
+    ui: &mut UiState,
     event_handlers: &mut Interactions,
     task_queue: &mut TaskQueue,
     window_id: WindowId,
     mouse_event: OSMouseEvent,
 ) {
-    let widgets_under_mouse = widgets.get_widgets_at(window_id, mouse_event.position());
+    let widgets_under_mouse = ui.get_widgets_at(window_id, mouse_event.position());
 
     if let OSMouseEvent::Down(_) = mouse_event {
         let new_focus_view = widgets_under_mouse
@@ -92,16 +92,16 @@ pub fn handle_mouse_event(
             .rev()
             .find(|id| event_handlers.has_sense(*id, Sense::FOCUSABLE));
 
-        widgets.set_focus_widget(window_id, new_focus_view);
+        ui.set_focus_widget(window_id, new_focus_view);
     };
 
-    if let Some(gesture) = widgets.gesture {
+    if let Some(gesture) = ui.gesture {
         let senses = event_handlers.senses(gesture.target);
         match mouse_event {
             OSMouseEvent::Down(ev) => {
                 dispatch_event(
                     event_handlers,
-                    widgets,
+                    ui,
                     task_queue,
                     gesture.target,
                     &Event::MouseDown(ev),
@@ -113,7 +113,7 @@ pub fn handle_mouse_event(
                         GestureState::Pressed if senses.contains(Sense::CLICKABLE) => {
                             dispatch_event(
                                 event_handlers,
-                                widgets,
+                                ui,
                                 task_queue,
                                 gesture.target,
                                 &Event::Click(MouseClick {
@@ -125,7 +125,7 @@ pub fn handle_mouse_event(
                         GestureState::Dragging if senses.contains(Sense::DRAGGABLE) => {
                             dispatch_event(
                                 event_handlers,
-                                widgets,
+                                ui,
                                 task_queue,
                                 gesture.target,
                                 &Event::Drag(MouseDrag::Ended {
@@ -136,7 +136,7 @@ pub fn handle_mouse_event(
                         }
                         _ => {}
                     }
-                    widgets.gesture = None;
+                    ui.gesture = None;
                 }
             }
             OSMouseEvent::Move(ev) => {
@@ -147,7 +147,7 @@ pub fn handle_mouse_event(
                         new_gesture.state = GestureState::Dragging;
                         dispatch_event(
                             event_handlers,
-                            widgets,
+                            ui,
                             task_queue,
                             gesture.target,
                             &Event::Drag(MouseDrag::Ended {
@@ -162,7 +162,7 @@ pub fn handle_mouse_event(
                     let delta = ev.position - new_gesture.last;
                     dispatch_event(
                         event_handlers,
-                        widgets,
+                        ui,
                         task_queue,
                         gesture.target,
                         &Event::Drag(MouseDrag::Moved {
@@ -174,12 +174,12 @@ pub fn handle_mouse_event(
                     new_gesture.last = ev.position;
                 }
 
-                widgets.gesture = Some(new_gesture);
+                ui.gesture = Some(new_gesture);
             }
             OSMouseEvent::Wheel(mouse_wheel_event) => {
                 dispatch_event(
                     event_handlers,
-                    widgets,
+                    ui,
                     task_queue,
                     gesture.target,
                     &Event::Wheel(mouse_wheel_event),
@@ -194,25 +194,19 @@ pub fn handle_mouse_event(
                     if capabilities.contains(Sense::CLICKABLE)
                         || capabilities.contains(Sense::DRAGGABLE)
                     {
-                        dispatch_event(
-                            event_handlers,
-                            widgets,
-                            task_queue,
-                            id,
-                            &Event::MouseDown(ev),
-                        );
+                        dispatch_event(event_handlers, ui, task_queue, id, &Event::MouseDown(ev));
 
                         if ev.button == MouseButton::LEFT {
                             if capabilities.contains(Sense::CLICKABLE) {
-                                widgets.gesture =
+                                ui.gesture =
                                     Some(Gesture::new(id, ev.position, GestureState::Pressed));
                             } else {
                                 // DRAGGABLE. In this case, emit a DragStart immediately
-                                widgets.gesture =
+                                ui.gesture =
                                     Some(Gesture::new(id, ev.position, GestureState::Dragging));
                                 dispatch_event(
                                     event_handlers,
-                                    widgets,
+                                    ui,
                                     task_queue,
                                     id,
                                     &Event::Drag(MouseDrag::Started {
@@ -232,7 +226,7 @@ pub fn handle_mouse_event(
                     {
                         dispatch_event(
                             event_handlers,
-                            widgets,
+                            ui,
                             task_queue,
                             id,
                             &Event::MouseUp(mouse_up_event),
@@ -241,17 +235,11 @@ pub fn handle_mouse_event(
                     }
                 }
                 OSMouseEvent::Move(ev) => {
-                    dispatch_event(
-                        event_handlers,
-                        widgets,
-                        task_queue,
-                        id,
-                        &Event::MouseMove(ev),
-                    );
+                    dispatch_event(event_handlers, ui, task_queue, id, &Event::MouseMove(ev));
                     break;
                 }
                 OSMouseEvent::Wheel(ev) => {
-                    dispatch_event(event_handlers, widgets, task_queue, id, &Event::Wheel(ev));
+                    dispatch_event(event_handlers, ui, task_queue, id, &Event::Wheel(ev));
                     break;
                 }
             }

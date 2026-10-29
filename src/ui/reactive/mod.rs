@@ -80,7 +80,6 @@ pub(crate) enum Source {
 pub enum ReadScope {
     Untracked,
     Node(NodeId),
-    SyncWidget(WidgetId),
     Render(WidgetId),
 }
 

@@ -34,6 +34,16 @@ impl Length {
             Length::Vw(val) => window_size.width * val / 100.0,
         }
     }
+
+    pub fn scale(self, scale: f32) -> Self {
+        match self {
+            Length::Auto => Length::Auto,
+            Length::Px(val) => Length::Px(val * scale),
+            Length::Percent(val) => Length::Percent(scale * val),
+            Length::Vh(val) => Length::Vh(val * scale),
+            Length::Vw(val) => Length::Vw(val * scale),
+        }
+    }
 }
 
 impl Default for Length {

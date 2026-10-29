@@ -1,7 +1,7 @@
 use crate::{
     core::{Color, Rect, Size},
     ui::{
-        BuildContext, EventContext, Prop, StyleExt, View, ViewExt, WidgetProps,
+        BuildContext, EventContext, Prop, StrokeAlignment, StyleExt, View, ViewExt, WidgetProps,
         reactive::{ReactiveValue, Var},
         style::{Border, Edges, Fill, Length},
     },
@@ -28,6 +28,7 @@ impl Checkbox {
                 .border(Border {
                     fill: Fill::Solid(Color::BLACK),
                     width: Length::Px(1.0),
+                    alignment: StrokeAlignment::Inside,
                 })
                 .aspect_ratio(1.0)
                 .corner_radius(Size::splat(3.0))

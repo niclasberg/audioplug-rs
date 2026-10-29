@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use super::style::{Edges, ResolveInto, Style};
 use crate::core::{Rect, Size};
-use crate::ui::UiState;
-use crate::ui::style::DisplayStyle;
+use crate::ui::style::{DisplayStyle, Length};
 use crate::ui::text::TextContext;
+use crate::ui::{StrokeAlignment, UiState};
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutInput, LayoutOutput,
     LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree,
@@ -407,7 +407,12 @@ impl taffy::CoreStyle for LayoutStyle<'_> {
 
     fn border(&self) -> taffy::Rect<taffy::LengthPercentage> {
         if let Some(border) = &self.style.border {
-            Edges::all(border.width).resolve_into(self.window_size)
+            let width = match border.alignment {
+                StrokeAlignment::Inside => Length::Px(0.0),
+                StrokeAlignment::Outside => border.width,
+                StrokeAlignment::Centered => border.width.scale(0.5),
+            };
+            Edges::all(width).resolve_into(self.window_size)
         } else {
             taffy::Rect::zero()
         }

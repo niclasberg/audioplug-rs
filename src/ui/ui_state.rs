@@ -499,11 +499,11 @@ impl UiState {
                 old_focus_widget, new_focus_widget
             );
 
+            self.window_mut(window_id).focus_widget = new_focus_widget;
+
             if let Some(old_focus_widget) = old_focus_widget {
                 self.notify_widget_status_changed(old_focus_widget, WidgetStatus::FOCUSED.mask);
             }
-
-            self.window_mut(window_id).focus_widget = new_focus_widget;
 
             if let Some(focus_gained_widget) = new_focus_widget {
                 self.notify_widget_status_changed(focus_gained_widget, WidgetStatus::FOCUSED.mask);
@@ -564,7 +564,14 @@ impl UiState {
     }
 
     pub fn set_hidden(&mut self, widget_id: WidgetId, hidden: bool) {
-        todo!()
+        if hidden {
+            self.clear_mouse_capture_and_focus(widget_id);
+        }
+
+        if hidden != self.tree[widget_id].style.hidden {
+            self.tree[widget_id].style.hidden = hidden;
+            self.request_layout(widget_id);
+        }
     }
 }
 

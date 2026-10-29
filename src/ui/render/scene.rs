@@ -6,10 +6,10 @@ use crate::{
         ScaleFactor, Shape, TextLayout, TranslateScale, Vec2, Zero,
     },
     ui::{
-        Paint, PaintRef,
+        PaintRef,
         render::{
             GlyphCache,
-            draw_style::{ShadowKind, ShadowOptions},
+            draw_style::{ShadowKind, ShadowOptions, StrokeAlignment},
         },
     },
 };
@@ -120,7 +120,7 @@ impl GpuAppearance {
         self.margin = self.margin.max(0.5);
     }
 
-    pub fn set_stroke(&mut self, paint: PaintRef, width: f32) {
+    pub fn set_stroke(&mut self, paint: PaintRef, width: f32, alignment: StrokeAlignment) {
         set_paint_data(
             paint,
             &mut self.stroke_data,
@@ -409,7 +409,7 @@ impl GpuScene {
         scale_factor: ScaleFactor,
     ) {
         let mut app = GpuAppearance::new();
-        app.set_stroke(Color::BLACK.into(), 2.0);
+        app.set_stroke(Color::BLACK.into(), 2.0, StrokeAlignment::Centered);
         let app_ref = self.add_appearance(app);
 
         for line in text_layout.lines() {

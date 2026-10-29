@@ -7,7 +7,7 @@ use crate::{
     core::{Color, Cursor, Size},
     ui::{
         Prop, UiState, WidgetId,
-        reactive::{ReactiveValue, ReadContext, ReadScope},
+        reactive::{ReactiveValue, ReadContext, ReadScope, WidgetPhase},
         render::ShadowOptions,
         style::{Border, Edges, Fill, Length},
     },
@@ -114,9 +114,12 @@ define_widget_props! {
 
 impl WidgetProp {
     pub fn apply(&self, ui: &mut UiState, widget_id: WidgetId) -> Invalidation {
+        let node = ui
+            .reactive_graph
+            .widget_invalidation_node_id(widget_id, WidgetPhase::SyncWidget);
         let mut cx = ReadContext {
             ui,
-            scope: ReadScope::SyncWidget(widget_id),
+            scope: ReadScope::Node(node),
             current_widget: Some(widget_id),
         };
 
@@ -132,9 +135,7 @@ impl WidgetProp {
         match self {
             WidgetProp::Hidden(prop) => {
                 let value = prop.get(&mut cx);
-                if replace(&mut ui.style_mut(widget_id).hidden, value) {
-                    return Invalidation::LAYOUT;
-                }
+                ui.set_hidden(widget_id, value);
             }
             WidgetProp::Padding(prop) => {
                 let value = prop.get(&mut cx);
@@ -211,7 +212,7 @@ impl WidgetProp {
             WidgetProp::Border(prop) => {
                 let value = Some(prop.get(&mut cx));
                 if replace(&mut ui.style_mut(widget_id).border, value) {
-                    return Invalidation::RENDER;
+                    return Invalidation::LAYOUT | Invalidation::RENDER;
                 }
             }
             WidgetProp::JustifySelf(prop) => {

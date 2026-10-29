@@ -37,7 +37,8 @@ pub use interaction::{
 };
 pub use prop::Prop;
 pub use render::{
-    DrawStyle, Paint, PaintRef, RenderContext, ShadowKind, ShadowOptions, invalidate_window,
+    DrawStyle, Paint, PaintRef, RenderContext, ShadowKind, ShadowOptions, StrokeAlignment,
+    invalidate_window,
 };
 pub use task_queue::TaskQueue;
 pub use text::{TextContext, TextStyle};

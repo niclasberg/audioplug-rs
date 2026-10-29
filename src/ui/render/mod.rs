@@ -16,7 +16,7 @@ mod gradient_cache;
 mod scene;
 mod tiles;
 mod wgpu_surface;
-pub use draw_style::{DrawStyle, Paint, PaintRef, ShadowKind, ShadowOptions};
+pub use draw_style::{DrawStyle, Paint, PaintRef, ShadowKind, ShadowOptions, StrokeAlignment};
 pub use glyph_cache::GlyphCache;
 pub use scene::GpuScene;
 use slotmap::SecondaryMap;
@@ -190,15 +190,20 @@ fn render_node_background(
         appearance.set_fill(PaintRef::from_fill(background, window_size, bounds));
     }
 
-    let line_width = node.layout.border.top * scale_factor.0;
-    if let Some(border) = &node.style.border
-        && line_width > 0.0
-    {
+    if let Some(border) = &node.style.border {
         let bounds = node.global_bounds();
-        appearance.set_stroke(
-            PaintRef::from_fill(&border.fill, window_size, bounds),
-            line_width,
-        );
+        let line_width = border
+            .width
+            .resolve_into_px(window_size, bounds.size().min_element())
+            * scale_factor.0;
+
+        if line_width > 0.0 {
+            appearance.set_stroke(
+                PaintRef::from_fill(&border.fill, window_size, bounds),
+                line_width,
+                border.alignment,
+            );
+        }
     }
 
     if !appearance.is_empty() {
@@ -265,7 +270,11 @@ impl<'a> RenderContext<'a> {
             .scene
             .add_path(&self.path_segment_buffer, FillRule::NonZero);
         let mut appearance = GpuAppearance::new();
-        appearance.set_stroke(brush.into(), line_width * self.scale_factor.0);
+        appearance.set_stroke(
+            brush.into(),
+            line_width * self.scale_factor.0,
+            StrokeAlignment::Centered,
+        );
         let appearance_ref = self.scene.add_appearance(appearance);
         self.scene.draw(
             shape_ref,
@@ -294,7 +303,11 @@ impl<'a> RenderContext<'a> {
     ) {
         let shape_ref = self.scene.add_shape(shape.into());
         let mut appearance = GpuAppearance::new();
-        appearance.set_stroke(self.current_transform() * brush.into(), line_width);
+        appearance.set_stroke(
+            self.current_transform() * brush.into(),
+            line_width,
+            StrokeAlignment::Centered,
+        );
         let appearance_ref = self.scene.add_appearance(appearance);
         self.scene.draw(
             shape_ref,
