@@ -13,8 +13,8 @@ use crate::{
     param::{AnyParameterMap, ParamRef, ParameterId},
     platform,
     ui::{
-        BuildContext, HostHandle, OverlayAnchor, OverlayOptions, Sense, TaskQueue, View,
-        WidgetFlags, WidgetId, WindowId,
+        AnyView, BuildContext, Event, EventResult, HostHandle, OverlayAnchor, OverlayOptions,
+        Sense, View, WidgetFlags, WidgetId, WindowId,
         clipboard::Clipboard,
         interaction::Interactions,
         layout::{LayoutContext, RecomputeLayout},
@@ -25,9 +25,9 @@ use crate::{
         },
         reactive_graph::ReactiveGraph,
         render::{GpuScene, RendererMap, WGPUSurface},
-        style::Style,
-        text::{TextContext, TextData},
-        widget_prop::WidgetPropMap,
+        style::{Edges, Length, Style},
+        text::TextData,
+        widget_prop::WidgetBindingsMap,
         widget_tree::{ChildIdIter, WidgetTree},
     },
 };
@@ -41,16 +41,21 @@ pub struct UiState {
     pub(super) layout_cache: LayoutCache,
     pub(super) texts: SecondaryMap<WidgetId, TextData>,
     pub(super) windows: SlotMap<WindowId, WindowState>,
-    /// (Lazy) cache of child ids. Taffy requires random access during layout.
-    child_id_cache: ChildCache,
-    dirty_props_widgets: FxHashSet<WidgetId>,
     /// The current hovered widget, if any
     pub(super) hovered_widget: Option<WidgetId>,
     /// The current active mouse gesture, if any
     pub(super) gesture: Option<Gesture>,
+    /// (Lazy) cache of child ids. Taffy requires random access during layout.
+    child_id_cache: ChildCache,
+    dirty_props_widgets: FxHashSet<WidgetId>,
+    /// Deferred widget removals/replacements
+    pending_widget_ops: FxHashMap<WidgetId, PendingOp>,
     pub(crate) parameters: Rc<dyn AnyParameterMap>,
     pub(crate) reactive_graph: ReactiveGraph,
     pub(super) effects_to_check: FxIndexSet<NodeId>,
+    /// True if currently flushing effects
+    running_effects: bool,
+    events_to_dispatch: VecDeque<(WidgetId, Event)>,
     node_id_buffer: VecDeque<NodeId>,
     pub(super) pending_animations: FxIndexSet<NodeId>,
     pub(super) host_handle: Option<Box<dyn HostHandle>>,
@@ -63,7 +68,7 @@ pub struct UiState {
 pub struct WidgetHandlers {
     pub(super) event_handlers: Interactions,
     pub(super) renderers: RendererMap,
-    pub(super) widget_props: WidgetPropMap,
+    pub(super) widget_props: WidgetBindingsMap,
 }
 
 impl WidgetHandlers {
@@ -81,6 +86,22 @@ pub enum WidgetPos {
     FirstChild(WidgetId),
     LastChild(WidgetId),
     Overlay(WidgetId, OverlayOptions),
+}
+
+bitflags::bitflags! {
+    pub struct Invalidation: u8 {
+        const RENDER = 1;
+        const LAYOUT = 1 << 1;
+        const TEXT = 1 << 2;
+    }
+}
+
+enum PendingOp {
+    RemoveWidget,
+    Replace {
+        view: AnyView,
+        last_node_to_keep: Option<NodeId>,
+    },
 }
 
 pub(super) struct WindowState {
@@ -147,6 +168,7 @@ impl UiState {
             pending_animations: Default::default(),
             host_handle: None,
             effects_to_check: Default::default(),
+            running_effects: false,
             tree: Default::default(),
             layout_cache: Default::default(),
             texts: Default::default(),
@@ -156,6 +178,8 @@ impl UiState {
             hovered_widget: None,
             gesture: None,
             reactive_graph,
+            events_to_dispatch: Default::default(),
+            pending_widget_ops: Default::default(),
         }
     }
 
@@ -197,7 +221,7 @@ impl UiState {
                 // but we don't want to recurse into children that are overlays here - that
                 // would lead to us visiting the overlays multiple times.
                 let is_child_overlay = widget_id != root_id && data.is_overlay();
-                if data.global_bounds().contains(pos) && !is_child_overlay {
+                if data.outer_bounds().contains(pos) && !is_child_overlay {
                     widgets.push(widget_id);
                     current = self.tree.next_dfs(widget_id, root_id);
                 } else {
@@ -303,61 +327,122 @@ impl UiState {
     }
 
     pub fn swap_widgets(&mut self, src_id: WidgetId, dst_id: WidgetId) {
+        // The node might become hidden/disabled - need to notify!
         self.tree.swap(src_id, dst_id);
         self.request_layout(src_id);
         self.request_layout(dst_id);
     }
 
-    // Remove a widget, all its children and all owned reactive nodes
-    pub fn remove_widget(&mut self, widget_id: WidgetId, handlers: &mut WidgetHandlers) {
+    /// Mark a widget for removal, the widget will be removed at next safe removal point.
+    /// If the widget is already marked for removal, this is a no-op
+    pub fn remove_widget(&mut self, widget_id: WidgetId) {
+        self.push_widget_op(widget_id, PendingOp::RemoveWidget);
+    }
+
+    fn push_widget_op(&mut self, widget_id: WidgetId, op: PendingOp) {
+        if self.tree[widget_id].flag_is_set(WidgetFlags::DOOMED) {
+            // If there already exists a pending op, Removing takes prescedence over Replace.
+            // In case of multiple Replaces, the last one gets applied. Since effect order is
+            // indeterminate, this could possibly lead to bugs, but I don't think it will be a
+            // problem in practise. Maybe we should log a warning?
+            if let Some(current_op) = self.pending_widget_ops.get_mut(&widget_id) {
+                if matches!(current_op, PendingOp::Replace { .. }) {
+                    *current_op = op;
+                }
+            }
+            return;
+        }
+
+        self.clear_mouse_capture_and_focus(widget_id);
+        self.tree[widget_id].set_flag(WidgetFlags::DOOMED);
+
+        let mut next = self.tree.next_dfs(widget_id, widget_id);
+        while let Some(current) = next {
+            // If a Widget has been marked as doomed, all of its subtree is also marked, so we can skip it.
+            next = if self.tree[current].flag_is_set(WidgetFlags::DOOMED) {
+                // The parent will get Removed/Replaced, so the widget op should not have any effect.
+                // Just remove it.
+                self.pending_widget_ops.remove(&current);
+                self.tree.next_subtree_dfs(current, widget_id)
+            } else {
+                self.tree[current].set_flag(WidgetFlags::DOOMED);
+                self.tree.next_dfs(current, widget_id)
+            };
+        }
+        self.pending_widget_ops.insert(widget_id, op);
+    }
+
+    fn apply_widget_op(
+        &mut self,
+        widget_id: WidgetId,
+        op: PendingOp,
+        handlers: &mut WidgetHandlers,
+    ) {
         // Request layout before removing, so that all parent widgets gets marked as needing layout
         self.request_layout(widget_id);
         self.request_render(widget_id);
-        self.clear_mouse_capture_and_focus(widget_id);
 
-        self.tree.remove(widget_id, |_, data| {
-            self.child_id_cache.remove(data.id);
-            self.layout_cache.remove(data.id);
-            self.texts.remove(data.id);
-            self.windows[data.window_id].overlays.remove(data.id);
-            handlers.remove(data.id);
-            self.reactive_graph.clear_widget(data.id);
-        });
-    }
+        match op {
+            PendingOp::RemoveWidget => {
+                self.tree.remove(widget_id, |_, data| {
+                    self.child_id_cache.remove(data.id);
+                    self.layout_cache.remove(data.id);
+                    self.texts.remove(data.id);
+                    self.windows[data.window_id].overlays.remove(data.id);
+                    handlers.remove(data.id);
+                    self.reactive_graph.clear_widget(data.id);
+                });
+            }
+            PendingOp::Replace {
+                view,
+                last_node_to_keep,
+            } => {
+                self.tree.reset(widget_id, |data| {
+                    self.child_id_cache.remove(data.id);
+                    self.layout_cache.remove(data.id);
+                    self.texts.remove(data.id);
+                    self.windows[data.window_id].overlays.remove(data.id);
+                    handlers.remove(data.id);
+                    self.reactive_graph.clear_widget(data.id);
+                });
 
-    /// Resets a widget to its default, removing all children. Does not remove owned reactive nodes
-    pub fn reset_widget(&mut self, widget_id: WidgetId, handlers: &mut WidgetHandlers) {
-        self.clear_mouse_capture_and_focus(widget_id);
-        self.tree.reset(widget_id, |data| {
-            self.child_id_cache.remove(data.id);
-            self.layout_cache.remove(data.id);
-            self.texts.remove(data.id);
-            self.windows[data.window_id].overlays.remove(data.id);
-            handlers.remove(data.id);
-            self.reactive_graph.clear_widget(data.id);
-        });
+                self.child_id_cache[widget_id].clear();
+                self.layout_cache[widget_id].clear();
+                self.texts.remove(widget_id);
+                handlers.remove(widget_id);
+                self.reactive_graph
+                    .reset_widget(widget_id, last_node_to_keep);
 
-        self.child_id_cache[widget_id].clear();
-        self.layout_cache[widget_id].clear();
-        self.texts.remove(widget_id);
-        handlers.remove(widget_id);
+                view.build(&mut BuildContext {
+                    id: widget_id,
+                    ui: self,
+                    handlers,
+                });
+                self.request_layout(widget_id);
+            }
+        }
     }
 
     pub fn replace_widget(
         &mut self,
         widget_id: WidgetId,
-        handlers: &mut WidgetHandlers,
+        last_node_to_keep: Option<NodeId>,
         view: impl View,
     ) {
-        self.reset_widget(widget_id, handlers);
-        self.reactive_graph.clear_widget(widget_id);
-        view.build(&mut BuildContext::new(widget_id, self, handlers));
-        self.request_layout(widget_id);
+        self.push_widget_op(
+            widget_id,
+            PendingOp::Replace {
+                view: view.into_any_view(),
+                last_node_to_keep,
+            },
+        );
     }
 
     pub(super) fn remove_window(&mut self, window_id: WindowId, handlers: &mut WidgetHandlers) {
+        debug_assert!(!self.running_effects);
         let root_widget = self.windows[window_id].root_widget;
-        self.remove_widget(root_widget, handlers);
+        self.remove_widget(root_widget);
+        self.run_effects(handlers);
         self.windows.remove(window_id);
     }
 
@@ -375,24 +460,24 @@ impl UiState {
         self.reactive_graph.remove_node(node_id);
     }
 
-    pub fn local_bounds(&self, id: WidgetId) -> Rect {
-        self.tree[id].local_bounds()
-    }
-
-    pub fn global_bounds(&self, id: WidgetId) -> Rect {
-        self.tree[id].global_bounds()
-    }
-
-    pub fn content_bounds(&self, id: WidgetId) -> Rect {
-        self.tree[id].content_bounds()
-    }
-
     pub fn request_render(&self, widget_id: WidgetId) {
         let data = &self.tree[widget_id];
         data.set_flag(WidgetFlags::NEEDS_RENDER);
         self.windows[data.window_id]
             .handle
-            .invalidate(data.global_bounds());
+            .invalidate(data.outer_bounds());
+    }
+
+    pub fn invalidate_widget(&mut self, widget_id: WidgetId, invalidation: Invalidation) {
+        if invalidation.contains(Invalidation::LAYOUT) {
+            self.request_layout(widget_id);
+        }
+        if invalidation.contains(Invalidation::RENDER) {
+            self.request_render(widget_id);
+        }
+        if invalidation.contains(Invalidation::TEXT) {
+            self.text_mut(widget_id).layout_dirty = true;
+        }
     }
 
     pub fn request_prop_update(&mut self, widget_id: WidgetId) {
@@ -409,10 +494,6 @@ impl UiState {
 
     pub fn text_mut(&mut self, widget_id: WidgetId) -> &mut TextData {
         self.texts.entry(widget_id).unwrap().or_default()
-    }
-
-    pub fn hidden(&self, widget_id: WidgetId) -> bool {
-        self.tree[widget_id].style.hidden
     }
 }
 
@@ -502,10 +583,14 @@ impl UiState {
             self.window_mut(window_id).focus_widget = new_focus_widget;
 
             if let Some(old_focus_widget) = old_focus_widget {
+                self.events_to_dispatch
+                    .push_back((old_focus_widget, Event::FocusChange(false)));
                 self.notify_widget_status_changed(old_focus_widget, WidgetStatus::FOCUSED.mask);
             }
 
             if let Some(focus_gained_widget) = new_focus_widget {
+                self.events_to_dispatch
+                    .push_back((focus_gained_widget, Event::FocusChange(true)));
                 self.notify_widget_status_changed(focus_gained_widget, WidgetStatus::FOCUSED.mask);
             }
         }
@@ -538,40 +623,38 @@ impl UiState {
 
 // Widget properties
 impl UiState {
-    pub fn update_widget_props(&mut self, handlers: &WidgetHandlers) {
-        for widget_id in std::mem::take(&mut self.dirty_props_widgets) {
-            if let Some(props) = handlers.widget_props.get(widget_id) {
-                let node_id = self
-                    .reactive_graph
-                    .widget_invalidation_node_id(widget_id, WidgetPhase::SyncWidget);
-                self.clear_node_sources(node_id);
-                props.apply(widget_id, self);
-                self.mark_node_as_clean(node_id);
-            }
-        }
+    pub fn set_enabled(&mut self, widget_id: WidgetId, enabled: bool) {}
+
+    pub fn local_bounds(&self, id: WidgetId) -> Rect {
+        self.tree[id].local_bounds()
     }
 
-    pub fn set_text(&mut self, widget_id: WidgetId, value: String) {
-        if self.text_mut(widget_id).set_text(value) {
-            self.request_layout(widget_id);
-        }
+    pub fn global_bounds(&self, id: WidgetId) -> Rect {
+        self.tree[id].outer_bounds()
     }
 
-    pub fn set_enabled(&mut self, task_queue: &mut TaskQueue, widget_id: WidgetId, enabled: bool) {}
+    pub fn content_bounds(&self, id: WidgetId) -> Rect {
+        self.tree[id].content_bounds()
+    }
+
+    pub fn is_enabled(&self, widget_id: WidgetId) -> bool {
+        self.tree[widget_id].flag_is_set(WidgetFlags::ENABLED)
+    }
 
     pub fn is_hidden(&self, widget_id: WidgetId) -> bool {
         self.tree[widget_id].style.hidden
     }
 
-    pub fn set_hidden(&mut self, widget_id: WidgetId, hidden: bool) {
-        if hidden {
-            self.clear_mouse_capture_and_focus(widget_id);
-        }
+    pub fn padding(&self, widget_id: WidgetId) -> Edges {
+        self.tree[widget_id].style.padding
+    }
 
-        if hidden != self.tree[widget_id].style.hidden {
-            self.tree[widget_id].style.hidden = hidden;
-            self.request_layout(widget_id);
-        }
+    pub fn width(&self, widget_id: WidgetId) -> Length {
+        self.tree[widget_id].style.width
+    }
+
+    pub fn height(&self, widget_id: WidgetId) -> Length {
+        self.tree[widget_id].style.height
     }
 }
 
@@ -629,41 +712,83 @@ impl UiState {
         }
     }
 
-    /// Run all enqueued effects, returns true if any effect executed
-    pub fn run_effects(&mut self, handlers: &mut WidgetHandlers) -> bool {
-        let effects_to_check = std::mem::take(&mut self.effects_to_check);
-        let effects_was_empty = effects_to_check.is_empty();
-        for node_id in effects_to_check {
-            if self.update_sources_if_necessary(node_id) == NodeState::Dirty {
-                let mut node_type = self.lease_node(node_id).unwrap();
-                match node_type.deref_mut() {
-                    NodeType::Effect(state) => {
-                        if state.dynamic_sources {
-                            // Clear the sources, they will be re-populated while running the effect function
-                            self.clear_node_sources(node_id);
-                        }
+    /// Dispatches an event syncronously, drives the event loop and returns the result.
+    /// Cannot be called from another event handler/effect.
+    pub fn dispatch(
+        &mut self,
+        handlers: &mut WidgetHandlers,
+        widget_id: WidgetId,
+        event: Event,
+    ) -> EventResult {
+        debug_assert!(!self.running_effects);
+        let result = handlers.event_handlers.dispatch(self, widget_id, &event);
+        self.run_effects(handlers);
+        result
+    }
 
-                        (state.f)(&mut EffectContext {
-                            effect_id: node_id,
-                            track_reads: state.dynamic_sources,
-                            handlers,
-                            ui: self,
-                        });
-                    }
-                    NodeType::DerivedAnimation(anim) => {
-                        // Clear the sources, they will be re-populated while running the reset function
-                        self.clear_node_sources(node_id);
-                        if anim.reset(self) {
-                            self.pending_animations.insert(node_id);
+    /// Run all enqueued effects, returns true if any effect executed
+    pub fn run_effects(&mut self, handlers: &mut WidgetHandlers) {
+        debug_assert!(!self.running_effects);
+        self.running_effects = true;
+
+        // Iterate until fixed point is reached (no events, effects and widgets left to process)
+        while !(self.effects_to_check.is_empty()
+            && self.dirty_props_widgets.is_empty()
+            && self.events_to_dispatch.is_empty())
+        {
+            for (widget_id, event) in std::mem::take(&mut self.events_to_dispatch) {
+                handlers.event_handlers.dispatch(self, widget_id, &event);
+            }
+
+            // Effects
+            for node_id in std::mem::take(&mut self.effects_to_check) {
+                if self.update_sources_if_necessary(node_id) == NodeState::Dirty {
+                    let mut node_type = self.lease_node(node_id).unwrap();
+                    match node_type.deref_mut() {
+                        NodeType::Effect(state) => {
+                            if state.dynamic_sources {
+                                // Clear the sources, they will be re-populated while running the effect function
+                                self.clear_node_sources(node_id);
+                            }
+
+                            (state.f)(&mut EffectContext {
+                                effect_id: node_id,
+                                track_reads: state.dynamic_sources,
+                                handlers,
+                                ui: self,
+                            });
                         }
+                        NodeType::DerivedAnimation(anim) => {
+                            // Clear the sources, they will be re-populated while running the reset function
+                            self.clear_node_sources(node_id);
+                            if anim.reset(self) {
+                                self.pending_animations.insert(node_id);
+                            }
+                        }
+                        _ => unreachable!(),
                     }
-                    _ => unreachable!(),
+                    self.unlease_node(node_type);
+                    self.mark_node_as_clean(node_id);
                 }
-                self.unlease_node(node_type);
-                self.mark_node_as_clean(node_id);
+            }
+
+            if self.events_to_dispatch.is_empty() {
+                // All effects have settled, it's safe to remove and replace widgets
+                // Creating new widgets might cause effects to be enqueued, so we must do this inside the loop
+                for (widget_id, op) in std::mem::take(&mut self.pending_widget_ops) {
+                    self.apply_widget_op(widget_id, op, handlers);
+                }
+            }
+
+            // Widget props
+            for widget_id in std::mem::take(&mut self.dirty_props_widgets) {
+                if let Some(props) = handlers.widget_props.get(widget_id) {
+                    props.apply(widget_id, self);
+                }
             }
         }
-        !effects_was_empty
+
+        self.running_effects = false;
     }
 
     /// Given a node (effect, binding, derived animation, or cached value), check if any of its sources have changed.
@@ -796,9 +921,9 @@ impl UiState {
         }
     }
 
-    pub fn get_render_invalidation_node_id(&mut self, widget_id: WidgetId) -> NodeId {
+    pub fn get_invalidation_node_id(&mut self, widget_id: WidgetId, phase: WidgetPhase) -> NodeId {
         self.reactive_graph
-            .widget_invalidation_node_id(widget_id, WidgetPhase::Render)
+            .widget_invalidation_node_id(widget_id, phase)
     }
 
     pub fn owner_widget(&self, node_id: NodeId) -> Option<WidgetId> {
@@ -838,12 +963,7 @@ impl UiState {
         }
     }
 
-    pub fn layout_window(
-        &mut self,
-        text_context: &mut TextContext,
-        window_id: WindowId,
-        mode: RecomputeLayout,
-    ) {
+    pub fn layout_window(&mut self, window_id: WindowId, mode: RecomputeLayout) {
         let window = &mut self.windows[window_id];
         let window_size = window.handle.global_bounds().size();
         let window_rect = Rect::from_origin(Point::ZERO, window_size);
@@ -853,7 +973,7 @@ impl UiState {
         let mut did_layout = false;
         // Need to layout root first, the overlay positions can depend on their parent positions
         if mode == RecomputeLayout::Force || self.tree.get(root_id).unwrap().needs_layout() {
-            LayoutContext::new(self, window_size, text_context).compute_root_layout(root_id);
+            LayoutContext::new(self, window_size).compute_root_layout(root_id);
             self.tree.update_node_origins(root_id, Point::ZERO);
             self.request_render(root_id);
             did_layout = true;
@@ -865,7 +985,7 @@ impl UiState {
         let overlay_ids: Vec<_> = self.windows[window_id].overlays.iter().collect();
         for (i, overlay_id) in overlay_ids.into_iter().enumerate() {
             if mode == RecomputeLayout::Force || self.tree[overlay_id].needs_layout() {
-                LayoutContext::new(self, window_size, text_context).compute_root_layout(overlay_id);
+                LayoutContext::new(self, window_size).compute_root_layout(overlay_id);
                 let options = self
                     .window(window_id)
                     .overlays
@@ -900,7 +1020,7 @@ impl UiState {
     ) -> Vec2 {
         let current_bounds = self.tree.get(overlay_id).unwrap().local_bounds();
         let parent_id = self.tree.get(overlay_id).unwrap().parent_id;
-        let parent_bounds = self.tree.get(parent_id).unwrap().global_bounds();
+        let parent_bounds = self.tree.get(parent_id).unwrap().outer_bounds();
         let alignment_offset = match options.anchor {
             OverlayAnchor::Fixed => options.align.compute_offset(current_bounds, window_rect),
             OverlayAnchor::InsideParent => {
@@ -937,7 +1057,7 @@ impl UiState {
                 "-".repeat(indent),
                 this.tree[root_id].debug_label,
                 root_id,
-                this.tree[root_id].global_bounds()
+                this.tree[root_id].outer_bounds()
             );
             let mut walker = this.tree.child_id_walker(root_id);
             while let Some(child_id) = walker.next_id(&this.tree) {

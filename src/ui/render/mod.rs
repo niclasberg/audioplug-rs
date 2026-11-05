@@ -5,7 +5,7 @@ use crate::{
     },
     ui::{
         TextContext, UiState, WidgetData,
-        reactive::{CanRead, ReadContext, ReadScope},
+        reactive::{CanRead, ReadContext, ReadScope, WidgetPhase},
         render::scene::GpuAppearance,
     },
 };
@@ -148,7 +148,7 @@ fn rebuild_scene(
             );
 
             if let Some(renderer) = renderers.get_mut(widget_id) {
-                let node_id = ui.get_render_invalidation_node_id(widget_id);
+                let node_id = ui.get_invalidation_node_id(widget_id, WidgetPhase::Render);
                 ui.clear_node_sources(node_id);
                 renderer(&mut RenderContext {
                     id: widget_id,
@@ -156,12 +156,13 @@ fn rebuild_scene(
                     scene: &mut gpu_scene,
                     path_segment_buffer: &mut path_segment_buffer,
                     scale_factor,
+                    glyph_cache: text_cx.glyph_cache,
                 });
                 ui.mark_node_as_clean(node_id);
             }
 
             if let Some(text) = ui.texts.get_mut(widget_id) {
-                let layout = text.get_or_create_layout(text_cx);
+                let layout = &mut text.layout;
                 layout.break_all_lines(Some(bounds.width()));
                 gpu_scene.draw_text(bounds.top_left(), layout, text_cx.glyph_cache, scale_factor);
             }
@@ -191,7 +192,7 @@ fn render_node_background(
     }
 
     if let Some(border) = &node.style.border {
-        let bounds = node.global_bounds();
+        let bounds = node.outer_bounds();
         let line_width = border
             .width
             .resolve_into_px(window_size, bounds.size().min_element())
@@ -201,7 +202,7 @@ fn render_node_background(
             appearance.set_stroke(
                 PaintRef::from_fill(&border.fill, window_size, bounds),
                 line_width,
-                border.alignment,
+                StrokeAlignment::Inside,
             );
         }
     }
@@ -223,6 +224,7 @@ pub struct RenderContext<'a> {
     pub(super) path_segment_buffer: &'a mut Vec<PathSegment>,
     pub(super) scene: &'a mut GpuScene,
     pub(super) scale_factor: ScaleFactor,
+    pub(super) glyph_cache: &'a mut GlyphCache,
 }
 
 impl<'a> RenderContext<'a> {
@@ -357,8 +359,9 @@ impl<'a> RenderContext<'a> {
         //self.renderer.draw_bitmap(source, rect.into())
     }
 
-    pub fn draw_text(&mut self, text_layout: &TextLayout, position: Point) {
-        //self.renderer.draw_text(&text_layout.0, position)
+    pub fn draw_text(&mut self, text_layout: &TextLayout, pos: Point) {
+        self.scene
+            .draw_text(pos, text_layout, &mut self.glyph_cache, self.scale_factor);
     }
 
     pub fn use_clip(&mut self, rect: impl Into<Rect>, f: impl FnOnce(&mut Self)) {

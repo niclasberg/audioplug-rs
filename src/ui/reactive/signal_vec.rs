@@ -1,12 +1,10 @@
 use std::{any::Any, marker::PhantomData};
 
-use super::{
-    CanCreate, CanWrite, NodeId, NodeType, Owner, ReactiveValue, Trigger, var::SignalState,
-};
+use super::{CanCreate, CanWrite, NodeId, NodeType, Owner, Readable, Trigger, var::SignalState};
 use crate::ui::{
     Prop,
     prelude::CanRead,
-    reactive::{EffectContext, ReadContext, WriteContext},
+    reactive::{EffectContext, ReadContext, WriteContext, reactive_value::Reactive},
 };
 
 #[derive(Copy, Clone)]
@@ -86,7 +84,7 @@ impl<T> From<SignalVec<T>> for Prop<Vec<T>> {
     }
 }
 
-impl<T: Any> ReactiveValue for SignalVec<T> {
+impl<T: Any> Readable for SignalVec<T> {
     type Value = Vec<T>;
 
     fn track<'cx>(&self, cx: &mut impl CanRead<'cx>) {
@@ -128,7 +126,7 @@ impl<T: Any> From<AtIndex<SignalVec<T>, T>> for Prop<T> {
     }
 }
 
-impl<T: Any> ReactiveValue for AtIndex<SignalVec<T>, T> {
+impl<T: Any> Readable for AtIndex<SignalVec<T>, T> {
     type Value = T;
 
     fn track<'cx>(&self, cx: &mut impl CanRead<'cx>) {

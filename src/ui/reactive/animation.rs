@@ -6,9 +6,12 @@ use std::{
 };
 
 use super::{
-    CanCreate, CanRead, CanWrite, Effect, NodeId, NodeType, ReactiveValue, ReadScope, ReadSignal,
+    CanCreate, CanRead, CanWrite, Effect, NodeId, NodeType, ReadScope, ReadSignal, Readable,
 };
-use crate::ui::{Prop, UiState, reactive::EffectContext};
+use crate::ui::{
+    Prop, UiState,
+    reactive::{EffectContext, Reactive},
+};
 use crate::{
     core::{Lerp, SpringPhysics},
     ui::reactive::ReadContext,
@@ -170,7 +173,7 @@ impl<T: 'static> From<AnimatedVar<T>> for Prop<T> {
     }
 }
 
-impl<T: 'static> ReactiveValue for AnimatedVar<T> {
+impl<T: 'static> Readable for AnimatedVar<T> {
     type Value = T;
 
     fn track<'cx>(&self, cx: &mut impl CanRead<'cx>) {
@@ -286,7 +289,7 @@ impl<T> From<Animated<T>> for Prop<T> {
     }
 }
 
-impl<T: 'static> ReactiveValue for Animated<T> {
+impl<T: 'static> Readable for Animated<T> {
     type Value = T;
 
     fn track<'s>(&self, cx: &mut impl CanRead<'s>) {

@@ -1,9 +1,16 @@
 use std::{any::Any, marker::PhantomData};
 
 use super::{CanCreate, CanRead, Computed, Effect, EffectContext};
-use crate::ui::Prop;
+use crate::ui::{Prop, reactive::ReadSignal};
 
-pub trait ReactiveValue: Into<Prop<Self::Value>> {
+/// Type-erased reactive value
+#[derive(Clone)]
+pub enum Reactive<T> {
+    ReadSignal(ReadSignal<T>),
+    Computed(Computed<T>),
+}
+
+pub trait Readable: Into<Prop<Self::Value>> {
     type Value;
 
     /// Map the current value using `f` and subscribe to changes
@@ -38,7 +45,7 @@ pub trait ReactiveValue: Into<Prop<Self::Value>> {
         self.with_ref_untracked(cx, Self::Value::clone)
     }
 
-    fn map<R, F>(self, f: F) -> impl ReactiveValue<Value = R>
+    fn map<R, F>(self, f: F) -> impl Readable<Value = R>
     where
         F: Fn(&Self::Value) -> R + 'static,
         R: 'static,
@@ -59,6 +66,44 @@ pub trait ReactiveValue: Into<Prop<Self::Value>> {
         F: FnMut(&mut EffectContext, &Self::Value) + 'static;
 }
 
+impl<T: 'static> Readable for Reactive<T> {
+    type Value = T;
+
+    fn track<'s>(&self, cx: &mut impl CanRead<'s>) {
+        match self {
+            Reactive::ReadSignal(read_signal) => read_signal.track(cx),
+            Reactive::Computed(computed) => computed.track(cx),
+        }
+    }
+
+    fn with_ref_untracked<'s, R>(
+        &self,
+        cx: &mut impl CanRead<'s>,
+        f: impl FnOnce(&Self::Value) -> R,
+    ) -> R {
+        match self {
+            Reactive::ReadSignal(read_signal) => read_signal.with_ref_untracked(cx, f),
+            Reactive::Computed(computed) => computed.with_ref_untracked(cx, f),
+        }
+    }
+
+    fn watch<'s, F>(self, cx: &mut impl CanCreate<'s>, f: F) -> Effect
+    where
+        F: FnMut(&mut EffectContext, &Self::Value) + 'static,
+    {
+        todo!()
+    }
+}
+
+impl<T> From<Reactive<T>> for Prop<T> {
+    fn from(value: Reactive<T>) -> Self {
+        match value {
+            Reactive::ReadSignal(read_signal) => Self::ReadSignal(read_signal),
+            Reactive::Computed(computed) => Self::Computed(computed),
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct Mapped<S, T, R, F> {
     parent: S,
@@ -70,7 +115,7 @@ impl<S, T, R, F> From<Mapped<S, T, R, F>> for Prop<R>
 where
     T: 'static,
     R: 'static,
-    S: ReactiveValue<Value = T> + 'static,
+    S: Readable<Value = T> + 'static,
     F: Fn(&T) -> R + 'static,
 {
     fn from(value: Mapped<S, T, R, F>) -> Self {
@@ -80,9 +125,9 @@ where
     }
 }
 
-impl<S, T, R, F> ReactiveValue for Mapped<S, T, R, F>
+impl<S, T, R, F> Readable for Mapped<S, T, R, F>
 where
-    S: ReactiveValue<Value = T> + 'static,
+    S: Readable<Value = T> + 'static,
     T: Any,
     R: 'static,
     F: Fn(&T) -> R + 'static,

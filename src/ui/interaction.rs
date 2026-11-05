@@ -1,13 +1,15 @@
 use bitflags::bitflags;
 use slotmap::SecondaryMap;
 
-use super::EventContext;
-
 use crate::{
     KeyEvent,
     core::{Axis, Key, Modifiers, Point, Rect},
     event::{MouseDrag, MouseWheelEvent},
-    ui::{Event, EventHandlers, EventResult, WidgetId},
+    ui::{
+        Event, EventHandlers, EventResult, UiState, WidgetId,
+        clipboard::Clipboard,
+        reactive::{CanRead, CanWrite, ReadContext, ReadScope, WriteContext},
+    },
 };
 
 bitflags! {
@@ -56,29 +58,95 @@ impl Interactions {
         }
     }
 
-    pub fn dispatch(
+    /// Dispatches an event to a widget. Do not call this directly - use [ui::UiState::dispatch) instead
+    /// which correctly handles re-entrancy.
+    pub(super) fn dispatch(
         &mut self,
-        cx: &mut EventContext,
+        ui: &mut UiState,
         widget_id: WidgetId,
         event: &Event,
     ) -> EventResult {
         if let Some(handler) = self.handlers.get_mut(widget_id) {
+            let mut cx = EventContext { ui, id: widget_id };
             match handler {
                 Interaction::Events(event_handlers) => {
                     for handler in event_handlers.handlers.iter_mut().rev() {
-                        if handler(cx, event) == EventResult::Stop {
+                        if handler(&mut cx, event) == EventResult::Stop {
                             return EventResult::Stop;
                         }
                     }
                     EventResult::Continue
                 }
-                Interaction::Button(b) => b.event(cx, event),
-                Interaction::Knob(k) => k.event(cx, event),
-                Interaction::Slider(s) => s.event(cx, event),
+                Interaction::Button(b) => b.event(&mut cx, event),
+                Interaction::Knob(k) => k.event(&mut cx, event),
+                Interaction::Slider(s) => s.event(&mut cx, event),
             }
         } else {
             EventResult::Continue
         }
+    }
+}
+
+pub struct EventContext<'a> {
+    id: WidgetId,
+    ui: &'a mut UiState,
+}
+
+impl<'a> EventContext<'a> {
+    pub fn bounds(&self) -> Rect {
+        self.ui.global_bounds(self.id)
+    }
+
+    pub fn has_focus(&self) -> bool {
+        self.ui.has_focus(self.id)
+    }
+
+    pub fn has_mouse_capture(&self) -> bool {
+        self.ui.is_pressed(self.id)
+    }
+
+    pub fn release_gesture(&mut self) -> bool {
+        if self.ui.is_pressed(self.id) {
+            // *self.new_mouse_capture_widget = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn request_layout(&mut self) {
+        self.ui.request_layout(self.id);
+    }
+
+    pub fn request_render(&mut self) {
+        self.ui.request_render(self.id);
+    }
+
+    pub fn clipboard(&self) -> Clipboard<'_> {
+        let window_id = self.ui.window_for_widget(self.id).id;
+        self.ui.clipboard(window_id)
+    }
+}
+
+impl<'s> CanRead<'s> for EventContext<'s> {
+    fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
+    where
+        's: 's2,
+    {
+        ReadContext {
+            ui: self.ui,
+            scope: ReadScope::Untracked,
+            current_widget: Some(self.id),
+        }
+    }
+}
+
+impl<'s> CanWrite<'s> for EventContext<'s> {
+    fn write_context<'s2>(&'s2 mut self) -> WriteContext<'s2>
+    where
+        's: 's2,
+    {
+        WriteContext { ui: self.ui }
     }
 }
 

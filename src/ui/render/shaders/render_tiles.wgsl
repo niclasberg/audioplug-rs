@@ -34,6 +34,11 @@ const PAINT_KIND_RADIAL_GRADIENT = 2u;
 const PAINT_KIND_EDGE_GRADIENT = 3u;
 const PAINT_KIND_IMAGE = 4u;
 
+const STROKE_ALIGN_OFFSET = 10u;
+const STROKE_ALIGN_CENTER = 0u;
+const STROKE_ALIGN_INSIDE = 1u;
+const STROKE_ALIGN_OUTSIDE = 2u;
+
 const SHADOW_KIND_OUTER = 1u;
 const SHADOW_KIND_INNER = 2u;
 
@@ -173,7 +178,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 		if ((appearance.flags & STROKE_FLAG) != 0) {
 			let stroke_color = eval_paint(appearance.flags >> STROKE_KIND_OFFSET, appearance.stroke_data, pos);
-			let signed_dist_stroked = abs(signed_dist) - appearance.stroke_width * 0.5;
+			let signed_dist_stroked = stroke_dist(signed_dist, appearance.stroke_width, appearance.flags >> STROKE_ALIGN_OFFSET);
 			let coverage = distance_to_coverage(signed_dist_stroked);
 			color = blend(color, stroke_color, coverage);
 		}
@@ -219,6 +224,25 @@ fn eval_paint(paint_kind: u32, paint_data: array<u32, 8>, pos: vec2f) -> vec4f {
 		}
 		default: {
 			return vec4f(0.0f);
+		}
+	}
+}
+
+// Evaluate the signed distance to the stroked region of a shape, where the shape_dist is the 
+// signed distance to the original shape. 
+fn stroke_dist(shape_dist: f32, stroke_width: f32, stroke_align: u32) -> f32 {
+	switch (stroke_align & 0x3) {
+		case STROKE_ALIGN_CENTER: {
+			return abs(shape_dist) - stroke_width * 0.5;
+		}
+		case STROKE_ALIGN_INSIDE: {
+			return max(shape_dist, -shape_dist - stroke_width);
+		}
+		case STROKE_ALIGN_OUTSIDE: {
+			return max(-shape_dist, shape_dist - stroke_width);
+		}
+		default: {
+			return 0.0;
 		}
 	}
 }

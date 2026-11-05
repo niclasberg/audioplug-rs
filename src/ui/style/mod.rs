@@ -3,7 +3,7 @@ mod length;
 
 use crate::{
     core::{Color, ColorMap, Cursor, Size, Zero},
-    ui::{StrokeAlignment, render::ShadowOptions},
+    ui::render::ShadowOptions,
 };
 pub use display_style::{AvailableSpace, DisplayStyle, FlexStyle, GridStyle, Measure};
 pub use length::{Corner, Corners, Edge, Edges, Length, RelativePoint};
@@ -77,21 +77,18 @@ impl Default for Style {
 pub struct Border {
     pub fill: Fill,
     pub width: Length,
-    pub alignment: StrokeAlignment,
 }
 
 impl Border {
     pub const EMPTY: Self = Self {
         fill: Fill::Solid(Color::BLACK),
         width: Length::Px(0.0),
-        alignment: StrokeAlignment::Inside,
     };
 
     pub fn new(fill: impl Into<Fill>, width: Length) -> Self {
         Self {
             fill: fill.into(),
             width,
-            alignment: StrokeAlignment::Inside,
         }
     }
 }

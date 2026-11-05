@@ -4,7 +4,7 @@ use crate::{
     ui::{
         BuildContext, EventContext, Prop, RenderContext, SliderEvent, StyleExt, View, ViewExt,
         WidgetProps,
-        reactive::{ParamSetter, ReactiveValue, ReadSignal, Var},
+        reactive::{ParamSetter, Readable, ReadSignal, Var},
     },
     views::util::ValueMapper,
 };

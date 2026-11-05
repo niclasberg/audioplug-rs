@@ -88,19 +88,19 @@ impl ReactiveGraph {
         }
 
         // Remove other nodes' subscriptions to this node
-        /*if let Some(sources) = self.sources.remove(node_id) {
+        if let Some(sources) = self.sources.remove(node_id) {
             for source_id in sources {
                 self.remove_source_from_observer(source_id, node_id);
             }
-        }*/
+        }
 
         let node = self.nodes.remove(node_id).expect("Missing node");
-        self.remove_node_and_siblings(node.first_child_id);
+        self.remove_node_and_siblings(node.first_child_id, NodeId::null());
         node
     }
 
-    fn remove_node_and_siblings(&mut self, mut id: NodeId) {
-        while !id.is_null() {
+    fn remove_node_and_siblings(&mut self, mut id: NodeId, last: NodeId) {
+        while id != last {
             let node = self.remove_node(id);
             id = node.next_sibling_id;
         }
@@ -108,8 +108,29 @@ impl ReactiveGraph {
 
     /// Removes the widget and all owned reactive nodes from the graph
     pub fn clear_widget(&mut self, widget_id: WidgetId) {
-        if let Some(reactive_widget_state) = self.reactive_widget_states.remove(widget_id) {
-            self.remove_node_and_siblings(reactive_widget_state.first_owned_node_id);
+        if let Some(reactive_widget_state) = self.reactive_widget_states.get(widget_id) {
+            self.remove_node_and_siblings(
+                reactive_widget_state.first_owned_node_id,
+                NodeId::null(),
+            );
+        }
+        self.reactive_widget_states.remove(widget_id);
+    }
+
+    /// Reset the reactive state associated with the Widget. If the last_node_to_keep is Some,
+    /// then that node as well as all other nodes created before it (which are owned by the widget), will
+    /// be retained. This is necessary, e.g., to implement Switch, where there is a Cached and Effect which
+    /// handles replacing the widget. We need those to survive while doing the replace, or there would
+    /// no longer be anything doing the replacement after the first reset.
+    pub fn reset_widget(&mut self, widget_id: WidgetId, last_node_to_keep: Option<NodeId>) {
+        if let Some(reactive_widget_state) = self.reactive_widget_states.get_mut(widget_id) {
+            // The nodes are added to the back-to-front
+            let new_first_owned_node_id = last_node_to_keep.unwrap_or(NodeId::null());
+            let old_first_owned_node_id = std::mem::replace(
+                &mut reactive_widget_state.first_owned_node_id,
+                new_first_owned_node_id,
+            );
+            self.remove_node_and_siblings(old_first_owned_node_id, new_first_owned_node_id);
         }
     }
 
@@ -122,7 +143,7 @@ impl ReactiveGraph {
         }
         let first_child_id =
             std::mem::replace(&mut self.nodes[node_id].first_child_id, NodeId::null());
-        self.remove_node_and_siblings(first_child_id);
+        self.remove_node_and_siblings(first_child_id, NodeId::null());
     }
 
     fn remove_source_from_observer(&mut self, source_id: Source, observer_id: NodeId) {
@@ -177,6 +198,7 @@ impl ReactiveGraph {
             .or_default()
             .observers
             .push((observer_id, status_mask));
+
         self.sources
             .entry(observer_id)
             .unwrap()

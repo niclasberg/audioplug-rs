@@ -3,10 +3,10 @@ use std::rc::Rc;
 use crate::ui::{
     Prop,
     prelude::CanCreate,
-    reactive::{EffectContext, ReadContext},
+    reactive::{EffectContext, Reactive, ReadContext},
 };
 
-use super::{CanRead, Effect, ReactiveValue, ReadScope};
+use super::{CanRead, Effect, ReadScope, Readable};
 
 type ComputedFn<T> = dyn Fn(&mut ReadContext) -> T;
 
@@ -48,7 +48,7 @@ impl<T> From<Computed<T>> for Prop<T> {
     }
 }
 
-impl<T: 'static> ReactiveValue for Computed<T> {
+impl<T: 'static> Readable for Computed<T> {
     type Value = T;
 
     fn track<'s>(&self, cx: &mut impl CanRead<'s>) {

@@ -1,7 +1,7 @@
-use audioplug::core::{Color, Cursor, Size, Vec2};
+use audioplug::core::{Color, Cursor, Size, Vec2, Zero};
 use audioplug::ui::reactive::{SpringOptions, TweenOptions, WidgetStatus};
 use audioplug::ui::style::{Border, Edges, Fill, Length};
-use audioplug::ui::{App, ShadowKind, ShadowOptions, StrokeAlignment, TextExt, Window};
+use audioplug::ui::{App, ShadowKind, ShadowOptions, TextExt, Window};
 use audioplug::ui::{StyleExt, prelude::*};
 use audioplug::views::*;
 use std::path::Path;
@@ -59,13 +59,9 @@ fn menu_button(label: &str, tab_signal: Var<Tab>, tab: Tab) -> impl View {
         }))
         .border(WidgetStatus::FOCUSED.map(|focused| {
             if *focused {
-                Border {
-                    fill: Fill::Solid(Color::RED),
-                    width: Length::Px(1.0),
-                    alignment: StrokeAlignment::Inside,
-                }
+                Border::new(Color::RED, Length::Px(1.0))
             } else {
-                Border::EMPTY
+                Border::new(Color::ZERO, Length::Px(1.0))
             }
         }))
 }
@@ -166,6 +162,12 @@ fn overview() -> impl View {
                     checkbox_enabled.update(cx, |_, enabled| *enabled = !*enabled);
                 })
                 .font_size(22.0)
+                .shadow(ShadowOptions {
+                    radius: 30.0,
+                    offset: Vec2::splat(5.0),
+                    color: Color::BLACK.with_alpha(0.5),
+                    kind: ShadowKind::InnerShadow,
+                })
                 .cursor(Cursor::Hand),
             ))
             .spacing(Length::Px(5.0))
@@ -179,7 +181,7 @@ fn overview() -> impl View {
                     .shadow(ShadowOptions {
                         radius: 10.0,
                         offset: Vec2::splat(2.0),
-                        color: Color::BLACK.with_alpha(0.3),
+                        color: Color::BLACK.with_alpha(0.9),
                         kind: ShadowKind::InnerShadow,
                     }), /*.overlay(
                             OverlayOptions {

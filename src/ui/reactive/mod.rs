@@ -24,7 +24,7 @@ pub use effect::{Effect, EffectContext};
 pub(super) use effect::{EffectFn, EffectState};
 pub use event_channel::{EventChannel, EventReceiver, create_event_channel};
 pub use param::ParamSetter;
-pub use reactive_value::ReactiveValue;
+pub use reactive_value::{Reactive, Readable};
 pub use read_signal::ReadSignal;
 pub use trigger::Trigger;
 pub use var::Var;
@@ -57,7 +57,7 @@ pub struct Node {
 }
 
 /// Encodes the lifetime of the reactive node.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Owner {
     /// The node is a root node, and will only be removed when the reactive graph is destroyed.
     Root,
@@ -142,7 +142,7 @@ impl NodeType {
 
 pub mod prelude {
     pub use super::{
-        Animated, AnimatedVar, Cached, CanCreate, CanRead, CanWrite, Computed, Effect,
-        ReactiveValue, SpringOptions, Trigger, TweenOptions, Var,
+        Animated, AnimatedVar, Cached, CanCreate, CanRead, CanWrite, Computed, Effect, Readable,
+        SpringOptions, Trigger, TweenOptions, Var,
     };
 }

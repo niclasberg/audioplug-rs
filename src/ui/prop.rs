@@ -1,7 +1,11 @@
-use super::reactive::{CanCreate, CanRead, Computed, Effect, ReactiveValue, ReadSignal};
+use super::reactive::{CanCreate, CanRead, Computed, Effect, ReadSignal, Readable};
 use crate::{
     core::Color,
-    ui::{BuildContext, WidgetMut, reactive::EffectContext, style::Fill},
+    ui::{
+        BuildContext, WidgetMut,
+        reactive::{EffectContext, Reactive},
+        style::Fill,
+    },
 };
 
 /// Represents a value that is either varying over time (a `ReactiveValue`) or a constant
@@ -19,6 +23,14 @@ impl<T: 'static> Prop<T> {
         Self::Const(value)
     }
 
+    pub fn into_reactive(self) -> Result<Reactive<T>, T> {
+        match self {
+            Prop::Const(value) => Err(value),
+            Prop::ReadSignal(read_signal) => Ok(Reactive::ReadSignal(read_signal)),
+            Prop::Computed(computed) => Ok(Reactive::Computed(computed)),
+        }
+    }
+
     pub fn get_and_bind(self, cx: &mut BuildContext, f: impl Fn(T, WidgetMut) + 'static) -> T
     where
         T: Clone,
@@ -30,12 +42,8 @@ impl<T: 'static> Prop<T> {
         });
         value
     }
-}
 
-impl<T: 'static> ReactiveValue for Prop<T> {
-    type Value = T;
-
-    fn track<'a>(&self, cx: &mut impl CanRead<'a>) {
+    pub fn track<'a>(&self, cx: &mut impl CanRead<'a>) {
         match self {
             Self::ReadSignal(signal) => signal.track(cx),
             Self::Computed(computed) => computed.track(cx),
@@ -43,7 +51,7 @@ impl<T: 'static> ReactiveValue for Prop<T> {
         }
     }
 
-    fn with_ref<'a, R>(&self, cx: &mut impl CanRead<'a>, f: impl FnOnce(&Self::Value) -> R) -> R {
+    pub fn with_ref<'a, R>(&self, cx: &mut impl CanRead<'a>, f: impl FnOnce(&T) -> R) -> R {
         match self {
             Self::ReadSignal(signal) => signal.with_ref(cx, f),
             Self::Computed(computed) => computed.with_ref(cx, f),
@@ -51,7 +59,7 @@ impl<T: 'static> ReactiveValue for Prop<T> {
         }
     }
 
-    fn get<'a>(&self, cx: &mut impl CanRead<'a>) -> T
+    pub fn get<'a>(&self, cx: &mut impl CanRead<'a>) -> T
     where
         T: Clone,
     {
@@ -62,10 +70,10 @@ impl<T: 'static> ReactiveValue for Prop<T> {
         }
     }
 
-    fn with_ref_untracked<'a, R>(
+    pub fn with_ref_untracked<'a, R>(
         &self,
         cx: &mut impl CanRead<'a>,
-        f: impl FnOnce(&Self::Value) -> R,
+        f: impl FnOnce(&T) -> R,
     ) -> R {
         match self {
             Self::ReadSignal(signal) => signal.with_ref_untracked(cx, f),
@@ -74,9 +82,9 @@ impl<T: 'static> ReactiveValue for Prop<T> {
         }
     }
 
-    fn get_untracked<'a>(&self, cx: &mut impl CanRead<'a>) -> Self::Value
+    pub fn get_untracked<'a>(&self, cx: &mut impl CanRead<'a>) -> T
     where
-        Self::Value: Clone,
+        T: Clone,
     {
         match self {
             Prop::ReadSignal(read_signal) => read_signal.get_untracked(cx),
@@ -85,9 +93,9 @@ impl<T: 'static> ReactiveValue for Prop<T> {
         }
     }
 
-    fn watch<'a, F>(self, cx: &mut impl CanCreate<'a>, f: F) -> Effect
+    pub fn watch<'a, F>(self, cx: &mut impl CanCreate<'a>, f: F) -> Effect
     where
-        F: FnMut(&mut EffectContext, &Self::Value) + 'static,
+        F: FnMut(&mut EffectContext, &T) + 'static,
     {
         match self {
             Prop::ReadSignal(read_signal) => read_signal.watch(cx, f),

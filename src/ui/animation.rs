@@ -7,5 +7,5 @@ use crate::{
 /// Steps all animations that have been enqueued for window.
 pub(super) fn drive_animations(app_state: &mut AppState, animation_frame: AnimationFrame) {
     app_state.ui.drive_animations();
-    app_state.run_effects();
+    app_state.run_effects_and_layout();
 }

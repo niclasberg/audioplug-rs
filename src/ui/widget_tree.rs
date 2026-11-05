@@ -36,10 +36,12 @@ bitflags!(
         // Dirty flags
         const NEEDS_LAYOUT = 1 << 1;
         const NEEDS_RENDER = 1 << 2;
+        const DOOMED = 1 << 3;
 
         // Status flags
         const UNDER_MOUSE_CURSOR = 1 << 9;
         const OVERLAY = 1 << 10;
+        const ENABLED = 1 << 11;
     }
 );
 
@@ -87,8 +89,9 @@ impl WidgetData {
     }
 
     pub fn reset(&mut self) {
-        // Need to retain the overlay flag...
-        self.flags.set(WidgetFlags::EMPTY);
+        // When resetting all flags, we need to keep the overlay flag.
+        let flags = self.flags.get() & WidgetFlags::OVERLAY;
+        self.flags.set(flags);
         self.style = Default::default();
         self.layout = Default::default();
     }
@@ -118,8 +121,19 @@ impl WidgetData {
     }
 
     /// Bounds of the widget, in global coords, including borders and padding
-    pub fn global_bounds(&self) -> Rect {
+    pub fn outer_bounds(&self) -> Rect {
         Rect::from_origin(self.origin(), self.size())
+    }
+
+    /// Bounds of the widget, in global coords, excluding borders
+    pub fn padded_bounds(&self) -> Rect {
+        let rect = self.outer_bounds();
+        Rect {
+            left: rect.left + self.layout.border.left,
+            top: rect.top + self.layout.border.top,
+            right: rect.right - self.layout.border.right,
+            bottom: rect.bottom - self.layout.border.bottom,
+        }
     }
 
     fn subtract_padding_and_border(&self, rect: Rect) -> Rect {
@@ -133,7 +147,7 @@ impl WidgetData {
 
     /// Bounds of the widget, in global coords, excluding borders and padding
     pub fn content_bounds(&self) -> Rect {
-        self.subtract_padding_and_border(self.global_bounds())
+        self.subtract_padding_and_border(self.outer_bounds())
     }
 
     pub fn border(&self) -> Rect {
@@ -220,9 +234,9 @@ impl WidgetData {
 
     pub fn shape(&self) -> Shape {
         if self.style.corner_radius == Size::ZERO {
-            self.global_bounds().into()
+            self.outer_bounds().into()
         } else {
-            RoundedRect::new(self.global_bounds(), self.style.corner_radius).into()
+            RoundedRect::new(self.outer_bounds(), self.style.corner_radius).into()
         }
     }
 }
@@ -500,7 +514,10 @@ impl WidgetTree {
         }
     }
 
-    // Swaps the position of two widgets in the tree
+    /// Swaps the position of two widgets in the tree
+    // TODO: This is a bit bugged,
+    // - It doesn't fix the first_child_id of the parent widgets
+    // - If the two children are adjescent, the next/prev pointers will point to each item itself
     pub fn swap(&mut self, src_id: WidgetId, dst_id: WidgetId) {
         let [src, dst] = self
             .data

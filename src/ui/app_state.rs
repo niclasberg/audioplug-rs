@@ -3,7 +3,7 @@ use parley::FontContext;
 use super::reactive::{CreateContext, Var};
 use super::{
     BuildContext, HostHandle, UiState, View, WidgetId, WindowId, layout::RecomputeLayout,
-    render::WGPUSurface, task_queue::TaskQueue,
+    render::WGPUSurface,
 };
 use crate::core::TextLayoutContext;
 use crate::ui::TextContext;
@@ -24,13 +24,11 @@ pub struct AppState {
     pub(super) glyph_cache: GlyphCache,
     pub(super) ui: UiState,
     pub(super) widget_handlers: WidgetHandlers,
-    pub(super) task_queue: TaskQueue,
     pub(crate) theme_signal: Var<WindowTheme>,
 }
 
 impl AppState {
     pub fn new(parameters: Rc<dyn AnyParameterMap>) -> Self {
-        let task_queue = TaskQueue::default();
         let mut ui = UiState::new(parameters);
         let theme_signal = Var::new(
             &mut CreateContext::new_root_context(&mut ui),
@@ -47,7 +45,6 @@ impl AppState {
             glyph_cache: GlyphCache::new(),
             theme_signal,
             ui,
-            task_queue,
             widget_handlers: Default::default(),
         }
     }
@@ -71,7 +68,7 @@ impl AppState {
         };
         param_ref.set_value_plain(value);
         self.write_context().notify_parameter_subscribers(id);
-        self.run_effects();
+        self.run_effects_and_layout();
         true
     }
 
@@ -85,7 +82,7 @@ impl AppState {
         };
         param_ref.set_value_normalized(value);
         self.write_context().notify_parameter_subscribers(id);
-        self.run_effects();
+        self.run_effects_and_layout();
         true
     }
 
@@ -102,16 +99,7 @@ impl AppState {
             &mut self.ui,
             &mut self.widget_handlers,
         ));
-        self.run_effects();
-        self.ui.layout_window(
-            &mut TextContext::new(
-                &mut self.font_cx,
-                &mut self.text_layout_cx,
-                &mut self.glyph_cache,
-            ),
-            window_id,
-            RecomputeLayout::Force,
-        );
+        self.run_effects_and_layout();
         window_id
     }
 
@@ -119,36 +107,22 @@ impl AppState {
         self.ui.remove_window(id, &mut self.widget_handlers);
     }
 
-    pub fn run_effects(&mut self) {
-        loop {
-            let ran_effect = self.ui.run_effects(&mut self.widget_handlers);
+    pub fn run_effects_and_layout(&mut self) {
+        self.ui.run_effects(&mut self.widget_handlers);
 
-            let mut tasks = std::mem::take(&mut self.task_queue.tasks);
-            let ran_task = !tasks.is_empty();
-            while let Some(task) = tasks.pop_front() {
-                task.run(self);
-                tasks.extend(self.task_queue.tasks.drain(..));
-            }
-
-            if !(ran_effect || ran_task) {
-                break;
-            }
+        let text_cx = &mut TextContext {
+            font_cx: &mut self.font_cx,
+            layout_cx: &mut self.text_layout_cx,
+            glyph_cache: &mut self.glyph_cache,
+        };
+        for (_, text) in self.ui.texts.iter_mut() {
+            text.rebuild_layout(text_cx);
         }
-
-        self.ui.update_widget_props(&self.widget_handlers);
 
         // Layout if needed
         let window_ids: Vec<_> = self.ui.window_id_iter().collect();
         for window_id in window_ids {
-            self.ui.layout_window(
-                &mut TextContext::new(
-                    &mut self.font_cx,
-                    &mut self.text_layout_cx,
-                    &mut self.glyph_cache,
-                ),
-                window_id,
-                RecomputeLayout::IfNeeded,
-            );
+            self.ui.layout_window(window_id, RecomputeLayout::IfNeeded);
         }
     }
 

@@ -1,6 +1,8 @@
 use crate::ui::{
-    Prop, WidgetId, UiState,
-    reactive::{CanCreate, CanRead, Effect, EffectContext, ReactiveValue, ReadSignal},
+    Prop, UiState, WidgetId,
+    reactive::{
+        CanCreate, CanRead, Effect, EffectContext, ReadSignal, Readable, reactive_value::Reactive,
+    },
 };
 use bitflags::bitflags;
 
@@ -45,11 +47,11 @@ impl WidgetStatus<bool> {
 
 impl<T> From<WidgetStatus<T>> for Prop<T> {
     fn from(value: WidgetStatus<T>) -> Self {
-        Prop::ReadSignal(ReadSignal::from_widget_status(value))
+        Self::ReadSignal(ReadSignal::from_widget_status(value))
     }
 }
 
-impl<T: 'static> ReactiveValue for WidgetStatus<T> {
+impl<T: 'static> Readable for WidgetStatus<T> {
     type Value = T;
 
     fn track<'s>(&self, cx: &mut impl CanRead<'s>) {

@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use super::style::{Edges, ResolveInto, Style};
 use crate::core::{Rect, Size};
-use crate::ui::style::{DisplayStyle, Length};
+use crate::ui::UiState;
+use crate::ui::style::DisplayStyle;
 use crate::ui::text::TextContext;
-use crate::ui::{StrokeAlignment, UiState};
 use taffy::{
     CacheTree, LayoutBlockContainer, LayoutFlexboxContainer, LayoutInput, LayoutOutput,
     LayoutPartialTree, PrintTree, TraversePartialTree, TraverseTree,
@@ -29,24 +29,18 @@ impl Iterator for LayoutChildIter<'_> {
     }
 }
 
-pub struct LayoutContext<'a, 'b> {
+pub struct LayoutContext<'a> {
     widgets: &'a mut UiState,
     window_size: Size,
     region_to_invalidate: Option<Rect>,
-    text_cx: &'a mut TextContext<'b>,
 }
 
-impl<'a, 'b> LayoutContext<'a, 'b> {
-    pub(super) fn new(
-        widgets: &'a mut UiState,
-        window_size: Size,
-        text_cx: &'a mut TextContext<'b>,
-    ) -> Self {
+impl<'a> LayoutContext<'a> {
+    pub(super) fn new(widgets: &'a mut UiState, window_size: Size) -> Self {
         Self {
             widgets,
             window_size,
             region_to_invalidate: None,
-            text_cx,
         }
     }
 
@@ -70,7 +64,7 @@ impl<'a, 'b> LayoutContext<'a, 'b> {
     }
 }
 
-impl taffy::TraversePartialTree for LayoutContext<'_, '_> {
+impl taffy::TraversePartialTree for LayoutContext<'_> {
     type ChildIter<'b>
         = LayoutChildIter<'b>
     where
@@ -92,9 +86,9 @@ impl taffy::TraversePartialTree for LayoutContext<'_, '_> {
     }
 }
 
-impl TraverseTree for LayoutContext<'_, '_> {}
+impl TraverseTree for LayoutContext<'_> {}
 
-impl PrintTree for LayoutContext<'_, '_> {
+impl PrintTree for LayoutContext<'_> {
     fn get_debug_label(&self, _node_id: taffy::NodeId) -> &'static str {
         "asdfasdf"
     }
@@ -104,7 +98,7 @@ impl PrintTree for LayoutContext<'_, '_> {
     }
 }
 
-impl LayoutBlockContainer for LayoutContext<'_, '_> {
+impl LayoutBlockContainer for LayoutContext<'_> {
     type BlockContainerStyle<'b>
         = LayoutStyle<'b>
     where
@@ -123,7 +117,7 @@ impl LayoutBlockContainer for LayoutContext<'_, '_> {
     }
 }
 
-impl LayoutFlexboxContainer for LayoutContext<'_, '_> {
+impl LayoutFlexboxContainer for LayoutContext<'_> {
     type FlexboxContainerStyle<'b>
         = LayoutStyle<'b>
     where
@@ -145,7 +139,7 @@ impl LayoutFlexboxContainer for LayoutContext<'_, '_> {
     }
 }
 
-impl CacheTree for LayoutContext<'_, '_> {
+impl CacheTree for LayoutContext<'_> {
     fn cache_get(&mut self, node_id: taffy::NodeId, input: &LayoutInput) -> Option<LayoutOutput> {
         let widget_id = node_id.into();
         self.widgets.layout_cache[widget_id].get(input)
@@ -178,7 +172,7 @@ impl CacheTree for LayoutContext<'_, '_> {
     }
 }*/
 
-impl LayoutPartialTree for LayoutContext<'_, '_> {
+impl LayoutPartialTree for LayoutContext<'_> {
     type CoreContainerStyle<'b>
         = LayoutStyle<'b>
     where
@@ -190,10 +184,10 @@ impl LayoutPartialTree for LayoutContext<'_, '_> {
     }
 
     fn set_unrounded_layout(&mut self, node_id: taffy::NodeId, layout: &taffy::Layout) {
-        let old_bounds = self.widgets.tree[node_id.into()].global_bounds();
+        let old_bounds = self.widgets.tree[node_id.into()].outer_bounds();
         let widget_data = &mut self.widgets.tree[node_id.into()];
         widget_data.layout = *layout;
-        let new_bounds = widget_data.global_bounds();
+        let new_bounds = widget_data.outer_bounds();
         if new_bounds != old_bounds {
             let rect = new_bounds.union(&old_bounds);
             self.region_to_invalidate = self
@@ -229,7 +223,7 @@ impl LayoutPartialTree for LayoutContext<'_, '_> {
 
         taffy::compute_cached_layout(self, node_id, inputs, |tree, node, inputs| {
             let widget_id = node_id.into();
-            if tree.widgets.hidden(widget_id) {
+            if tree.widgets.is_hidden(widget_id) {
                 taffy::compute_hidden_layout(tree, node)
             } else {
                 let has_children = tree.child_count(node) > 0;
@@ -289,11 +283,7 @@ impl LayoutPartialTree for LayoutContext<'_, '_> {
                                             known.unwrap_or(intrinsic)
                                         })
                                 } else if let Some(text) = tree.widgets.texts.get_mut(widget_id) {
-                                    text.measure(
-                                        &mut tree.text_cx,
-                                        available_space,
-                                        known_dimensions,
-                                    )
+                                    text.measure(available_space, known_dimensions)
                                 } else {
                                     taffy::Size::ZERO
                                 }
@@ -407,12 +397,7 @@ impl taffy::CoreStyle for LayoutStyle<'_> {
 
     fn border(&self) -> taffy::Rect<taffy::LengthPercentage> {
         if let Some(border) = &self.style.border {
-            let width = match border.alignment {
-                StrokeAlignment::Inside => Length::Px(0.0),
-                StrokeAlignment::Outside => border.width,
-                StrokeAlignment::Centered => border.width.scale(0.5),
-            };
-            Edges::all(width).resolve_into(self.window_size)
+            Edges::all(border.width).resolve_into(self.window_size)
         } else {
             taffy::Rect::zero()
         }

@@ -2,10 +2,10 @@ use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
 use crate::ui::{
     Prop, UiState,
-    reactive::{EffectContext, ReadContext},
+    reactive::{EffectContext, Reactive, ReadContext},
 };
 
-use super::{CanCreate, CanRead, Effect, NodeId, NodeType, ReactiveValue, ReadScope, ReadSignal};
+use super::{CanCreate, CanRead, Effect, NodeId, NodeType, ReadScope, ReadSignal, Readable};
 
 pub struct CachedContext<'a> {
     memo_id: NodeId,
@@ -93,7 +93,7 @@ impl<T: 'static> From<Cached<T>> for Prop<T> {
     }
 }
 
-impl<T: 'static> ReactiveValue for Cached<T> {
+impl<T: 'static> Readable for Cached<T> {
     type Value = T;
 
     fn track<'s>(&self, cx: &mut impl CanRead<'s>) {

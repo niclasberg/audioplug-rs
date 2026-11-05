@@ -1,9 +1,12 @@
 use std::marker::PhantomData;
 
-use super::{CanCreate, CanRead, Effect, EffectContext, NodeId, ReactiveValue};
+use super::{CanCreate, CanRead, Effect, EffectContext, NodeId, Readable};
 use crate::{
     param::{ParamRef, ParameterId},
-    ui::{Prop, reactive::WidgetStatus},
+    ui::{
+        Prop,
+        reactive::{WidgetStatus, reactive_value::Reactive},
+    },
 };
 
 enum ReadSignalInner<T> {
@@ -66,7 +69,7 @@ impl<T> ReadSignal<T> {
     }
 }
 
-impl<T: 'static> ReactiveValue for ReadSignal<T> {
+impl<T: 'static> Readable for ReadSignal<T> {
     type Value = T;
 
     fn track<'cx>(&self, cx: &mut impl CanRead<'cx>) {

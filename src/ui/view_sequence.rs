@@ -1,6 +1,6 @@
 use rustc_hash::FxBuildHasher;
 
-use super::reactive::{CanRead, Effect, ReactiveValue};
+use super::reactive::{CanRead, Effect, Readable};
 use super::{BuildContext, Prop, View};
 use crate::core::{FxIndexSet, diff};
 use std::hash::Hash;
@@ -150,7 +150,7 @@ where
     ViewForEach { values_fn, view_fn }
 }
 
-pub trait ReactiveValueExt: ReactiveValue {
+pub trait ReactiveValueExt: Readable {
     fn map_to_views_keyed<T, K, V, FKey, FView>(
         self,
         key_fn: FKey,
@@ -167,7 +167,7 @@ pub trait ReactiveValueExt: ReactiveValue {
 
 impl<R> ReactiveValueExt for R
 where
-    R: ReactiveValue + 'static,
+    R: Readable + 'static,
 {
     fn map_to_views_keyed<T, K, V, FKey, FView>(
         self,
@@ -198,7 +198,7 @@ struct MapToViewsKeyedImpl<R, F, FKey> {
 
 impl<S, C: 'static, K, T, V, F, FKey> ViewSequence for MapToViewsKeyedImpl<S, F, FKey>
 where
-    S: ReactiveValue<Value = C> + 'static,
+    S: Readable<Value = C> + 'static,
     for<'a> &'a C: IntoIterator<Item = &'a T>,
     K: Hash + Eq + 'static,
     T: 'static,

@@ -27,12 +27,11 @@ use std::{cell::RefCell, rc::Rc};
 
 pub(crate) use app_state::AppState;
 pub use event_handler::{Event, EventHandlerExt, EventHandlers, EventResult};
-pub use event_handling::EventContext;
 pub use host_handle::HostHandle;
 pub use overlay::{OverlayAnchor, OverlayOptions};
 
 pub use interaction::{
-    ButtonInteraction, Interaction, KnobEvent, KnobInteraction, Sense, SliderEvent,
+    ButtonInteraction, EventContext, Interaction, KnobEvent, KnobInteraction, Sense, SliderEvent,
     SliderInteraction,
 };
 pub use prop::Prop;
@@ -41,7 +40,7 @@ pub use render::{
     invalidate_window,
 };
 pub use task_queue::TaskQueue;
-pub use text::{TextContext, TextStyle};
+pub use text::TextContext;
 pub use ui_state::{UiState, WidgetPos};
 pub use view::*;
 pub use view_ext::{StyleExt, TextExt, ViewExt};

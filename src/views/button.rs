@@ -3,13 +3,13 @@ use crate::{
     ui::{
         BuildContext, ButtonInteraction, EventContext, EventHandlerExt, EventHandlers, Interaction,
         Prop, StyleExt, TextExt, View, ViewExt, WidgetProps,
-        reactive::{Computed, ReactiveValue, WidgetStatus},
+        reactive::{Computed, Readable, WidgetStatus},
         style::{Edges, Fill},
     },
 };
 
 pub struct LabelButton {
-    props: WidgetProps,
+    style_props: WidgetProps,
     event_handlers: EventHandlers,
     kind: Interaction,
 }
@@ -20,7 +20,7 @@ impl LabelButton {
         click_fn: impl Fn(&mut EventContext) + 'static,
     ) -> Self {
         Self {
-            props: WidgetProps::default()
+            style_props: WidgetProps::default()
                 .text(label)
                 .padding(Edges::all_px(5.0))
                 .corner_radius(Size::splat(5.0))
@@ -40,7 +40,7 @@ impl LabelButton {
 
 impl ViewExt for LabelButton {
     fn props_mut(&mut self) -> &mut WidgetProps {
-        &mut self.props
+        &mut self.style_props
     }
 }
 
@@ -56,7 +56,7 @@ impl EventHandlerExt for LabelButton {
 
 impl View for LabelButton {
     fn build(self, cx: &mut BuildContext) {
-        cx.props(self.props)
+        cx.props(self.style_props)
             .event_handlers(self.event_handlers)
             .interaction(self.kind)
             .debug_label("Button");

@@ -1,7 +1,7 @@
 use crate::{
     KeyEvent,
     event::{MouseClick, MouseDown, MouseDrag, MouseMove, MouseUp, MouseWheelEvent},
-    ui::{Sense, EventContext},
+    ui::{EventContext, Sense},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,6 +27,8 @@ pub enum Event {
     Drag(MouseDrag),
     Key(KeyEvent),
     Wheel(MouseWheelEvent),
+    TextChanged(String),
+    FocusChange(bool),
 }
 
 type EventFn = dyn FnMut(&mut EventContext, &Event) -> EventResult;

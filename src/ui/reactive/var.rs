@@ -1,9 +1,9 @@
 use std::{any::Any, marker::PhantomData, ops::DerefMut};
 
-use super::{CanCreate, CanRead, CanWrite, Effect, NodeId, Owner, ReactiveValue, ReadSignal};
+use super::{CanCreate, CanRead, CanWrite, Effect, NodeId, Owner, ReadSignal, Readable};
 use crate::ui::{
     Prop,
-    reactive::{CreateContext, EffectContext, NodeType},
+    reactive::{CreateContext, EffectContext, NodeType, reactive_value::Reactive},
 };
 
 /// A value that may change over time.
@@ -89,11 +89,11 @@ impl<T: Any> Var<T> {
 
 impl<T: 'static> From<Var<T>> for Prop<T> {
     fn from(value: Var<T>) -> Self {
-        Prop::ReadSignal(value.as_read_signal())
+        Self::ReadSignal(value.as_read_signal())
     }
 }
 
-impl<T: 'static> ReactiveValue for Var<T> {
+impl<T: 'static> Readable for Var<T> {
     type Value = T;
 
     fn track<'a>(&self, cx: &mut impl CanRead<'a>) {

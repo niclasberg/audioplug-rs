@@ -1,48 +1,43 @@
-use super::reactive::{CanRead, CanWrite, ReadScope};
 use super::{
-    AppState, EventResult, WidgetId, WindowId, animation::drive_animations, clipboard::Clipboard,
-    invalidate_window,
+    AppState, EventResult, WidgetId, WindowId, animation::drive_animations, invalidate_window,
 };
 use crate::MouseButton;
 use crate::core::Modifiers;
 use crate::event::{MouseClick, MouseDrag};
 use crate::platform::OSMouseEvent;
-use crate::ui::interaction::Interactions;
-use crate::ui::reactive::{ReadContext, WriteContext};
-use crate::ui::ui_state::{Gesture, GestureState};
-use crate::ui::{Event, Sense, TaskQueue, TextContext, UiState};
-use crate::{
-    KeyEvent,
-    core::{Key, Rect},
-    platform::WindowEvent,
-    ui::{WidgetMut, layout::RecomputeLayout, task_queue::Task},
-};
+use crate::ui::text::TextEditContext;
+use crate::ui::ui_state::{Gesture, GestureState, WidgetHandlers};
+use crate::ui::{Event, Sense, TextContext, UiState};
+use crate::{KeyEvent, core::Key, platform::WindowEvent, ui::layout::RecomputeLayout};
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
     match event {
         WindowEvent::Resize { .. } => {
-            app_state.ui.layout_window(
+            app_state
+                .ui
+                .layout_window(window_id, RecomputeLayout::Force);
+            invalidate_window(&app_state.ui, window_id);
+        }
+        WindowEvent::Mouse(mouse_event) => {
+            handle_mouse_event(
+                &mut app_state.ui,
+                &mut app_state.widget_handlers,
+                window_id,
+                mouse_event,
+            );
+        }
+        WindowEvent::Key(key_event) => {
+            handle_key_event(
+                &mut app_state.ui,
+                &mut app_state.widget_handlers,
                 &mut TextContext::new(
                     &mut app_state.font_cx,
                     &mut app_state.text_layout_cx,
                     &mut app_state.glyph_cache,
                 ),
                 window_id,
-                RecomputeLayout::Force,
+                key_event,
             );
-            invalidate_window(&app_state.ui, window_id);
-        }
-        WindowEvent::Mouse(mouse_event) => {
-            handle_mouse_event(
-                &mut app_state.ui,
-                &mut app_state.widget_handlers.event_handlers,
-                &mut app_state.task_queue,
-                window_id,
-                mouse_event,
-            );
-        }
-        WindowEvent::Key(key_event) => {
-            handle_key_event(app_state, window_id, key_event);
         }
         WindowEvent::Focused => {}
         WindowEvent::Unfocused => {
@@ -52,7 +47,7 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             drive_animations(app_state, animation_frame);
         }
         WindowEvent::MouseCaptureEnded => {
-            app_state.ui.set_focus_widget(window_id, None);
+            // Drop any active gesture
         }
         WindowEvent::ThemeChanged(theme) => {
             //let signal = app_state.theme_signal;
@@ -73,13 +68,12 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             }
         }
     };
-    app_state.run_effects();
+    app_state.run_effects_and_layout();
 }
 
 pub fn handle_mouse_event(
     ui: &mut UiState,
-    event_handlers: &mut Interactions,
-    task_queue: &mut TaskQueue,
+    handlers: &mut WidgetHandlers,
     window_id: WindowId,
     mouse_event: OSMouseEvent,
 ) {
@@ -90,45 +84,35 @@ pub fn handle_mouse_event(
             .iter()
             .copied()
             .rev()
-            .find(|id| event_handlers.has_sense(*id, Sense::FOCUSABLE));
+            .find(|id| handlers.event_handlers.has_sense(*id, Sense::FOCUSABLE));
 
         ui.set_focus_widget(window_id, new_focus_view);
     };
 
     if let Some(gesture) = ui.gesture {
-        let senses = event_handlers.senses(gesture.target);
+        let senses = handlers.event_handlers.senses(gesture.target);
         match mouse_event {
             OSMouseEvent::Down(ev) => {
-                dispatch_event(
-                    event_handlers,
-                    ui,
-                    task_queue,
-                    gesture.target,
-                    &Event::MouseDown(ev),
-                );
+                ui.dispatch(handlers, gesture.target, Event::MouseDown(ev));
             }
             OSMouseEvent::Up(ev) => {
                 if ev.button == MouseButton::LEFT {
                     match gesture.state {
                         GestureState::Pressed if senses.contains(Sense::CLICKABLE) => {
-                            dispatch_event(
-                                event_handlers,
-                                ui,
-                                task_queue,
+                            ui.dispatch(
+                                handlers,
                                 gesture.target,
-                                &Event::Click(MouseClick {
+                                Event::Click(MouseClick {
                                     position: ev.position,
                                     modifiers: ev.modifiers,
                                 }),
                             );
                         }
                         GestureState::Dragging if senses.contains(Sense::DRAGGABLE) => {
-                            dispatch_event(
-                                event_handlers,
-                                ui,
-                                task_queue,
+                            ui.dispatch(
+                                handlers,
                                 gesture.target,
-                                &Event::Drag(MouseDrag::Ended {
+                                Event::Drag(MouseDrag::Ended {
                                     position: ev.position,
                                     modifiers: ev.modifiers,
                                 }),
@@ -145,12 +129,10 @@ pub fn handle_mouse_event(
                 if new_gesture.state == GestureState::Pressed && senses.contains(Sense::DRAGGABLE) {
                     if (ev.position - new_gesture.start).length_sq() > 4.0 {
                         new_gesture.state = GestureState::Dragging;
-                        dispatch_event(
-                            event_handlers,
-                            ui,
-                            task_queue,
+                        ui.dispatch(
+                            handlers,
                             gesture.target,
-                            &Event::Drag(MouseDrag::Ended {
+                            Event::Drag(MouseDrag::Ended {
                                 position: ev.position,
                                 modifiers: ev.modifiers,
                             }),
@@ -160,12 +142,10 @@ pub fn handle_mouse_event(
 
                 if new_gesture.state == GestureState::Dragging {
                     let delta = ev.position - new_gesture.last;
-                    dispatch_event(
-                        event_handlers,
-                        ui,
-                        task_queue,
+                    ui.dispatch(
+                        handlers,
                         gesture.target,
-                        &Event::Drag(MouseDrag::Moved {
+                        Event::Drag(MouseDrag::Moved {
                             position: ev.position,
                             modifiers: ev.modifiers,
                             delta,
@@ -177,24 +157,18 @@ pub fn handle_mouse_event(
                 ui.gesture = Some(new_gesture);
             }
             OSMouseEvent::Wheel(mouse_wheel_event) => {
-                dispatch_event(
-                    event_handlers,
-                    ui,
-                    task_queue,
-                    gesture.target,
-                    &Event::Wheel(mouse_wheel_event),
-                );
+                ui.dispatch(handlers, gesture.target, Event::Wheel(mouse_wheel_event));
             }
         }
     } else {
         for id in widgets_under_mouse.iter().copied().rev() {
-            let capabilities = event_handlers.senses(id);
+            let capabilities = handlers.event_handlers.senses(id);
             match mouse_event {
                 OSMouseEvent::Down(ev) => {
                     if capabilities.contains(Sense::CLICKABLE)
                         || capabilities.contains(Sense::DRAGGABLE)
                     {
-                        dispatch_event(event_handlers, ui, task_queue, id, &Event::MouseDown(ev));
+                        ui.dispatch(handlers, id, Event::MouseDown(ev));
 
                         if ev.button == MouseButton::LEFT {
                             if capabilities.contains(Sense::CLICKABLE) {
@@ -204,12 +178,10 @@ pub fn handle_mouse_event(
                                 // DRAGGABLE. In this case, emit a DragStart immediately
                                 ui.gesture =
                                     Some(Gesture::new(id, ev.position, GestureState::Dragging));
-                                dispatch_event(
-                                    event_handlers,
-                                    ui,
-                                    task_queue,
+                                ui.dispatch(
+                                    handlers,
                                     id,
-                                    &Event::Drag(MouseDrag::Started {
+                                    Event::Drag(MouseDrag::Started {
                                         position: ev.position,
                                         modifiers: ev.modifiers,
                                     }),
@@ -224,22 +196,16 @@ pub fn handle_mouse_event(
                     if capabilities.contains(Sense::CLICKABLE)
                         || capabilities.contains(Sense::DRAGGABLE)
                     {
-                        dispatch_event(
-                            event_handlers,
-                            ui,
-                            task_queue,
-                            id,
-                            &Event::MouseUp(mouse_up_event),
-                        );
+                        ui.dispatch(handlers, id, Event::MouseUp(mouse_up_event));
                         break;
                     }
                 }
                 OSMouseEvent::Move(ev) => {
-                    dispatch_event(event_handlers, ui, task_queue, id, &Event::MouseMove(ev));
+                    ui.dispatch(handlers, id, Event::MouseMove(ev));
                     break;
                 }
                 OSMouseEvent::Wheel(ev) => {
-                    dispatch_event(event_handlers, ui, task_queue, id, &Event::Wheel(ev));
+                    ui.dispatch(handlers, id, Event::Wheel(ev));
                     break;
                 }
             }
@@ -247,47 +213,141 @@ pub fn handle_mouse_event(
     }
 }
 
-pub fn handle_key_event(app_state: &mut AppState, window_id: WindowId, key_event: KeyEvent) {
+pub fn handle_key_event(
+    ui: &mut UiState,
+    handlers: &mut WidgetHandlers,
+    text_cx: &mut TextContext,
+    window_id: WindowId,
+    key_event: KeyEvent,
+) {
     let mut event_status = EventResult::Continue;
-    let mut key_widget = app_state
-        .ui
+    let mut key_widget = ui
         .focus_widget_id(window_id)
-        .unwrap_or(app_state.ui.window(window_id).root_widget);
+        .unwrap_or(ui.window(window_id).root_widget);
 
     // We start from the current focus widget, and work our way down until either
     // the event is handled, or we have reached a parentless widget
     while !slotmap::Key::is_null(&key_widget) && event_status != EventResult::Stop {
-        event_status = app_state.widget_handlers.event_handlers.dispatch(
-            &mut EventContext {
-                id: key_widget,
-                ui: &mut app_state.ui,
-                task_queue: &mut app_state.task_queue,
-            },
-            key_widget,
-            &Event::Key(key_event.clone()),
-        );
-        key_widget = app_state.ui.parent(key_widget);
+        event_status = ui
+            .dispatch(handlers, key_widget, Event::Key(key_event.clone()))
+            .or_else(|| handle_text_edit_event(ui, handlers, text_cx, key_widget, &key_event));
+
+        key_widget = ui.parent(key_widget);
     }
 
     if event_status == EventResult::Continue
         && let KeyEvent::KeyDown { key, modifiers, .. } = key_event
     {
         match key {
-            Key::Escape if modifiers.is_empty() => app_state.ui.set_hovered_widget(None),
+            Key::Escape if modifiers.is_empty() => ui.set_hovered_widget(None),
             Key::Tab if modifiers.is_empty() => {
-                let new_focus_widget = app_state
-                    .ui
-                    .next_focusable_widget(&app_state.widget_handlers.event_handlers, window_id);
-                app_state.ui.set_focus_widget(window_id, new_focus_widget);
+                // FOCUSABLE should probably move out of the Interaction and into the widget data,
+                // so that we don't have to pass the handler here
+                let new_focus_widget =
+                    ui.next_focusable_widget(&handlers.event_handlers, window_id);
+                ui.set_focus_widget(window_id, new_focus_widget);
             }
             Key::Tab if modifiers == Modifiers::SHIFT => {
-                let new_focus_widget = app_state
-                    .ui
-                    .prev_focusable_widget(&app_state.widget_handlers.event_handlers, window_id);
-                app_state.ui.set_focus_widget(window_id, new_focus_widget);
+                let new_focus_widget =
+                    ui.prev_focusable_widget(&handlers.event_handlers, window_id);
+                ui.set_focus_widget(window_id, new_focus_widget);
             }
             _ => {}
         }
+    }
+}
+
+fn handle_text_edit_event(
+    ui: &mut UiState,
+    handlers: &mut WidgetHandlers,
+    text_cx: &mut TextContext,
+    widget_id: WidgetId,
+    key_event: &KeyEvent,
+) -> EventResult {
+    if let Some(text) = ui.texts.get_mut(widget_id)
+        && let KeyEvent::KeyDown {
+            key,
+            modifiers,
+            str,
+            ..
+        } = key_event
+    {
+        let mut text_edit_cx = TextEditContext { text };
+        match (key, str) {
+            (Key::BackSpace, _) if modifiers.contains(Modifiers::CONTROL) => {
+                /*if text_edit_cx.remove_word_left() {
+                    rebuild_text_layout(self, ctx);
+                }*/
+                EventResult::Stop
+            }
+            (Key::BackSpace, _) => {
+                /*if self.remove_left() {
+                    rebuild_text_layout(self, ctx);
+                }*/
+                EventResult::Stop
+            }
+            (Key::Delete, _) if modifiers.contains(Modifiers::CONTROL) => {
+                /*if self.remove_word_right() {
+                    rebuild_text_layout(self, ctx);
+                }*/
+                EventResult::Stop
+            }
+            (Key::Delete, _) => {
+                /*if self.remove_right() {
+                    rebuild_text_layout(self, ctx);
+                }*/
+                EventResult::Stop
+            }
+            (Key::Left, _) if modifiers.contains(Modifiers::CONTROL) => {
+                if text_edit_cx.move_word_left(modifiers.contains(Modifiers::SHIFT)) {
+                    //ctx.request_render();
+                }
+                EventResult::Stop
+            }
+            (Key::Left, _) => {
+                if text_edit_cx.move_left(modifiers.contains(Modifiers::SHIFT)) {
+                    //ctx.request_render();
+                }
+                EventResult::Stop
+            }
+            (Key::Right, _) if modifiers.contains(Modifiers::CONTROL) => {
+                if text_edit_cx.move_word_right(modifiers.contains(Modifiers::SHIFT)) {
+                    //ctx.request_render();
+                }
+                EventResult::Stop
+            }
+            (Key::Right, _) => {
+                if text_edit_cx.move_right(modifiers.contains(Modifiers::SHIFT)) {
+                    //ctx.request_render();
+                }
+                EventResult::Stop
+            }
+            (Key::C, _) if *modifiers == Modifiers::CONTROL => {
+                //if let Some(selected_text) = self.selected_text() {
+                //ctx.clipboard().set_text(selected_text);
+                //}
+                EventResult::Stop
+            }
+            (Key::V, _) if *modifiers == Modifiers::CONTROL => {
+                //if let Some(text_to_insert) = ctx.clipboard().get_text() {
+                //self.insert(text_to_insert.as_str());
+                //rebuild_text_layout(self, ctx);
+                //}
+                EventResult::Stop
+            }
+            (Key::X, _) if *modifiers == Modifiers::CONTROL => EventResult::Stop,
+            (Key::Tab, _) | (Key::Escape, _) | (Key::Enter, _) | (Key::Up, _) | (Key::Down, _) => {
+                EventResult::Continue
+            }
+            (_, Some(str)) if !modifiers.contains(Modifiers::CONTROL) => {
+                //self.insert(str.as_str());
+                //rebuild_text_layout(self, ctx);
+                EventResult::Stop
+            }
+            _ => EventResult::Continue,
+        }
+    } else {
+        EventResult::Continue
     }
 }
 
@@ -298,105 +358,3 @@ pub fn handle_key_event(app_state: &mut AppState, window_id: WindowId, key_event
 
     let window_id = app_state.get_window_id_for_widget(widget_id);
 }*/
-
-fn dispatch_event(
-    event_handlers: &mut Interactions,
-    widgets: &mut UiState,
-    task_queue: &mut TaskQueue,
-    widget_id: WidgetId,
-    event: &Event,
-) -> EventResult {
-    event_handlers.dispatch(
-        &mut EventContext {
-            id: widget_id,
-            ui: widgets,
-            task_queue,
-        },
-        widget_id,
-        event,
-    )
-}
-
-pub struct EventContext<'a> {
-    id: WidgetId,
-    ui: &'a mut UiState,
-    task_queue: &'a mut TaskQueue,
-}
-
-impl<'a> EventContext<'a> {
-    /*fn dispatch_status_updated(&mut self, event: StatusChange) {
-        let mut widget = self.app_state.widgets.lease_widget(self.id).unwrap();
-        widget.status_change(event, self);
-        self.app_state.widgets.unlease_widget(widget);
-    }
-
-    fn dispatch_key_event(&mut self, event: KeyEvent) -> EventStatus {
-        let mut widget = self.app_state.widgets.lease_widget(self.id).unwrap();
-        let status = widget.key_event(event, self);
-        self.app_state.widgets.unlease_widget(widget);
-        status
-    }*/
-
-    pub fn bounds(&self) -> Rect {
-        self.ui.global_bounds(self.id)
-    }
-
-    pub fn has_focus(&self) -> bool {
-        self.ui.has_focus(self.id)
-    }
-
-    pub fn has_mouse_capture(&self) -> bool {
-        self.ui.is_pressed(self.id)
-    }
-
-    pub fn release_gesture(&mut self) -> bool {
-        if self.ui.is_pressed(self.id) {
-            // *self.new_mouse_capture_widget = None;
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn request_layout(&mut self) {
-        self.ui.request_layout(self.id);
-    }
-
-    pub fn request_render(&mut self) {
-        self.ui.request_render(self.id);
-    }
-
-    pub fn clipboard(&self) -> Clipboard<'_> {
-        let window_id = self.ui.window_for_widget(self.id).id;
-        self.ui.clipboard(window_id)
-    }
-
-    pub fn defer_update(&mut self, f: impl FnOnce(WidgetMut) + 'static) {
-        self.task_queue.push(Task::UpdateWidget {
-            widget_id: self.id,
-            f: Box::new(f),
-        });
-    }
-}
-
-impl<'s> CanRead<'s> for EventContext<'s> {
-    fn read_context<'s2>(&'s2 mut self) -> ReadContext<'s2>
-    where
-        's: 's2,
-    {
-        ReadContext {
-            ui: self.ui,
-            scope: ReadScope::Untracked,
-            current_widget: Some(self.id),
-        }
-    }
-}
-
-impl<'s> CanWrite<'s> for EventContext<'s> {
-    fn write_context<'s2>(&'s2 mut self) -> WriteContext<'s2>
-    where
-        's: 's2,
-    {
-        WriteContext { ui: self.ui }
-    }
-}

@@ -93,6 +93,11 @@ impl GpuAppearance {
     pub const PAINT_KIND_EDGE_GRADIENT: u32 = 3;
     pub const PAINT_KIND_IMAGE: u32 = 4;
 
+    const STROKE_ALIGN_OFFSET: u32 = 10;
+    pub const STROKE_ALIGN_CENTER: u32 = 0;
+    pub const STROKE_ALIGN_INSIDE: u32 = 1;
+    pub const STROKE_ALIGN_OUTSIDE: u32 = 2;
+
     pub fn new() -> Self {
         Self {
             fill_data: Default::default(),
@@ -129,6 +134,15 @@ impl GpuAppearance {
         );
         self.stroke_width = width;
         self.margin = self.margin.max(width);
+
+        let align_bits = match alignment {
+            StrokeAlignment::Inside => Self::STROKE_ALIGN_INSIDE,
+            StrokeAlignment::Outside => Self::STROKE_ALIGN_OUTSIDE,
+            StrokeAlignment::Centered => Self::STROKE_ALIGN_CENTER,
+        };
+
+        self.flags = (self.flags & !(0b11 << Self::STROKE_ALIGN_OFFSET))
+            | (align_bits << Self::STROKE_ALIGN_OFFSET);
         self.flags |= Self::STROKE_FLAG;
     }
 

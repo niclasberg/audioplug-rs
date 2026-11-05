@@ -1,19 +1,20 @@
-use bitflags::bitflags;
 use parley::{FontStyle, FontWeight, FontWidth};
 use slotmap::SecondaryMap;
+use smallvec::SmallVec;
 use taffy::{AlignSelf, JustifySelf};
 
 use crate::{
     core::{Color, Cursor, Size},
     ui::{
         Prop, UiState, WidgetId,
-        reactive::{ReactiveValue, ReadContext, ReadScope, WidgetPhase},
+        reactive::{Reactive, ReadContext, ReadScope, Readable, WidgetPhase},
         render::ShadowOptions,
         style::{Border, Edges, Fill, Length},
+        ui_state::Invalidation,
     },
 };
 
-pub type WidgetPropMap = SecondaryMap<WidgetId, WidgetProps>;
+pub type WidgetBindingsMap = SecondaryMap<WidgetId, WidgetBindings>;
 
 #[derive(Default)]
 pub struct WidgetProps {
@@ -33,34 +34,50 @@ impl WidgetProps {
         self.props.iter()
     }
 
-    pub fn apply(&self, widget_id: WidgetId, ui: &mut UiState) {
+    pub fn install(self, widget_id: WidgetId, ui: &mut UiState) -> Option<WidgetBindings> {
+        let mut bindings = SmallVec::new();
         let mut invalidation = Invalidation::empty();
-        for prop in self.props.iter() {
-            invalidation |= prop.apply(ui, widget_id);
+        for prop in self.props {
+            if let Some(binding) = prop.install(ui, widget_id, &mut invalidation) {
+                bindings.push(binding);
+            }
         }
+        ui.invalidate_widget(widget_id, invalidation);
 
-        if invalidation.contains(Invalidation::LAYOUT) {
-            ui.request_layout(widget_id);
+        if bindings.is_empty() {
+            None
+        } else {
+            Some(WidgetBindings { bindings })
         }
-        if invalidation.contains(Invalidation::RENDER) {
-            ui.request_render(widget_id);
-        }
-    }
-
-    pub fn remove_const_props(&mut self) {
-        self.props.retain(|p| !p.is_const());
     }
 }
 
-bitflags! {
-    pub struct Invalidation: u8 {
-        const RENDER = 1;
-        const LAYOUT = 1 << 1;
+pub struct WidgetBindings {
+    bindings: SmallVec<[WidgetBinding; 2]>,
+}
+
+impl WidgetBindings {
+    pub fn apply(&self, widget_id: WidgetId, ui: &mut UiState) {
+        let node_id = ui.get_invalidation_node_id(widget_id, WidgetPhase::SyncWidget);
+        let scope = ReadScope::Node(node_id);
+        ui.clear_node_sources(node_id);
+        let mut cx = ReadContext {
+            ui,
+            scope: scope,
+            current_widget: Some(widget_id),
+        };
+
+        let mut invalidation = Invalidation::empty();
+        for binding in self.bindings.iter() {
+            invalidation |= binding.apply(&mut cx, widget_id);
+        }
+        ui.invalidate_widget(widget_id, invalidation);
+        ui.mark_node_as_clean(node_id);
     }
 }
 
-macro_rules! define_widget_props {
-    ($($name:ident => $t:ty), +) => {
+macro_rules! define_prop {
+    ($($name:ident: $t:ty => $apply:expr), +) => {
         pub enum WidgetProp {
             $($name(Prop<$t>),)*
         }
@@ -73,219 +90,93 @@ macro_rules! define_widget_props {
                 }
             }
 
-            pub fn is_const(&self) -> bool {
+            pub fn install(self, ui: &mut UiState, id: WidgetId, inv: &mut Invalidation) -> Option<WidgetBinding> {
                 match self {
-                    $(Self::$name(Prop::Const(_)) => true,)*
-                    _ => false
+                    $(Self::$name(p) => match p.into_reactive() {
+                        Err(value) => { *inv = $apply(ui, id, value); None },
+                        Ok(reactive) => Some(WidgetBinding::$name(reactive)),
+                    },)*
+                }
+            }
+        }
+
+        pub enum WidgetBinding {
+            $($name(Reactive<$t>),)*
+        }
+
+        impl WidgetBinding {
+            pub fn apply(&self, cx: &mut ReadContext, id: WidgetId) -> Invalidation {
+                match self {
+                    $(Self::$name(reactive) => {
+                        let value = reactive.get(cx);
+                        $apply(cx.ui, id, value)
+                    },)*
                 }
             }
         }
     };
 }
 
-define_widget_props! {
-    Hidden => bool,
-    Padding => Edges,
-    Width => Length,
-    Height => Length,
-    MinWidth => Length,
-    MinHeight => Length,
-    MaxWidth => Length,
-    MaxHeight => Length,
-    AspectRatio => f32,
-    Border => Border,
-    Margin => Edges,
-    Inset => Edges,
-    Background => Fill,
-    CornerRadius => Size,
-    JustifySelf => JustifySelf,
-    AlignSelf => AlignSelf,
-    BoxShadow => ShadowOptions,
-    FlexGrow => f32,
-    FlexShrink => f32,
-    Cursor => Cursor,
-    Text => String,
-    TextColor => Color,
-    FontSize => f32,
-    FontWeight => FontWeight,
-    FontStyle => FontStyle,
-    FontWidth => FontWidth
+define_prop! {
+    Hidden: bool => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).hidden, value, Invalidation::LAYOUT),
+    Padding: Edges      => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).padding, value, Invalidation::LAYOUT),
+    Width: Length => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).width, value, Invalidation::LAYOUT),
+    Height: Length => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).height, value, Invalidation::LAYOUT),
+    MinWidth: Length => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).min_width, value, Invalidation::LAYOUT),
+    MinHeight: Length => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).min_height, value, Invalidation::LAYOUT),
+    MaxWidth: Length => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).max_width, value, Invalidation::LAYOUT),
+    MaxHeight: Length => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).max_height, value, Invalidation::LAYOUT),
+    AspectRatio: f32 => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).aspect_ratio, Some(value), Invalidation::LAYOUT),
+    Border: Border => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).border, Some(value), Invalidation::LAYOUT),
+    Margin: Edges => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).margin, value, Invalidation::LAYOUT),
+    Inset: Edges => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).inset, value, Invalidation::LAYOUT),
+    Background: Fill => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).background, Some(value), Invalidation::LAYOUT | Invalidation::RENDER),
+    CornerRadius: Size  => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).corner_radius, value, Invalidation::LAYOUT),
+    JustifySelf: JustifySelf => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).justify_self, Some(value), Invalidation::LAYOUT),
+    AlignSelf: AlignSelf => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).align_self, Some(value), Invalidation::LAYOUT),
+    BoxShadow: ShadowOptions => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).box_shadow, Some(value), Invalidation::RENDER),
+    FlexGrow: f32 => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).flex_grow, value, Invalidation::LAYOUT),
+    FlexShrink: f32 => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).flex_shrink, value, Invalidation::LAYOUT),
+    Cursor: Cursor => |ui: &mut UiState, id, value|
+        replace(&mut ui.style_mut(id).cursor, Some(value), Invalidation::empty()),
+    TextColor: Color => |ui: &mut UiState, id, value|
+        replace(&mut ui.text_mut(id).color, value, Invalidation::TEXT | Invalidation::RENDER),
+    FontSize: f32 => |ui: &mut UiState, id, value|
+        replace(&mut ui.text_mut(id).font_size, value, Invalidation::LAYOUT | Invalidation::TEXT),
+    FontWeight: FontWeight => |ui: &mut UiState, id, value|
+        replace(&mut ui.text_mut(id).font_weight, Some(value), Invalidation::LAYOUT | Invalidation::TEXT),
+    FontStyle: FontStyle => |ui: &mut UiState, id, value|
+        replace(&mut ui.text_mut(id).font_style, Some(value), Invalidation::LAYOUT | Invalidation::TEXT),
+    FontWidth: FontWidth => |ui: &mut UiState, id, value|
+        replace(&mut ui.text_mut(id).font_width, Some(value), Invalidation::LAYOUT | Invalidation::TEXT),
+    Text: String => |ui: &mut UiState, id, value|
+        replace(&mut ui.text_mut(id).text, value, Invalidation::LAYOUT | Invalidation::TEXT)
 }
 
-impl WidgetProp {
-    pub fn apply(&self, ui: &mut UiState, widget_id: WidgetId) -> Invalidation {
-        let node = ui
-            .reactive_graph
-            .widget_invalidation_node_id(widget_id, WidgetPhase::SyncWidget);
-        let mut cx = ReadContext {
-            ui,
-            scope: ReadScope::Node(node),
-            current_widget: Some(widget_id),
-        };
-
-        fn replace<T: PartialEq>(dst: &mut T, new_val: T) -> bool {
-            if *dst != new_val {
-                *dst = new_val;
-                true
-            } else {
-                false
-            }
-        }
-
-        match self {
-            WidgetProp::Hidden(prop) => {
-                let value = prop.get(&mut cx);
-                ui.set_hidden(widget_id, value);
-            }
-            WidgetProp::Padding(prop) => {
-                let value = prop.get(&mut cx);
-                if replace(&mut ui.style_mut(widget_id).padding, value) {
-                    return Invalidation::LAYOUT;
-                }
-            }
-            WidgetProp::Width(prop) => {
-                let value = prop.get(&mut cx);
-                if replace(&mut ui.style_mut(widget_id).width, value) {
-                    return Invalidation::LAYOUT;
-                }
-            }
-            WidgetProp::Height(prop) => {
-                let value = prop.get(&mut cx);
-                if replace(&mut ui.style_mut(widget_id).height, value) {
-                    return Invalidation::LAYOUT;
-                }
-            }
-            WidgetProp::MinWidth(prop) => {
-                let value = prop.get(&mut cx);
-                if replace(&mut ui.style_mut(widget_id).min_width, value) {
-                    return Invalidation::LAYOUT;
-                }
-            }
-            WidgetProp::MinHeight(prop) => {
-                let value = prop.get(&mut cx);
-                if replace(&mut ui.style_mut(widget_id).min_height, value) {
-                    return Invalidation::LAYOUT;
-                }
-            }
-            WidgetProp::MaxWidth(prop) => {
-                let value = prop.get(&mut cx);
-                if replace(&mut ui.style_mut(widget_id).max_width, value) {
-                    return Invalidation::LAYOUT;
-                }
-            }
-            WidgetProp::MaxHeight(prop) => {
-                let value = prop.get(&mut cx);
-                if replace(&mut ui.style_mut(widget_id).max_height, value) {
-                    return Invalidation::LAYOUT;
-                }
-            }
-            WidgetProp::AspectRatio(prop) => {
-                let value = Some(prop.get(&mut cx));
-                if replace(&mut ui.style_mut(widget_id).aspect_ratio, value) {
-                    return Invalidation::LAYOUT;
-                }
-            }
-            WidgetProp::Margin(prop) => {
-                let value = prop.get(&mut cx);
-                if replace(&mut ui.style_mut(widget_id).margin, value) {
-                    return Invalidation::LAYOUT;
-                }
-            }
-            WidgetProp::Inset(prop) => {
-                let value = prop.get(&mut cx);
-                if replace(&mut ui.style_mut(widget_id).margin, value) {
-                    return Invalidation::LAYOUT;
-                }
-            }
-            WidgetProp::Background(prop) => {
-                let value = Some(prop.get(&mut cx));
-                if replace(&mut ui.style_mut(widget_id).background, value) {
-                    return Invalidation::RENDER;
-                }
-            }
-            WidgetProp::CornerRadius(prop) => {
-                let value = prop.get(&mut cx);
-                if replace(&mut ui.style_mut(widget_id).corner_radius, value) {
-                    return Invalidation::RENDER;
-                }
-            }
-            WidgetProp::Border(prop) => {
-                let value = Some(prop.get(&mut cx));
-                if replace(&mut ui.style_mut(widget_id).border, value) {
-                    return Invalidation::LAYOUT | Invalidation::RENDER;
-                }
-            }
-            WidgetProp::JustifySelf(prop) => {
-                let value = Some(prop.get(&mut cx));
-                if replace(&mut ui.style_mut(widget_id).justify_self, value) {
-                    return Invalidation::LAYOUT;
-                }
-            }
-            WidgetProp::AlignSelf(prop) => {
-                let value = Some(prop.get(&mut cx));
-                if replace(&mut ui.style_mut(widget_id).align_self, value) {
-                    return Invalidation::LAYOUT;
-                }
-            }
-            WidgetProp::BoxShadow(prop) => {
-                let value = Some(prop.get(&mut cx));
-                if replace(&mut ui.style_mut(widget_id).box_shadow, value) {
-                    return Invalidation::RENDER;
-                }
-            }
-            WidgetProp::FlexGrow(prop) => {
-                let value = prop.get(&mut cx);
-                if replace(&mut ui.style_mut(widget_id).flex_grow, value) {
-                    return Invalidation::RENDER;
-                }
-            }
-            WidgetProp::FlexShrink(prop) => {
-                let value = prop.get(&mut cx);
-                if replace(&mut ui.style_mut(widget_id).flex_shrink, value) {
-                    return Invalidation::RENDER;
-                }
-            }
-            WidgetProp::Cursor(prop) => {
-                let value = Some(prop.get(&mut cx));
-                if replace(&mut ui.style_mut(widget_id).cursor, value) {
-                    return Invalidation::RENDER;
-                }
-            }
-            WidgetProp::Text(prop) => {
-                let value = prop.get(&mut cx);
-                ui.set_text(widget_id, value)
-            }
-            WidgetProp::TextColor(prop) => {
-                let value = prop.get(&mut cx);
-                if replace(&mut ui.text_mut(widget_id).style.color, value) {
-                    return Invalidation::RENDER;
-                }
-            }
-            WidgetProp::FontSize(prop) => {
-                let value = prop.get(&mut cx);
-                if ui.text_mut(widget_id).set_font_size(value) {
-                    return Invalidation::LAYOUT;
-                }
-            }
-            WidgetProp::FontWeight(prop) => {
-                let value = prop.get(&mut cx);
-                if ui.text_mut(widget_id).set_font_weight(value) {
-                    return Invalidation::LAYOUT;
-                }
-            }
-            WidgetProp::FontStyle(prop) => {
-                let value = prop.get(&mut cx);
-                if ui.text_mut(widget_id).set_font_style(value) {
-                    return Invalidation::LAYOUT;
-                }
-            }
-            WidgetProp::FontWidth(prop) => {
-                let value = prop.get(&mut cx);
-                if ui.text_mut(widget_id).set_font_width(value) {
-                    return Invalidation::LAYOUT;
-                }
-            }
-        };
+fn replace<T: PartialEq>(dst: &mut T, new_val: T, invalidation: Invalidation) -> Invalidation {
+    if *dst != new_val {
+        *dst = new_val;
+        invalidation
+    } else {
         Invalidation::empty()
     }
 }

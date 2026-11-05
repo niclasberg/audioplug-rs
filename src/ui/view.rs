@@ -42,17 +42,11 @@ pub struct BuildContext<'a> {
     pub(crate) id: WidgetId,
     pub(crate) ui: &'a mut UiState,
     pub(crate) handlers: &'a mut WidgetHandlers,
-    pub(crate) node_owner: Owner,
 }
 
 impl<'a> BuildContext<'a> {
     pub(crate) fn new(id: WidgetId, ui: &'a mut UiState, handlers: &'a mut WidgetHandlers) -> Self {
-        Self {
-            id,
-            ui,
-            handlers,
-            node_owner: Owner::Widget(id),
-        }
+        Self { id, ui, handlers }
     }
 
     pub fn id(&self) -> WidgetId {
@@ -87,7 +81,6 @@ impl<'a> BuildContext<'a> {
             id: self.id,
             ui: self.ui,
             handlers: self.handlers,
-            node_owner: self.node_owner,
         });
     }
 
@@ -97,13 +90,10 @@ impl<'a> BuildContext<'a> {
     }
 
     pub fn props(&mut self, mut props: WidgetProps) -> &mut Self {
-        // The props can contain both constant and reactive values.
-        // We only need to retain the reactive values - we synchronize to those
-        // values after handling events. We still want to apply the constant values,
-        // so run apply for all props first.
-        props.apply(self.id, &mut self.ui);
-        props.remove_const_props();
-        self.handlers.widget_props.insert(self.id, props);
+        let bindings = props.install(self.id, &mut self.ui);
+        if let Some(bindings) = bindings {
+            self.handlers.widget_props.insert(self.id, bindings);
+        }
         self
     }
 
@@ -158,7 +148,7 @@ impl<'s> CanCreate<'s> for BuildContext<'s> {
     {
         CreateContext {
             ui: self.ui,
-            owner: self.node_owner,
+            owner: Owner::Widget(self.id),
         }
     }
 }

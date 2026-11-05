@@ -3,7 +3,7 @@ use crate::{
     param::{AnyParameter, NormalizedValue},
     ui::{
         BuildContext, EventContext, KnobEvent, Prop, RenderContext, Sense, View,
-        reactive::{ParamSetter, ReactiveValue, ReadSignal, Var},
+        reactive::{ParamSetter, Readable, ReadSignal, Var},
     },
     views::util::ValueMapper,
 };

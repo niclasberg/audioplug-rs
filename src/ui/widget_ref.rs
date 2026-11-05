@@ -68,7 +68,7 @@ impl<'a> WidgetRef<'a> {
     }
 
     pub fn global_bounds(&self) -> Rect {
-        self.data().global_bounds()
+        self.data().outer_bounds()
     }
 
     pub fn content_bounds(&self) -> Rect {
@@ -201,12 +201,11 @@ impl<'a> WidgetMut<'a> {
     }
 
     pub fn remove(self) {
-        self.ui.remove_widget(self.id, self.handlers);
+        self.ui.remove_widget(self.id);
     }
 
-    pub fn replace(self, view: impl View) -> WidgetMut<'a> {
-        self.ui.replace_widget(self.id, self.handlers, view);
-        self
+    pub fn replace(self, view: impl View) {
+        self.ui.replace_widget(self.id, None, view);
     }
 
     pub fn add_before(&mut self, view: impl View) -> WidgetId {
@@ -242,7 +241,7 @@ impl<'a> WidgetMut<'a> {
     }
 
     pub fn global_bounds(&self) -> Rect {
-        self.data().global_bounds()
+        self.data().outer_bounds()
     }
 
     pub fn request_layout(&mut self) {
