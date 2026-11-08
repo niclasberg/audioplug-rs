@@ -51,7 +51,7 @@ impl<VTrigger: View, VMenu: View, FMenu: Fn() -> VMenu + 'static> View
         let event_handlers =
             self.event_handlers
                 .on_event(
-                    Sense::FOCUSABLE | Sense::CLICKABLE,
+                    Sense::KEYBOARD | Sense::CLICKABLE,
                     move |cx, event| match event {
                         Event::Click(mouse_down) => {
                             //if mouse_down.button == MouseButton::LEFT {

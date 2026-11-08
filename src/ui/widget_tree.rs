@@ -33,17 +33,45 @@ bitflags!(
     #[derive(Debug, Clone, Copy)]
     pub struct WidgetFlags : u32 {
         const EMPTY = 0;
-        // Dirty flags
+        // Dirty flags:
+        /// Layout is dirty, set by (request_layout)[UiState::request_layout] and cleared during layout
         const NEEDS_LAYOUT = 1 << 1;
+        /// The Widget's scene is dirty, set by (request_render)[UiState::request_render]. We currently
+        /// don't cache anything related to render, but could be used later for performance optimization.
         const NEEDS_RENDER = 1 << 2;
-        const DOOMED = 1 << 3;
 
-        // Status flags
-        const UNDER_MOUSE_CURSOR = 1 << 9;
+        // Capabilities
+        /// The Widget is a the root of an Overlay layer. When this flag is set, the widget id must also exist
+        /// in the OverlayContainer.
         const OVERLAY = 1 << 10;
-        const ENABLED = 1 << 11;
+
+        /// The Widget and all its children are disabled, it does not receive any events (e.g. Key or Mouse), cannot have focus nor
+        /// any active gestures. Set and cleared by (set_disabled)[UiState::set_disabled].
+        const DISABLED = 1 << 11;
+        /// The Widget and all its children are hidden
+        const HIDDEN = 1 << 12;
+
+        /// The widget is about to be removed
+        const DOOMED = 1 << 13;
+
+        /// The Widget or any of its parents is disabled (see [Self::DISABLED])
+        const EFFECTIVELY_DISABLED = 1 << 14;
+        /// The Widget or any of its parents is hidden
+        const EFFECTIVELY_HIDDEN = 1 << 14;
     }
 );
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WidgetState {
+    /// The Widget is in the process of being created
+    Attaching = 0,
+    /// The Widget is fully constructed
+    Live,
+    /// The Widget is about to be replaced
+    Replacing,
+    /// The Widget is about to be removed.
+    Doomed,
+}
 
 /// Data associated with each widget. The nodes form an intrusive tree,
 /// and are all stored in the [WidgetTree] which handles node creation,
@@ -86,14 +114,6 @@ impl WidgetData {
             intrinsic_size: None,
             debug_label: "Unknown",
         }
-    }
-
-    pub fn reset(&mut self) {
-        // When resetting all flags, we need to keep the overlay flag.
-        let flags = self.flags.get() & WidgetFlags::OVERLAY;
-        self.flags.set(flags);
-        self.style = Default::default();
-        self.layout = Default::default();
     }
 
     pub fn with_parent(mut self, parent_id: WidgetId) -> Self {
@@ -331,7 +351,19 @@ impl WidgetTree {
                 current = parent_id;
             }
         }
-        self.data[id].reset();
+
+        // When resetting all flags, we need to keep the overlay flag.
+        let data = &self.data[id];
+        let mut flags = data.flags.get() & WidgetFlags::OVERLAY;
+        // Inherit effectively_hidden and disabled flags from parent
+        if let Some(parent) = self.data.get(data.parent_id) {
+            flags |= parent.flags() & WidgetFlags::EFFECTIVELY_DISABLED;
+            flags |= parent.flags() & WidgetFlags::EFFECTIVELY_HIDDEN;
+        }
+        let data = &mut self.data[id];
+        data.flags.set(flags);
+        data.style = Default::default();
+        data.layout = Default::default();
     }
 
     fn pop_first_child(&mut self, id: WidgetId) -> Option<WidgetId> {

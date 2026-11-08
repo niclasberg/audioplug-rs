@@ -6,6 +6,8 @@ bitflags! {
         const CONTROL = 1;
         const ALT = 1 << 1;
         const SHIFT = 1 << 2;
+        const COMMAND = 1 << 3;
+        const OPT = 1 << 4;
     }
 }
 

@@ -1,11 +1,16 @@
-use std::ops::Range;
-
-use parley::{Cursor, FontContext, FontStyle, FontWeight, FontWidth, StyleProperty};
+use parley::{FontContext, FontStyle, FontWeight, FontWidth, Selection, StyleProperty};
 
 use crate::{
-    core::{Color, TextLayout, TextLayoutContext},
+    core::{Color, Rect, TextLayout, TextLayoutContext},
     ui::render::GlyphCache,
 };
+
+bitflags::bitflags! {
+    struct TextFlags: u8 {
+        const SELECTABLE = 1;
+        const EDITABLE = 1 << 1;
+    }
+}
 
 pub struct TextData {
     pub(super) layout_dirty: bool,
@@ -16,8 +21,8 @@ pub struct TextData {
     pub font_style: Option<FontStyle>,
     pub font_width: Option<FontWidth>,
     pub color: Color,
-    pub(crate) cursor: Cursor,
-    pub(crate) selection_start: Cursor,
+    pub selection: Selection,
+    pub flags: TextFlags,
 }
 
 impl TextData {
@@ -42,8 +47,7 @@ impl TextData {
             }
 
             builder.build_into(&mut self.layout, &self.text);
-            self.cursor = self.cursor.refresh(&self.layout);
-            self.selection_start = self.selection_start.refresh(&self.layout);
+            self.selection = self.selection.refresh(&self.layout);
             self.layout_dirty = false;
         }
     }
@@ -73,28 +77,92 @@ impl TextData {
     }
 
     pub fn has_selection(&self) -> bool {
-        self.cursor == self.selection_start
+        !self.selection.is_collapsed()
     }
 
-    fn selected_range(&self) -> Range<usize> {
-        let start = self.cursor.index().min(self.selection_start.index());
-        let end = self.cursor.index().max(self.selection_start.index());
-        start..end
+    pub fn cursor_rect(&self, width: f32) -> Rect {
+        let bounds = self.selection.focus().geometry(&self.layout, width);
+        Rect {
+            left: bounds.x0 as _,
+            top: bounds.y0 as _,
+            right: bounds.x1 as _,
+            bottom: bounds.y1 as _,
+        }
     }
 
-    fn set_selection(&mut self, cursor: Cursor, selection_start: Cursor) -> bool {
-        if self.cursor != cursor || selection_start != self.selection_start {
-            self.cursor = cursor;
-            self.selection_start = selection_start;
+    pub fn with_selection_rects(&self, mut f: impl FnMut(Rect)) {
+        self.selection.geometry_with(&self.layout, |bounds, _| {
+            f(Rect {
+                left: bounds.x0 as _,
+                top: bounds.y0 as _,
+                right: bounds.x1 as _,
+                bottom: bounds.y1 as _,
+            });
+        });
+    }
+
+    pub fn selected_text(&self) -> Option<&str> {
+        let range = self.selection.text_range();
+        if range.is_empty() {
+            None
+        } else {
+            Some(&self.text[range])
+        }
+    }
+
+    fn set_selection(&mut self, new_selection: Selection) -> bool {
+        if self.selection != new_selection {
+            self.selection = new_selection;
             true
         } else {
             false
         }
     }
 
-    fn set_cursor(&mut self, cursor: Cursor, select: bool) -> bool {
-        let selection_start = if select { self.selection_start } else { cursor };
-        self.set_selection(cursor, selection_start)
+    pub fn move_right(&mut self, select: bool) -> bool {
+        let selection = self.selection.next_visual(&self.layout, select);
+        self.set_selection(selection)
+    }
+
+    pub fn move_word_right(&mut self, select: bool) -> bool {
+        let selection = self.selection.next_visual_word(&self.layout, select);
+        self.set_selection(selection)
+    }
+
+    pub fn move_left(&mut self, select: bool) -> bool {
+        let selection = self.selection.previous_visual(&self.layout, select);
+        self.set_selection(selection)
+    }
+
+    pub fn move_word_left(&mut self, select: bool) -> bool {
+        let selection = self.selection.previous_visual_word(&self.layout, select);
+        self.set_selection(selection)
+    }
+
+    fn remove_selection(&mut self) -> bool {
+        if self.has_selection() {
+            self.text.replace_range(self.selection.text_range(), "");
+            self.layout_dirty = true;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn remove_left(&mut self) -> bool {
+        self.remove_selection()
+    }
+
+    pub fn remove_right(&mut self) -> bool {
+        self.remove_selection()
+    }
+
+    pub fn remove_word_left(&mut self) -> bool {
+        self.remove_selection() || { false }
+    }
+
+    pub fn remove_word_right(&mut self) -> bool {
+        false
     }
 }
 
@@ -103,41 +171,15 @@ impl Default for TextData {
         Self {
             layout: TextLayout::new(),
             text: "".to_string(),
-            cursor: Cursor::default(),
-            selection_start: Cursor::default(),
+            selection: Selection::default(),
             font_size: 12.0,
             font_weight: Default::default(),
             font_style: Default::default(),
             font_width: Default::default(),
             color: Color::BLACK,
             layout_dirty: true,
+            flags: TextFlags::empty(),
         }
-    }
-}
-
-pub struct TextEditContext<'a> {
-    pub(super) text: &'a mut TextData,
-}
-
-impl TextEditContext<'_> {
-    pub fn move_right(&mut self, select: bool) -> bool {
-        let cursor = self.text.cursor.next_visual(&self.text.layout);
-        self.text.set_cursor(cursor, select)
-    }
-
-    pub fn move_word_right(&mut self, select: bool) -> bool {
-        let cursor = self.text.cursor.next_visual_word(&self.text.layout);
-        self.text.set_cursor(cursor, select)
-    }
-
-    pub fn move_left(&mut self, select: bool) -> bool {
-        let cursor = self.text.cursor.previous_visual(&self.text.layout);
-        self.text.set_cursor(cursor, select)
-    }
-
-    pub fn move_word_left(&mut self, select: bool) -> bool {
-        let cursor = self.text.cursor.previous_visual_word(&self.text.layout);
-        self.text.set_cursor(cursor, select)
     }
 }
 

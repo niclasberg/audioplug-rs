@@ -138,11 +138,15 @@ pub fn get_modifiers(flags: NSEventModifierFlags) -> Modifiers {
     }
 
     if flags.contains(NSEventModifierFlags::Control) {
-        modifiers |= Modifiers::ALT;
+        modifiers |= Modifiers::CONTROL;
     }
 
     if flags.contains(NSEventModifierFlags::Command) {
-        modifiers |= Modifiers::CONTROL;
+        modifiers |= Modifiers::COMMAND;
+    }
+
+    if flags.contains(NSEventModifierFlags::Option) {
+        modifiers |= Modifiers::OPT;
     }
 
     modifiers

@@ -5,9 +5,8 @@ use crate::MouseButton;
 use crate::core::Modifiers;
 use crate::event::{MouseClick, MouseDrag};
 use crate::platform::OSMouseEvent;
-use crate::ui::text::TextEditContext;
-use crate::ui::ui_state::{Gesture, GestureState, WidgetHandlers};
-use crate::ui::{Event, Sense, TextContext, UiState};
+use crate::ui::ui_state::{Gesture, GestureState, Invalidation, WidgetHandlers};
+use crate::ui::{Event, Sense, UiState};
 use crate::{KeyEvent, core::Key, platform::WindowEvent, ui::layout::RecomputeLayout};
 
 pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event: WindowEvent) {
@@ -30,11 +29,6 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
             handle_key_event(
                 &mut app_state.ui,
                 &mut app_state.widget_handlers,
-                &mut TextContext::new(
-                    &mut app_state.font_cx,
-                    &mut app_state.text_layout_cx,
-                    &mut app_state.glyph_cache,
-                ),
                 window_id,
                 key_event,
             );
@@ -84,10 +78,20 @@ pub fn handle_mouse_event(
             .iter()
             .copied()
             .rev()
-            .find(|id| handlers.event_handlers.has_sense(*id, Sense::FOCUSABLE));
+            .find(|id| handlers.event_handlers.has_sense(*id, Sense::KEYBOARD));
 
         ui.set_focus_widget(window_id, new_focus_view);
     };
+
+    if let OSMouseEvent::Move(_) = mouse_event {
+        let new_hovered_widget = widgets_under_mouse
+            .iter()
+            .copied()
+            .rev()
+            .find(|id| !ui.is_hidden(*id));
+
+        ui.set_hovered_widget(new_hovered_widget);
+    }
 
     if let Some(gesture) = ui.gesture {
         let senses = handlers.event_handlers.senses(gesture.target);
@@ -216,7 +220,6 @@ pub fn handle_mouse_event(
 pub fn handle_key_event(
     ui: &mut UiState,
     handlers: &mut WidgetHandlers,
-    text_cx: &mut TextContext,
     window_id: WindowId,
     key_event: KeyEvent,
 ) {
@@ -230,7 +233,7 @@ pub fn handle_key_event(
     while !slotmap::Key::is_null(&key_widget) && event_status != EventResult::Stop {
         event_status = ui
             .dispatch(handlers, key_widget, Event::Key(key_event.clone()))
-            .or_else(|| handle_text_edit_event(ui, handlers, text_cx, key_widget, &key_event));
+            .or_else(|| handle_text_edit_event(ui, handlers, window_id, key_widget, &key_event));
 
         key_widget = ui.parent(key_widget);
     }
@@ -260,7 +263,7 @@ pub fn handle_key_event(
 fn handle_text_edit_event(
     ui: &mut UiState,
     handlers: &mut WidgetHandlers,
-    text_cx: &mut TextContext,
+    window_id: WindowId,
     widget_id: WidgetId,
     key_event: &KeyEvent,
 ) -> EventResult {
@@ -272,24 +275,24 @@ fn handle_text_edit_event(
             ..
         } = key_event
     {
-        let mut text_edit_cx = TextEditContext { text };
-        match (key, str) {
+        let mut invalidation = Invalidation::empty();
+        let result = match (key, str) {
             (Key::BackSpace, _) if modifiers.contains(Modifiers::CONTROL) => {
-                /*if text_edit_cx.remove_word_left() {
-                    rebuild_text_layout(self, ctx);
-                }*/
+                if text.remove_word_left() {
+                    invalidation = Invalidation::TEXT | Invalidation::LAYOUT;
+                }
                 EventResult::Stop
             }
             (Key::BackSpace, _) => {
-                /*if self.remove_left() {
-                    rebuild_text_layout(self, ctx);
-                }*/
+                if text.remove_left() {
+                    invalidation = Invalidation::TEXT | Invalidation::LAYOUT;
+                }
                 EventResult::Stop
             }
             (Key::Delete, _) if modifiers.contains(Modifiers::CONTROL) => {
-                /*if self.remove_word_right() {
-                    rebuild_text_layout(self, ctx);
-                }*/
+                if text.remove_word_right() {
+                    invalidation = Invalidation::TEXT | Invalidation::LAYOUT;
+                }
                 EventResult::Stop
             }
             (Key::Delete, _) => {
@@ -298,34 +301,36 @@ fn handle_text_edit_event(
                 }*/
                 EventResult::Stop
             }
-            (Key::Left, _) if modifiers.contains(Modifiers::CONTROL) => {
-                if text_edit_cx.move_word_left(modifiers.contains(Modifiers::SHIFT)) {
-                    //ctx.request_render();
+            (Key::Left, _) if modifiers.contains(Modifiers::OPT) => {
+                if text.move_word_left(modifiers.contains(Modifiers::SHIFT)) {
+                    invalidation = Invalidation::RENDER;
                 }
                 EventResult::Stop
             }
             (Key::Left, _) => {
-                if text_edit_cx.move_left(modifiers.contains(Modifiers::SHIFT)) {
-                    //ctx.request_render();
+                if text.move_left(modifiers.contains(Modifiers::SHIFT)) {
+                    invalidation = Invalidation::RENDER;
                 }
                 EventResult::Stop
             }
-            (Key::Right, _) if modifiers.contains(Modifiers::CONTROL) => {
-                if text_edit_cx.move_word_right(modifiers.contains(Modifiers::SHIFT)) {
-                    //ctx.request_render();
+            (Key::Right, _) if modifiers.contains(Modifiers::OPT) => {
+                if text.move_word_right(modifiers.contains(Modifiers::SHIFT)) {
+                    invalidation = Invalidation::RENDER;
                 }
                 EventResult::Stop
             }
             (Key::Right, _) => {
-                if text_edit_cx.move_right(modifiers.contains(Modifiers::SHIFT)) {
-                    //ctx.request_render();
+                if text.move_right(modifiers.contains(Modifiers::SHIFT)) {
+                    invalidation = Invalidation::RENDER;
                 }
                 EventResult::Stop
             }
             (Key::C, _) if *modifiers == Modifiers::CONTROL => {
-                //if let Some(selected_text) = self.selected_text() {
-                //ctx.clipboard().set_text(selected_text);
-                //}
+                if let Some(selected_text) = text.selected_text() {
+                    // Need to clone here because of borrowing issues, can we resolve? Maybe put the clipboard with the handlers?
+                    let selected_text = selected_text.to_string();
+                    ui.clipboard(window_id).set_text(&selected_text);
+                }
                 EventResult::Stop
             }
             (Key::V, _) if *modifiers == Modifiers::CONTROL => {
@@ -345,7 +350,9 @@ fn handle_text_edit_event(
                 EventResult::Stop
             }
             _ => EventResult::Continue,
-        }
+        };
+        ui.invalidate_widget(widget_id, invalidation);
+        result
     } else {
         EventResult::Continue
     }

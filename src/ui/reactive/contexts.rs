@@ -23,7 +23,11 @@ pub struct ReadContext<'a> {
 
 impl<'a> ReadContext<'a> {
     pub fn track(&mut self, source_id: NodeId) {
-        let node_id = match self.scope {
+        self.do_track(Source::Node(source_id))
+    }
+
+    fn do_track(&mut self, source: Source) {
+        let observer_id = match self.scope {
             ReadScope::Untracked => return,
             ReadScope::Node(node_id) => node_id,
             ReadScope::Render(widget_id) => self
@@ -31,22 +35,16 @@ impl<'a> ReadContext<'a> {
                 .reactive_graph
                 .widget_invalidation_node_id(widget_id, WidgetPhase::Render),
         };
-        self.ui.add_subscription(Source::Node(source_id), node_id)
+        self.ui.add_subscription(source, observer_id);
     }
 
     pub fn track_parameter(&mut self, source_id: ParameterId) {
-        if let ReadScope::Node(node_id) = self.scope {
-            self.ui
-                .add_subscription(Source::Parameter(source_id), node_id);
-        }
+        self.do_track(Source::Parameter(source_id));
     }
 
     pub fn track_widget_status(&mut self, status_mask: WidgetStatusFlags) {
-        if let ReadScope::Node(node_id) = self.scope {
-            let widget_id = self.current_widget.expect("View status can only be evaluated if bound to a view property or from a view-owned Cached value or effect");
-            self.ui
-                .add_subscription(Source::Widget(widget_id, status_mask), node_id);
-        }
+        let widget_id = self.current_widget.expect("View status can only be evaluated if bound to a view property or from a view-owned Cached value or effect");
+        self.do_track(Source::Widget(widget_id, status_mask));
     }
 
     pub fn update_value_if_needed(&mut self, node_id: NodeId) {

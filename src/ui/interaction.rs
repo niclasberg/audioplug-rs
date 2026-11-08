@@ -15,7 +15,7 @@ use crate::{
 bitflags! {
     #[derive(Default, Debug, Clone, Copy)]
     pub struct Sense : u32 {
-        const FOCUSABLE = 1 << 0;
+        const KEYBOARD = 1 << 0;
         const CLICKABLE = 1 << 2;
         const DRAGGABLE = 1 << 3;
         const HOVERABLE = 1 << 4;
@@ -162,7 +162,7 @@ pub struct ButtonInteraction {
 }
 
 impl ButtonInteraction {
-    pub const CAPABILITIES: Sense = Sense::CLICKABLE.union(Sense::FOCUSABLE);
+    pub const CAPABILITIES: Sense = Sense::CLICKABLE.union(Sense::KEYBOARD);
 
     pub fn new(f: impl FnMut(&mut EventContext) + 'static) -> Self {
         Self {
@@ -260,7 +260,7 @@ pub struct SliderInteraction {
 }
 
 impl SliderInteraction {
-    pub const CAPABILITIES: Sense = Sense::DRAGGABLE.union(Sense::FOCUSABLE);
+    pub const CAPABILITIES: Sense = Sense::DRAGGABLE.union(Sense::KEYBOARD);
 
     pub fn new(f: impl FnMut(&mut EventContext, SliderEvent) + 'static, direction: Axis) -> Self {
         Self {

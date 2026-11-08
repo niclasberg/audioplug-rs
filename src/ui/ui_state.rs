@@ -20,8 +20,8 @@ use crate::{
         layout::{LayoutContext, RecomputeLayout},
         overlay::OverlayContainer,
         reactive::{
-            EffectContext, NodeId, NodeState, NodeType, Owner, Source, WidgetPhase, WidgetStatus,
-            WidgetStatusFlags,
+            EffectContext, NodeId, NodeState, NodeType, Owner, ReadScope, Source, WidgetPhase,
+            WidgetStatus, WidgetStatusFlags,
         },
         reactive_graph::ReactiveGraph,
         render::{GpuScene, RendererMap, WGPUSurface},
@@ -521,6 +521,11 @@ impl UiState {
             .is_some_and(|focus_widget_id| *focus_widget_id == id)
     }
 
+    pub fn is_focusable(&self, widget_id: WidgetId) -> bool {
+        let flags = &self.tree[widget_id].flags();
+        !flags.intersects(WidgetFlags::EFFECTIVELY_DISABLED | WidgetFlags::EFFECTIVELY_HIDDEN)
+    }
+
     pub fn focus_widget_id(&self, window_id: WindowId) -> Option<WidgetId> {
         self.windows[window_id].focus_widget
     }
@@ -542,7 +547,7 @@ impl UiState {
         loop {
             if self.is_hidden(candidate) {
                 candidate = self.tree.next_subtree_dfs(candidate, root_widget)?;
-            } else if handlers.has_sense(candidate, Sense::FOCUSABLE) {
+            } else if handlers.has_sense(candidate, Sense::KEYBOARD) {
                 return Some(candidate);
             } else {
                 candidate = self.tree.next_dfs(candidate, root_widget)?;
@@ -564,7 +569,7 @@ impl UiState {
             .and_then(|focus_widget| self.tree.prev_dfs(focus_widget))
             .unwrap_or(root_widget);
         loop {
-            if self.is_hidden(candidate) || !handlers.has_sense(candidate, Sense::FOCUSABLE) {
+            if self.is_hidden(candidate) || !handlers.has_sense(candidate, Sense::KEYBOARD) {
                 candidate = self.tree.prev_dfs(candidate)?;
             } else {
                 return Some(candidate);
@@ -619,12 +624,57 @@ impl UiState {
             }
         }
     }
+
+    /// Enable or disable the Widget. A disabled widget (or any of its children) will not receive any
+    /// mouse or keyboard events and cannot have focus nor any active gestures. Setting enabled to false
+    /// will clear focus and cancel any active gesture for the Widget.
+    pub fn set_enabled(&mut self, widget_id: WidgetId, enabled: bool) {
+        // Open question: Should we allow specifying what should happen to focus? Might want to transfer to parent,
+        // drop completely or maybe something else?
+        let disabled = !enabled;
+        if self.tree[widget_id].flag_is_set(WidgetFlags::DISABLED) == disabled {
+            return;
+        }
+
+        if disabled {
+            self.tree[widget_id].set_flag(WidgetFlags::DISABLED);
+            let mut next = Some(widget_id);
+            while let Some(current_id) = next {
+                let current = &mut self.tree[current_id];
+                if current.flag_is_set(WidgetFlags::EFFECTIVELY_DISABLED) {
+                    next = self.tree.next_subtree_dfs(current_id, widget_id);
+                } else {
+                    current.set_flag(WidgetFlags::EFFECTIVELY_DISABLED);
+                    next = self.tree.next_dfs(current_id, widget_id);
+                }
+            }
+        } else {
+            self.tree[widget_id].clear_flag(WidgetFlags::DISABLED);
+            let mut next = Some(widget_id);
+            while let Some(current_id) = next {
+                let current = &mut self.tree[current_id];
+                if current.flag_is_set(WidgetFlags::DISABLED) {
+                    // If a child is disabled, enabling a parent does not make the child enabled.
+                    next = self.tree.next_subtree_dfs(current_id, widget_id);
+                } else {
+                    current.clear_flag(WidgetFlags::EFFECTIVELY_DISABLED);
+                    next = self.tree.next_dfs(current_id, widget_id);
+                }
+            }
+        }
+    }
+
+    pub fn is_enabled(&self, widget_id: WidgetId) -> bool {
+        !self.tree[widget_id].flag_is_set(WidgetFlags::EFFECTIVELY_DISABLED)
+    }
+
+    pub fn is_hidden(&self, widget_id: WidgetId) -> bool {
+        self.tree[widget_id].flag_is_set(WidgetFlags::EFFECTIVELY_HIDDEN)
+    }
 }
 
 // Widget properties
 impl UiState {
-    pub fn set_enabled(&mut self, widget_id: WidgetId, enabled: bool) {}
-
     pub fn local_bounds(&self, id: WidgetId) -> Rect {
         self.tree[id].local_bounds()
     }
@@ -635,14 +685,6 @@ impl UiState {
 
     pub fn content_bounds(&self, id: WidgetId) -> Rect {
         self.tree[id].content_bounds()
-    }
-
-    pub fn is_enabled(&self, widget_id: WidgetId) -> bool {
-        self.tree[widget_id].flag_is_set(WidgetFlags::ENABLED)
-    }
-
-    pub fn is_hidden(&self, widget_id: WidgetId) -> bool {
-        self.tree[widget_id].style.hidden
     }
 
     pub fn padding(&self, widget_id: WidgetId) -> Edges {

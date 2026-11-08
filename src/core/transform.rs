@@ -110,7 +110,7 @@ impl TranslateScale {
     }
 
     pub const fn translate(translation: Vec2) -> Self {
-        Self::new(translation, 0.0)
+        Self::new(translation, 1.0)
     }
 
     pub const fn scale(scale: f32) -> Self {

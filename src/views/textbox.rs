@@ -23,7 +23,7 @@ impl TextBox {
             placeholder: None,
             props: WidgetProps::default()
                 .text("TEXTBOX".to_string())
-                .padding(Edges::all(Length::Px(2.0)))
+                .padding(Edges::all(Length::Px(4.0)))
                 .border(Border::new(Color::BLACK, Length::Px(1.0)))
                 .cursor(Cursor::IBeam),
         }

@@ -68,7 +68,7 @@ pub trait EventHandlerExt: Sized {
         f: impl Fn(&mut EventContext, &KeyEvent) -> EventResult + 'static,
     ) -> Self {
         let handlers = self.event_handlers_mut();
-        handlers.capabilities.insert(Sense::FOCUSABLE);
+        handlers.capabilities.insert(Sense::KEYBOARD);
         handlers.handlers.push(Box::new(move |cx, ev| {
             let Event::Key(key_event) = &ev else {
                 return EventResult::Continue;

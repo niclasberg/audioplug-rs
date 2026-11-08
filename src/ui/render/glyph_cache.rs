@@ -20,7 +20,7 @@ struct GlyphKey {
 }
 
 impl GlyphKey {
-    pub fn new(font_index: u32, glyph_id: u32, normalized_coords: &[i16]) -> Self {
+    pub fn new(font_index: u32, glyph_id: u32, normalized_coords: &[NormalizedCoord]) -> Self {
         let mut hasher = DefaultHasher::new();
         normalized_coords.hash(&mut hasher);
         let variation_hash = hasher.finish();
@@ -73,7 +73,7 @@ impl GlyphCache {
         &'s mut self,
         font: &FontData,
         glyph_id: u32,
-        normalized_coords: &[i16],
+        normalized_coords: &[NormalizedCoord],
     ) -> Option<CachedGlyph<'s>> {
         let key = GlyphKey::new(font.index, glyph_id, normalized_coords);
         if let Some(cached_glyph) = self.glyphs.get(&key) {
@@ -84,10 +84,6 @@ impl GlyphCache {
                 glyph_bounds: cached_glyph.bounds,
             });
         }
-
-        let normalized_coords = bytemuck::cast_slice::<_, NormalizedCoord>(
-            normalized_coords, // glyph_run.run().normalized_coords(),
-        );
 
         let font_collection_ref = font.data.as_ref();
         let font_ref = FontRef::from_index(font_collection_ref, font.index).unwrap();

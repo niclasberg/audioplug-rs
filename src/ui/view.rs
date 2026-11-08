@@ -89,9 +89,10 @@ impl<'a> BuildContext<'a> {
             .add_widget(self.handlers, WidgetPos::Overlay(self.id, options), view)
     }
 
-    pub fn props(&mut self, mut props: WidgetProps) -> &mut Self {
+    pub fn props(&mut self, props: WidgetProps) -> &mut Self {
         let bindings = props.install(self.id, &mut self.ui);
         if let Some(bindings) = bindings {
+            bindings.apply(self.id, self.ui);
             self.handlers.widget_props.insert(self.id, bindings);
         }
         self

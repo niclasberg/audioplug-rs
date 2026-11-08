@@ -3,14 +3,14 @@ use crate::{
     param::{AnyParameter, NormalizedValue},
     ui::{
         BuildContext, EventContext, KnobEvent, Prop, RenderContext, Sense, View,
-        reactive::{ParamSetter, Readable, ReadSignal, Var},
+        reactive::{ParamSetter, ReadSignal, Readable, Var},
     },
     views::util::ValueMapper,
 };
 
 const INTRINSIC_SIZE: Size = Size::splat(24.0);
 const CAPABILITIES: Sense = Sense::DRAGGABLE
-    .union(Sense::FOCUSABLE)
+    .union(Sense::KEYBOARD)
     .union(Sense::MOUSE_WHEEL);
 
 type DragStartFn = dyn Fn(&mut EventContext);

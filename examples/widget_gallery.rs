@@ -49,11 +49,11 @@ fn main() {
 
 fn menu_button(label: &str, tab_signal: Var<Tab>, tab: Tab) -> impl View {
     LabelButton::new(label, move |cx| tab_signal.set(cx, tab))
-        .background(tab_signal.map(move |current_tab| {
-            if *current_tab == tab {
-                Color::EARTH_YELLOW.tint(0.2)
-            } else {
-                Color::EARTH_YELLOW
+        .background(Computed::new(move |cx| {
+            match (tab_signal.get(cx) == tab, WidgetStatus::HOVERED.get(cx)) {
+                (true, false) => Color::EARTH_YELLOW.tint(0.2),
+                (false, false) => Color::EARTH_YELLOW,
+                (_, true) => Color::EARTH_YELLOW.tint(0.5),
             }
             .into()
         }))

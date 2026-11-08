@@ -54,6 +54,16 @@ define_class!(
             self.dispatch_event(WindowEvent::Key(key_event));
         }
 
+        #[unsafe(method(mouseEntered:))]
+        fn mouse_entered(&self, _event: &NSEvent) {
+            self.dispatch_event(WindowEvent::MouseEnterExit(true))
+        }
+
+        #[unsafe(method(mouseExited:))]
+        fn mouse_exited(&self, _event: &NSEvent) {
+            self.dispatch_event(WindowEvent::MouseEnterExit(false))
+        }
+
         #[unsafe(method(mouseDown:))]
         fn mouse_down(&self, event: &NSEvent) {
             if let (Some(button), Some(position)) = (mouse_button(event), self.mouse_position(event)) {
@@ -121,14 +131,12 @@ define_class!(
 
         #[unsafe(method(viewDidMoveToWindow))]
         fn view_did_move_to_window(&self) {
-            let visible_rect = self.visibleRect();
-            self.set_tracking_area(visible_rect);
+            self.update_tracking_area();
         }
 
         #[unsafe(method(updateTrackingAreas))]
         fn update_tracking_areas(&self) {
-            let visible_rect = self.visibleRect();
-            self.set_tracking_area(visible_rect);
+            self.update_tracking_area();
         }
 
         #[unsafe(method(frameDidChange:))]
@@ -225,7 +233,7 @@ impl View {
         self.ivars().handler.borrow_mut().event(event)
     }
 
-    fn set_tracking_area(&self, rect: NSRect) {
+    fn update_tracking_area(&self) {
         // Use try-borrow here to avoid re-entrancy problems
         if let Ok(mut tracking_area_ref) = self.ivars().tracking_area.try_borrow_mut() {
             if let Some(tracking_area) = tracking_area_ref.as_ref() {
@@ -237,10 +245,11 @@ impl View {
                 let tracking_area = NSTrackingArea::alloc();
                 NSTrackingArea::initWithRect_options_owner_userInfo(
                     tracking_area,
-                    rect,
+                    NSRect::ZERO,
                     NSTrackingAreaOptions::ActiveAlways
                         | NSTrackingAreaOptions::MouseEnteredAndExited
-                        | NSTrackingAreaOptions::MouseMoved,
+                        | NSTrackingAreaOptions::MouseMoved
+                        | NSTrackingAreaOptions::InVisibleRect,
                     Some(self),
                     None,
                 )

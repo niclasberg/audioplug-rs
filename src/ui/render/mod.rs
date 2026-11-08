@@ -1,7 +1,7 @@
 use crate::{
     core::{
-        FillRule, ImageData, PathBuilder, PathSegment, Point, Rect, ScaleFactor, Shape, Size,
-        TextLayout, Transform, TranslateScale,
+        Color, FillRule, ImageData, PathBuilder, PathSegment, Point, Rect, ScaleFactor, Shape,
+        Size, TextLayout, Transform, TranslateScale,
     },
     ui::{
         TextContext, UiState, WidgetData,
@@ -140,6 +140,7 @@ fn rebuild_scene(
             .dfs_walker_with_pruning(root_id, |node| !(node.is_overlay() || node.style.hidden));
         while let Some(widget_id) = walker.next(&ui.tree) {
             let bounds = ui.tree[widget_id].content_bounds();
+            let has_focus = ui.has_focus(widget_id);
             render_node_background(
                 &ui.tree[widget_id],
                 &mut gpu_scene,
@@ -165,6 +166,22 @@ fn rebuild_scene(
                 let layout = &mut text.layout;
                 layout.break_all_lines(Some(bounds.width()));
                 gpu_scene.draw_text(bounds.top_left(), layout, text_cx.glyph_cache, scale_factor);
+
+                if has_focus {
+                    let transform = TranslateScale::scale(scale_factor.0)
+                        * TranslateScale::translate(bounds.top_left().into_vec2());
+                    let cursor_shape = gpu_scene.add_shape(text.cursor_rect(1.0).into());
+                    let appearance = gpu_scene
+                        .add_appearance(GpuAppearance::new().with_fill(Color::BLACK.into()));
+                    gpu_scene.draw(cursor_shape, appearance, transform);
+                    let selection_appearance = gpu_scene.add_appearance(
+                        GpuAppearance::new().with_fill(Color::ALICEBLUE.with_alpha(0.3).into()),
+                    );
+                    text.with_selection_rects(|rect| {
+                        let shape = gpu_scene.add_shape(rect.into());
+                        gpu_scene.draw(shape, selection_appearance, transform);
+                    });
+                }
             }
         }
     }

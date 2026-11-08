@@ -125,6 +125,11 @@ impl GpuAppearance {
         self.margin = self.margin.max(0.5);
     }
 
+    pub fn with_fill(mut self, paint: PaintRef) -> Self {
+        self.set_fill(paint);
+        self
+    }
+
     pub fn set_stroke(&mut self, paint: PaintRef, width: f32, alignment: StrokeAlignment) {
         set_paint_data(
             paint,
@@ -144,6 +149,11 @@ impl GpuAppearance {
         self.flags = (self.flags & !(0b11 << Self::STROKE_ALIGN_OFFSET))
             | (align_bits << Self::STROKE_ALIGN_OFFSET);
         self.flags |= Self::STROKE_FLAG;
+    }
+
+    pub fn with_stroke(mut self, paint: PaintRef, width: f32, alignment: StrokeAlignment) -> Self {
+        self.set_stroke(paint, width, alignment);
+        self
     }
 
     pub fn set_shadow(&mut self, shadow: ShadowOptions, scale_factor: ScaleFactor) {
@@ -433,7 +443,8 @@ impl GpuScene {
                         let mut run_x = pos.x + glyph_run.offset();
                         let run_y = pos.y + glyph_run.baseline();
 
-                        let normalized_coords = glyph_run.run().normalized_coords();
+                        let normalized_coords =
+                            bytemuck::cast_slice(glyph_run.run().normalized_coords());
                         let font = glyph_run.run().font();
                         let font_size = glyph_run.run().font_size();
 
