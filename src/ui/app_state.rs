@@ -1,12 +1,8 @@
-use parley::FontContext;
-
 use super::reactive::{CreateContext, Var};
 use super::{
     BuildContext, HostHandle, UiState, View, WidgetId, WindowId, layout::RecomputeLayout,
     render::WGPUSurface,
 };
-use crate::core::TextLayoutContext;
-use crate::ui::TextContext;
 use crate::ui::reactive::{Owner, ReadContext, ReadScope, WriteContext};
 use crate::ui::render::GlyphCache;
 use crate::ui::ui_state::WidgetHandlers;
@@ -19,8 +15,6 @@ use std::rc::Rc;
 
 pub struct AppState {
     pub(super) wgpu_instance: wgpu::Instance,
-    pub(super) font_cx: parley::FontContext,
-    pub(super) text_layout_cx: TextLayoutContext,
     pub(super) glyph_cache: GlyphCache,
     pub(super) ui: UiState,
     pub(super) widget_handlers: WidgetHandlers,
@@ -40,8 +34,6 @@ impl AppState {
                 backends: wgpu::Backends::PRIMARY,
                 ..Default::default()
             }),
-            font_cx: FontContext::new(),
-            text_layout_cx: TextLayoutContext::new(),
             glyph_cache: GlyphCache::new(),
             theme_signal,
             ui,
@@ -109,14 +101,8 @@ impl AppState {
 
     pub fn run_effects_and_layout(&mut self) {
         self.ui.run_effects(&mut self.widget_handlers);
-
-        let text_cx = &mut TextContext {
-            font_cx: &mut self.font_cx,
-            layout_cx: &mut self.text_layout_cx,
-            glyph_cache: &mut self.glyph_cache,
-        };
         for (_, text) in self.ui.texts.iter_mut() {
-            text.rebuild_layout(text_cx);
+            text.rebuild_layout();
         }
 
         // Layout if needed

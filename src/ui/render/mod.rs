@@ -4,7 +4,7 @@ use crate::{
         Size, TextLayout, Transform, TranslateScale,
     },
     ui::{
-        TextContext, UiState, WidgetData,
+        UiState, WidgetData,
         reactive::{CanRead, ReadContext, ReadScope, WidgetPhase},
         render::scene::GpuAppearance,
     },
@@ -34,13 +34,13 @@ pub fn invalidate_window(widgets: &UiState, window_id: WindowId) {
 
 pub fn paint_window(
     widgets: &mut UiState,
-    text_cx: &mut TextContext,
+    glyph_cache: &mut GlyphCache,
     renderers: &mut RendererMap,
     window_id: WindowId,
     dirty_rect: Rect,
 ) {
     println!("Number of widgets: {}", widgets.tree.len());
-    rebuild_scene(widgets, text_cx, renderers, window_id);
+    rebuild_scene(widgets, glyph_cache, renderers, window_id);
     let window = widgets.window_mut(window_id);
     let wgpu_surface = &mut window.wgpu_surface;
 
@@ -119,7 +119,7 @@ pub fn paint_window(
 
 fn rebuild_scene(
     ui: &mut UiState,
-    text_cx: &mut TextContext,
+    glyph_cache: &mut GlyphCache,
     renderers: &mut RendererMap,
     window_id: WindowId,
 ) {
@@ -137,7 +137,7 @@ fn rebuild_scene(
     for root_id in roots {
         let mut walker = ui
             .tree
-            .dfs_walker_with_pruning(root_id, |node| !(node.is_overlay() || node.style.hidden));
+            .dfs_walker_with_pruning(root_id, |node| !(node.is_overlay() || node.is_hidden()));
         while let Some(widget_id) = walker.next(&ui.tree) {
             let bounds = ui.tree[widget_id].content_bounds();
             let has_focus = ui.has_focus(widget_id);
@@ -157,7 +157,7 @@ fn rebuild_scene(
                     scene: &mut gpu_scene,
                     path_segment_buffer: &mut path_segment_buffer,
                     scale_factor,
-                    glyph_cache: text_cx.glyph_cache,
+                    glyph_cache,
                 });
                 ui.mark_node_as_clean(node_id);
             }
@@ -165,9 +165,9 @@ fn rebuild_scene(
             if let Some(text) = ui.texts.get_mut(widget_id) {
                 let layout = &mut text.layout;
                 layout.break_all_lines(Some(bounds.width()));
-                gpu_scene.draw_text(bounds.top_left(), layout, text_cx.glyph_cache, scale_factor);
+                gpu_scene.draw_text(bounds.top_left(), layout, glyph_cache, scale_factor);
 
-                if has_focus {
+                if text.is_editable() && has_focus {
                     let transform = TranslateScale::scale(scale_factor.0)
                         * TranslateScale::translate(bounds.top_left().into_vec2());
                     let cursor_shape = gpu_scene.add_shape(text.cursor_rect(1.0).into());

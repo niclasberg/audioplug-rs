@@ -1,15 +1,17 @@
-use parley::{FontContext, FontStyle, FontWeight, FontWidth, Selection, StyleProperty};
+use std::cell::RefCell;
 
-use crate::{
-    core::{Color, Rect, TextLayout, TextLayoutContext},
-    ui::render::GlyphCache,
+use parley::{
+    Affinity, Cursor, FontContext, FontStyle, FontWeight, FontWidth, Selection, StyleProperty,
 };
 
-bitflags::bitflags! {
-    struct TextFlags: u8 {
-        const SELECTABLE = 1;
-        const EDITABLE = 1 << 1;
-    }
+use crate::core::{Color, Rect, TextLayout, TextLayoutContext};
+
+thread_local! {
+    static TEXT_CX: RefCell<(FontContext, TextLayoutContext)> = RefCell::new(Default::default());
+}
+
+pub(crate) fn with_text_cx<R>(f: impl FnOnce(&mut FontContext, &mut TextLayoutContext) -> R) -> R {
+    TEXT_CX.with_borrow_mut(|(font, layout)| f(font, layout))
 }
 
 pub struct TextData {
@@ -22,7 +24,8 @@ pub struct TextData {
     pub font_width: Option<FontWidth>,
     pub color: Color,
     pub selection: Selection,
-    pub flags: TextFlags,
+    width: Option<f32>,
+    pub is_editable: bool,
 }
 
 impl TextData {
@@ -30,11 +33,15 @@ impl TextData {
         Default::default()
     }
 
-    pub fn rebuild_layout(&mut self, cx: &mut TextContext) {
+    pub fn rebuild_layout(&mut self) {
         if self.layout_dirty {
-            let mut builder = cx
-                .layout_cx
-                .ranged_builder(cx.font_cx, &self.text, 1.0, false);
+            self.force_rebuild_layout();
+        }
+    }
+
+    fn force_rebuild_layout(&mut self) {
+        with_text_cx(|font_cx, layout_cx| {
+            let mut builder = layout_cx.ranged_builder(font_cx, &self.text, 1.0, false);
             builder.push_default(StyleProperty::FontSize(self.font_size));
             if let Some(font_weight) = self.font_weight {
                 builder.push_default(font_weight);
@@ -47,9 +54,10 @@ impl TextData {
             }
 
             builder.build_into(&mut self.layout, &self.text);
-            self.selection = self.selection.refresh(&self.layout);
-            self.layout_dirty = false;
-        }
+        });
+        self.layout.break_all_lines(self.width);
+        self.selection = self.selection.refresh(&self.layout);
+        self.layout_dirty = false;
     }
 
     pub fn measure(
@@ -57,7 +65,7 @@ impl TextData {
         available_space: taffy::Size<taffy::AvailableSpace>,
         known_dimensions: taffy::Size<Option<f32>>,
     ) -> taffy::Size<f32> {
-        debug_assert!(!self.layout_dirty);
+        self.rebuild_layout();
         let width = known_dimensions.width.unwrap_or_else(|| {
             let widths = self.layout.calculate_content_widths();
             match available_space.width {
@@ -69,11 +77,16 @@ impl TextData {
         });
 
         self.layout.break_all_lines(Some(width));
+        self.width = Some(width);
         let height = known_dimensions
             .height
             .unwrap_or_else(|| self.layout.height());
 
         taffy::Size { width, height }
+    }
+
+    pub fn is_editable(&self) -> bool {
+        self.is_editable
     }
 
     pub fn has_selection(&self) -> bool {
@@ -120,49 +133,134 @@ impl TextData {
     }
 
     pub fn move_right(&mut self, select: bool) -> bool {
+        self.rebuild_layout();
         let selection = self.selection.next_visual(&self.layout, select);
         self.set_selection(selection)
     }
 
     pub fn move_word_right(&mut self, select: bool) -> bool {
+        self.rebuild_layout();
         let selection = self.selection.next_visual_word(&self.layout, select);
         self.set_selection(selection)
     }
 
     pub fn move_left(&mut self, select: bool) -> bool {
+        self.rebuild_layout();
         let selection = self.selection.previous_visual(&self.layout, select);
         self.set_selection(selection)
     }
 
     pub fn move_word_left(&mut self, select: bool) -> bool {
+        self.rebuild_layout();
         let selection = self.selection.previous_visual_word(&self.layout, select);
         self.set_selection(selection)
     }
 
-    fn remove_selection(&mut self) -> bool {
-        if self.has_selection() {
-            self.text.replace_range(self.selection.text_range(), "");
-            self.layout_dirty = true;
-            true
+    /// Remove glyph to the left of the cursor (backspace)
+    pub fn remove_left(&mut self) -> bool {
+        self.rebuild_layout();
+        if self.selection.is_collapsed() {
+            let Some(cluster) = self.selection.focus().logical_clusters(&self.layout)[0] else {
+                return false;
+            };
+
+            let range = cluster.text_range();
+            if range.is_empty() {
+                false
+            } else {
+                self.text.replace_range(range.clone(), "");
+                self.force_rebuild_layout();
+                self.selection =
+                    Cursor::from_byte_index(&self.layout, range.start, Affinity::Downstream).into();
+                true
+            }
         } else {
-            false
+            self.insert_or_replace("")
         }
     }
 
-    pub fn remove_left(&mut self) -> bool {
-        self.remove_selection()
+    pub fn remove_word_left(&mut self) -> bool {
+        self.rebuild_layout();
+        if self.selection.is_collapsed() {
+            let focus = self.selection.focus();
+            let end = focus.index();
+            let start = focus.previous_logical_word(&self.layout).index();
+            let range_to_remove = start..end;
+            if range_to_remove.is_empty() {
+                false
+            } else {
+                self.text.replace_range(range_to_remove, "");
+                self.force_rebuild_layout();
+                self.selection =
+                    Cursor::from_byte_index(&self.layout, start, Affinity::Downstream).into();
+                true
+            }
+        } else {
+            self.insert_or_replace("")
+        }
     }
 
     pub fn remove_right(&mut self) -> bool {
-        self.remove_selection()
-    }
+        self.rebuild_layout();
+        if self.selection.is_collapsed() {
+            let Some(cluster) = self.selection.focus().logical_clusters(&self.layout)[1] else {
+                return false;
+            };
 
-    pub fn remove_word_left(&mut self) -> bool {
-        self.remove_selection() || { false }
+            let range = cluster.text_range();
+            if range.is_empty() {
+                false
+            } else {
+                self.text.replace_range(range.clone(), "");
+                self.force_rebuild_layout();
+                true
+            }
+        } else {
+            self.insert_or_replace("")
+        }
     }
 
     pub fn remove_word_right(&mut self) -> bool {
-        false
+        self.rebuild_layout();
+        if self.selection.is_collapsed() {
+            let focus = self.selection.focus();
+            let start = focus.index();
+            let end = focus.next_logical_word(&self.layout).index();
+            let range_to_remove = start..end;
+            if range_to_remove.is_empty() {
+                false
+            } else {
+                self.text.replace_range(range_to_remove, "");
+                self.force_rebuild_layout();
+                self.selection =
+                    Cursor::from_byte_index(&self.layout, start, Affinity::Downstream).into();
+                true
+            }
+        } else {
+            self.insert_or_replace("")
+        }
+    }
+
+    pub fn insert_or_replace(&mut self, str: &str) -> bool {
+        let selected_range = self.selection.text_range();
+        if selected_range.is_empty() {
+            if str.is_empty() {
+                return false;
+            }
+            self.text.insert_str(selected_range.start, str);
+        } else {
+            self.text.replace_range(selected_range.clone(), str);
+        }
+        self.force_rebuild_layout();
+
+        let new_index = selected_range.start.saturating_add(str.len());
+        let affinity = if str.ends_with(['\n', '\r', '\u{2028}', '\u{2029}']) {
+            Affinity::Downstream
+        } else {
+            Affinity::Upstream
+        };
+        self.selection = Cursor::from_byte_index(&self.layout, new_index, affinity).into();
+        true
     }
 }
 
@@ -178,27 +276,8 @@ impl Default for TextData {
             font_width: Default::default(),
             color: Color::BLACK,
             layout_dirty: true,
-            flags: TextFlags::empty(),
-        }
-    }
-}
-
-pub struct TextContext<'a> {
-    pub font_cx: &'a mut FontContext,
-    pub layout_cx: &'a mut TextLayoutContext,
-    pub glyph_cache: &'a mut GlyphCache,
-}
-
-impl<'a> TextContext<'a> {
-    pub fn new(
-        font_cx: &'a mut FontContext,
-        layout_cx: &'a mut TextLayoutContext,
-        glyph_cache: &'a mut GlyphCache,
-    ) -> Self {
-        Self {
-            font_cx,
-            layout_cx,
-            glyph_cache,
+            is_editable: false,
+            width: None,
         }
     }
 }

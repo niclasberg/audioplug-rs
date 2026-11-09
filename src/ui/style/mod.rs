@@ -18,7 +18,6 @@ pub(crate) trait ResolveInto<T> {
 
 #[derive(Debug, Clone)]
 pub struct Style {
-    pub hidden: bool,
     pub width: Length,
     pub height: Length,
     pub min_width: Length,
@@ -46,7 +45,6 @@ pub struct Style {
 impl Default for Style {
     fn default() -> Self {
         Self {
-            hidden: false,
             width: Length::Auto,
             height: Length::Auto,
             min_width: Length::Auto,

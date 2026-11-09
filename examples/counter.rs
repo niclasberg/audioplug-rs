@@ -1,11 +1,11 @@
 use audioplug::{
     core::{Color, Key, Size},
+    ui::views::*,
     ui::{
         App, EventHandlerExt, StyleExt, Window,
         prelude::*,
         style::{AlignSelf, Border, Edges, Fill, Length, RelativePoint},
     },
-    views::*,
 };
 
 fn main() {

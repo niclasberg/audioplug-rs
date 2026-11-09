@@ -3,13 +3,13 @@ use std::sync::atomic::AtomicUsize;
 use audioplug::{
     KeyEvent,
     core::{Color, Key},
+    ui::views::*,
     ui::{
         App, EventContext, StyleExt, TextExt, Window,
         prelude::*,
         reactive::CreateContext,
         style::{Edges, Length},
     },
-    views::*,
 };
 use rand::prelude::*;
 

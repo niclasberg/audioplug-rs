@@ -16,7 +16,12 @@ pub trait ViewExt: Sized {
 
 pub trait StyleExt: ViewExt {
     fn hidden(mut self, value: impl Into<Prop<bool>>) -> Self {
-        self.props_mut().insert(WidgetProp::Hidden(value.into()));
+        self.props_mut().hidden.replace(value.into());
+        self
+    }
+
+    fn enabled(mut self, value: impl Into<Prop<bool>>) -> Self {
+        self.props_mut().enabled.replace(value.into());
         self
     }
 
@@ -123,6 +128,11 @@ pub trait TextExt: ViewExt {
 
     fn color(mut self, value: impl Into<Prop<Color>>) -> Self {
         self.props_mut().insert(WidgetProp::TextColor(value.into()));
+        self
+    }
+
+    fn text_editable(mut self, value: impl Into<Prop<bool>>) -> Self {
+        self.props_mut().text_editable.replace(value.into());
         self
     }
 }

@@ -131,6 +131,14 @@ impl WidgetData {
         self.id
     }
 
+    pub fn is_interactive(&self) -> bool {
+        !self.flags().intersects(
+            WidgetFlags::EFFECTIVELY_DISABLED
+                | WidgetFlags::EFFECTIVELY_HIDDEN
+                | WidgetFlags::DOOMED,
+        )
+    }
+
     pub fn has_siblings(&self) -> bool {
         self.next_sibling_id != self.id
     }
@@ -244,7 +252,7 @@ impl WidgetData {
     }
 
     pub fn is_hidden(&self) -> bool {
-        self.style.hidden
+        self.flag_is_set(WidgetFlags::EFFECTIVELY_HIDDEN)
     }
 
     #[inline(always)]

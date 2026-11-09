@@ -1,12 +1,12 @@
 use crate::{
     core::{Axis, Capsule, Circle, Color, LinearGradient, Rect, Size},
     param::{AnyParameter, NormalizedValue},
+    ui::views::util::ValueMapper,
     ui::{
         BuildContext, EventContext, Prop, RenderContext, SliderEvent, StyleExt, View, ViewExt,
         WidgetProps,
-        reactive::{ParamSetter, Readable, ReadSignal, Var},
+        reactive::{ParamSetter, ReadSignal, Readable, Var},
     },
-    views::util::ValueMapper,
 };
 
 type OnDragCallback = dyn Fn(&mut EventContext);

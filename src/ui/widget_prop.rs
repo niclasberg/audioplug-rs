@@ -7,7 +7,7 @@ use crate::{
     core::{Color, Cursor, Size},
     ui::{
         Prop, UiState, WidgetId,
-        reactive::{Reactive, ReadContext, ReadScope, Readable, WidgetPhase},
+        reactive::{CreateContext, Owner, Reactive, ReadContext, ReadScope, Readable, WidgetPhase},
         render::ShadowOptions,
         style::{Border, Edges, Fill, Length},
         ui_state::Invalidation,
@@ -19,6 +19,9 @@ pub type WidgetBindingsMap = SecondaryMap<WidgetId, WidgetBindings>;
 #[derive(Default)]
 pub struct WidgetProps {
     props: Vec<WidgetProp>,
+    pub(super) hidden: Option<Prop<bool>>,
+    pub(super) enabled: Option<Prop<bool>>,
+    pub(super) text_editable: Option<Prop<bool>>,
 }
 
 impl WidgetProps {
@@ -42,12 +45,42 @@ impl WidgetProps {
                 bindings.push(binding);
             }
         }
+
+        watch(widget_id, self.hidden, ui, move |ui, value| {
+            ui.set_hidden(widget_id, value)
+        });
+        watch(widget_id, self.enabled, ui, move |ui, value| {
+            ui.set_enabled(widget_id, value)
+        });
+        watch(widget_id, self.text_editable, ui, move |ui, value| {
+            ui.set_text_editable(widget_id, value)
+        });
+
         ui.invalidate_widget(widget_id, invalidation);
 
         if bindings.is_empty() {
             None
         } else {
             Some(WidgetBindings { bindings })
+        }
+    }
+}
+
+fn watch<T: Copy + 'static>(
+    widget_id: WidgetId,
+    prop: Option<Prop<T>>,
+    ui: &mut UiState,
+    f: impl Fn(&mut UiState, T) + 'static,
+) {
+    if let Some(prop) = prop {
+        match prop.into_reactive() {
+            Ok(reactive) => {
+                reactive.watch(
+                    &mut CreateContext::new(ui, Owner::Widget(widget_id)),
+                    move |cx, value| f(&mut cx.ui, *value),
+                );
+            }
+            Err(value) => f(ui, value),
         }
     }
 }
@@ -118,9 +151,7 @@ macro_rules! define_prop {
 }
 
 define_prop! {
-    Hidden: bool => |ui: &mut UiState, id, value|
-        replace(&mut ui.style_mut(id).hidden, value, Invalidation::LAYOUT),
-    Padding: Edges      => |ui: &mut UiState, id, value|
+    Padding: Edges => |ui: &mut UiState, id, value|
         replace(&mut ui.style_mut(id).padding, value, Invalidation::LAYOUT),
     Width: Length => |ui: &mut UiState, id, value|
         replace(&mut ui.style_mut(id).width, value, Invalidation::LAYOUT),

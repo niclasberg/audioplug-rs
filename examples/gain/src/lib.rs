@@ -8,7 +8,7 @@ use audioplug::{
     audioplug_auv3_plugin, audioplug_vst3_plugin, params, AudioLayout, Bus, ChannelType, Editor,
     HostInfo, Plugin, ProcessContext, VST3Plugin,
 };
-use audioplug::{views::*, Uuid};
+use audioplug::{ui::views::*, Uuid};
 
 params!(
     struct MyPluginParams {

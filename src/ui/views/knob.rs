@@ -1,11 +1,11 @@
 use crate::{
     core::{Circle, Color, Size, Vec2},
     param::{AnyParameter, NormalizedValue},
+    ui::views::util::ValueMapper,
     ui::{
         BuildContext, EventContext, KnobEvent, Prop, RenderContext, Sense, View,
         reactive::{ParamSetter, ReadSignal, Readable, Var},
     },
-    views::util::ValueMapper,
 };
 
 const INTRINSIC_SIZE: Size = Size::splat(24.0);

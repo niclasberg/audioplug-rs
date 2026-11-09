@@ -47,10 +47,20 @@ define_class!(
         #[unsafe(method(keyDown:))]
         fn key_down(&self, event: &NSEvent) {
             let key = key_from_code(event.keyCode());
+            let code = event.keyCode() as u16;
             let modifiers = get_modifiers(event.modifierFlags());
             let str = event.characters().map(|str| str.to_string()).filter(|str| str.len() > 0);
             let repeat_count = if event.isARepeat() { 1 } else { 0 };
-            let key_event = KeyEvent::KeyDown { key, modifiers, str, repeat_count };
+            let key_event = KeyEvent::KeyDown { key, modifiers, str, repeat_count, code };
+            self.dispatch_event(WindowEvent::Key(key_event));
+        }
+
+        #[unsafe(method(keyUp:))]
+        fn key_up(&self, event: &NSEvent) {
+            let key = key_from_code(event.keyCode());
+            let code = event.keyCode() as u16;
+            let modifiers = get_modifiers(event.modifierFlags());
+            let key_event = KeyEvent::KeyUp { key, code, modifiers };
             self.dispatch_event(WindowEvent::Key(key_event));
         }
 

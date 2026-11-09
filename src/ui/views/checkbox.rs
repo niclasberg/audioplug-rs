@@ -2,7 +2,7 @@ use crate::{
     core::{Color, Rect, Size},
     ui::{
         BuildContext, EventContext, Prop, StyleExt, View, ViewExt, WidgetProps,
-        reactive::{Readable, Var},
+        reactive::{Computed, Readable, Var, WidgetStatus},
         style::{Border, Edges, Length},
     },
 };
@@ -25,7 +25,14 @@ impl Checkbox {
             props: WidgetProps::default()
                 .width(Length::Px(12.0))
                 .height(Length::Px(12.0))
-                .border(Border::new(Color::BLACK, Length::Px(1.0)))
+                .border(Computed::new_const(|cx| {
+                    let color = if WidgetStatus::FOCUSED.get(cx) {
+                        Color::RED
+                    } else {
+                        Color::BLACK
+                    };
+                    Border::new(color, Length::Px(1.0))
+                }))
                 .aspect_ratio(1.0)
                 .corner_radius(Size::splat(3.0))
                 .padding(Edges::all_px(0.5)),

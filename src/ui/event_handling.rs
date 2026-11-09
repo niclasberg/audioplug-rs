@@ -78,7 +78,7 @@ pub fn handle_mouse_event(
             .iter()
             .copied()
             .rev()
-            .find(|id| handlers.event_handlers.has_sense(*id, Sense::KEYBOARD));
+            .find(|id| ui.is_focusable(&handlers.event_handlers, *id));
 
         ui.set_focus_widget(window_id, new_focus_view);
     };
@@ -88,7 +88,7 @@ pub fn handle_mouse_event(
             .iter()
             .copied()
             .rev()
-            .find(|id| !ui.is_hidden(*id));
+            .find(|id| ui.is_hoverable(*id));
 
         ui.set_hovered_widget(new_hovered_widget);
     }
@@ -242,7 +242,7 @@ pub fn handle_key_event(
         && let KeyEvent::KeyDown { key, modifiers, .. } = key_event
     {
         match key {
-            Key::Escape if modifiers.is_empty() => ui.set_hovered_widget(None),
+            Key::Escape if modifiers.is_empty() => ui.set_gesture(None),
             Key::Tab if modifiers.is_empty() => {
                 // FOCUSABLE should probably move out of the Interaction and into the widget data,
                 // so that we don't have to pass the handler here
@@ -267,7 +267,13 @@ fn handle_text_edit_event(
     widget_id: WidgetId,
     key_event: &KeyEvent,
 ) -> EventResult {
+    #[cfg(target_os = "macos")]
+    const WORD_MODIFIER: Modifiers = Modifiers::OPT;
+    #[cfg(target_os = "windows")]
+    const WORD_MODIFIER: Modifiers = Modifiers::CONTROL;
+
     if let Some(text) = ui.texts.get_mut(widget_id)
+        && text.is_editable()
         && let KeyEvent::KeyDown {
             key,
             modifiers,
@@ -277,31 +283,31 @@ fn handle_text_edit_event(
     {
         let mut invalidation = Invalidation::empty();
         let result = match (key, str) {
-            (Key::BackSpace, _) if modifiers.contains(Modifiers::CONTROL) => {
+            (Key::BackSpace, _) if *modifiers == WORD_MODIFIER => {
                 if text.remove_word_left() {
-                    invalidation = Invalidation::TEXT | Invalidation::LAYOUT;
+                    invalidation = Invalidation::LAYOUT;
                 }
                 EventResult::Stop
             }
-            (Key::BackSpace, _) => {
+            (Key::BackSpace, _) if modifiers.is_empty() => {
                 if text.remove_left() {
-                    invalidation = Invalidation::TEXT | Invalidation::LAYOUT;
+                    invalidation = Invalidation::LAYOUT;
                 }
                 EventResult::Stop
             }
-            (Key::Delete, _) if modifiers.contains(Modifiers::CONTROL) => {
+            (Key::Delete, _) if *modifiers == WORD_MODIFIER => {
                 if text.remove_word_right() {
-                    invalidation = Invalidation::TEXT | Invalidation::LAYOUT;
+                    invalidation = Invalidation::LAYOUT;
                 }
                 EventResult::Stop
             }
-            (Key::Delete, _) => {
-                /*if self.remove_right() {
-                    rebuild_text_layout(self, ctx);
-                }*/
+            (Key::Delete, _) if modifiers.is_empty() => {
+                if text.remove_right() {
+                    invalidation = Invalidation::LAYOUT;
+                }
                 EventResult::Stop
             }
-            (Key::Left, _) if modifiers.contains(Modifiers::OPT) => {
+            (Key::Left, _) if modifiers.contains(WORD_MODIFIER) => {
                 if text.move_word_left(modifiers.contains(Modifiers::SHIFT)) {
                     invalidation = Invalidation::RENDER;
                 }
@@ -313,7 +319,7 @@ fn handle_text_edit_event(
                 }
                 EventResult::Stop
             }
-            (Key::Right, _) if modifiers.contains(Modifiers::OPT) => {
+            (Key::Right, _) if modifiers.contains(WORD_MODIFIER) => {
                 if text.move_word_right(modifiers.contains(Modifiers::SHIFT)) {
                     invalidation = Invalidation::RENDER;
                 }
@@ -334,19 +340,19 @@ fn handle_text_edit_event(
                 EventResult::Stop
             }
             (Key::V, _) if *modifiers == Modifiers::CONTROL => {
-                //if let Some(text_to_insert) = ctx.clipboard().get_text() {
-                //self.insert(text_to_insert.as_str());
-                //rebuild_text_layout(self, ctx);
-                //}
+                if let Ok(Some(text_to_insert)) = ui.windows[window_id].handle.get_clipboard() {
+                    text.insert_or_replace(text_to_insert.as_str());
+                    invalidation = Invalidation::LAYOUT;
+                }
                 EventResult::Stop
             }
             (Key::X, _) if *modifiers == Modifiers::CONTROL => EventResult::Stop,
             (Key::Tab, _) | (Key::Escape, _) | (Key::Enter, _) | (Key::Up, _) | (Key::Down, _) => {
                 EventResult::Continue
             }
-            (_, Some(str)) if !modifiers.contains(Modifiers::CONTROL) => {
-                //self.insert(str.as_str());
-                //rebuild_text_layout(self, ctx);
+            (_, Some(str)) if !modifiers.intersects(Modifiers::COMMAND) => {
+                text.insert_or_replace(str.as_str());
+                invalidation = Invalidation::LAYOUT;
                 EventResult::Stop
             }
             _ => EventResult::Continue,

@@ -8,7 +8,6 @@ use raw_window_handle::RawWindowHandle;
 use super::{App, AppState, View, WindowId};
 use crate::core::{Cursor, PhysicalRect, Point, Rect, ScaleFactor};
 use crate::platform::{self, WindowEvent};
-use crate::ui::TextContext;
 use crate::ui::render::WGPUSurface;
 
 enum WindowState<V> {
@@ -80,7 +79,7 @@ impl<V: View> platform::WindowHandler for MyHandler<V> {
         let aa = app_state.deref_mut();
         super::render::paint_window(
             &mut aa.ui,
-            &mut TextContext::new(&mut aa.font_cx, &mut aa.text_layout_cx, &mut aa.glyph_cache),
+            &mut aa.glyph_cache,
             &mut aa.widget_handlers.renderers,
             self.state.window_id(),
             dirty_rect,

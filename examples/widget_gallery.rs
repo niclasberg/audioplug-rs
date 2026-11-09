@@ -1,9 +1,9 @@
 use audioplug::core::{Color, Cursor, Size, Vec2, Zero};
 use audioplug::ui::reactive::{SpringOptions, TweenOptions, WidgetStatus};
 use audioplug::ui::style::{Border, Edges, Fill, Length};
+use audioplug::ui::views::*;
 use audioplug::ui::{App, ShadowKind, ShadowOptions, TextExt, Window};
 use audioplug::ui::{StyleExt, prelude::*};
-use audioplug::views::*;
 use std::path::Path;
 use std::time::Duration;
 

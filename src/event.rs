@@ -103,10 +103,12 @@ impl MouseButtons {
 pub enum KeyEvent {
     KeyUp {
         key: Key,
+        code: u16,
         modifiers: Modifiers,
     },
     KeyDown {
         key: Key,
+        code: u16,
         modifiers: Modifiers,
         str: Option<String>,
         repeat_count: usize,

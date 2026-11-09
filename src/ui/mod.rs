@@ -18,6 +18,7 @@ mod ui_state;
 mod view;
 mod view_ext;
 mod view_sequence;
+pub mod views;
 mod widget_prop;
 mod widget_ref;
 mod widget_tree;
@@ -40,7 +41,6 @@ pub use render::{
     invalidate_window,
 };
 pub use task_queue::TaskQueue;
-pub use text::TextContext;
 pub use ui_state::{UiState, WidgetPos};
 pub use view::*;
 pub use view_ext::{StyleExt, TextExt, ViewExt};

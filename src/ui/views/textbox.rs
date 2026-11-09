@@ -1,4 +1,5 @@
 use crate::core::{Color, Cursor};
+use crate::ui::reactive::{Computed, Readable, WidgetStatus};
 use crate::ui::style::Border;
 use crate::ui::{
     BuildContext, EventContext, Prop, View,
@@ -24,8 +25,16 @@ impl TextBox {
             props: WidgetProps::default()
                 .text("TEXTBOX".to_string())
                 .padding(Edges::all(Length::Px(4.0)))
-                .border(Border::new(Color::BLACK, Length::Px(1.0)))
-                .cursor(Cursor::IBeam),
+                .border(Computed::new_const(|cx| {
+                    let color = if WidgetStatus::FOCUSED.get(cx) {
+                        Color::RED
+                    } else {
+                        Color::BLACK
+                    };
+                    Border::new(color, Length::Px(1.0))
+                }))
+                .cursor(Cursor::IBeam)
+                .text_editable(true),
         }
     }
 

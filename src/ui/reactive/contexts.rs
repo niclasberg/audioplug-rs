@@ -102,6 +102,10 @@ pub struct CreateContext<'a> {
 }
 
 impl<'a> CreateContext<'a> {
+    pub(crate) fn new(ui: &'a mut UiState, owner: Owner) -> Self {
+        Self { ui, owner }
+    }
+
     pub(crate) fn new_root_context(ui: &'a mut UiState) -> Self {
         Self {
             ui,

@@ -4,9 +4,9 @@ use audioplug::{
     ui::{
         prelude::*,
         style::{AlignItems, Edges, Length},
+        views::{Canvas, Checkbox, Column, Label, ParameterKnob, ParameterSlider, Row},
         ShadowOptions, StyleExt, View,
     },
-    views::{Canvas, Checkbox, Column, Label, ParameterKnob, ParameterSlider, Row},
     Editor, EditorContext,
 };
 

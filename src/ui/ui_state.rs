@@ -20,8 +20,8 @@ use crate::{
         layout::{LayoutContext, RecomputeLayout},
         overlay::OverlayContainer,
         reactive::{
-            EffectContext, NodeId, NodeState, NodeType, Owner, ReadScope, Source, WidgetPhase,
-            WidgetStatus, WidgetStatusFlags,
+            EffectContext, NodeId, NodeState, NodeType, Owner, Source, WidgetPhase, WidgetStatus,
+            WidgetStatusFlags,
         },
         reactive_graph::ReactiveGraph,
         render::{GpuScene, RendererMap, WGPUSurface},
@@ -62,7 +62,7 @@ pub struct UiState {
 }
 
 /// Contains widget callbacks for event handling, prop synchronization and rendering.
-/// We keep this separate from the Widgets, since we need to mutably borrow
+/// We keep this separate from the UiState, since we need to mutably borrow
 /// the handlers while doing dispatch
 #[derive(Default)]
 pub struct WidgetHandlers {
@@ -241,7 +241,7 @@ impl UiState {
         self.tree[widget_id].parent_id
     }
 
-    pub fn has_parent(&self, child_id: WidgetId, parent_id: WidgetId) -> bool {
+    pub fn is_child_of(&self, child_id: WidgetId, parent_id: WidgetId) -> bool {
         let mut id = child_id;
         while !id.is_null() {
             id = self.tree[id].parent_id;
@@ -331,6 +331,7 @@ impl UiState {
         self.tree.swap(src_id, dst_id);
         self.request_layout(src_id);
         self.request_layout(dst_id);
+        self.reconcile_states();
     }
 
     /// Mark a widget for removal, the widget will be removed at next safe removal point.
@@ -353,7 +354,6 @@ impl UiState {
             return;
         }
 
-        self.clear_mouse_capture_and_focus(widget_id);
         self.tree[widget_id].set_flag(WidgetFlags::DOOMED);
 
         let mut next = self.tree.next_dfs(widget_id, widget_id);
@@ -369,6 +369,7 @@ impl UiState {
                 self.tree.next_dfs(current, widget_id)
             };
         }
+        self.reconcile_states();
         self.pending_widget_ops.insert(widget_id, op);
     }
 
@@ -499,21 +500,6 @@ impl UiState {
 
 // Focus and gestures
 impl UiState {
-    fn clear_mouse_capture_and_focus(&mut self, id: WidgetId) {
-        if let Some(hovered_widget) = self.hovered_widget
-            && (hovered_widget == id || self.has_parent(hovered_widget, id))
-        {
-            self.set_hovered_widget(None);
-        }
-
-        let window_id = self.window_for_widget(id).id;
-        if let Some(focus_widget) = self.focus_widget_id(window_id)
-            && (focus_widget == id || self.has_parent(focus_widget, id))
-        {
-            self.set_focus_widget(window_id, None);
-        }
-    }
-
     pub fn has_focus(&self, id: WidgetId) -> bool {
         self.windows[self.tree[id].window_id]
             .focus_widget
@@ -521,9 +507,21 @@ impl UiState {
             .is_some_and(|focus_widget_id| *focus_widget_id == id)
     }
 
-    pub fn is_focusable(&self, widget_id: WidgetId) -> bool {
-        let flags = &self.tree[widget_id].flags();
-        !flags.intersects(WidgetFlags::EFFECTIVELY_DISABLED | WidgetFlags::EFFECTIVELY_HIDDEN)
+    pub fn is_interactive(&self, widget_id: WidgetId) -> bool {
+        self.tree[widget_id].is_interactive()
+    }
+
+    pub fn is_focusable(&self, handlers: &Interactions, widget_id: WidgetId) -> bool {
+        let has_editable_text = self
+            .texts
+            .get(widget_id)
+            .is_some_and(|text| text.is_editable());
+        (has_editable_text || handlers.has_sense(widget_id, Sense::KEYBOARD))
+            && self.is_interactive(widget_id)
+    }
+
+    pub fn is_hoverable(&self, widget_id: WidgetId) -> bool {
+        self.is_interactive(widget_id)
     }
 
     pub fn focus_widget_id(&self, window_id: WindowId) -> Option<WidgetId> {
@@ -545,9 +543,9 @@ impl UiState {
             .and_then(|focus_widget| self.tree.next_dfs(focus_widget, root_widget))
             .unwrap_or(root_widget);
         loop {
-            if self.is_hidden(candidate) {
+            if !self.is_interactive(candidate) {
                 candidate = self.tree.next_subtree_dfs(candidate, root_widget)?;
-            } else if handlers.has_sense(candidate, Sense::KEYBOARD) {
+            } else if self.is_focusable(handlers, candidate) {
                 return Some(candidate);
             } else {
                 candidate = self.tree.next_dfs(candidate, root_widget)?;
@@ -569,10 +567,10 @@ impl UiState {
             .and_then(|focus_widget| self.tree.prev_dfs(focus_widget))
             .unwrap_or(root_widget);
         loop {
-            if self.is_hidden(candidate) || !handlers.has_sense(candidate, Sense::KEYBOARD) {
-                candidate = self.tree.prev_dfs(candidate)?;
-            } else {
+            if self.is_focusable(handlers, candidate) {
                 return Some(candidate);
+            } else {
+                candidate = self.tree.prev_dfs(candidate)?;
             }
         }
     }
@@ -607,6 +605,8 @@ impl UiState {
             .is_some_and(|gesture| gesture.target == widget_id)
     }
 
+    pub fn set_gesture(&mut self, gesture: Option<Gesture>) {}
+
     pub fn is_hovered(&self, widget_id: WidgetId) -> bool {
         self.hovered_widget
             .is_some_and(|hovered_widget_id| hovered_widget_id == widget_id)
@@ -631,25 +631,42 @@ impl UiState {
     pub fn set_enabled(&mut self, widget_id: WidgetId, enabled: bool) {
         // Open question: Should we allow specifying what should happen to focus? Might want to transfer to parent,
         // drop completely or maybe something else?
-        let disabled = !enabled;
-        if self.tree[widget_id].flag_is_set(WidgetFlags::DISABLED) == disabled {
+        self.set_or_clear_flag_and_effective_flag(
+            widget_id,
+            !enabled,
+            WidgetFlags::DISABLED,
+            WidgetFlags::EFFECTIVELY_DISABLED,
+        );
+        self.reconcile_states();
+    }
+
+    /// Apply/clear a flag to a widget, and a corresponding effective flag to all children. E.g. a Widget
+    /// gets marked as hidden, and itself along with its children become effectively hidden.
+    fn set_or_clear_flag_and_effective_flag(
+        &mut self,
+        widget_id: WidgetId,
+        flag_active: bool,
+        flag: WidgetFlags,
+        effective_flag: WidgetFlags,
+    ) {
+        if self.tree[widget_id].flag_is_set(flag) == flag_active {
             return;
         }
 
-        if disabled {
-            self.tree[widget_id].set_flag(WidgetFlags::DISABLED);
+        if flag_active {
+            self.tree[widget_id].set_flag(flag);
             let mut next = Some(widget_id);
             while let Some(current_id) = next {
                 let current = &mut self.tree[current_id];
-                if current.flag_is_set(WidgetFlags::EFFECTIVELY_DISABLED) {
+                if current.flag_is_set(effective_flag) {
                     next = self.tree.next_subtree_dfs(current_id, widget_id);
                 } else {
-                    current.set_flag(WidgetFlags::EFFECTIVELY_DISABLED);
+                    current.set_flag(effective_flag);
                     next = self.tree.next_dfs(current_id, widget_id);
                 }
             }
         } else {
-            self.tree[widget_id].clear_flag(WidgetFlags::DISABLED);
+            self.tree[widget_id].clear_flag(flag);
             let mut next = Some(widget_id);
             while let Some(current_id) = next {
                 let current = &mut self.tree[current_id];
@@ -664,12 +681,60 @@ impl UiState {
         }
     }
 
+    /// Ensures that the focus, gesture and keyboard handling widgets are still eligible
+    fn reconcile_states(&mut self) {
+        let mut windows_losing_focus = Vec::new();
+        for (window_id, window) in self.windows.iter() {
+            if let Some(focus_widget_id) = window.focus_widget
+                && !self.tree[focus_widget_id].is_interactive()
+            {
+                windows_losing_focus.push(window_id);
+            }
+        }
+
+        for window_id in windows_losing_focus {
+            self.set_focus_widget(window_id, None);
+        }
+
+        if let Some(gesture) = self.gesture
+            && !self.tree[gesture.target].is_interactive()
+        {
+            self.set_gesture(None);
+        }
+
+        if let Some(hovered_widget) = self.hovered_widget
+            && !self.tree[hovered_widget].is_interactive()
+        {
+            self.set_hovered_widget(None);
+        }
+    }
+
     pub fn is_enabled(&self, widget_id: WidgetId) -> bool {
         !self.tree[widget_id].flag_is_set(WidgetFlags::EFFECTIVELY_DISABLED)
     }
 
+    pub fn set_hidden(&mut self, widget_id: WidgetId, hidden: bool) {
+        self.set_or_clear_flag_and_effective_flag(
+            widget_id,
+            hidden,
+            WidgetFlags::HIDDEN,
+            WidgetFlags::EFFECTIVELY_HIDDEN,
+        );
+        self.reconcile_states();
+    }
+
     pub fn is_hidden(&self, widget_id: WidgetId) -> bool {
         self.tree[widget_id].flag_is_set(WidgetFlags::EFFECTIVELY_HIDDEN)
+    }
+
+    pub fn set_text_editable(&mut self, widget_id: WidgetId, editable: bool) {
+        if let Some(text) = self.texts.get_mut(widget_id) {
+            if text.is_editable != editable {
+                text.is_editable = editable;
+                self.request_render(widget_id);
+            }
+        }
+        self.reconcile_states();
     }
 }
 

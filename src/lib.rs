@@ -11,7 +11,6 @@ mod plugin;
 mod processor;
 pub mod ui;
 pub mod util;
-pub mod views;
 pub mod wrapper;
 
 pub use audio_buffer::*;
