@@ -32,7 +32,7 @@ serde = "1.0.229"
 skrifa = "0.49.0"
 slotmap = "1.1.1"
 smallvec = "1.16.4"
-taffy = "0.14.0"
+taffy = "0.15.1"
 thiserror = "2.0.21"
 unicode-segmentation = "1.13.3"
 uuid = { version = "1.26.1", features = ["v4"] }

@@ -37,8 +37,8 @@ pub struct FlexStyle {
     pub direction: FlexDirection,
     pub wrap: FlexWrap,
     pub gap: Length,
-    pub align_items: Option<AlignItems>,
-    pub align_content: Option<AlignContent>,
+    pub align_items: AlignItems,
+    pub align_content: AlignContent,
 }
 
 impl FlexStyle {
@@ -46,8 +46,8 @@ impl FlexStyle {
         direction: FlexDirection::Row,
         wrap: FlexWrap::NoWrap,
         gap: Length::ZERO,
-        align_items: None,
-        align_content: None,
+        align_items: AlignItems::NORMAL,
+        align_content: AlignContent::NORMAL,
     };
 }
 

@@ -84,15 +84,55 @@ impl taffy::TraversePartialTree for LayoutContext<'_> {
     }
 }
 
+impl taffy::LayoutContainingBlock for LayoutContext<'_> {
+    type OofItemStyle<'b>
+        = LayoutStyle<'b>
+    where
+        Self: 'b;
+
+    fn get_oof_item_style(&self, node_id: taffy::NodeId) -> Self::OofItemStyle<'_> {
+        self.get_layout_style(node_id)
+    }
+
+    // Taffy only records these lists for consumers (round_layout and paint/hit-test traversal).
+    // We never produce out-of-flow boxes (`position()` is always Relative; overlays are hoisted
+    // by us), and we don't use `round_layout`, so there's nothing to track.
+    fn clear_hoisted_children(&mut self, _node_id: taffy::NodeId) {}
+
+    fn add_hoisted_children(&mut self, _node_id: taffy::NodeId, _hoisted: &[taffy::NodeId]) {}
+}
+
 impl TraverseTree for LayoutContext<'_> {}
 
 impl PrintTree for LayoutContext<'_> {
-    fn get_debug_label(&self, _node_id: taffy::NodeId) -> &'static str {
-        "asdfasdf"
+    fn get_debug_label(&self, node_id: taffy::NodeId) -> &'static str {
+        self.widgets.tree[node_id.into()].debug_label
     }
 
     fn get_final_layout(&self, node_id: taffy::NodeId) -> taffy::Layout {
         self.widgets.tree[node_id.into()].layout
+    }
+}
+
+impl taffy::OofItemStyle for LayoutStyle<'_> {
+    fn align_self(&self) -> Option<taffy::AlignSelf> {
+        self.widget.style.align_self
+    }
+
+    fn justify_self(&self) -> Option<taffy::AlignSelf> {
+        self.widget.style.justify_self
+    }
+
+    fn is_table(&self) -> bool {
+        false
+    }
+
+    fn grid_row(&self) -> taffy::Line<taffy::GridPlacement<Self::CustomIdent>> {
+        Default::default()
+    }
+
+    fn grid_column(&self) -> taffy::Line<taffy::GridPlacement<Self::CustomIdent>> {
+        Default::default()
     }
 }
 
@@ -425,21 +465,21 @@ impl taffy::FlexboxContainerStyle for LayoutStyle<'_> {
         }
     }
 
-    fn align_content(&self) -> Option<taffy::AlignContent> {
+    fn align_content(&self) -> taffy::AlignContent {
         match &self.widget.display_style {
             DisplayStyle::Flex(flex) => flex.align_content,
             _ => TAFFY_DEFAULT_STYLE.align_content,
         }
     }
 
-    fn align_items(&self) -> Option<taffy::AlignItems> {
+    fn align_items(&self) -> taffy::AlignItems {
         match &self.widget.display_style {
             DisplayStyle::Flex(flex) => flex.align_items,
             _ => TAFFY_DEFAULT_STYLE.align_items,
         }
     }
 
-    fn justify_content(&self) -> Option<taffy::JustifyContent> {
+    fn justify_content(&self) -> taffy::JustifyContent {
         TAFFY_DEFAULT_STYLE.justify_content
     }
 }

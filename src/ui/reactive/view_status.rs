@@ -1,8 +1,6 @@
 use crate::ui::{
     Prop, UiState, WidgetId,
-    reactive::{
-        CanCreate, CanRead, Effect, EffectContext, ReadSignal, Readable, reactive_value::Reactive,
-    },
+    reactive::{CanCreate, CanRead, Effect, EffectContext, ReadSignal, Readable},
 };
 use bitflags::bitflags;
 

@@ -1,4 +1,3 @@
-mod animation;
 mod app_state;
 mod clipboard;
 mod event_handler;

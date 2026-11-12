@@ -13,8 +13,8 @@ pub struct FlexContainer<VS, const IS_ROW: bool> {
     view_seq: VS,
     spacing: Prop<Length>,
     wrap: Prop<FlexWrap>,
-    align_items: Option<Prop<AlignItems>>,
-    justify_content: Option<Prop<JustifyContent>>,
+    align_items: Prop<AlignItems>,
+    justify_content: Prop<JustifyContent>,
     event_handlers: EventHandlers,
 }
 
@@ -23,9 +23,9 @@ impl<VS: ViewSequence, const IS_ROW: bool> FlexContainer<VS, IS_ROW> {
         Self {
             view_seq,
             spacing: Prop::Const(Length::ZERO),
-            wrap: Prop::Const(Default::default()),
-            align_items: None,
-            justify_content: None,
+            wrap: FlexWrap::default().into(),
+            align_items: AlignItems::default().into(),
+            justify_content: JustifyContent::default().into(),
             props: Default::default(),
             event_handlers: Default::default(),
         }
@@ -52,20 +52,20 @@ impl<VS: ViewSequence, const IS_ROW: bool> FlexContainer<VS, IS_ROW> {
     }
 
     pub fn center(mut self) -> Self {
-        self.justify_content = Some(JustifyContent::CENTER.into());
-        self.align_items = Some(AlignItems::CENTER.into());
+        self.justify_content = JustifyContent::CENTER.into();
+        self.align_items = AlignItems::CENTER.into();
         self
     }
 }
 
 impl<VS> Row<VS> {
     pub fn h_align(mut self, value: impl Into<Prop<JustifyContent>>) -> Self {
-        self.justify_content = Some(value.into());
+        self.justify_content = value.into();
         self
     }
 
     pub fn v_align(mut self, value: impl Into<Prop<AlignItems>>) -> Self {
-        self.align_items = Some(value.into());
+        self.align_items = value.into();
         self
     }
 
@@ -100,12 +100,12 @@ impl<VS> Row<VS> {
 
 impl<VS> Column<VS> {
     pub fn v_align(mut self, value: impl Into<Prop<AlignItems>>) -> Self {
-        self.align_items = Some(value.into());
+        self.align_items = value.into();
         self
     }
 
     pub fn h_align(mut self, value: impl Into<Prop<taffy::AlignContent>>) -> Self {
-        self.justify_content = Some(value.into());
+        self.justify_content = value.into();
         self
     }
 }
@@ -131,8 +131,8 @@ impl<VS: ViewSequence, const IS_ROW: bool> View for FlexContainer<VS, IS_ROW> {
                 },
                 wrap: self.wrap.get(cx),
                 gap: self.spacing.get(cx),
-                align_items: self.align_items.as_ref().map(|x| x.get(cx)),
-                align_content: self.justify_content.as_ref().map(|x| x.get(cx)),
+                align_items: self.align_items.get(cx),
+                align_content: self.justify_content.get(cx),
             })
         })
         .into();

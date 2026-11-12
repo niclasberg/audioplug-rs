@@ -1,6 +1,4 @@
-use super::{
-    AppState, EventResult, WidgetId, WindowId, animation::drive_animations, invalidate_window,
-};
+use super::{AppState, EventResult, WidgetId, WindowId, invalidate_window};
 use crate::MouseButton;
 use crate::core::Modifiers;
 use crate::event::{MouseClick, MouseDrag};
@@ -37,11 +35,11 @@ pub fn handle_window_event(app_state: &mut AppState, window_id: WindowId, event:
         WindowEvent::Unfocused => {
             app_state.ui.set_focus_widget(window_id, None);
         }
-        WindowEvent::Animation(animation_frame) => {
-            drive_animations(app_state, animation_frame);
+        WindowEvent::Animation(_animation_frame) => {
+            app_state.ui.drive_animations();
         }
         WindowEvent::MouseCaptureEnded => {
-            // Drop any active gesture
+            app_state.ui.set_gesture(None);
         }
         WindowEvent::ThemeChanged(theme) => {
             //let signal = app_state.theme_signal;
